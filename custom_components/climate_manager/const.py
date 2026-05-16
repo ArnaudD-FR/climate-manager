@@ -1,0 +1,108 @@
+"""Climate Manager constants and default configuration schema.
+
+This module is the single source of truth for all domain constants
+and the v1 storage schema. All other modules import from here.
+No Home Assistant imports — pure constants only.
+"""
+
+# ---------------------------------------------------------------------------
+# Core identifiers
+# ---------------------------------------------------------------------------
+
+DOMAIN = "climate_manager"
+STORAGE_KEY = DOMAIN
+STORAGE_VERSION = 1
+
+# ---------------------------------------------------------------------------
+# Global mode constants
+# ---------------------------------------------------------------------------
+
+MODE_OFF = "off"
+MODE_TIME_PROGRAM = "time_program"
+MODE_TIME_PROGRAM_PRESENCES = "time_program_presences"
+
+# ---------------------------------------------------------------------------
+# Period mode name constants
+# ---------------------------------------------------------------------------
+
+PERIOD_FROST_PROTECTION = "frost_protection"
+PERIOD_REDUCED = "reduced"
+PERIOD_NORMAL = "normal"
+PERIOD_COMFORT = "comfort"
+
+# ---------------------------------------------------------------------------
+# Default values
+# ---------------------------------------------------------------------------
+
+DEFAULT_GLOBAL_MODE = MODE_TIME_PROGRAM
+
+DEFAULT_PERIOD_TEMPERATURES: dict[str, float] = {
+    PERIOD_FROST_PROTECTION: 7.0,   # GLOBAL-03
+    PERIOD_REDUCED: 18.0,            # GLOBAL-03
+    PERIOD_NORMAL: 20.0,             # GLOBAL-03
+    PERIOD_COMFORT: 22.0,            # GLOBAL-03
+}
+
+# ---------------------------------------------------------------------------
+# Full v1 storage schema with defaults (D-09, D-10, D-11)
+#
+# Sparse storage: only values that differ from these defaults are written.
+#
+# Rooms sub-schema (keyed by area_id from HA area registry — D-13):
+#   {
+#     "<area_id>": {
+#       "time_program": {
+#         "weekday_groups": [
+#           {
+#             "days": ["mon", "tue", ...],
+#             "periods": [
+#               {"start": "HH:MM", "mode": "<period_mode>"},
+#               ...
+#             ]
+#           }
+#         ]
+#       }
+#     }
+#   }
+#   Empty dict = all rooms inherit the global time program.
+#   A room entry only appears if it has a non-default (custom) time program.
+#
+# Persons sub-schema (keyed by person.* entity_id — D-15):
+#   {
+#     "person.<name>": {
+#       "mode": "<presence_mode>",   # "automatic" | "present" | "absent"
+#       "room_ids": ["<area_id>", ...],
+#       "schedule": {
+#         "weekday_groups": [
+#           {
+#             "days": ["mon", ...],
+#             "periods": [
+#               {"start": "HH:MM", "state": "present" | "absent"},
+#               ...
+#             ]
+#           }
+#         ]
+#       }
+#     }
+#   }
+#   Empty dict = all persons at default (Automatic mode, no schedule, no rooms).
+#   A person entry only appears if it has at least one non-default setting.
+#
+# Note: area.name and person friendly_name are NOT cached here —
+#       they are read fresh from HA registries at display time to avoid staleness
+#       if the user renames an area or person in HA (RESEARCH Open Questions 1 & 2).
+# ---------------------------------------------------------------------------
+
+DEFAULT_CONFIG: dict = {
+    "version": STORAGE_VERSION,
+    "global_mode": DEFAULT_GLOBAL_MODE,
+    "period_temperatures": {
+        PERIOD_FROST_PROTECTION: 7.0,
+        PERIOD_REDUCED: 18.0,
+        PERIOD_NORMAL: 20.0,
+        PERIOD_COMFORT: 22.0,
+    },
+    "global_time_program": {"weekday_groups": []},
+    "rooms": {},    # sparse: only rooms with non-default config (SCHED-05, D-11)
+    "persons": {},  # sparse: only persons with non-default settings (D-11)
+}
