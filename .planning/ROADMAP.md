@@ -37,7 +37,7 @@ Plans:
 - [x] 01-02-PLAN.md — Backend modules: sparse Store, registry discovery, two-call TRV control, config flow
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 01-03-PLAN.md — Wire setup/unload via runtime_data; pytest smoke test (integration loads clean)
+- [x] 01-03-PLAN.md — Wire setup/unload via runtime_data; pytest smoke test (integration loads clean)
 
 ### Phase 2: Backend Engines & Coordinator
 **Goal**: All heating logic runs correctly — the right temperature is applied to every managed TRV at every moment, driven by schedules, global mode, and person presence, including correct behavior on HA restart and across DST transitions
