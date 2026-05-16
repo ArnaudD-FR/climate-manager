@@ -56,6 +56,7 @@ A household's rooms are always at the right temperature at the right time, witho
 | Target temperatures via `heat` mode | Matter `auto` mode is broken on Tado X; explicit temp control is more reliable and portable | — Pending |
 | v1 presence = periodic schedule only | Simplest presence model; calendar/GPS add external dependencies and complexity | — Pending |
 | Specific periods deferred to v2 | Adds significant scheduling complexity; core value is achievable without holidays mode | — Pending |
+| SSH deploy for development; no HACS publishing planned | Deploy via rsync to `/config/custom_components/` on the HA host during development; HACS is a distribution mechanism, not a dev tool; no plans to publish to HACS store | — Pending |
 
 ## Evolution
 
@@ -75,4 +76,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-15 after initialization*
+*Last updated: 2026-05-16 after key decision: SSH deploy, no HACS publishing*

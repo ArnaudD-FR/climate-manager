@@ -49,7 +49,7 @@
 
 ### Technical Foundation (INFRA)
 
-- [ ] **INFRA-01**: The integration is HACS-compatible (correct manifest.json, hacs.json, config flow, no external PyPI dependencies)
+- [ ] **INFRA-01**: The integration has a correct HA custom integration structure (manifest.json with required fields, config flow, no external PyPI dependencies); deploys via SSH/rsync to `/config/custom_components/`; HACS publishing is out of scope for v1
 - [ ] **INFRA-02**: All configuration persists across HA restarts (stored via homeassistant.helpers.storage.Store)
 - [ ] **INFRA-03**: On HA startup, the integration recomputes the active period from the current time and immediately applies the correct temperature to all managed TRVs (no reliance on state restore)
 - [ ] **INFRA-04**: TRVs are controlled via two sequential service calls: climate.set_hvac_mode (heat) then climate.set_temperature — auto mode is never used
@@ -85,8 +85,34 @@ When a person is present, the room is heated continuously from the first Normal/
 
 ## Traceability
 
-*(Populated by roadmapper)*
-
-| REQ-ID | Phase |
-|--------|-------|
-| — | — |
+| REQ-ID | Phase | Status |
+|--------|-------|--------|
+| INFRA-01 | Phase 1 | Pending |
+| INFRA-02 | Phase 1 | Pending |
+| INFRA-04 | Phase 1 | Pending |
+| ROOM-01 | Phase 1 | Pending |
+| ROOM-02 | Phase 1 | Pending |
+| ROOM-03 | Phase 1 | Pending |
+| GLOBAL-01 | Phase 2 | Pending |
+| GLOBAL-02 | Phase 2 | Pending |
+| GLOBAL-03 | Phase 2 | Pending |
+| SCHED-01 | Phase 2 | Pending |
+| SCHED-02 | Phase 2 | Pending |
+| SCHED-03 | Phase 2 | Pending |
+| SCHED-04 | Phase 2 | Pending |
+| SCHED-05 | Phase 2 | Pending |
+| PERSON-01 | Phase 2 | Pending |
+| PERSON-02 | Phase 2 | Pending |
+| PERSON-03 | Phase 2 | Pending |
+| PERSON-04 | Phase 2 | Pending |
+| PERSON-05 | Phase 2 | Pending |
+| PERSON-06 | Phase 2 | Pending |
+| PERSON-07 | Phase 2 | Pending |
+| PERSON-08 | Phase 2 | Pending |
+| PERSON-09 | Phase 2 | Pending |
+| INFRA-03 | Phase 2 | Pending |
+| INFRA-05 | Phase 2 | Pending |
+| UI-01 | Phase 3 | Pending |
+| UI-02 | Phase 3 | Pending |
+| UI-03 | Phase 3 | Pending |
+| UI-04 | Phase 3 | Pending |
