@@ -1,0 +1,21 @@
+# Python virtual environment
+.venv/
+
+# Python byte-code cache
+__pycache__/
+*.pyc
+*.pyo
+
+# pytest cache
+.pytest_cache/
+
+# Distribution / build artifacts
+dist/
+build/
+*.egg-info/
+
+# Editor / IDE artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
