@@ -1,0 +1,62 @@
+"""Climate Manager storage layer.
+
+Provides ClimateManagerStore: a thin wrapper around HA's Store helper
+that implements sparse-merge loading over DEFAULT_CONFIG and async save.
+
+Design decisions (from RESEARCH.md):
+- Pattern 3: Store with schema version and sparse defaults
+- Pitfall 2: Never use open()/json.load/json.dump — all I/O via Store
+- Pitfall 3: Schema goes here, NOT in ConfigEntry.options
+- Note: serialize_in_event_loop parameter not present in HA 2024.x Store
+  (was added in later HA core; use default Store constructor for compatibility)
+"""
+import copy
+
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
+
+from .const import DEFAULT_CONFIG, STORAGE_KEY, STORAGE_VERSION
+
+
+class ClimateManagerStore:
+    """Manages persistence of the Climate Manager configuration.
+
+    Wraps homeassistant.helpers.storage.Store.
+    - async_load(): Returns DEFAULT_CONFIG merged with any stored sparse data.
+      Fresh install (no stored data) returns a deep copy of DEFAULT_CONFIG.
+    - async_save(config): Persists config via the Store helper.
+    """
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the store wrapper."""
+        self._store = Store(
+            hass,
+            version=STORAGE_VERSION,
+            key=STORAGE_KEY,
+        )
+
+    async def async_load(self) -> dict:
+        """Load and return the merged configuration.
+
+        Merges stored sparse data over a deep copy of DEFAULT_CONFIG so that:
+        - Fresh installs get full defaults (no mutation risk).
+        - Stored overrides win at the top level (sparse storage model — D-11).
+        - Unset top-level keys fall back to defaults automatically.
+        """
+        stored = await self._store.async_load()
+        if stored is None:
+            # Fresh install: return a deep copy so callers cannot mutate DEFAULT_CONFIG
+            return copy.deepcopy(DEFAULT_CONFIG)
+        # Sparse merge: deep-copy defaults first, then overlay stored values.
+        # Top-level merge: a stored "rooms" dict fully replaces the default empty
+        # "rooms" dict — individual rooms are the sparse unit (D-11).
+        result = copy.deepcopy(DEFAULT_CONFIG)
+        result.update(stored)
+        return result
+
+    async def async_save(self, config: dict) -> None:
+        """Persist the configuration via the Store helper.
+
+        Never uses open(), json.load, or json.dump (Pitfall 2).
+        """
+        await self._store.async_save(config)
