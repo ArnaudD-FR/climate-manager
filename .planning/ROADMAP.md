@@ -49,7 +49,14 @@ Plans:
   3. In Time program & presences mode, a present person keeps their associated rooms heated continuously across the occupied window (no cool-down during sandwiched Reduced/Frost periods); an absent person's rooms revert to Reduced temperature
   4. On HA restart, the integration recomputes the active period from the current wall-clock time (dt_util.now()) and immediately pushes the correct setpoint to all TRVs — no stale state restored
   5. DST transitions do not cause missed or duplicate period firings; the scheduler always derives from current wall-clock time
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+**Wave 1**
+- [ ] 02-01-PLAN.md — Pure-Python schedule + presence engine (evaluate_schedule, resolve_presence, compute_occupied_temp, 7-day validator) + unit tests
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 02-02-PLAN.md — ClimateManagerCoordinator control loop + setup/unload wiring (minute poll, push-on-change, override hold, INFRA-03 startup push) + integration tests
 
 ### Phase 3: WebSocket API & Frontend Panel
 **Goal**: Users can configure every aspect of the integration — global mode, temperature defaults, global and per-room time programs, persons, presence schedules, and room associations — through a full Lovelace dashboard panel, without touching YAML or HA config files
@@ -71,5 +78,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
-| 2. Backend Engines & Coordinator | 0/TBD | Not started | - |
+| 2. Backend Engines & Coordinator | 0/2 | Not started | - |
 | 3. WebSocket API & Frontend Panel | 0/TBD | Not started | - |
