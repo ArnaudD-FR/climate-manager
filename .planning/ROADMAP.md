@@ -34,7 +34,7 @@ Plans:
 - [x] 01-01-PLAN.md — Integration scaffold: manifest, const.py full schema, Makefile deploy loop, dev venv
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 01-02-PLAN.md — Backend modules: sparse Store, registry discovery, two-call TRV control, config flow
+- [x] 01-02-PLAN.md — Backend modules: sparse Store, registry discovery, two-call TRV control, config flow
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 01-03-PLAN.md — Wire setup/unload via runtime_data; pytest smoke test (integration loads clean)
