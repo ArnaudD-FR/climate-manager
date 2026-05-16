@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 **Wave 1**
-- [ ] 01-01-PLAN.md — Integration scaffold: manifest, const.py full schema, Makefile deploy loop, dev venv
+- [x] 01-01-PLAN.md — Integration scaffold: manifest, const.py full schema, Makefile deploy loop, dev venv
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 01-02-PLAN.md — Backend modules: sparse Store, registry discovery, two-call TRV control, config flow
