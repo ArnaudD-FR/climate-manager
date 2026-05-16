@@ -27,7 +27,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Room configuration (name + climate entity IDs) survives an HA restart without data loss
   3. A TRV is set to heat mode with an explicit target temperature via the two-call sequence (set_hvac_mode → set_temperature) — auto mode is never used
   4. Rooms with no associated climate entity are silently ignored; rooms with multiple TRVs continue operating when one TRV becomes unavailable
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Integration scaffold: manifest, const.py full schema, Makefile deploy loop, dev venv
+- [ ] 01-02-PLAN.md — Backend modules: sparse Store, registry discovery, two-call TRV control, config flow
+- [ ] 01-03-PLAN.md — Wire setup/unload via runtime_data; pytest smoke test (integration loads clean)
 
 ### Phase 2: Backend Engines & Coordinator
 **Goal**: All heating logic runs correctly — the right temperature is applied to every managed TRV at every moment, driven by schedules, global mode, and person presence, including correct behavior on HA restart and across DST transitions
@@ -60,6 +65,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/TBD | Not started | - |
+| 1. Foundation | 0/3 | Not started | - |
 | 2. Backend Engines & Coordinator | 0/TBD | Not started | - |
 | 3. WebSocket API & Frontend Panel | 0/TBD | Not started | - |
