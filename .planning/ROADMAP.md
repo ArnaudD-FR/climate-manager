@@ -84,8 +84,27 @@ Plans:
   3. The Rooms section lets the user assign a per-room time program or reset it to inherit the global program, and manage the climate entity associations for each room
   4. The Persons section lets the user set presence mode (Automatic/Present/Absent), manage room associations, and configure the periodic presence schedule for each person
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Per-day schema refactor (gap closure): const.py/schedule.py/coordinator.py + tests to {mon..sun} schema, STORAGE_VERSION=2
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03-02-PLAN.md — Python WebSocket API (8 commands) + coordinator status push + panel_custom registration + manifest deps + test_websocket.py
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 03-03-PLAN.md — Vite/Lit frontend scaffold: single-file build, root panel shell, shared time-bar component, Makefile build/deploy wiring
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 03-04-PLAN.md — Global Settings / Rooms / Persons tabs wired to auto-save + end-to-end human-verify checkpoint
+
 **UI hint**: yes
+**Plans created:** 2026-05-17
 
 ## Progress
 
@@ -96,4 +115,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
 | 2. Backend Engines & Coordinator | 2/2 | Complete    | 2026-05-17 |
-| 3. WebSocket API & Frontend Panel | 0/TBD | Not started | - |
+| 3. WebSocket API & Frontend Panel | 0/4 | Not started | - |
