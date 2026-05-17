@@ -1,0 +1,96 @@
+/**
+ * Climate Manager Panel — WebSocket client wrapper.
+ *
+ * Thin typed wrapper over hass.connection that maps every backend
+ * climate_manager/* command to a method call.  All mutating methods return
+ * the Promise from sendMessagePromise so callers can show success/error toasts.
+ */
+
+import type {
+  Hass,
+  ClimateConfig,
+  StatusPayload,
+  RoomConfig,
+  PersonConfig,
+  DailyProgram,
+} from "./types.js";
+
+export class WsClient {
+  constructor(private readonly hass: Hass) {}
+
+  /** Return the full merged runtime config. */
+  getConfig(): Promise<ClimateConfig> {
+    return this.hass.connection.sendMessagePromise<ClimateConfig>({
+      type: "climate_manager/get_config",
+    });
+  }
+
+  /** Return the current coordinator status snapshot. */
+  getStatus(): Promise<StatusPayload> {
+    return this.hass.connection.sendMessagePromise<StatusPayload>({
+      type: "climate_manager/get_status",
+    });
+  }
+
+  /** Set the global heating mode. */
+  setGlobalMode(mode: string): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_global_mode",
+      mode,
+    });
+  }
+
+  /** Update default temperatures for all four period modes. */
+  setPeriodTemperatures(
+    temperatures: Record<string, number>,
+  ): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_period_temperatures",
+      temperatures,
+    });
+  }
+
+  /** Replace the global time program (all 7 day keys required). */
+  setTimeProgram(program: DailyProgram): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_time_program",
+      program,
+    });
+  }
+
+  /** Sparse-merge a config delta into a specific room. */
+  setRoomConfig(
+    roomId: string,
+    config: Partial<RoomConfig>,
+  ): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_room_config",
+      room_id: roomId,
+      config,
+    });
+  }
+
+  /** Sparse-merge a config delta into a specific person. */
+  setPersonConfig(
+    personId: string,
+    config: Partial<PersonConfig>,
+  ): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_person_config",
+      person_id: personId,
+      config,
+    });
+  }
+
+  /**
+   * Subscribe to coordinator status push events.
+   * Returns Promise<unsubscribe fn> — store and call on disconnect.
+   */
+  subscribeStatus(
+    callback: (status: StatusPayload) => void,
+  ): Promise<() => void> {
+    return this.hass.connection.subscribeMessage<StatusPayload>(callback, {
+      type: "climate_manager/subscribe_status",
+    });
+  }
+}
