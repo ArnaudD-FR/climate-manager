@@ -47,11 +47,17 @@ class ClimateManagerStore:
         if stored is None:
             # Fresh install: return a deep copy so callers cannot mutate DEFAULT_CONFIG
             return copy.deepcopy(DEFAULT_CONFIG)
-        # Sparse merge: deep-copy defaults first, then overlay stored values.
-        # Top-level merge: a stored "rooms" dict fully replaces the default empty
-        # "rooms" dict — individual rooms are the sparse unit (D-11).
+        # Sparse deep-merge: deep-copy defaults first, then overlay stored values.
+        # For nested dicts (e.g. "period_temperatures"), merge keys individually so
+        # a stored partial dict does not silently drop keys absent from the stored data.
+        # Top-level scalar/list keys (e.g. "global_mode", "rooms") replace defaults
+        # wholesale — individual rooms are the sparse unit (D-11).
         result = copy.deepcopy(DEFAULT_CONFIG)
-        result.update(stored)
+        for key, value in stored.items():
+            if isinstance(value, dict) and isinstance(result.get(key), dict):
+                result[key].update(value)  # merge nested dicts key-by-key
+            else:
+                result[key] = value
         return result
 
     async def async_save(self, config: dict) -> None:
