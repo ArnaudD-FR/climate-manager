@@ -28,6 +28,7 @@ import "./toast.js";
 import "./components/time-bar.js";
 import "./components/global-settings-tab.js";
 import "./components/rooms-tab.js";
+import "./components/persons-tab.js";
 
 export class ClimateManagerPanel extends LitElement {
   // HA-injected properties
@@ -190,9 +191,12 @@ export class ClimateManagerPanel extends LitElement {
           .panel=${this}
         ></climate-manager-rooms-tab>`;
       case "persons":
-        return html`<div class="placeholder">
-          Persons tab — implementation in next plan.
-        </div>`;
+        return html`<climate-manager-persons-tab
+          .config=${this._config!}
+          .status=${this._status}
+          .ws=${this._ws!}
+          .panel=${this}
+        ></climate-manager-persons-tab>`;
       default:
         return html``;
     }
