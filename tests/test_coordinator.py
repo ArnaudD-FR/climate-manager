@@ -319,3 +319,56 @@ async def test_present_person_wins_absent_for_same_room(hass):
     assert pushed_temp != DEFAULT_PERIOD_TEMPERATURES[PERIOD_REDUCED], (
         "Absent person's Reduced temperature must not overwrite the present person's temp"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 6: Frost-protection before first period (WR-04)
+# ---------------------------------------------------------------------------
+
+# A weekday-group that starts at 07:00 with no 00:00 period — rooms fall to
+# frost-protection for the 00:00-06:59 window.
+LATE_START_PROGRAM = [
+    {
+        "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+        "periods": [
+            {"start": "07:00", "mode": PERIOD_NORMAL},
+            {"start": "22:00", "mode": PERIOD_REDUCED},
+        ],
+    }
+]
+
+
+@pytest.mark.freeze_time("2026-01-05 14:00:00")  # Monday 14:00 UTC = 06:00 US/Pacific
+async def test_coordinator_applies_frost_before_first_period(hass):
+    """WR-04: rooms receive frost-protection temp before the first scheduled period.
+
+    Schedule starts at 07:00 (Normal). At 06:00 local time no period has started,
+    so evaluate_schedule returns PERIOD_FROST_PROTECTION and the coordinator should
+    push 7.0°C (DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION]) to the TRV.
+    """
+    hass.states.async_set("climate.study_trv", "heat", {"temperature": 15.0})
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        weekday_groups=LATE_START_PROGRAM,
+    )
+    entry.runtime_data.rooms = {"study": ["climate.study_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    study_calls = [c for c in temp_calls if c.data.get("entity_id") == "climate.study_trv"]
+    assert len(study_calls) >= 1, "Expected at least one set_temperature call for study_trv"
+
+    pushed_temp = study_calls[-1].data["temperature"]
+    assert pushed_temp == DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION], (
+        f"Expected frost-protection temp {DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION]} "
+        f"before first period, got {pushed_temp}"
+    )
