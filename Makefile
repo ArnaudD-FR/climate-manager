@@ -3,9 +3,12 @@ HA_HOST ?= homeassistant.local
 HA_COMPONENT_DIR = /config/custom_components/climate_manager
 SRC_DIR = custom_components/climate_manager
 
-.PHONY: deploy test logs
+.PHONY: build deploy test logs
 
-deploy:
+build:
+	cd frontend && npm install --no-audit --no-fund && npm run build
+
+deploy: build
 	rsync -av --delete $(SRC_DIR)/ $(HA_USER)@$(HA_HOST):$(HA_COMPONENT_DIR)/
 	ssh $(HA_USER)@$(HA_HOST) "ha core restart"
 

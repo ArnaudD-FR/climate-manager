@@ -19,3 +19,7 @@ build/
 .idea/
 *.swp
 *.swo
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
