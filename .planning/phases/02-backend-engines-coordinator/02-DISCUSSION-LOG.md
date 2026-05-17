@@ -72,7 +72,7 @@
 
 **User's choice:** Skip silently in backend.
 
-**Notes:** User added: if a person has schedule/mode configured but no rooms, a warning badge should appear next to their name in the UI. Deferred to Phase 3 (panel doesn't exist yet).
+**Notes:** User added: if a person has schedule/mode configured but no rooms, a warning badge should appear next to their name in the UI. Deferred to Phase 3 (panel doesn't exist yet). D-07 and D-08 were originally separate decisions but merged — both express the same backend behavior (skip silently regardless of whether the person has settings).
 
 ---
 

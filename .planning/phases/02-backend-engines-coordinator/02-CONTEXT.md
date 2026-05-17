@@ -26,8 +26,7 @@ Requirements in scope: GLOBAL-01, GLOBAL-02, GLOBAL-03, SCHED-01, SCHED-02, SCHE
 
 - **D-05:** When a person is Present (any mode) and their room's active time program has no Normal or Comfort periods for the current day → apply Reduced temperature. Presence "fills in" Normal/Comfort gaps (PERSON-08), but cannot create Normal heat where the schedule defines none.
 - **D-06:** **New requirement** — Time programs must cover all 7 days (Mon–Sun). Each day must appear in exactly one weekday group. Validated at save time; programs with any missing day or duplicate-assigned day are rejected. Extends SCHED-04 ("at most one") to "exactly one" across the full week.
-- **D-07:** When a person has no room associations configured → skip silently. No backend warning, no log entry. Expected state for newly discovered persons before the user configures them via Phase 3 panel.
-- **D-08:** If a person has schedule/mode configured but no room associations → still skip silently in the backend. (A UI warning badge next to the person's name is a Phase 3 panel concern — deferred.)
+- **D-07:** Any person with no room associations configured → skip silently, regardless of whether they have schedule/mode settings. No backend warning, no log entry. Expected state for newly discovered or partially-configured persons. (A UI warning badge in the Phase 3 panel when a person has settings but no rooms is a Phase 3 concern — deferred.)
 
 ### Phase 2 HA Entities
 
