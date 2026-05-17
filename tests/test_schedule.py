@@ -3,7 +3,7 @@
 No hass fixture needed. Functions accept datetime objects directly.
 Tests:
 - evaluate_schedule: finds active period for current time (SCHED-01..04)
-- validate_7day_coverage: rejects missing/duplicate days (D-06)
+- validate_daily_program: rejects missing/unknown day keys (D-01)
 - resolve_presence: PERSON-01 through PERSON-05 modes
 - compute_occupied_temp: PERSON-07/08/09 occupied window and gap-fill
 """
@@ -15,10 +15,11 @@ import pytest
 from custom_components.climate_manager.schedule import (
     ALL_DAYS,
     DAY_TO_WEEKDAY,
+    WEEKDAY_TO_DAY,
     compute_occupied_temp,
     evaluate_schedule,
     resolve_presence,
-    validate_7day_coverage,
+    validate_daily_program,
 )
 from custom_components.climate_manager.const import (
     DEFAULT_PERIOD_TEMPERATURES,
@@ -32,60 +33,42 @@ from custom_components.climate_manager.const import (
 )
 
 # ---------------------------------------------------------------------------
-# Module-level fixture constants (mirror test_trv.py module-constant style)
+# Module-level fixture constants (per-day dict schema — D-01)
 # ---------------------------------------------------------------------------
 
 # Standard weekday program: Mon–Fri with Normal/Reduced, Sat–Sun with Comfort
-WEEKDAY_PROGRAM = [
-    {
-        "days": ["mon", "tue", "wed", "thu", "fri"],
-        "periods": [
-            {"start": "07:00", "mode": "normal"},
-            {"start": "22:00", "mode": "reduced"},
-        ],
-    },
-    {
-        "days": ["sat", "sun"],
-        "periods": [
-            {"start": "08:00", "mode": "comfort"},
-            {"start": "23:00", "mode": "reduced"},
-        ],
-    },
-]
+WEEKDAY_PROGRAM: dict = {
+    "mon": [{"start": "07:00", "mode": "normal"}, {"start": "22:00", "mode": "reduced"}],
+    "tue": [{"start": "07:00", "mode": "normal"}, {"start": "22:00", "mode": "reduced"}],
+    "wed": [{"start": "07:00", "mode": "normal"}, {"start": "22:00", "mode": "reduced"}],
+    "thu": [{"start": "07:00", "mode": "normal"}, {"start": "22:00", "mode": "reduced"}],
+    "fri": [{"start": "07:00", "mode": "normal"}, {"start": "22:00", "mode": "reduced"}],
+    "sat": [{"start": "08:00", "mode": "comfort"}, {"start": "23:00", "mode": "reduced"}],
+    "sun": [{"start": "08:00", "mode": "comfort"}, {"start": "23:00", "mode": "reduced"}],
+}
 
 # Full 7-day program used for compute_occupied_temp tests
-# Schedule: 07:00 normal, 12:00 reduced, 14:00 comfort, 22:00 reduced
-FULL_WEEK_PROGRAM = [
-    {
-        "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
-        "periods": [
-            {"start": "00:00", "mode": "frost_protection"},
-            {"start": "07:00", "mode": "normal"},
-            {"start": "12:00", "mode": "reduced"},
-            {"start": "14:00", "mode": "comfort"},
-            {"start": "22:00", "mode": "reduced"},
-        ],
-    }
-]
-
-# Presence schedule: Mon–Fri present 08:00–22:00, absent otherwise
-PERSON_SCHEDULE = {
-    "weekday_groups": [
-        {
-            "days": ["mon", "tue", "wed", "thu", "fri"],
-            "periods": [
-                {"start": "00:00", "state": "absent"},
-                {"start": "08:00", "state": "present"},
-                {"start": "22:00", "state": "absent"},
-            ],
-        },
-        {
-            "days": ["sat", "sun"],
-            "periods": [
-                {"start": "00:00", "state": "absent"},
-            ],
-        },
+# Schedule: 00:00 frost, 07:00 normal, 12:00 reduced, 14:00 comfort, 22:00 reduced
+FULL_WEEK_PROGRAM: dict = {
+    day: [
+        {"start": "00:00", "mode": "frost_protection"},
+        {"start": "07:00", "mode": "normal"},
+        {"start": "12:00", "mode": "reduced"},
+        {"start": "14:00", "mode": "comfort"},
+        {"start": "22:00", "mode": "reduced"},
     ]
+    for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+}
+
+# Presence schedule: Mon–Fri present 08:00–22:00, absent otherwise; Sat–Sun absent
+PERSON_SCHEDULE: dict = {
+    "mon": [{"start": "00:00", "state": "absent"}, {"start": "08:00", "state": "present"}, {"start": "22:00", "state": "absent"}],
+    "tue": [{"start": "00:00", "state": "absent"}, {"start": "08:00", "state": "present"}, {"start": "22:00", "state": "absent"}],
+    "wed": [{"start": "00:00", "state": "absent"}, {"start": "08:00", "state": "present"}, {"start": "22:00", "state": "absent"}],
+    "thu": [{"start": "00:00", "state": "absent"}, {"start": "08:00", "state": "present"}, {"start": "22:00", "state": "absent"}],
+    "fri": [{"start": "00:00", "state": "absent"}, {"start": "08:00", "state": "present"}, {"start": "22:00", "state": "absent"}],
+    "sat": [{"start": "00:00", "state": "absent"}],
+    "sun": [{"start": "00:00", "state": "absent"}],
 }
 
 # Default period temperatures (from const.py DEFAULT_PERIOD_TEMPERATURES)
@@ -98,7 +81,7 @@ TEMPS = DEFAULT_PERIOD_TEMPERATURES
 
 
 def test_evaluate_schedule_returns_normal_at_0830_monday():
-    """Monday 08:30 with a weekday group that starts at 07:00 normal → normal."""
+    """Monday 08:30 with a weekday program that starts at 07:00 normal → normal."""
     now = datetime.datetime(2026, 1, 5, 8, 30, tzinfo=datetime.timezone.utc)  # Monday
     assert now.weekday() == 0  # Sanity check: this is Monday
     result = evaluate_schedule(WEEKDAY_PROGRAM, now)
@@ -133,105 +116,81 @@ def test_evaluate_schedule_returns_reduced_at_2200():
 
 
 def test_evaluate_schedule_weekend_uses_correct_group():
-    """Saturday should resolve from the sat/sun group, not the weekday group."""
+    """Saturday should resolve from the sat key, not the weekday keys."""
     now = datetime.datetime(2026, 1, 10, 10, 0, tzinfo=datetime.timezone.utc)  # Saturday
     assert now.weekday() == 5  # Sanity check: Saturday
     result = evaluate_schedule(WEEKDAY_PROGRAM, now)
     assert result == PERIOD_COMFORT
 
 
-def test_evaluate_schedule_no_group_covers_today_returns_frost_protection():
-    """If no weekday_group contains today → PERIOD_FROST_PROTECTION (SCHED-03 fallback)."""
+def test_evaluate_schedule_missing_day_key_returns_frost_protection():
+    """If the per-day dict has no entry for today → PERIOD_FROST_PROTECTION (SCHED-03 fallback)."""
     # Only Monday is covered
-    partial_program = [
-        {
-            "days": ["mon"],
-            "periods": [{"start": "07:00", "mode": "normal"}],
-        }
-    ]
+    partial_program = {
+        "mon": [{"start": "07:00", "mode": "normal"}],
+    }
     now = datetime.datetime(2026, 1, 6, 10, 0, tzinfo=datetime.timezone.utc)  # Tuesday
     result = evaluate_schedule(partial_program, now)
     assert result == PERIOD_FROST_PROTECTION
 
 
-def test_evaluate_schedule_empty_weekday_groups_returns_frost_protection():
-    """Empty weekday_groups list → PERIOD_FROST_PROTECTION."""
+def test_evaluate_schedule_empty_daily_program_returns_frost_protection():
+    """Empty per-day dict (all days []) → PERIOD_FROST_PROTECTION."""
+    empty_program = {d: [] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]}
     now = datetime.datetime(2026, 1, 5, 10, 0, tzinfo=datetime.timezone.utc)
-    result = evaluate_schedule([], now)
+    result = evaluate_schedule(empty_program, now)
     assert result == PERIOD_FROST_PROTECTION
 
 
 # ---------------------------------------------------------------------------
-# validate_7day_coverage tests (D-06)
+# validate_daily_program tests (D-01)
 # ---------------------------------------------------------------------------
 
 
-def test_validate_7day_coverage_valid_full_week():
-    """A program covering all 7 days with no duplicates → (True, '')."""
-    ok, msg = validate_7day_coverage(WEEKDAY_PROGRAM)
+def test_validate_daily_program_valid_full_week():
+    """A per-day dict with all 7 day keys → (True, '')."""
+    ok, msg = validate_daily_program(WEEKDAY_PROGRAM)
     assert ok is True
     assert msg == ""
 
 
-def test_validate_7day_coverage_missing_day_returns_false():
-    """A program missing Saturday → (False, message naming sat)."""
-    program_missing_sat = [
-        {
-            "days": ["mon", "tue", "wed", "thu", "fri", "sun"],
-            "periods": [{"start": "07:00", "mode": "normal"}],
-        }
-    ]
-    ok, msg = validate_7day_coverage(program_missing_sat)
+def test_validate_daily_program_missing_day_returns_false():
+    """A dict missing 'sun' → (False, message naming sun)."""
+    program_missing_sun = {d: [] for d in ["mon", "tue", "wed", "thu", "fri", "sat"]}
+    ok, msg = validate_daily_program(program_missing_sun)
     assert ok is False
-    assert "sat" in msg.lower() or "Missing" in msg
+    assert "sun" in msg or "Missing" in msg
 
 
-def test_validate_7day_coverage_duplicate_day_returns_false():
-    """A program with mon duplicated → (False, duplicate message)."""
-    program_dup = [
-        {
-            "days": ["mon", "tue", "wed", "thu", "fri"],
-            "periods": [{"start": "07:00", "mode": "normal"}],
-        },
-        {
-            "days": ["mon", "sat", "sun"],  # mon appears twice
-            "periods": [{"start": "08:00", "mode": "comfort"}],
-        },
-    ]
-    ok, msg = validate_7day_coverage(program_dup)
+def test_validate_daily_program_unknown_day_key_returns_false():
+    """A dict with an unknown key 'xyz' → (False, message naming xyz)."""
+    program_bad = {d: [] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]}
+    program_bad["xyz"] = []
+    ok, msg = validate_daily_program(program_bad)
     assert ok is False
-    assert "uplicate" in msg or "duplicate" in msg.lower()
+    assert "xyz" in msg or "Unknown" in msg
 
 
-def test_validate_7day_coverage_unknown_day_token_returns_false():
-    """Unknown day token like 'xyz' → (False, unknown-days message)."""
-    program_bad = [
-        {
-            "days": ["mon", "tue", "wed", "thu", "fri", "sat", "xyz"],
-            "periods": [{"start": "07:00", "mode": "normal"}],
-        }
-    ]
-    ok, msg = validate_7day_coverage(program_bad)
+def test_validate_daily_program_empty_dict_returns_false():
+    """Empty dict → all 7 days missing → (False, ...)."""
+    ok, msg = validate_daily_program({})
     assert ok is False
-    assert "xyz" in msg or "Unknown" in msg or "unknown" in msg.lower()
+    assert "Missing" in msg
 
 
-def test_validate_7day_coverage_single_group_full_week():
-    """A single group with all 7 days is valid."""
-    program_single = [
-        {
-            "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
-            "periods": [{"start": "00:00", "mode": "frost_protection"}],
-        }
-    ]
-    ok, msg = validate_7day_coverage(program_single)
+def test_validate_daily_program_all_empty_lists_valid():
+    """Dict with all 7 day keys and empty lists is valid."""
+    program_empty = {d: [] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]}
+    ok, msg = validate_daily_program(program_empty)
     assert ok is True
     assert msg == ""
 
 
-def test_validate_7day_coverage_empty_groups_returns_false():
-    """Empty weekday_groups → all 7 days missing."""
-    ok, msg = validate_7day_coverage([])
+def test_validate_daily_program_missing_and_unknown_returns_false():
+    """Dict missing 'sun' but has 'xyz' → (False, both in message)."""
+    program = {d: [] for d in ["mon", "tue", "wed", "thu", "fri", "sat"]}
+    program["xyz"] = []
+    ok, msg = validate_daily_program(program)
     assert ok is False
 
 
@@ -255,8 +214,8 @@ def test_resolve_presence_absent_mode_always_false():
 
 
 def test_resolve_presence_automatic_empty_schedule_returns_false():
-    """PERSON-05: automatic mode + no weekday_groups → False (absent by default)."""
-    config = {"mode": PRESENCE_AUTOMATIC, "schedule": {"weekday_groups": []}}
+    """PERSON-05: automatic mode + empty schedule dict → False (absent by default)."""
+    config = {"mode": PRESENCE_AUTOMATIC, "schedule": {}}
     now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
     assert resolve_presence(config, now) is False
 
@@ -270,7 +229,7 @@ def test_resolve_presence_automatic_no_schedule_key_returns_false():
 
 def test_resolve_presence_automatic_missing_mode_defaults_to_automatic():
     """Missing 'mode' key defaults to automatic behavior."""
-    config = {"schedule": {"weekday_groups": []}}
+    config = {"schedule": {}}
     now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
     # No mode key → defaults to automatic → empty schedule → False
     assert resolve_presence(config, now) is False
@@ -290,17 +249,13 @@ def test_resolve_presence_automatic_during_absent_period():
     assert resolve_presence(config, now) is False
 
 
-def test_resolve_presence_automatic_no_group_covers_today_returns_false():
-    """Automatic mode: no group covers today → False."""
+def test_resolve_presence_automatic_missing_day_in_schedule_returns_false():
+    """Automatic mode: day not in per-day schedule dict → False."""
     config = {
         "mode": PRESENCE_AUTOMATIC,
         "schedule": {
-            "weekday_groups": [
-                {
-                    "days": ["mon"],
-                    "periods": [{"start": "08:00", "state": "present"}],
-                }
-            ]
+            "mon": [{"start": "08:00", "state": "present"}],
+            # tue missing
         },
     }
     now = datetime.datetime(2026, 1, 6, 10, 0, tzinfo=datetime.timezone.utc)  # Tuesday
@@ -321,15 +276,13 @@ def test_compute_occupied_temp_absent_returns_reduced():
 
 def test_compute_occupied_temp_present_no_nc_periods_returns_reduced():
     """D-05: present + today has no Normal/Comfort periods → PERIOD_REDUCED temperature."""
-    frost_only_program = [
-        {
-            "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
-            "periods": [
-                {"start": "00:00", "mode": "frost_protection"},
-                {"start": "08:00", "mode": "reduced"},
-            ],
-        }
-    ]
+    frost_only_program = {
+        day: [
+            {"start": "00:00", "mode": "frost_protection"},
+            {"start": "08:00", "mode": "reduced"},
+        ]
+        for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    }
     now = datetime.datetime(2026, 1, 5, 10, 0, tzinfo=datetime.timezone.utc)
     result = compute_occupied_temp(frost_only_program, now, is_present=True, period_temperatures=TEMPS)
     assert result == TEMPS[PERIOD_REDUCED]
@@ -396,10 +349,11 @@ def test_compute_occupied_temp_person08_after_last_nc_returns_reduced():
     assert result == TEMPS[PERIOD_REDUCED]
 
 
-def test_compute_occupied_temp_present_empty_groups_returns_reduced():
-    """Present but empty weekday_groups → Reduced (no schedule = no N/C periods)."""
+def test_compute_occupied_temp_present_empty_program_returns_reduced():
+    """Present but empty per-day program (all days []) → Reduced (no N/C periods)."""
+    empty_program = {d: [] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]}
     now = datetime.datetime(2026, 1, 5, 10, 0, tzinfo=datetime.timezone.utc)
-    result = compute_occupied_temp([], now, is_present=True, period_temperatures=TEMPS)
+    result = compute_occupied_temp(empty_program, now, is_present=True, period_temperatures=TEMPS)
     assert result == TEMPS[PERIOD_REDUCED]
 
 
@@ -417,6 +371,17 @@ def test_day_to_weekday_mapping():
     assert DAY_TO_WEEKDAY["fri"] == 4
     assert DAY_TO_WEEKDAY["sat"] == 5
     assert DAY_TO_WEEKDAY["sun"] == 6
+
+
+def test_weekday_to_day_mapping():
+    """WEEKDAY_TO_DAY maps Python weekday() integers to day name strings."""
+    assert WEEKDAY_TO_DAY[0] == "mon"
+    assert WEEKDAY_TO_DAY[1] == "tue"
+    assert WEEKDAY_TO_DAY[2] == "wed"
+    assert WEEKDAY_TO_DAY[3] == "thu"
+    assert WEEKDAY_TO_DAY[4] == "fri"
+    assert WEEKDAY_TO_DAY[5] == "sat"
+    assert WEEKDAY_TO_DAY[6] == "sun"
 
 
 def test_all_days_set():

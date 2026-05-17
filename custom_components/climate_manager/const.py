@@ -1,9 +1,11 @@
 """Climate Manager constants and default configuration schema.
 
 This module is the single source of truth for all domain constants
-and the v1 storage schema. All other modules import from here.
+and the v2 storage schema. All other modules import from here.
 No Home Assistant imports — pure constants only.
 """
+
+import copy
 
 # ---------------------------------------------------------------------------
 # Core identifiers
@@ -11,7 +13,7 @@ No Home Assistant imports — pure constants only.
 
 DOMAIN = "climate_manager"
 STORAGE_KEY = DOMAIN
-STORAGE_VERSION = 1
+STORAGE_VERSION = 2
 
 # ---------------------------------------------------------------------------
 # Global mode constants
@@ -52,7 +54,14 @@ DEFAULT_PERIOD_TEMPERATURES: dict[str, float] = {
 }
 
 # ---------------------------------------------------------------------------
-# Full v1 storage schema with defaults (D-09, D-10, D-11)
+# Per-day schema helpers (D-01)
+# ---------------------------------------------------------------------------
+
+_DAYS_ORDERED = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+_EMPTY_DAILY_PROGRAM: dict = {day: [] for day in _DAYS_ORDERED}
+
+# ---------------------------------------------------------------------------
+# Full v2 storage schema with defaults (D-01, D-09, D-10, D-11)
 #
 # Sparse storage: only values that differ from these defaults are written.
 #
@@ -60,16 +69,16 @@ DEFAULT_PERIOD_TEMPERATURES: dict[str, float] = {
 #   {
 #     "<area_id>": {
 #       "time_program": {
-#         "weekday_groups": [
-#           {
-#             "days": ["mon", "tue", ...],
-#             "periods": [
-#               {"start": "HH:MM", "mode": "<period_mode>"},
-#               ...
-#             ]
-#           }
-#         ]
-#       }
+#         "mon": [{"start": "HH:MM", "mode": "<period_mode>"}, ...],
+#         "tue": [...],
+#         "wed": [...],
+#         "thu": [...],
+#         "fri": [...],
+#         "sat": [...],
+#         "sun": [...]
+#       },
+#       "temperature_sensor": "<entity_id>",   # optional (D-16) — string entity ID
+#       "humidity_sensor": "<entity_id>"        # optional (D-16) — string entity ID
 #     }
 #   }
 #   Empty dict = all rooms inherit the global time program.
@@ -81,15 +90,13 @@ DEFAULT_PERIOD_TEMPERATURES: dict[str, float] = {
 #       "mode": "<presence_mode>",   # "automatic" | "present" | "absent"
 #       "room_ids": ["<area_id>", ...],
 #       "schedule": {
-#         "weekday_groups": [
-#           {
-#             "days": ["mon", ...],
-#             "periods": [
-#               {"start": "HH:MM", "state": "present" | "absent"},
-#               ...
-#             ]
-#           }
-#         ]
+#         "mon": [{"start": "HH:MM", "state": "present"|"absent"}, ...],
+#         "tue": [...],
+#         "wed": [...],
+#         "thu": [...],
+#         "fri": [...],
+#         "sat": [...],
+#         "sun": [...]
 #       }
 #     }
 #   }
@@ -110,7 +117,7 @@ DEFAULT_CONFIG: dict = {
         PERIOD_NORMAL: 20.0,
         PERIOD_COMFORT: 22.0,
     },
-    "global_time_program": {"weekday_groups": []},
+    "global_time_program": copy.deepcopy(_EMPTY_DAILY_PROGRAM),
     "rooms": {},    # sparse: only rooms with non-default config (SCHED-05, D-11)
     "persons": {},  # sparse: only persons with non-default settings (D-11)
 }

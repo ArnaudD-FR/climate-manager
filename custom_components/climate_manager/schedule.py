@@ -4,10 +4,10 @@ Pure Python — no Home Assistant imports.
 All functions accept datetime objects directly; callers supply dt_util.now().
 
 Requirements addressed:
-- SCHED-01: global time program weekday groups with time periods
+- SCHED-01: global time program per-day periods with time entries
 - SCHED-02: each period active from start until next period's start
-- SCHED-03: last period of day ends at midnight (next day's group takes over)
-- SCHED-04: each day in at most one weekday group (extended to exactly one by D-06)
+- SCHED-03: last period of day ends at midnight (next day takes over)
+- SCHED-04: per-day schema (D-01) — each day has its own period list
 - PERSON-01: presence modes (automatic, present, absent)
 - PERSON-02: present mode → always True
 - PERSON-03: absent mode → always False
@@ -17,8 +17,8 @@ Requirements addressed:
 - PERSON-08: sandwiched Reduced/Frost between two N/C periods → hold preceding N/C temp
 - PERSON-09: absent person → Reduced temperature
 - GLOBAL-03: configurable period mode temperatures (caller provides period_temperatures)
+- D-01: per-day schema {"mon": [...], ..., "sun": [...]} for all programs
 - D-05: present + no N/C periods today → Reduced temperature
-- D-06: programs must cover all 7 days with no duplicates
 """
 
 import datetime
@@ -48,6 +48,9 @@ DAY_TO_WEEKDAY: dict[str, int] = {
     "sun": 6,
 }
 
+# Reverse mapping for per-day schema: weekday() int → day name string (D-01)
+WEEKDAY_TO_DAY: dict[int, str] = {v: k for k, v in DAY_TO_WEEKDAY.items()}
+
 ALL_DAYS: set[str] = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,43 +76,41 @@ def _parse_time(value: str) -> datetime.time:
 
 
 def evaluate_schedule(
-    weekday_groups: list[dict],
+    daily_program: dict[str, list],
     now: datetime.datetime,
 ) -> str:
     """Return the active period_mode for the current time.
 
     Algorithm:
-    1. Find the weekday_group whose 'days' list contains today's weekday.
+    1. Look up today's period list directly from the per-day dict using the
+       day name resolved from now.weekday() via WEEKDAY_TO_DAY.
     2. Sort periods by start time ascending.
     3. Walk periods in order, keeping the last period whose start <= now.time()
        (>= comparison: exact boundary minute belongs to the new period — Pitfall 4).
-    4. Return the active period's mode. If no period has started yet or no group
-       covers today, return PERIOD_FROST_PROTECTION.
+    4. Return the active period's mode. If no period has started yet or the day
+       key is absent, return PERIOD_FROST_PROTECTION.
 
     SCHED-02: each period active from start until next period's start.
-    SCHED-03: last period of day ends at midnight; next day's group takes over.
+    SCHED-03: last period of day ends at midnight; next day takes over.
+    T-03-01: daily_program.get(day_name, []) returns [] for missing keys →
+             falls back to PERIOD_FROST_PROTECTION instead of raising KeyError.
     """
-    today = now.weekday()  # 0=Mon ... 6=Sun
+    day_name = WEEKDAY_TO_DAY[now.weekday()]  # e.g. "mon"
     current_time = now.time()
 
-    for group in weekday_groups:
-        days = [DAY_TO_WEEKDAY[d] for d in group["days"]]
-        if today not in days:
-            continue
-        # Found today's group — find active period.
-        # WR-01: log which group is used so "first match wins" is surfaced in debug logs.
-        _LOGGER.debug("evaluate_schedule: using first matching group for today (%s)", today)
-        periods = sorted(group["periods"], key=lambda p: p["start"])
-        active_mode = None
-        for period in periods:
-            period_start = _parse_time(period["start"])
-            if current_time >= period_start:
-                active_mode = period["mode"]
-            else:
-                break
-        return active_mode if active_mode is not None else PERIOD_FROST_PROTECTION
+    periods = daily_program.get(day_name, [])
+    if not periods:
+        return PERIOD_FROST_PROTECTION
 
-    return PERIOD_FROST_PROTECTION  # No group covers today (should not happen after D-06)
+    sorted_periods = sorted(periods, key=lambda p: p["start"])
+    active_mode = None
+    for period in sorted_periods:
+        period_start = _parse_time(period["start"])
+        if current_time >= period_start:
+            active_mode = period["mode"]
+        else:
+            break
+    return active_mode if active_mode is not None else PERIOD_FROST_PROTECTION
 
 
 def resolve_presence(
@@ -124,6 +125,7 @@ def resolve_presence(
     PERSON-05: Automatic + no schedule configured → False (absent by default).
 
     Missing 'mode' key defaults to PRESENCE_AUTOMATIC.
+    The 'schedule' value is a per-day dict (D-01): {"mon": [...], ..., "sun": [...]}.
     """
     mode = person_config.get("mode", PRESENCE_AUTOMATIC)
 
@@ -132,35 +134,29 @@ def resolve_presence(
     if mode == PRESENCE_ABSENT:
         return False
 
-    # Automatic: evaluate periodic schedule
+    # Automatic: evaluate periodic schedule (per-day dict, D-01)
     schedule = person_config.get("schedule", {})
-    weekday_groups = schedule.get("weekday_groups", [])
-    if not weekday_groups:
-        return False  # PERSON-05: no schedule → absent
+    day_name = WEEKDAY_TO_DAY[now.weekday()]
+    periods = schedule.get(day_name, [])
+    if not periods:
+        return False  # PERSON-05: no periods today → absent
 
-    today = now.weekday()
     current_time = now.time()
 
-    for group in weekday_groups:
-        days = [DAY_TO_WEEKDAY[d] for d in group["days"]]
-        if today not in days:
-            continue
-        # Found today's group — find active presence state
-        periods = sorted(group["periods"], key=lambda p: p["start"])
-        active_state = "absent"  # default before first period
-        for period in periods:
-            period_start = _parse_time(period["start"])
-            if current_time >= period_start:
-                active_state = period["state"]
-            else:
-                break
-        return active_state == PRESENCE_PRESENT
-
-    return False  # No group covers today
+    # Walk sorted periods to find active presence state
+    sorted_periods = sorted(periods, key=lambda p: p["start"])
+    active_state = "absent"  # default before first period
+    for period in sorted_periods:
+        period_start = _parse_time(period["start"])
+        if current_time >= period_start:
+            active_state = period["state"]
+        else:
+            break
+    return active_state == PRESENCE_PRESENT
 
 
 def compute_occupied_temp(
-    weekday_groups: list[dict],
+    daily_program: dict[str, list],
     now: datetime.datetime,
     is_present: bool,
     period_temperatures: dict[str, float],
@@ -177,16 +173,11 @@ def compute_occupied_temp(
     if not is_present:
         return period_temperatures[PERIOD_REDUCED]
 
-    today = now.weekday()
+    day_name = WEEKDAY_TO_DAY[now.weekday()]
     current_time = now.time()
 
-    # Find today's periods
-    today_periods: list[dict] = []
-    for group in weekday_groups:
-        days = [DAY_TO_WEEKDAY[d] for d in group["days"]]
-        if today in days:
-            today_periods = sorted(group["periods"], key=lambda p: p["start"])
-            break
+    # Find today's periods from the per-day dict (D-01)
+    today_periods = sorted(daily_program.get(day_name, []), key=lambda p: p["start"])
 
     # Identify Normal/Comfort periods
     nc_modes = {PERIOD_NORMAL, PERIOD_COMFORT}
@@ -195,8 +186,8 @@ def compute_occupied_temp(
     if not nc_periods:
         # D-05: no Normal/Comfort periods at all → apply Reduced
         _LOGGER.debug(
-            "compute_occupied_temp: no periods for today (%s) — returning Reduced for present person",
-            today,
+            "compute_occupied_temp: no N/C periods for today (%s) — returning Reduced for present person",
+            day_name,
         )
         return period_temperatures[PERIOD_REDUCED]
 
@@ -238,36 +229,26 @@ def compute_occupied_temp(
     return period_temperatures.get(active_mode, period_temperatures[PERIOD_REDUCED])
 
 
-def validate_7day_coverage(
-    weekday_groups: list[dict],
+def validate_daily_program(
+    daily_program: dict[str, list],
 ) -> tuple[bool, str]:
-    """Validate that exactly all 7 days are covered, with no duplicates.
+    """Validate that the per-day dict contains exactly all 7 day keys.
 
     Returns (True, '') if valid, (False, error_message) if invalid.
     Called at config save time (Phase 3 WebSocket handler) and exercised by unit tests.
 
-    D-06: programs must cover all 7 days (Mon–Sun). Each day must appear in
-    exactly one weekday group. Applies to both global and per-room programs.
+    D-01: programs must use the per-day schema with all 7 day keys (Mon–Sun).
+    Unknown day keys are also rejected.
     """
-    covered: list[str] = []
-    for group in weekday_groups:
-        covered.extend(group.get("days", []))
+    missing = ALL_DAYS - set(daily_program.keys())
+    extra = set(daily_program.keys()) - ALL_DAYS
 
-    covered_set = set(covered)
+    if not missing and not extra:
+        return True, ""
 
-    # Check for duplicates first
-    if len(covered) != len(covered_set):
-        return False, "Duplicate day assignment in weekday groups"
-
-    # Check for missing or unknown days
-    if covered_set != ALL_DAYS:
-        missing = ALL_DAYS - covered_set
-        extra = covered_set - ALL_DAYS
-        msg_parts = []
-        if missing:
-            msg_parts.append(f"Missing days: {sorted(missing)}")
-        if extra:
-            msg_parts.append(f"Unknown days: {sorted(extra)}")
-        return False, "; ".join(msg_parts)
-
-    return True, ""
+    parts = []
+    if missing:
+        parts.append(f"Missing days: {sorted(missing)}")
+    if extra:
+        parts.append(f"Unknown days: {sorted(extra)}")
+    return False, "; ".join(parts)
