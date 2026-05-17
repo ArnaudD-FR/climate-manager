@@ -26,6 +26,7 @@ import type { ClimateManagerToast } from "./toast.js";
 
 import "./toast.js";
 import "./components/time-bar.js";
+import "./components/global-settings-tab.js";
 
 export class ClimateManagerPanel extends LitElement {
   // HA-injected properties
@@ -42,6 +43,9 @@ export class ClimateManagerPanel extends LitElement {
 
   @query("climate-manager-toast")
   private _toast?: ClimateManagerToast;
+
+  // Shared WS client instance — created once after hass is set
+  private _ws: WsClient | null = null;
 
   static styles = css`
     :host {
@@ -82,6 +86,8 @@ export class ClimateManagerPanel extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    // Create a single WS client instance used by all tab components
+    this._ws = new WsClient(this.hass);
     this._loadConfig();
     this._subscribeStatus();
   }
@@ -97,9 +103,9 @@ export class ClimateManagerPanel extends LitElement {
   }
 
   private async _loadConfig() {
+    if (!this._ws) this._ws = new WsClient(this.hass);
     try {
-      const client = new WsClient(this.hass);
-      this._config = await client.getConfig();
+      this._config = await this._ws.getConfig();
     } catch {
       // Config load failure is shown via the error banner on next render.
       this._wsError = true;
@@ -107,7 +113,8 @@ export class ClimateManagerPanel extends LitElement {
   }
 
   private _subscribeStatus() {
-    this._unsubStatus = new WsClient(this.hass)
+    if (!this._ws) this._ws = new WsClient(this.hass);
+    this._unsubStatus = this._ws
       .subscribeStatus((status) => {
         this._status = status;
         this._wsError = false;
@@ -168,9 +175,12 @@ export class ClimateManagerPanel extends LitElement {
   private _renderTabContent() {
     switch (this._activeTab) {
       case "global":
-        return html`<div class="placeholder">
-          Global Settings tab — implementation in next plan.
-        </div>`;
+        return html`<climate-manager-global-settings-tab
+          .config=${this._config!}
+          .status=${this._status}
+          .ws=${this._ws!}
+          .panel=${this}
+        ></climate-manager-global-settings-tab>`;
       case "rooms":
         return html`<div class="placeholder">
           Rooms tab — implementation in next plan.

@@ -1,0 +1,364 @@
+/**
+ * Climate Manager Panel — Global Settings tab (UI-02).
+ *
+ * Renders two ha-card sections per D-13:
+ *   1. "Current Status" — read-only, fed by subscribe_status push (D-18):
+ *        current global mode, active period name + end time, present persons
+ *   2. "Configuration" — editable, auto-saves on every change (D-08):
+ *        global mode selector, 4 default temperature inputs, global time program
+ *
+ * Auto-save on every change — no Save button (D-08).
+ * Toast feedback on success/error (D-10).
+ */
+
+import { LitElement, html, css } from "lit";
+import { property } from "lit/decorators.js";
+
+import type { ClimateConfig, StatusPayload, DailyProgram, Period } from "../types.js";
+import type { WsClient } from "../ws-client.js";
+import type { ClimateManagerPanel } from "../main.js";
+
+import "./time-bar.js";
+
+// Day key order matching time-bar days[] indices (0=Mon..6=Sun)
+const DAY_KEYS: Array<keyof DailyProgram> = [
+  "mon", "tue", "wed", "thu", "fri", "sat", "sun",
+];
+
+// ---------------------------------------------------------------------------
+// Pure helpers (also exported for reuse by room-card / person-card)
+// ---------------------------------------------------------------------------
+
+/** Convert a DailyProgram (keyed by day name) into a 7-element Period[][] array. */
+export function programToDays(program: DailyProgram | undefined): Period[][] {
+  return DAY_KEYS.map((key) => (program?.[key] ? [...program[key]] : []));
+}
+
+/** Convert a day index (0=Mon..6=Sun) back to a DailyProgram key. */
+export function dayIndexToKey(index: number): keyof DailyProgram {
+  return DAY_KEYS[index] ?? "mon";
+}
+
+// ---------------------------------------------------------------------------
+// Mode constants (kept local — backend uses these string values)
+// ---------------------------------------------------------------------------
+const MODE_OFF = "off";
+const MODE_TIME_PROGRAM = "time_program";
+const MODE_TIME_PROGRAM_PRESENCES = "time_program_presences";
+
+const MODE_LABELS: Record<string, string> = {
+  [MODE_OFF]: "Off",
+  [MODE_TIME_PROGRAM]: "Time program",
+  [MODE_TIME_PROGRAM_PRESENCES]: "Time program & presences",
+};
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export class GlobalSettingsTab extends LitElement {
+  /** Full merged runtime config — fed from root panel. */
+  @property({ attribute: false }) config!: ClimateConfig;
+
+  /** Live status payload pushed by subscribe_status — fed from root panel. */
+  @property({ attribute: false }) status: StatusPayload | null = null;
+
+  /** WS client instance shared from root panel. */
+  @property({ attribute: false }) ws!: WsClient;
+
+  /** Reference to root panel for showToast(). */
+  @property({ attribute: false }) panel!: ClimateManagerPanel;
+
+  static styles = css`
+    :host {
+      display: block;
+    }
+
+    ha-card {
+      margin-bottom: 16px;
+    }
+
+    .card-header {
+      padding: 16px 16px 0;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.2;
+      color: var(--primary-text-color);
+    }
+
+    .card-content {
+      padding: 16px;
+    }
+
+    /* ---- Status card ---- */
+    .status-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: var(--primary-text-color);
+    }
+
+    .status-label {
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .status-value {
+      color: var(--secondary-text-color);
+    }
+
+    .person-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #388E3C;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    /* ---- Config card ---- */
+    .section-divider {
+      margin: 16px 0 8px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--secondary-text-color);
+    }
+
+    .temp-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .time-program-section {
+      margin-top: 16px;
+    }
+
+    ha-select {
+      width: 100%;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    ha-textfield {
+      display: block;
+    }
+  `;
+
+  // -----------------------------------------------------------------------
+  // Save handlers
+  // -----------------------------------------------------------------------
+
+  private async _onModeChange(e: Event) {
+    const select = e.target as HTMLElement & { value: string };
+    try {
+      await this.ws.setGlobalMode(select.value);
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onTemperatureBlur(e: FocusEvent) {
+    // Collect current values from all 4 temperature fields
+    const root = this.shadowRoot;
+    if (!root) return;
+    const getValue = (id: string): number => {
+      const field = root.querySelector<HTMLElement & { value: string }>(`#temp-${id}`);
+      return field ? parseFloat(field.value) : (this.config.period_temperatures[id] ?? 0);
+    };
+
+    void e; // used only to trigger on blur
+
+    const temperatures = {
+      frost_protection: getValue("frost_protection"),
+      reduced: getValue("reduced"),
+      normal: getValue("normal"),
+      comfort: getValue("comfort"),
+    };
+
+    try {
+      await this.ws.setPeriodTemperatures(temperatures);
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onPeriodsChanged(e: CustomEvent) {
+    const { dayIndex, periods } = e.detail as { dayIndex: number; periods: Period[] };
+
+    // Rebuild the full DailyProgram, replacing the changed day
+    const program: DailyProgram = { ...this.config.global_time_program };
+    const key = dayIndexToKey(dayIndex);
+    program[key] = periods;
+
+    try {
+      await this.ws.setTimeProgram(program);
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+
+    e.stopPropagation();
+  }
+
+  // -----------------------------------------------------------------------
+  // Render helpers
+  // -----------------------------------------------------------------------
+
+  private _renderStatusCard() {
+    const status = this.status;
+
+    // Global mode label
+    const modeLabel = MODE_LABELS[status?.global_mode ?? this.config.global_mode] ?? status?.global_mode ?? this.config.global_mode;
+
+    // Active period
+    let activePeriodText = "No active period";
+    if (status?.active_period) {
+      activePeriodText = status.active_period;
+    }
+
+    // Present persons
+    let personsContent = html`<span class="status-value">No one home</span>`;
+    if (status?.present_persons?.length) {
+      personsContent = html`
+        <span class="status-value">
+          ${status.present_persons.map(
+            (name, i) => html`
+              <span class="person-dot"></span>${name}${i < (status?.present_persons?.length ?? 1) - 1 ? ", " : ""}
+            `,
+          )}
+        </span>
+      `;
+    }
+
+    return html`
+      <ha-card>
+        <div class="card-header">Current Status</div>
+        <div class="card-content">
+          <div class="status-row">
+            <span class="status-label">Mode:</span>
+            <span class="status-value">${modeLabel}</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Active period:</span>
+            <span class="status-value">${activePeriodText}</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Present persons:</span>
+            ${personsContent}
+          </div>
+        </div>
+      </ha-card>
+    `;
+  }
+
+  private _renderConfigCard() {
+    const temps = this.config.period_temperatures;
+    const days = programToDays(this.config.global_time_program);
+
+    return html`
+      <ha-card>
+        <div class="card-header">Configuration</div>
+        <div class="card-content">
+
+          <!-- Global mode selector -->
+          <ha-select
+            label="Global mode"
+            .value=${this.config.global_mode}
+            @selected=${this._onModeChange}
+          >
+            <mwc-list-item value=${MODE_OFF}>Off</mwc-list-item>
+            <mwc-list-item value=${MODE_TIME_PROGRAM}>Time program</mwc-list-item>
+            <mwc-list-item value=${MODE_TIME_PROGRAM_PRESENCES}>Time program &amp; presences</mwc-list-item>
+          </ha-select>
+
+          <!-- Default temperatures -->
+          <div class="section-divider">Default temperatures</div>
+          <div class="temp-fields">
+            <ha-textfield
+              id="temp-frost_protection"
+              label="Frost protection"
+              type="number"
+              step="0.5"
+              min="5"
+              max="30"
+              suffix="°C"
+              .value=${String(temps["frost_protection"] ?? 7)}
+              @blur=${this._onTemperatureBlur}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
+            ></ha-textfield>
+            <ha-textfield
+              id="temp-reduced"
+              label="Reduced"
+              type="number"
+              step="0.5"
+              min="5"
+              max="30"
+              suffix="°C"
+              .value=${String(temps["reduced"] ?? 18)}
+              @blur=${this._onTemperatureBlur}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
+            ></ha-textfield>
+            <ha-textfield
+              id="temp-normal"
+              label="Normal"
+              type="number"
+              step="0.5"
+              min="5"
+              max="30"
+              suffix="°C"
+              .value=${String(temps["normal"] ?? 20)}
+              @blur=${this._onTemperatureBlur}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
+            ></ha-textfield>
+            <ha-textfield
+              id="temp-comfort"
+              label="Comfort"
+              type="number"
+              step="0.5"
+              min="5"
+              max="30"
+              suffix="°C"
+              .value=${String(temps["comfort"] ?? 22)}
+              @blur=${this._onTemperatureBlur}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
+            ></ha-textfield>
+          </div>
+
+          <!-- Global time program editor -->
+          <div class="section-divider">Global time program</div>
+          <div class="time-program-section">
+            <climate-manager-time-bar
+              mode="schedule"
+              .days=${days}
+              @periods-changed=${this._onPeriodsChanged}
+            ></climate-manager-time-bar>
+          </div>
+        </div>
+      </ha-card>
+    `;
+  }
+
+  render() {
+    return html`
+      ${this._renderStatusCard()}
+      ${this._renderConfigCard()}
+    `;
+  }
+}
+
+customElements.define("climate-manager-global-settings-tab", GlobalSettingsTab);
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "climate-manager-global-settings-tab": GlobalSettingsTab;
+  }
+}
