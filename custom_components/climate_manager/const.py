@@ -31,6 +31,14 @@ PERIOD_NORMAL = "normal"
 PERIOD_COMFORT = "comfort"
 
 # ---------------------------------------------------------------------------
+# Presence mode constants (PERSON-01; Pitfall 7 — define before use in schedule.py)
+# ---------------------------------------------------------------------------
+
+PRESENCE_AUTOMATIC = "automatic"
+PRESENCE_PRESENT = "present"
+PRESENCE_ABSENT = "absent"
+
+# ---------------------------------------------------------------------------
 # Default values
 # ---------------------------------------------------------------------------
 
