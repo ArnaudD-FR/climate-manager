@@ -195,19 +195,19 @@ def compute_occupied_temp(
     first_nc_start = _parse_time(nc_periods[0]["start"])
 
     # End of occupied window = start of the period immediately after the last N/C,
-    # or 23:59:59 if the last N/C is the final period of the day.
+    # or None if the last N/C is the final period of the day (window extends to midnight).
     last_nc_idx = today_periods.index(nc_periods[-1])
     if last_nc_idx + 1 < len(today_periods):
-        occupied_end = _parse_time(today_periods[last_nc_idx + 1]["start"])
+        occupied_end: datetime.time | None = _parse_time(today_periods[last_nc_idx + 1]["start"])
     else:
-        occupied_end = datetime.time(23, 59, 59)
+        occupied_end = None  # last N/C is last period — window extends to midnight
 
     # Before the occupied window → Reduced
     if current_time < first_nc_start:
         return period_temperatures[PERIOD_REDUCED]
 
     # After the occupied window → Reduced
-    if current_time >= occupied_end:
+    if occupied_end is not None and current_time >= occupied_end:
         return period_temperatures[PERIOD_REDUCED]
 
     # Within the occupied window: walk periods forward tracking last N/C mode seen
