@@ -170,8 +170,10 @@ class ClimateManagerCoordinator:
         1. Compute time-program desired_temp for every managed room (baseline).
         2. For each person, resolve presence; for their room_ids, override the
            desired_temp via compute_occupied_temp (PERSON-06/07/08/09).
-        3. Present-person-wins rule: if a room already has a warmer temperature
-           from a present person, an absent person cannot lower it for this tick.
+        3. Present-person-wins rule: once a present person sets a room's temp,
+           that room is locked — an absent person cannot lower it within this tick.
+           Uses a separate set to track present-locked rooms, ensuring the rule is
+           order-independent regardless of person iteration order.
         4. Push each room's final desired_temp to its TRVs.
         """
         global_weekday_groups: list[dict] = config["global_time_program"]["weekday_groups"]
@@ -190,8 +192,12 @@ class ClimateManagerCoordinator:
             period_mode = evaluate_schedule(weekday_groups, now)
             desired_temps[area_id] = period_temperatures[period_mode]
 
+        # Step 3 tracking: rooms locked by a present person — absent persons cannot
+        # lower the temperature for these rooms within this tick.
+        present_locked_rooms: set[str] = set()
+
         # Step 2: apply presence overrides per person
-        for person_id, person_config in persons_config.items():
+        for _person_id, person_config in persons_config.items():
             room_ids: list[str] = person_config.get("room_ids", [])
             if not room_ids:
                 # D-07/D-08: no room associations → skip silently
@@ -218,34 +224,21 @@ class ClimateManagerCoordinator:
                     weekday_groups, now, is_present, period_temperatures
                 )
 
-                # Step 3: present-person-wins rule — a present person can only raise
-                # the temperature, never let an absent person lower what a present
-                # person already set for this room within this tick.
+                # Step 3: present-person-wins rule — order-independent.
                 if is_present:
-                    # Present: override unconditionally (raise to occupied-window temp)
-                    desired_temps[area_id] = occupied_temp
+                    # Present person: set the occupied-window temp and lock the room.
+                    # If another present person previously set a higher temp, keep that.
+                    if area_id in present_locked_rooms:
+                        # Room already locked by a prior present person — take the max
+                        desired_temps[area_id] = max(desired_temps[area_id], occupied_temp)
+                    else:
+                        desired_temps[area_id] = occupied_temp
+                        present_locked_rooms.add(area_id)
                 else:
-                    # Absent: only lower if no present person has already set a higher temp.
-                    # Compare against current desired_temp: if it was already set by a
-                    # present person (occupied_temp for absent is PERIOD_REDUCED), do not
-                    # overwrite with the lower Reduced temperature.
-                    current = desired_temps[area_id]
-                    if occupied_temp < current:
-                        # Check whether a present person could have set `current`:
-                        # if current == time-program baseline, absent person may lower it.
-                        # if current > time-program baseline, a present person raised it — hold.
-                        room_weekday_groups2 = (
-                            room_configs.get(area_id, {})
-                            .get("time_program", {})
-                            .get("weekday_groups")
-                        )
-                        wg2 = room_weekday_groups2 if room_weekday_groups2 else global_weekday_groups
-                        period_mode2 = evaluate_schedule(wg2, now)
-                        baseline = period_temperatures[period_mode2]
-                        if current <= baseline:
-                            # No present person has raised it yet — absent person can lower
-                            desired_temps[area_id] = occupied_temp
-                        # else: a present person raised it — keep the higher temp
+                    # Absent person: only lower the temperature if no present person
+                    # has already locked this room in this tick.
+                    if area_id not in present_locked_rooms:
+                        desired_temps[area_id] = occupied_temp
 
         # Step 4: push each room's resolved temperature to its TRVs
         for area_id, entity_ids in rooms.items():
