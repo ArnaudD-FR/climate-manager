@@ -16,12 +16,21 @@ Phase 2 additions:
 - async_setup_entry wires coordinator and registers minute-polling scheduler (D-01)
 - async_setup_entry calls coordinator.async_evaluate() immediately for restart recovery (INFRA-03)
 - async_unload_entry cancels the scheduler before unloading platforms (Pitfall 1)
+
+Phase 3 additions:
+- async_setup_entry registers 8 WebSocket commands via cm_ws.async_register_commands
+- async_setup_entry serves www/ directory as a static path (Pitfall 6 — cache_headers=False)
+- async_setup_entry registers sidebar panel via panel_custom.async_register_panel
+- manifest.json declares dependencies ["http", "frontend", "panel_custom"] (Pitfall 7)
 """
 
 from dataclasses import dataclass, field
 from datetime import timedelta
+from pathlib import Path
 from typing import Callable
 
+from homeassistant.components import panel_custom
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_time_interval
@@ -29,10 +38,19 @@ from homeassistant.helpers.event import async_track_time_interval
 from .coordinator import ClimateManagerCoordinator
 from .discovery import discover_persons, discover_rooms
 from .storage import ClimateManagerStore
+from . import websocket as cm_ws
+from .const import DOMAIN
 
 # Entity platforms managed by this integration.
 # Empty in Phase 2 — pure backend, no platform entities (D-09).
 PLATFORMS: list[str] = []
+
+# Panel registration constants (Phase 3)
+# PANEL_URL: URL path where www/ directory is served (static files).
+# PANEL_COMPONENT_NAME: must exactly match customElements.define("name", ...) in panel.js
+#                       (RESEARCH Pitfall 2 — mismatch causes blank panel).
+PANEL_URL = "/climate_manager_panel"
+PANEL_COMPONENT_NAME = "climate-manager-panel"
 
 
 @dataclass
@@ -111,6 +129,30 @@ async def async_setup_entry(
         coordinator.async_evaluate,
         timedelta(minutes=1),
         name="climate_manager_scheduler",
+    )
+
+    # Phase 3: register WebSocket commands (auto-unregister on entry unload — RESEARCH Pattern 3).
+    cm_ws.async_register_commands(hass, entry)
+
+    # Phase 3: serve www/ directory as a static path (cache_headers=False — RESEARCH Pitfall 6).
+    www_path = Path(__file__).parent / "www"
+    # Create www/ directory if missing so registration does not fail before Wave 3 produces panel.js.
+    # Use executor job to avoid blocking the event loop (RESEARCH Pitfall 2).
+    await hass.async_add_executor_job(www_path.mkdir, 0o755, True, True)
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(PANEL_URL, str(www_path), False)]
+    )
+
+    # Phase 3: register sidebar panel (panel_custom loaded via manifest dependency — Pitfall 7).
+    await panel_custom.async_register_panel(
+        hass,
+        frontend_url_path=DOMAIN,
+        webcomponent_name=PANEL_COMPONENT_NAME,
+        sidebar_title="Climate Manager",
+        sidebar_icon="mdi:thermometer",
+        module_url=f"{PANEL_URL}/panel.js",
+        embed_iframe=False,
+        require_admin=False,
     )
 
     return True

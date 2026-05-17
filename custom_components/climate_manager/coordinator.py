@@ -80,6 +80,9 @@ class ClimateManagerCoordinator:
         self._data = data
         # Empty on construction → D-04: first async_evaluate is always a full push.
         self._last_pushed: dict[str, float] = {}
+        # Wave 2: track last evaluation results for status push and get_status WS command.
+        self._last_active_period: str | None = None
+        self._last_present_persons: list[str] = []
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
@@ -109,6 +112,9 @@ class ClimateManagerCoordinator:
                         _LOGGER.warning(
                             "Failed to push temperature to %s in MODE_OFF", entity_id
                         )
+            # Wave 2: reset status tracking for MODE_OFF
+            self._last_active_period = None
+            self._last_present_persons = []
 
         elif global_mode == MODE_TIME_PROGRAM:
             # SCHED-05: per-room override if defined, else global program
@@ -124,6 +130,12 @@ class ClimateManagerCoordinator:
         else:
             _LOGGER.warning("Unknown global_mode %r — no TRV commands issued", global_mode)
 
+        # Wave 2: push updated status to all subscribed panel instances after every evaluation
+        self._hass.bus.async_fire(
+            f"{DOMAIN}_status_update",
+            self._build_status_payload(),
+        )
+
     async def _evaluate_time_program(
         self,
         now: datetime,
@@ -138,6 +150,11 @@ class ClimateManagerCoordinator:
         """
         global_daily_program: dict = config["global_time_program"]
         room_configs: dict = config.get("rooms", {})
+
+        # Wave 2: track global active period for status push (no present persons in this mode)
+        global_period_mode = evaluate_schedule(global_daily_program, now)
+        self._last_active_period = global_period_mode
+        self._last_present_persons = []
 
         for area_id, entity_ids in rooms.items():
             # Resolve daily_program: room override else global (per-day dict, D-01)
@@ -205,6 +222,12 @@ class ClimateManagerCoordinator:
                 continue
             desired_temps[area_id] = desired_temp_baseline
 
+        # Wave 2: track global active period for status push
+        global_period_mode = evaluate_schedule(global_daily_program, now)
+        self._last_active_period = global_period_mode
+        # present_persons list is built during person iteration below
+        present_persons_this_tick: list[str] = []
+
         # Step 3 tracking: rooms locked by a present person — absent persons cannot
         # lower the temperature for these rooms within this tick.
         present_locked_rooms: set[str] = set()
@@ -217,6 +240,8 @@ class ClimateManagerCoordinator:
                 continue
 
             is_present = resolve_presence(person_config, now)
+            if is_present:
+                present_persons_this_tick.append(_person_id)
 
             for area_id in room_ids:
                 if area_id not in rooms:
@@ -252,6 +277,9 @@ class ClimateManagerCoordinator:
                     if area_id not in present_locked_rooms:
                         desired_temps[area_id] = occupied_temp
 
+        # Wave 2: store resolved present persons list for status push
+        self._last_present_persons = present_persons_this_tick
+
         # Step 4: push each room's resolved temperature to its TRVs
         for area_id, entity_ids in rooms.items():
             desired_temp = desired_temps[area_id]
@@ -263,6 +291,17 @@ class ClimateManagerCoordinator:
                         "Failed to push temperature to %s in MODE_TIME_PROGRAM_PRESENCES",
                         entity_id,
                     )
+
+    def _build_status_payload(self) -> dict:
+        """Build the status dict pushed to subscribed panel connections after each evaluation.
+
+        Used by the Wave 2 subscribe_status WS command and the hass.bus event.
+        """
+        return {
+            "global_mode": self._data.runtime_config["global_mode"],
+            "active_period": getattr(self, "_last_active_period", None),
+            "present_persons": getattr(self, "_last_present_persons", []),
+        }
 
     async def _push_if_changed(self, entity_id: str, desired_temp: float) -> None:
         """Push temperature to TRV only if it differs from the last pushed value.
