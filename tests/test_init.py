@@ -5,11 +5,12 @@ Tests:
 - entry.runtime_data is populated with ClimateManagerData
 - Unloading the entry succeeds
 - hass.data[DOMAIN] is NOT used (state lives on runtime_data)
+- Phase 2: coordinator and cancel_scheduler are wired on setup (D-01, INFRA-03)
 """
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.climate_manager.const import DOMAIN
-from custom_components.climate_manager import ClimateManagerData
+from custom_components.climate_manager import ClimateManagerData, ClimateManagerCoordinator
 
 
 async def test_setup_entry_reaches_loaded_state(hass):
@@ -74,3 +75,23 @@ async def test_hass_data_domain_not_used(hass):
 
     # hass.data[DOMAIN] must not be set by the integration
     assert DOMAIN not in hass.data
+
+
+async def test_setup_entry_coordinator_and_scheduler_wired(hass):
+    """Phase 2: coordinator and cancel_scheduler are set after setup (D-01, INFRA-03).
+
+    Verifies that async_setup_entry wires both the coordinator instance and
+    the scheduler cancel callback into entry.runtime_data as required by Phase 2.
+    """
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Coordinator must be an instance of ClimateManagerCoordinator (D-01)
+    assert entry.runtime_data.coordinator is not None
+    assert isinstance(entry.runtime_data.coordinator, ClimateManagerCoordinator)
+
+    # cancel_scheduler must be set and callable (Pitfall 1 — stored for clean unload)
+    assert entry.runtime_data.cancel_scheduler is not None
+    assert callable(entry.runtime_data.cancel_scheduler)
