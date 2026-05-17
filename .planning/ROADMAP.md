@@ -93,7 +93,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02-PLAN.md — Python WebSocket API (8 commands) + coordinator status push + panel_custom registration + manifest deps + test_websocket.py
+- [x] 03-02-PLAN.md — Python WebSocket API (8 commands) + coordinator status push + panel_custom registration + manifest deps + test_websocket.py
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -115,4 +115,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
 | 2. Backend Engines & Coordinator | 2/2 | Complete    | 2026-05-17 |
-| 3. WebSocket API & Frontend Panel | 1/4 | In Progress|  |
+| 3. WebSocket API & Frontend Panel | 2/4 | In Progress|  |
