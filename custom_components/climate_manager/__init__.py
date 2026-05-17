@@ -64,6 +64,9 @@ class ClimateManagerData:
 # Modern typed ConfigEntry alias (Pattern 2 — entry.runtime_data pattern).
 type ClimateManagerConfigEntry = ConfigEntry[ClimateManagerData]
 
+# Explicit public API — prevents silent breakage if imports are reorganised.
+__all__ = ["ClimateManagerData", "ClimateManagerConfigEntry", "ClimateManagerCoordinator"]
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
