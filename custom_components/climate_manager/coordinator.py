@@ -273,6 +273,12 @@ class ClimateManagerCoordinator:
         Pitfall 3: on startup last=None → override hold is bypassed, push always fires.
         Pitfall 6: reads attributes["temperature"] (setpoint), not the measured room temp.
         """
+        # WR-02: guard against removed or unavailable entities — skip completely
+        # to avoid repeated no-op service calls every minute.
+        state = self._hass.states.get(entity_id)
+        if state is None or state.state == "unavailable":
+            return
+
         last = self._last_pushed.get(entity_id)
 
         # D-02: push-on-change — skip if already at desired temp
@@ -281,14 +287,13 @@ class ClimateManagerCoordinator:
 
         # D-03: manual override hold — only active when we have a prior push record
         if last is not None:
-            state = self._hass.states.get(entity_id)
-            if state is not None:
-                # ATTR_TEMPERATURE = "temperature" — the thermostat setpoint (Pitfall 6)
-                reported = state.attributes.get("temperature")
-                # Guard: reported may be None (TRV hasn't synced) or int (Pitfall 3)
-                if reported is not None and float(reported) != last:
-                    # User adjusted manually — hold until next period transition
-                    return
+            # state is already fetched and confirmed non-None/non-unavailable above
+            # ATTR_TEMPERATURE = "temperature" — the thermostat setpoint (Pitfall 6)
+            reported = state.attributes.get("temperature")
+            # Guard: reported may be None (TRV hasn't synced) or int (Pitfall 3)
+            if reported is not None and float(reported) != last:
+                # User adjusted manually — hold until next period transition
+                return
 
         await set_trv_temperature(self._hass, entity_id, desired_temp)
         self._last_pushed[entity_id] = desired_temp
