@@ -9,5 +9,5 @@
   "documentation": "",
   "issue_tracker": "",
   "requirements": [],
-  "dependencies": []
+  "dependencies": ["http", "frontend", "panel_custom"]
 }

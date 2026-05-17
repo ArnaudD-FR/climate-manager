@@ -25,11 +25,15 @@ Security:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 import voluptuous as vol
 
-from . import ClimateManagerConfigEntry
+if TYPE_CHECKING:
+    from . import ClimateManagerConfigEntry
+
 from .const import (
     DOMAIN,
     MODE_OFF,
