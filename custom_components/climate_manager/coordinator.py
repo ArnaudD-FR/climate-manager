@@ -147,7 +147,12 @@ class ClimateManagerCoordinator:
             weekday_groups = room_weekday_groups if room_weekday_groups else global_weekday_groups
 
             period_mode = evaluate_schedule(weekday_groups, now)
-            desired_temp = period_temperatures[period_mode]
+            desired_temp = period_temperatures.get(period_mode)
+            if desired_temp is None:
+                _LOGGER.warning(
+                    "Unknown period mode %r for area %s — skipping", period_mode, area_id
+                )
+                continue
 
             for entity_id in entity_ids:
                 try:
@@ -190,7 +195,13 @@ class ClimateManagerCoordinator:
             )
             weekday_groups = room_weekday_groups if room_weekday_groups else global_weekday_groups
             period_mode = evaluate_schedule(weekday_groups, now)
-            desired_temps[area_id] = period_temperatures[period_mode]
+            desired_temp_baseline = period_temperatures.get(period_mode)
+            if desired_temp_baseline is None:
+                _LOGGER.warning(
+                    "Unknown period mode %r for area %s — skipping", period_mode, area_id
+                )
+                continue
+            desired_temps[area_id] = desired_temp_baseline
 
         # Step 3 tracking: rooms locked by a present person — absent persons cannot
         # lower the temperature for these rooms within this tick.
