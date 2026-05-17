@@ -14,7 +14,7 @@ Climate Manager ships in three phases that follow the natural build-order constr
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Foundation** - HACS-compatible integration scaffold with persistent storage and verified TRV control
-- [ ] **Phase 2: Backend Engines & Coordinator** - Complete scheduling/presence logic and coordinator control loop, hardware-validated with real TRVs
+- [x] **Phase 2: Backend Engines & Coordinator** - Complete scheduling/presence logic and coordinator control loop, hardware-validated with real TRVs (completed 2026-05-17)
 - [ ] **Phase 3: WebSocket API & Frontend Panel** - Full Lovelace dashboard panel for configuring global settings, rooms, and persons
 
 ## Phase Details
@@ -68,7 +68,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02-PLAN.md — ClimateManagerCoordinator control loop + setup/unload wiring (minute poll, push-on-change, override hold, INFRA-03 startup push) + integration tests
+- [x] 02-02-PLAN.md — ClimateManagerCoordinator control loop + setup/unload wiring (minute poll, push-on-change, override hold, INFRA-03 startup push) + integration tests
 
 **Plans created:** 2026-05-17
 
@@ -95,5 +95,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
-| 2. Backend Engines & Coordinator | 1/2 | In Progress|  |
+| 2. Backend Engines & Coordinator | 2/2 | Complete   | 2026-05-17 |
 | 3. WebSocket API & Frontend Panel | 0/TBD | Not started | - |
