@@ -58,6 +58,8 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 02-02-PLAN.md — ClimateManagerCoordinator control loop + setup/unload wiring (minute poll, push-on-change, override hold, INFRA-03 startup push) + integration tests
 
+**Plans created:** 2026-05-17
+
 ### Phase 3: WebSocket API & Frontend Panel
 **Goal**: Users can configure every aspect of the integration — global mode, temperature defaults, global and per-room time programs, persons, presence schedules, and room associations — through a full Lovelace dashboard panel, without touching YAML or HA config files
 **Depends on**: Phase 2

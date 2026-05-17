@@ -764,7 +764,7 @@ Note: The installed HA version is 2024.12.5 (venv), not 2025.x as stated in CLAU
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Rooms not associated with any person in MODE_TIME_PROGRAM_PRESENCES**
    - What we know: PERSON-06 defines rooms per person. MODE_TIME_PROGRAM_PRESENCES mode focuses on persons.
