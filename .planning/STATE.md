@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-05-17T18:07:58.586Z"
+stopped_at: Phase 3 UI-SPEC approved — ready for planning
+last_updated: "2026-05-17T19:00:00.000Z"
 last_activity: 2026-05-17
 progress:
   total_phases: 3
@@ -91,4 +91,4 @@ Items acknowledged and carried forward from previous milestone close:
 
 Last session: 2026-05-17T18:07:58.577Z
 Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-websocket-api-frontend-panel/03-CONTEXT.md
+Resume file: .planning/phases/03-websocket-api-frontend-panel/03-UI-SPEC.md
