@@ -22,6 +22,7 @@ Requirements addressed:
 """
 
 import datetime
+import logging
 
 from .const import (
     PERIOD_COMFORT,
@@ -48,6 +49,8 @@ DAY_TO_WEEKDAY: dict[str, int] = {
 }
 
 ALL_DAYS: set[str] = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+
+_LOGGER = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +96,9 @@ def evaluate_schedule(
         days = [DAY_TO_WEEKDAY[d] for d in group["days"]]
         if today not in days:
             continue
-        # Found today's group — find active period
+        # Found today's group — find active period.
+        # WR-01: log which group is used so "first match wins" is surfaced in debug logs.
+        _LOGGER.debug("evaluate_schedule: using first matching group for today (%s)", today)
         periods = sorted(group["periods"], key=lambda p: p["start"])
         active_mode = None
         for period in periods:
@@ -189,6 +194,10 @@ def compute_occupied_temp(
 
     if not nc_periods:
         # D-05: no Normal/Comfort periods at all → apply Reduced
+        _LOGGER.debug(
+            "compute_occupied_temp: no periods for today (%s) — returning Reduced for present person",
+            today,
+        )
         return period_temperatures[PERIOD_REDUCED]
 
     # Occupied window: [start of first N/C, start of period after last N/C]
