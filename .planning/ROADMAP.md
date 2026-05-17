@@ -89,7 +89,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Per-day schema refactor (gap closure): const.py/schedule.py/coordinator.py + tests to {mon..sun} schema, STORAGE_VERSION=2
+- [x] 03-01-PLAN.md — Per-day schema refactor (gap closure): const.py/schedule.py/coordinator.py + tests to {mon..sun} schema, STORAGE_VERSION=2
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -115,4 +115,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
 | 2. Backend Engines & Coordinator | 2/2 | Complete    | 2026-05-17 |
-| 3. WebSocket API & Frontend Panel | 0/4 | Not started | - |
+| 3. WebSocket API & Frontend Panel | 1/4 | In Progress|  |
