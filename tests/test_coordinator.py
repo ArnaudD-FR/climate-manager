@@ -6,6 +6,7 @@ Tests:
 - Push-on-change: no second call if temperature unchanged (D-02)
 - Manual override hold: skip entity when TRV reports different temp (D-03)
 - Present person wins over absent person for a shared room (D-07 multi-person conflict)
+- Frost protection before first period (WR-04)
 
 All tests use MockConfigEntry + hass fixture following the pattern from test_init.py.
 TRV states are seeded before setup; climate services are captured via async_mock_service.
@@ -28,49 +29,50 @@ from custom_components.climate_manager.const import (
 )
 
 # ---------------------------------------------------------------------------
-# Test fixtures / helpers
+# Test fixtures / helpers — per-day schema (D-01)
 # ---------------------------------------------------------------------------
 
-# A weekday-group that puts all 7 days into Normal mode all day.
+# Per-day dict: all 7 days in Normal mode all day.
 # Used by tests that just need a deterministic temperature push without
 # caring about which period is active.
-ALL_DAYS_NORMAL_PROGRAM = [
-    {
-        "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
-        "periods": [
-            {"start": "00:00", "mode": PERIOD_NORMAL},
-        ],
-    }
-]
+ALL_DAYS_NORMAL_PROGRAM: dict = {
+    day: [{"start": "00:00", "mode": PERIOD_NORMAL}]
+    for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+}
 
-# A weekday-group with a Normal period 07:00-22:00 and Reduced outside.
+# Per-day dict: Reduced 00:00-07:00, Normal 07:00-22:00, Reduced 22:00+.
 # Frozen clock at Monday 08:30 (see freeze_time marks) lands in Normal.
-TYPICAL_WEEKDAY_PROGRAM = [
-    {
-        "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
-        "periods": [
-            {"start": "00:00", "mode": PERIOD_REDUCED},
-            {"start": "07:00", "mode": PERIOD_NORMAL},
-            {"start": "22:00", "mode": PERIOD_REDUCED},
-        ],
-    }
-]
+TYPICAL_WEEKDAY_PROGRAM: dict = {
+    day: [
+        {"start": "00:00", "mode": PERIOD_REDUCED},
+        {"start": "07:00", "mode": PERIOD_NORMAL},
+        {"start": "22:00", "mode": PERIOD_REDUCED},
+    ]
+    for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+}
+
+# Per-day dict: Normal starts at 07:00, no 00:00 period — frost-protection before 07:00.
+LATE_START_PROGRAM: dict = {
+    day: [
+        {"start": "07:00", "mode": PERIOD_NORMAL},
+        {"start": "22:00", "mode": PERIOD_REDUCED},
+    ]
+    for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+}
 
 
 def _make_runtime_config(
     global_mode: str = MODE_TIME_PROGRAM,
-    weekday_groups: list | None = None,
+    daily_program: dict | None = None,
     rooms_config: dict | None = None,
     persons_config: dict | None = None,
 ) -> dict:
     """Build a runtime_config dict suitable for coordinator tests."""
     return {
-        "version": 1,
+        "version": 2,
         "global_mode": global_mode,
         "period_temperatures": dict(DEFAULT_PERIOD_TEMPERATURES),
-        "global_time_program": {
-            "weekday_groups": weekday_groups if weekday_groups is not None else ALL_DAYS_NORMAL_PROGRAM
-        },
+        "global_time_program": daily_program if daily_program is not None else ALL_DAYS_NORMAL_PROGRAM,
         "rooms": rooms_config or {},
         "persons": persons_config or {},
     }
@@ -97,21 +99,13 @@ async def test_coordinator_pushes_on_startup(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
 
-    # Patch runtime_config and rooms before setup via a side-effect:
-    # We rely on the store loading DEFAULT_CONFIG (empty weekday_groups).
-    # Instead, directly override runtime_data after setup to simplify.
-    # Actually, the coordinator reads runtime_config after setup — so we need
-    # to set up with a real config. We'll patch the store's output by injecting
-    # config via the runtime_data after setup.
-    #
-    # Simpler approach: set up, then override runtime_data fields and call async_evaluate.
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
     # Patch runtime_config to have a Normal-all-day program
     entry.runtime_data.runtime_config = _make_runtime_config(
         global_mode=MODE_TIME_PROGRAM,
-        weekday_groups=ALL_DAYS_NORMAL_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     # Patch rooms to include our entity
     entry.runtime_data.rooms = {"bedroom": ["climate.bedroom_trv"]}
@@ -175,7 +169,7 @@ async def test_push_on_change_no_duplicate(hass):
     # Patch config + rooms
     entry.runtime_data.runtime_config = _make_runtime_config(
         global_mode=MODE_TIME_PROGRAM,
-        weekday_groups=ALL_DAYS_NORMAL_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     entry.runtime_data.rooms = {"living": ["climate.living_trv"]}
 
@@ -223,7 +217,7 @@ async def test_manual_override_hold(hass):
 
     entry.runtime_data.runtime_config = _make_runtime_config(
         global_mode=MODE_TIME_PROGRAM,
-        weekday_groups=ALL_DAYS_NORMAL_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     entry.runtime_data.rooms = {"hall": ["climate.hall_trv"]}
 
@@ -286,18 +280,18 @@ async def test_present_person_wins_absent_for_same_room(hass):
         "person.alice": {
             "mode": "present",
             "room_ids": ["lounge"],
-            "schedule": {"weekday_groups": []},
+            "schedule": {},  # per-day: empty dict = no schedule
         },
         "person.bob": {
             "mode": "absent",
             "room_ids": ["lounge"],
-            "schedule": {"weekday_groups": []},
+            "schedule": {},  # per-day: empty dict = no schedule
         },
     }
 
     entry.runtime_data.runtime_config = _make_runtime_config(
         global_mode=MODE_TIME_PROGRAM_PRESENCES,
-        weekday_groups=TYPICAL_WEEKDAY_PROGRAM,
+        daily_program=TYPICAL_WEEKDAY_PROGRAM,
         persons_config=persons_config,
     )
     entry.runtime_data.rooms = {"lounge": ["climate.lounge_trv"]}
@@ -325,18 +319,6 @@ async def test_present_person_wins_absent_for_same_room(hass):
 # Test 6: Frost-protection before first period (WR-04)
 # ---------------------------------------------------------------------------
 
-# A weekday-group that starts at 07:00 with no 00:00 period — rooms fall to
-# frost-protection for the 00:00-06:59 window.
-LATE_START_PROGRAM = [
-    {
-        "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
-        "periods": [
-            {"start": "07:00", "mode": PERIOD_NORMAL},
-            {"start": "22:00", "mode": PERIOD_REDUCED},
-        ],
-    }
-]
-
 
 @pytest.mark.freeze_time("2026-01-05 14:00:00")  # Monday 14:00 UTC = 06:00 US/Pacific
 async def test_coordinator_applies_frost_before_first_period(hass):
@@ -357,7 +339,7 @@ async def test_coordinator_applies_frost_before_first_period(hass):
 
     entry.runtime_data.runtime_config = _make_runtime_config(
         global_mode=MODE_TIME_PROGRAM,
-        weekday_groups=LATE_START_PROGRAM,
+        daily_program=LATE_START_PROGRAM,
     )
     entry.runtime_data.rooms = {"study": ["climate.study_trv"]}
 

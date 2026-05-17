@@ -25,7 +25,9 @@ async def test_load_fresh_install_returns_copy_not_same_object(hass):
 
     # Mutate the returned config
     result["global_mode"] = "off"
-    result["rooms"]["new_room"] = {"time_program": {"weekday_groups": []}}
+    result["rooms"]["new_room"] = {
+        "time_program": {d: [] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]}
+    }
 
     # DEFAULT_CONFIG must be unchanged
     assert DEFAULT_CONFIG["global_mode"] == "time_program"
@@ -69,9 +71,12 @@ async def test_load_room_override_survives(hass):
     """Test 4: A stored room override survives load and appears under rooms[area_id]."""
     store = ClimateManagerStore(hass)
 
+    _DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    room_time_program = {d: [] for d in _DAYS}
+
     config_with_room = copy.deepcopy(DEFAULT_CONFIG)
     config_with_room["rooms"]["living_room"] = {
-        "time_program": {"weekday_groups": []}
+        "time_program": room_time_program
     }
 
     await store.async_save(config_with_room)
@@ -79,5 +84,5 @@ async def test_load_room_override_survives(hass):
 
     assert "living_room" in loaded["rooms"]
     assert loaded["rooms"]["living_room"] == {
-        "time_program": {"weekday_groups": []}
+        "time_program": room_time_program
     }

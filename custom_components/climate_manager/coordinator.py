@@ -42,6 +42,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    DOMAIN,
     MODE_OFF,
     MODE_TIME_PROGRAM,
     MODE_TIME_PROGRAM_PRESENCES,
@@ -133,20 +134,20 @@ class ClimateManagerCoordinator:
         """Push scheduled temperatures for all rooms (MODE_TIME_PROGRAM).
 
         Per-room override takes precedence over the global time program (SCHED-05).
+        Global time program IS the per-day dict directly (D-01).
         """
-        global_weekday_groups = config["global_time_program"]["weekday_groups"]
+        global_daily_program: dict = config["global_time_program"]
         room_configs: dict = config.get("rooms", {})
 
         for area_id, entity_ids in rooms.items():
-            # Resolve weekday_groups: room override else global
-            room_weekday_groups = (
+            # Resolve daily_program: room override else global (per-day dict, D-01)
+            room_daily_program = (
                 room_configs.get(area_id, {})
-                .get("time_program", {})
-                .get("weekday_groups")
+                .get("time_program")
             )
-            weekday_groups = room_weekday_groups if room_weekday_groups else global_weekday_groups
+            daily_program = room_daily_program if room_daily_program else global_daily_program
 
-            period_mode = evaluate_schedule(weekday_groups, now)
+            period_mode = evaluate_schedule(daily_program, now)
             desired_temp = period_temperatures.get(period_mode)
             if desired_temp is None:
                 _LOGGER.warning(
@@ -180,21 +181,22 @@ class ClimateManagerCoordinator:
            Uses a separate set to track present-locked rooms, ensuring the rule is
            order-independent regardless of person iteration order.
         4. Push each room's final desired_temp to its TRVs.
+
+        Global time program IS the per-day dict directly (D-01).
         """
-        global_weekday_groups: list[dict] = config["global_time_program"]["weekday_groups"]
+        global_daily_program: dict = config["global_time_program"]
         room_configs: dict = config.get("rooms", {})
         persons_config: dict = config.get("persons", {})
 
         # Step 1: baseline — time-program temp for every managed room
         desired_temps: dict[str, float] = {}
         for area_id in rooms:
-            room_weekday_groups = (
+            room_daily_program = (
                 room_configs.get(area_id, {})
-                .get("time_program", {})
-                .get("weekday_groups")
+                .get("time_program")
             )
-            weekday_groups = room_weekday_groups if room_weekday_groups else global_weekday_groups
-            period_mode = evaluate_schedule(weekday_groups, now)
+            daily_program = room_daily_program if room_daily_program else global_daily_program
+            period_mode = evaluate_schedule(daily_program, now)
             desired_temp_baseline = period_temperatures.get(period_mode)
             if desired_temp_baseline is None:
                 _LOGGER.warning(
@@ -221,18 +223,17 @@ class ClimateManagerCoordinator:
                     # Person references an area not managed by this integration
                     continue
 
-                # Resolve weekday_groups for this room
-                room_weekday_groups = (
+                # Resolve daily_program for this room (per-day dict, D-01)
+                room_daily_program = (
                     room_configs.get(area_id, {})
-                    .get("time_program", {})
-                    .get("weekday_groups")
+                    .get("time_program")
                 )
-                weekday_groups = (
-                    room_weekday_groups if room_weekday_groups else global_weekday_groups
+                daily_program = (
+                    room_daily_program if room_daily_program else global_daily_program
                 )
 
                 occupied_temp = compute_occupied_temp(
-                    weekday_groups, now, is_present, period_temperatures
+                    daily_program, now, is_present, period_temperatures
                 )
 
                 # Step 3: present-person-wins rule — order-independent.
