@@ -10,6 +10,7 @@
  *   - Full-width 40px colored bar (segments from `days[i]`)
  *   - [Copy] and [Paste] icon buttons
  *
+ * Above all 7 rows: a time ruler showing hour markers every 3 hours.
  * Below all 7 rows: a shared time axis (00:00 / 06:00 / 12:00 / 18:00 / 24:00).
  *
  * Interactions (D-04…D-09):
@@ -61,6 +62,11 @@ interface PopupState {
 // Day names
 // ---------------------------------------------------------------------------
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// ---------------------------------------------------------------------------
+// Time scale tick hours (every 3h, 0..24)
+// ---------------------------------------------------------------------------
+const TIME_SCALE_HOURS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 
 // ---------------------------------------------------------------------------
 // Component
@@ -200,6 +206,55 @@ export class ClimateManagerTimeBar extends LitElement {
       opacity: 0.4;
     }
 
+    /* ---- Time scale ruler (above day rows) -------------------------------- */
+    .time-scale {
+      display: flex;
+      align-items: stretch;
+      padding-left: 48px; /* 40px label + 8px padding — matches bar start */
+      padding-right: 80px; /* approximate button column width */
+      height: 18px;
+    }
+
+    .time-scale-inner {
+      flex: 1;
+      position: relative;
+    }
+
+    .time-scale-tick {
+      position: absolute;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transform: translateX(-50%);
+    }
+
+    /* The last tick (24) must not overflow right — anchor it to the right edge */
+    .time-scale-tick.tick-last {
+      transform: translateX(-100%);
+    }
+
+    /* The first tick (0) must not overflow left — anchor to left edge */
+    .time-scale-tick.tick-first {
+      transform: translateX(0);
+    }
+
+    .time-scale-tick-line {
+      width: 1px;
+      height: 5px;
+      background: var(--divider-color, #e0e0e0);
+      flex-shrink: 0;
+    }
+
+    .time-scale-tick-label {
+      font-size: 10px;
+      line-height: 1;
+      color: var(--secondary-text-color, #757575);
+      margin-top: 1px;
+      white-space: nowrap;
+    }
+
+    /* ---- Time axis (below day rows) --------------------------------------- */
     .time-axis {
       display: flex;
       align-items: center;
@@ -567,7 +622,7 @@ export class ClimateManagerTimeBar extends LitElement {
     const { dayIndex, segIndex } = this._drag;
 
     const barEl = this.shadowRoot?.querySelector(
-      `.day-row:nth-child(${dayIndex + 1}) .bar-wrap`,
+      `.day-row:nth-child(${dayIndex + 2}) .bar-wrap`,
     ) as HTMLElement | null;
     if (!barEl) return;
 
@@ -613,7 +668,7 @@ export class ClimateManagerTimeBar extends LitElement {
 
     const { dayIndex, segIndex } = this._drag;
     const barEl = this.shadowRoot?.querySelector(
-      `.day-row:nth-child(${dayIndex + 1}) .bar-wrap`,
+      `.day-row:nth-child(${dayIndex + 2}) .bar-wrap`,
     ) as HTMLElement | null;
 
     if (barEl) {
@@ -686,6 +741,9 @@ export class ClimateManagerTimeBar extends LitElement {
         @pointermove=${this._onPointerMove}
         @pointerup=${this._onPointerUp}
       >
+        <!-- Time scale ruler above day rows -->
+        ${this._renderTimeScale()}
+
         ${DAY_LABELS.map((label, dayIndex) =>
           this._renderDayRow(label, dayIndex),
         )}
@@ -726,6 +784,41 @@ export class ClimateManagerTimeBar extends LitElement {
             </div>
           `
         : ""}
+    `;
+  }
+
+  /**
+   * Renders a horizontal time ruler above the day rows.
+   * 9 ticks at hours 0, 3, 6, 9, 12, 15, 18, 21, 24 — each absolutely
+   * positioned at (hour/24)*100% within the bar area. The padding-left/right
+   * mirrors .time-axis so ticks align with the period bars.
+   */
+  private _renderTimeScale() {
+    return html`
+      <div class="time-scale">
+        <div class="time-scale-inner">
+          ${TIME_SCALE_HOURS.map((hour, i) => {
+            const leftPct = (hour / 24) * 100;
+            const isFirst = i === 0;
+            const isLast = i === TIME_SCALE_HOURS.length - 1;
+            const tickClass = isFirst
+              ? "time-scale-tick tick-first"
+              : isLast
+                ? "time-scale-tick tick-last"
+                : "time-scale-tick";
+            return html`
+              <div
+                class="${tickClass}"
+                style="left:${leftPct}%"
+                aria-hidden="true"
+              >
+                <div class="time-scale-tick-line"></div>
+                <span class="time-scale-tick-label">${hour}</span>
+              </div>
+            `;
+          })}
+        </div>
+      </div>
     `;
   }
 
