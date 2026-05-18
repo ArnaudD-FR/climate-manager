@@ -158,15 +158,13 @@ export class GlobalSettingsTab extends LitElement {
   private async _onModeChange(e: Event) {
     const select = e.target as HTMLElement & { value: string };
     const newMode = select.value;
-    // Guard: skip if value is empty (fires during component initialisation
-    // before mwc-select has settled) or unchanged.
-    if (!newMode || newMode === this.config.global_mode) return;
+    // Guard: skip only if value is unchanged (dedup — prevents redundant saves).
+    // Do NOT guard on !newMode: that swallows legitimate user clicks when
+    // ha-select.value hasn't been reflected yet at @selected fire time.
+    if (newMode === this.config.global_mode) return;
     try {
       await this.ws.setGlobalMode(newMode);
-      // Reload config so the parent's _config reflects the new mode.
-      // Without this, the next Lit render passes the stale global_mode back
-      // via .value on ha-select, which causes a spurious @selected event that
-      // immediately overwrites the just-saved value on the backend.
+      // Reload config so the parent's _config reflects the new mode immediately.
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
@@ -284,7 +282,7 @@ export class GlobalSettingsTab extends LitElement {
           <ha-select
             label="Global mode"
             .value=${this.config.global_mode}
-            @selected=${this._onModeChange}
+            @change=${this._onModeChange}
           >
             <mwc-list-item value=${MODE_OFF}>Off</mwc-list-item>
             <mwc-list-item value=${MODE_TIME_PROGRAM}>Time program</mwc-list-item>

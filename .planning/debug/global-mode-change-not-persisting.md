@@ -19,9 +19,9 @@ updated: 2026-05-18
 ## Current Focus
 
 ```yaml
-hypothesis: stale _config in root panel causes ha-select to fire spurious @selected event that overwrites the saved value
-test: change global mode dropdown, observe it sticks
-expecting: mode persists after reload
+hypothesis: resolved
+test: n/a
+expecting: n/a
 next_action: complete
 ```
 
@@ -40,35 +40,60 @@ next_action: complete
 
 - timestamp: 2026-05-18T00:00:01
   observation: >
-    Secondary guard needed: _onModeChange had no early-return for the case where
-    newMode === this.config.global_mode (would cause a no-op save on init-time
-    @selected fires when mwc-select first sets its value).
+    Previous fix added reloadConfig() + guard `if (!newMode || newMode === this.config.global_mode)`.
+    Fix was compiled into panel.js (confirmed by timestamp). But symptom persisted.
+  files: [frontend/src/components/global-settings-tab.ts]
+
+- timestamp: 2026-05-18T00:00:02
+  observation: >
+    Re-investigation of all source files. Backend confirmed correct (set_global_mode
+    mutates runtime_config in-place, saves, evaluates). Storage confirmed correct.
+    Coordinator does NOT reset global_mode. Mode string constants match exactly.
+
+    The !newMode guard in the previous fix is the remaining bug.
+    ha-select's @selected event may fire with e.target.value === "" (empty string)
+    before mwc-select settles the new value onto ha-select's .value property.
+    The !newMode check returns early on every legitimate user click, preventing
+    setGlobalMode from ever being called.
+
+    Switching @selected to @change fixes this: the @change event fires after
+    selection is committed and ha-select.value is stable. The !newMode guard is
+    also removed — only the dedup guard (newMode === this.config.global_mode)
+    is retained to prevent redundant saves.
   files: [frontend/src/components/global-settings-tab.ts]
 
 ## Eliminated
 
-- Backend set_global_mode handler: correctly mutates runtime_config, saves, and evaluates. Not the bug.
-- ws-client.ts setGlobalMode: correctly sends mode field. Not the bug.
-- Storage layer async_save: works correctly. Not the bug.
+- Backend set_global_mode handler: confirmed correct — mutates runtime_config["global_mode"],
+  saves to store, re-evaluates. The mutation is in-memory and persisted.
+- ws-client.ts setGlobalMode: confirmed correct — sends {type: "climate_manager/set_global_mode", mode}.
+- Storage layer async_save/async_load: confirmed correct — sparse merge preserves global_mode.
+- Coordinator: does NOT reset global_mode — reads runtime_config["global_mode"] by reference.
+- Mode string constants: frontend "off", "time_program", "time_program_presences" match backend exactly.
+- Build artifact: fix was compiled into panel.js correctly (timestamps confirmed).
 
 ## Resolution
 
 ```yaml
 root_cause: >
-  Root panel _config is never refreshed after a write. The subscribe_status push
-  triggers a re-render that propagates the stale global_mode back into ha-select
-  via .value, causing mwc-select to fire a spurious @selected event that calls
-  setGlobalMode with the old value and overwrites the just-saved one.
+  Two compounding bugs:
+  1. stale _config re-render loop: subscribeStatus push triggered re-render with
+     stale global_mode before reloadConfig() completed, causing @selected to fire
+     with old value and overwrite the just-saved mode. (Original root cause — correct.)
+  2. Overly aggressive !newMode guard added in the first fix: ha-select's @selected
+     event fires with e.target.value === "" before mwc-select settles .value on the
+     host element. The !newMode check catches this but also swallows every real user
+     click, so setGlobalMode is never called.
 fix: >
-  1. Added public reloadConfig() method to ClimateManagerPanel (main.ts) that
-     re-fetches config from the backend via getConfig().
-  2. In GlobalSettingsTab._onModeChange (and _onTemperatureBlur, _onPeriodsChanged),
-     call await this.panel.reloadConfig() after each successful write so the parent's
-     _config is immediately updated before the next render.
-  3. Added guard in _onModeChange: skip if newMode is empty or equals current
-     config.global_mode to prevent no-op saves on initialisation-time @selected fires.
+  1. Changed @selected to @change on ha-select in GlobalSettingsTab template.
+     @change fires after selection is committed with stable .value — no spurious fires.
+  2. Removed the !newMode guard. Retained only the dedup guard
+     (newMode === this.config.global_mode) to prevent redundant saves.
+  3. Kept reloadConfig() call after successful write (still needed to keep _config
+     in sync before next render cycle, preventing the overwrite loop from bug 1).
+  4. Rebuilt panel.js (81.03 kB, built in 259ms).
 verification: null
 files_changed:
-  - frontend/src/main.ts
   - frontend/src/components/global-settings-tab.ts
+  - custom_components/climate_manager/www/panel.js
 ```
