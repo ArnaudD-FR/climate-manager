@@ -86,6 +86,14 @@ export class ClimateManagerTimeBar extends LitElement {
   @state() private _dragTooltipMinutes: number | null = null;
   @state() private _dragTooltipX: number = 0;
   @state() private _dragTooltipY: number = 0;
+  /**
+   * Live preview of `days` during a drag operation.
+   * Set on every pointermove with the dragged boundary applied.
+   * Cleared on pointerup — the committed value comes from the
+   * `periods-changed` event and parent re-render.
+   * Never triggers `periods-changed` events.
+   */
+  @state() private _dragPreviewDays: Period[][] | null = null;
   @state() private _popup: PopupState | null = null;
 
   // -----------------------------------------------------------------------
@@ -556,18 +564,48 @@ export class ClimateManagerTimeBar extends LitElement {
   private _onPointerMove(e: PointerEvent) {
     if (!this._drag) return;
 
+    const { dayIndex, segIndex } = this._drag;
+
     const barEl = this.shadowRoot?.querySelector(
-      `.day-row:nth-child(${this._drag.dayIndex + 1}) .bar-wrap`,
+      `.day-row:nth-child(${dayIndex + 1}) .bar-wrap`,
     ) as HTMLElement | null;
     if (!barEl) return;
 
     const rect = barEl.getBoundingClientRect();
     const rawMinutes = this._pixelToMinutes(e.clientX - rect.left, rect.width);
     const snapped = this._snapToMinutes(rawMinutes);
+
     // Update tooltip time and position — do NOT emit (D-09)
     this._dragTooltipMinutes = snapped;
     this._dragTooltipX = e.clientX;
     this._dragTooltipY = e.clientY;
+
+    // --- Live drag preview ---
+    // Compute the clamped boundary (same logic as _onPointerUp) and write a
+    // modified copy of `days` into _dragPreviewDays so Lit re-renders the
+    // segment widths immediately. No event is emitted here.
+    const segments = this._toSegments(this.days[dayIndex] ?? []);
+    const leftSeg = segments[segIndex];
+    const rightSeg = segments[segIndex + 1];
+
+    if (leftSeg && rightSeg) {
+      const minBoundary = leftSeg.startMin + 15;
+      const maxBoundary = rightSeg.endMin - 15;
+      const clamped = Math.max(minBoundary, Math.min(maxBoundary, snapped));
+
+      const previewDay = (this.days[dayIndex] ?? []).map((p) => {
+        if (p.start === rightSeg.period.start) {
+          return { ...p, start: this._minutesToHHMM(clamped) };
+        }
+        return p;
+      });
+
+      // Build a full preview days array, replacing only the affected day
+      const previewDays = this.days.map((day, i) =>
+        i === dayIndex ? previewDay : day,
+      );
+      this._dragPreviewDays = previewDays;
+    }
   }
 
   private _onPointerUp(e: PointerEvent) {
@@ -609,6 +647,7 @@ export class ClimateManagerTimeBar extends LitElement {
 
         this._drag = null;
         this._dragTooltipMinutes = null;
+        this._dragPreviewDays = null;
         this._emitChange(dayIndex, newPeriods);
         return;
       }
@@ -616,6 +655,7 @@ export class ClimateManagerTimeBar extends LitElement {
 
     this._drag = null;
     this._dragTooltipMinutes = null;
+    this._dragPreviewDays = null;
   }
 
   // -----------------------------------------------------------------------
@@ -690,7 +730,9 @@ export class ClimateManagerTimeBar extends LitElement {
   }
 
   private _renderDayRow(label: string, dayIndex: number) {
-    const periods = this.days[dayIndex] ?? [];
+    // Use live preview during drag, fall back to committed props otherwise
+    const sourceDays = this._dragPreviewDays ?? this.days;
+    const periods = sourceDays[dayIndex] ?? [];
     const segments = this._toSegments(periods);
     const isEmpty = segments.length === 0;
 
@@ -714,7 +756,7 @@ export class ClimateManagerTimeBar extends LitElement {
               </div>`
             : html`<div class="bar-row-inner">
                 ${segments.map((seg, segIdx) =>
-                  this._renderSegment(seg, dayIndex, segIdx),
+                  this._renderSegment(seg, dayIndex, segIdx, segments.length),
                 )}
               </div>`}
         </div>
@@ -743,6 +785,7 @@ export class ClimateManagerTimeBar extends LitElement {
     seg: { period: Period; startMin: number; endMin: number },
     dayIndex: number,
     segIdx: number,
+    totalSegments: number,
   ) {
     const color = this._colorForPeriod(seg.period);
     const label = this._labelForPeriod(seg.period);
@@ -764,7 +807,7 @@ export class ClimateManagerTimeBar extends LitElement {
           : ""}
 
         <!-- Drag handle on right border (not on last segment) -->
-        ${segIdx < this._toSegments(this.days[dayIndex] ?? []).length - 1
+        ${segIdx < totalSegments - 1
           ? html`<div
               class="drag-handle"
               @pointerdown=${(e: PointerEvent) =>
