@@ -15,7 +15,7 @@
  *
  * Interactions (D-04…D-09):
  *   click empty bar   → mode popup "Split at HH:MM" → insert new segment
- *   click block       → popup: time range + Change mode + Delete (merges into left)
+ *   click block       → popup: time range + Change mode + Split period + Delete (merges into left)
  *   drag boundary     → tooltip shows HH:MM (snapped), save fires on pointerup only
  *   Copy              → store day's periods in panel-local _clipboard
  *   Paste             → overwrite target day, emit periods-changed immediately
@@ -67,6 +67,12 @@ const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 // Time scale tick hours (every 3h, 0..24)
 // ---------------------------------------------------------------------------
 const TIME_SCALE_HOURS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+
+// ---------------------------------------------------------------------------
+// Period type cycles used by "Split period" action
+// ---------------------------------------------------------------------------
+const SCHEDULE_CYCLE = ["frost_protection", "reduced", "normal", "comfort"];
+const PRESENCE_CYCLE = ["present", "absent"];
 
 // ---------------------------------------------------------------------------
 // Component
@@ -589,6 +595,72 @@ export class ClimateManagerTimeBar extends LitElement {
     this._emitChange(dayIndex, newPeriods);
   }
 
+  /**
+   * Split the clicked period at its midpoint (snapped to 15 min).
+   * The first half keeps the original type; the second half gets the next
+   * type in the cycle:
+   *   schedule: frost_protection → reduced → normal → comfort → frost_protection
+   *   presence: present → absent → present
+   *
+   * If the period is too narrow to split (< 30 min, leaving no room for two
+   * 15-min halves) the action is silently ignored.
+   */
+  private _onSplitPeriod() {
+    if (!this._popup || this._popup.kind !== "edit") return;
+    const { dayIndex, segIndex } = this._popup;
+    const segments = this._toSegments(this.days[dayIndex] ?? []);
+    const seg = segments[segIndex ?? 0];
+    if (!seg) return;
+
+    const duration = seg.endMin - seg.startMin;
+    // Need at least 30 min to produce two 15-min halves
+    if (duration < 30) return;
+
+    // Compute midpoint snapped to 15 min, clamped so both halves are >= 15 min
+    const rawMid = seg.startMin + duration / 2;
+    const snappedMid = Math.max(
+      seg.startMin + 15,
+      Math.min(seg.endMin - 15, this._snapToMinutes(rawMid)),
+    );
+
+    // Determine the next type in the cycle
+    const cycle = this.mode === "presence" ? PRESENCE_CYCLE : SCHEDULE_CYCLE;
+    const currentType = this.mode === "presence"
+      ? (seg.period.state ?? "absent")
+      : (seg.period.mode ?? "frost_protection");
+    const currentIdx = cycle.indexOf(currentType);
+    const nextType = cycle[(currentIdx + 1) % cycle.length];
+
+    // Build the two replacement periods
+    const firstHalf: Period = this.mode === "presence"
+      ? { start: seg.period.start, state: currentType }
+      : { start: seg.period.start, mode: currentType };
+    const secondHalf: Period = this.mode === "presence"
+      ? { start: this._minutesToHHMM(snappedMid), state: nextType }
+      : { start: this._minutesToHHMM(snappedMid), mode: nextType };
+
+    // Replace the original period in the source array with the two halves.
+    // The original period is identified by its start time.
+    // For a synthesised 00:00 filler (not present in source), we insert both halves.
+    const sourcePeriods = this.days[dayIndex] ?? [];
+    const existsInSource = sourcePeriods.some(
+      (p) => p.start === seg.period.start,
+    );
+
+    let newPeriods: Period[];
+    if (existsInSource) {
+      newPeriods = sourcePeriods.flatMap((p) =>
+        p.start === seg.period.start ? [firstHalf, secondHalf] : [p],
+      );
+    } else {
+      // Synthesised 00:00 filler — just insert secondHalf; filler is implicit
+      newPeriods = [secondHalf, ...sourcePeriods];
+    }
+
+    this._closePopup();
+    this._emitChange(dayIndex, newPeriods);
+  }
+
   // -----------------------------------------------------------------------
   // Drag boundary (D-06)
   // -----------------------------------------------------------------------
@@ -949,6 +1021,8 @@ export class ClimateManagerTimeBar extends LitElement {
         this.mode === "presence"
           ? (seg.period.state ?? "absent")
           : (seg.period.mode?.replace(/_/g, " ") ?? "frost protection");
+      const duration = seg.endMin - seg.startMin;
+      const canSplit = duration >= 30;
 
       return html`
         <div class="popup-title">${timeRange} · ${modeLabel}</div>
@@ -976,6 +1050,14 @@ export class ClimateManagerTimeBar extends LitElement {
         </div>
 
         <div class="popup-actions">
+          <button
+            class="popup-btn"
+            ?disabled=${!canSplit}
+            style=${!canSplit ? "opacity:0.4;cursor:default" : ""}
+            @click=${this._onSplitPeriod}
+          >
+            Split period
+          </button>
           <button
             class="popup-btn danger"
             @click=${this._onDeleteSegment}
