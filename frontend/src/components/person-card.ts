@@ -135,10 +135,33 @@ export class PersonCard extends LitElement {
       margin: 12px 0 8px;
     }
 
-    ha-select {
-      width: 100%;
-      display: block;
+    .select-wrapper {
       margin-bottom: 4px;
+    }
+
+    .select-label {
+      display: block;
+      font-size: 12px;
+      color: var(--secondary-text-color);
+      margin-bottom: 4px;
+    }
+
+    .mode-select {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 16px;
+      font-family: inherit;
+      color: var(--primary-text-color);
+      background-color: var(--card-background-color, var(--secondary-background-color));
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .mode-select:focus {
+      border-color: var(--primary-color);
+      border-width: 2px;
     }
 
     /* Room checkboxes */
@@ -173,9 +196,10 @@ export class PersonCard extends LitElement {
   // -----------------------------------------------------------------------
 
   private async _onModeChange(e: Event) {
-    const select = e.target as HTMLElement & { value: string };
+    const newMode = (e.target as HTMLSelectElement).value;
+    if (!newMode) return;
     try {
-      await this.ws.setPersonConfig(this.personId, { mode: select.value });
+      await this.ws.setPersonConfig(this.personId, { mode: newMode });
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
@@ -256,15 +280,13 @@ export class PersonCard extends LitElement {
 
               <!-- Presence mode selector -->
               <div class="section-label">Presence mode</div>
-              <ha-select
-                label="Mode"
-                .value=${currentMode}
-                @selected=${this._onModeChange}
-              >
-                <mwc-list-item value=${PRESENCE_MODE_AUTOMATIC}>Automatic</mwc-list-item>
-                <mwc-list-item value=${PRESENCE_MODE_PRESENT}>Present</mwc-list-item>
-                <mwc-list-item value=${PRESENCE_MODE_ABSENT}>Absent</mwc-list-item>
-              </ha-select>
+              <div class="select-wrapper">
+                <select class="mode-select" @change=${this._onModeChange}>
+                  <option value=${PRESENCE_MODE_AUTOMATIC} ?selected=${currentMode === PRESENCE_MODE_AUTOMATIC}>Automatic</option>
+                  <option value=${PRESENCE_MODE_PRESENT} ?selected=${currentMode === PRESENCE_MODE_PRESENT}>Present</option>
+                  <option value=${PRESENCE_MODE_ABSENT} ?selected=${currentMode === PRESENCE_MODE_ABSENT}>Absent</option>
+                </select>
+              </div>
 
               <!-- Room associations -->
               ${this.roomChoices.length > 0

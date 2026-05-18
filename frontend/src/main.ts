@@ -57,6 +57,18 @@ export class ClimateManagerPanel extends LitElement {
       font-family: var(--mdc-typography-body1-font-family, Roboto, sans-serif);
     }
 
+    .panel-header {
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      height: 56px;
+      font-size: 20px;
+      font-weight: 400;
+      color: var(--app-header-text-color, var(--primary-text-color));
+      background: var(--app-header-background-color, var(--primary-background-color));
+      border-bottom: 1px solid var(--divider-color, rgba(0,0,0,0.12));
+    }
+
     .loading {
       display: flex;
       justify-content: center;
@@ -70,6 +82,40 @@ export class ClimateManagerPanel extends LitElement {
       padding: 8px 16px;
       font-size: 14px;
       text-align: center;
+    }
+
+    .tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--divider-color, rgba(0,0,0,0.12));
+      background: var(--primary-background-color);
+      padding: 0 8px;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 12px 16px;
+      margin-bottom: -1px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--secondary-text-color);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      white-space: nowrap;
+      outline: none;
+      transition: color 0.15s;
+    }
+
+    .tab-btn.active {
+      border-bottom-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .tab-btn:hover:not(.active) {
+      color: var(--primary-text-color);
     }
 
     .tab-content {
@@ -132,6 +178,11 @@ export class ClimateManagerPanel extends LitElement {
     this._toast?.show(message, isError);
   }
 
+  /** Patch a subset of _config in-place without a WS round-trip. */
+  patchConfig(patch: Partial<ClimateConfig>): void {
+    if (this._config) this._config = { ...this._config, ...patch };
+  }
+
   /**
    * Re-fetch the full config from the backend and update _config.
    *
@@ -145,14 +196,14 @@ export class ClimateManagerPanel extends LitElement {
     await this._loadConfig();
   }
 
-  private _onTabChanged(e: CustomEvent) {
-    const tab = (e.target as HTMLElement & { activeKey?: string })?.activeKey;
-    if (tab) this._activeTab = tab;
+  private _setTab(tab: string) {
+    this._activeTab = tab;
   }
 
   render() {
     if (!this._config) {
       return html`
+        <div class="panel-header">Climate Manager</div>
         ${this._wsError
           ? html`<div class="error-banner">Connection lost. Reconnecting…</div>`
           : ""}
@@ -164,20 +215,26 @@ export class ClimateManagerPanel extends LitElement {
     }
 
     return html`
+      <div class="panel-header">Climate Manager</div>
+
       ${this._wsError
         ? html`<div class="error-banner">Connection lost. Reconnecting…</div>`
         : ""}
 
-      <ha-tabs
-        .selected=${this._activeTab}
-        @iron-select=${this._onTabChanged}
-        scrollable
-        autoselect
-      >
-        <paper-tab id="global">Global Settings</paper-tab>
-        <paper-tab id="rooms">Rooms</paper-tab>
-        <paper-tab id="persons">Persons</paper-tab>
-      </ha-tabs>
+      <div class="tab-bar">
+        <button
+          class="tab-btn ${this._activeTab === "global" ? "active" : ""}"
+          @click=${() => this._setTab("global")}
+        >Global Settings</button>
+        <button
+          class="tab-btn ${this._activeTab === "rooms" ? "active" : ""}"
+          @click=${() => this._setTab("rooms")}
+        >Rooms</button>
+        <button
+          class="tab-btn ${this._activeTab === "persons" ? "active" : ""}"
+          @click=${() => this._setTab("persons")}
+        >Persons</button>
+      </div>
 
       <div class="tab-content">
         ${this._renderTabContent()}

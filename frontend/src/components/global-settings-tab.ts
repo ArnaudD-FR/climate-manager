@@ -140,10 +140,33 @@ export class GlobalSettingsTab extends LitElement {
       margin-top: 16px;
     }
 
-    ha-select {
-      width: 100%;
+    .select-wrapper {
       margin-bottom: 16px;
+    }
+
+    .select-label {
       display: block;
+      font-size: 12px;
+      color: var(--secondary-text-color);
+      margin-bottom: 4px;
+    }
+
+    .mode-select {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 16px;
+      font-family: inherit;
+      color: var(--primary-text-color);
+      background-color: var(--card-background-color, var(--secondary-background-color));
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .mode-select:focus {
+      border-color: var(--primary-color);
+      border-width: 2px;
     }
 
     ha-textfield {
@@ -156,19 +179,14 @@ export class GlobalSettingsTab extends LitElement {
   // -----------------------------------------------------------------------
 
   private async _onModeChange(e: Event) {
-    const select = e.target as HTMLElement & { value: string };
-    const newMode = select.value;
-    // Guard: skip only if value is unchanged (dedup — prevents redundant saves).
-    // Do NOT guard on !newMode: that swallows legitimate user clicks when
-    // ha-select.value hasn't been reflected yet at @selected fire time.
-    if (newMode === this.config.global_mode) return;
+    const newMode = (e.target as HTMLSelectElement).value;
+    if (!newMode || newMode === this.config.global_mode) return;
     try {
       await this.ws.setGlobalMode(newMode);
-      // Reload config so the parent's _config reflects the new mode immediately.
-      await this.panel.reloadConfig();
+      this.panel.patchConfig({ global_mode: newMode });
       this.panel.showToast("Saved", false);
     } catch {
-      this.panel.showToast("Save failed — retrying...", true);
+      this.panel.showToast("Save failed", true);
     }
   }
 
@@ -278,16 +296,14 @@ export class GlobalSettingsTab extends LitElement {
         <div class="card-header">Configuration</div>
         <div class="card-content">
 
-          <!-- Global mode selector -->
-          <ha-select
-            label="Global mode"
-            .value=${this.config.global_mode}
-            @change=${this._onModeChange}
-          >
-            <mwc-list-item value=${MODE_OFF}>Off</mwc-list-item>
-            <mwc-list-item value=${MODE_TIME_PROGRAM}>Time program</mwc-list-item>
-            <mwc-list-item value=${MODE_TIME_PROGRAM_PRESENCES}>Time program &amp; presences</mwc-list-item>
-          </ha-select>
+          <div class="select-wrapper">
+            <label class="select-label">Global mode</label>
+            <select class="mode-select" @change=${this._onModeChange}>
+              <option value=${MODE_OFF} ?selected=${this.config.global_mode === MODE_OFF}>Off</option>
+              <option value=${MODE_TIME_PROGRAM} ?selected=${this.config.global_mode === MODE_TIME_PROGRAM}>Time program</option>
+              <option value=${MODE_TIME_PROGRAM_PRESENCES} ?selected=${this.config.global_mode === MODE_TIME_PROGRAM_PRESENCES}>Time program &amp; presences</option>
+            </select>
+          </div>
 
           <!-- Default temperatures -->
           <div class="section-divider">Default temperatures</div>
