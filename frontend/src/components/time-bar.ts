@@ -29,7 +29,7 @@ import { property, state } from "lit/decorators.js";
 import {
   PERIOD_COLORS,
   PRESENCE_COLORS,
-  PERIOD_LABELS,
+  PERIOD_DISPLAY_NAMES,
   type Period,
 } from "../types.js";
 
@@ -151,6 +151,10 @@ export class ClimateManagerTimeBar extends LitElement {
       pointer-events: none;
       white-space: nowrap;
       overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      padding: 0 4px;
+      box-sizing: border-box;
     }
 
     .drag-handle {
@@ -337,7 +341,7 @@ export class ClimateManagerTimeBar extends LitElement {
     const key = this.mode === "presence"
       ? (period.state ?? "absent")
       : (period.mode ?? "frost_protection");
-    return PERIOD_LABELS[key] ?? "?";
+    return PERIOD_DISPLAY_NAMES[key] ?? key;
   }
 
   /**
@@ -745,7 +749,7 @@ export class ClimateManagerTimeBar extends LitElement {
         aria-label="${ariaLabel}"
         @click=${(e: MouseEvent) => this._onSegmentClick(e, dayIndex, segIdx)}
       >
-        ${widthPct > 2.7 /* ~40px at typical width */
+        ${widthPct > 2.7 /* ~40px at typical width — hide label on very narrow blocks */
           ? html`<span class="segment-label">${label}</span>`
           : ""}
 

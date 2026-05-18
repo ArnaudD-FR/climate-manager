@@ -103,3 +103,13 @@ export const PERIOD_LABELS: Record<string, string> = {
   present: "P",
   absent: "A",
 };
+
+/** Full display names shown inside period blocks (ellipsized when too narrow). */
+export const PERIOD_DISPLAY_NAMES: Record<string, string> = {
+  frost_protection: "Frost protection",
+  reduced: "Reduced",
+  normal: "Normal",
+  comfort: "Comfort",
+  present: "Present",
+  absent: "Absent",
+};
