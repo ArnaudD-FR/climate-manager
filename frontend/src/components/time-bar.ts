@@ -84,6 +84,8 @@ export class ClimateManagerTimeBar extends LitElement {
   @state() private _clipboard: Period[] | null = null;
   @state() private _drag: DragState | null = null;
   @state() private _dragTooltipMinutes: number | null = null;
+  @state() private _dragTooltipX: number = 0;
+  @state() private _dragTooltipY: number = 0;
   @state() private _popup: PopupState | null = null;
 
   // -----------------------------------------------------------------------
@@ -547,6 +549,8 @@ export class ClimateManagerTimeBar extends LitElement {
       initialBoundaryMinutes: seg.endMin,
     };
     this._dragTooltipMinutes = seg.endMin;
+    this._dragTooltipX = e.clientX;
+    this._dragTooltipY = e.clientY;
   }
 
   private _onPointerMove(e: PointerEvent) {
@@ -560,8 +564,10 @@ export class ClimateManagerTimeBar extends LitElement {
     const rect = barEl.getBoundingClientRect();
     const rawMinutes = this._pixelToMinutes(e.clientX - rect.left, rect.width);
     const snapped = this._snapToMinutes(rawMinutes);
-    // Update tooltip only — do NOT emit (D-09)
+    // Update tooltip time and position — do NOT emit (D-09)
     this._dragTooltipMinutes = snapped;
+    this._dragTooltipX = e.clientX;
+    this._dragTooltipY = e.clientY;
   }
 
   private _onPointerUp(e: PointerEvent) {
@@ -656,7 +662,11 @@ export class ClimateManagerTimeBar extends LitElement {
 
       <!-- Drag tooltip -->
       ${this._drag !== null && this._dragTooltipMinutes !== null
-        ? html`<div class="drag-tooltip" aria-live="polite">
+        ? html`<div
+            class="drag-tooltip"
+            style="left:${this._dragTooltipX}px;top:${this._dragTooltipY}px"
+            aria-live="polite"
+          >
             ${this._minutesToHHMM(this._dragTooltipMinutes)}
           </div>`
         : ""}
