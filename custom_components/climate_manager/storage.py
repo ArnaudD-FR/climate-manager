@@ -15,7 +15,7 @@ import copy
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import DEFAULT_CONFIG, STORAGE_KEY, STORAGE_VERSION
+from .const import DEFAULT_CONFIG, STORAGE_KEY, STORAGE_VERSION, _DEFAULT_DAY_PERIODS
 
 
 class ClimateManagerStore:
@@ -42,6 +42,10 @@ class ClimateManagerStore:
         - Fresh installs get full defaults (no mutation risk).
         - Stored overrides win at the top level (sparse storage model — D-11).
         - Unset top-level keys fall back to defaults automatically.
+
+        Post-merge fill: any day in global_time_program that has an empty period
+        list (never configured) receives the default day periods so that the
+        time-bar is pre-populated on first use.
         """
         stored = await self._store.async_load()
         if stored is None:
@@ -58,6 +62,15 @@ class ClimateManagerStore:
                 result[key].update(value)  # merge nested dicts key-by-key
             else:
                 result[key] = value
+
+        # Post-merge fill: seed any day that has no periods with the default schedule.
+        # This handles existing stored configs where days were saved as [] before
+        # default periods were introduced.
+        time_program = result.get("global_time_program", {})
+        for day, periods in time_program.items():
+            if not periods:
+                time_program[day] = copy.deepcopy(_DEFAULT_DAY_PERIODS)
+
         return result
 
     async def async_save(self, config: dict) -> None:

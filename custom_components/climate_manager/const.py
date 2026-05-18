@@ -58,7 +58,20 @@ DEFAULT_PERIOD_TEMPERATURES: dict[str, float] = {
 # ---------------------------------------------------------------------------
 
 _DAYS_ORDERED = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-_EMPTY_DAILY_PROGRAM: dict = {day: [] for day in _DAYS_ORDERED}
+
+# Default daily schedule: frost_protection overnight, normal during the day.
+#   00:00 – 06:00  frost_protection
+#   06:00 – 22:00  normal
+#   22:00 – 24:00  frost_protection  (implicit: last period runs to midnight)
+_DEFAULT_DAY_PERIODS: list[dict] = [
+    {"start": "00:00", "mode": PERIOD_FROST_PROTECTION},
+    {"start": "06:00", "mode": PERIOD_NORMAL},
+    {"start": "22:00", "mode": PERIOD_FROST_PROTECTION},
+]
+
+_DEFAULT_DAILY_PROGRAM: dict = {
+    day: copy.deepcopy(_DEFAULT_DAY_PERIODS) for day in _DAYS_ORDERED
+}
 
 # ---------------------------------------------------------------------------
 # Full v2 storage schema with defaults (D-01, D-09, D-10, D-11)
@@ -117,7 +130,7 @@ DEFAULT_CONFIG: dict = {
         PERIOD_NORMAL: 20.0,
         PERIOD_COMFORT: 22.0,
     },
-    "global_time_program": copy.deepcopy(_EMPTY_DAILY_PROGRAM),
+    "global_time_program": copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
     "rooms": {},    # sparse: only rooms with non-default config (SCHED-05, D-11)
     "persons": {},  # sparse: only persons with non-default settings (D-11)
 }
