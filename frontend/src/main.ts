@@ -132,6 +132,19 @@ export class ClimateManagerPanel extends LitElement {
     this._toast?.show(message, isError);
   }
 
+  /**
+   * Re-fetch the full config from the backend and update _config.
+   *
+   * Tab components call this after every successful write so that the parent's
+   * _config stays in sync with the backend. Without this, Lit re-renders the
+   * tab with the stale .config prop (e.g. the old global_mode), causing
+   * ha-select to fire a spurious @selected event that immediately overwrites
+   * the value just saved on the backend.
+   */
+  async reloadConfig(): Promise<void> {
+    await this._loadConfig();
+  }
+
   private _onTabChanged(e: CustomEvent) {
     const tab = (e.target as HTMLElement & { activeKey?: string })?.activeKey;
     if (tab) this._activeTab = tab;

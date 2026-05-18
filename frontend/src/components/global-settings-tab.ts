@@ -66,7 +66,7 @@ export class GlobalSettingsTab extends LitElement {
   /** WS client instance shared from root panel. */
   @property({ attribute: false }) ws!: WsClient;
 
-  /** Reference to root panel for showToast(). */
+  /** Reference to root panel for showToast() and reloadConfig(). */
   @property({ attribute: false }) panel!: ClimateManagerPanel;
 
   static styles = css`
@@ -157,8 +157,17 @@ export class GlobalSettingsTab extends LitElement {
 
   private async _onModeChange(e: Event) {
     const select = e.target as HTMLElement & { value: string };
+    const newMode = select.value;
+    // Guard: skip if value is empty (fires during component initialisation
+    // before mwc-select has settled) or unchanged.
+    if (!newMode || newMode === this.config.global_mode) return;
     try {
-      await this.ws.setGlobalMode(select.value);
+      await this.ws.setGlobalMode(newMode);
+      // Reload config so the parent's _config reflects the new mode.
+      // Without this, the next Lit render passes the stale global_mode back
+      // via .value on ha-select, which causes a spurious @selected event that
+      // immediately overwrites the just-saved value on the backend.
+      await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
@@ -185,6 +194,7 @@ export class GlobalSettingsTab extends LitElement {
 
     try {
       await this.ws.setPeriodTemperatures(temperatures);
+      await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
@@ -201,6 +211,7 @@ export class GlobalSettingsTab extends LitElement {
 
     try {
       await this.ws.setTimeProgram(program);
+      await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
