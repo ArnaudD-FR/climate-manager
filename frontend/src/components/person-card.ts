@@ -1,0 +1,319 @@
+/**
+ * Climate Manager Panel — Person Card component (UI-04).
+ *
+ * Expandable card per person. Collapsed: person name + presence mode badge.
+ * Expanded: presence mode selector (3-option ha-select), room association
+ * checkboxes, presence schedule bar (only visible when mode === "automatic").
+ *
+ * Auto-save on all changes (D-08). Presence time-bar saves on interaction
+ * end (D-09). Toast feedback on success/error (D-10).
+ */
+
+import { LitElement, html, css } from "lit";
+import { property, state } from "lit/decorators.js";
+
+import type { PersonConfig, DailyProgram, Period } from "../types.js";
+import type { WsClient } from "../ws-client.js";
+import type { ClimateManagerPanel } from "../main.js";
+import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
+
+import "./time-bar.js";
+
+// Presence mode constants
+const PRESENCE_MODE_AUTOMATIC = "automatic";
+const PRESENCE_MODE_PRESENT = "present";
+const PRESENCE_MODE_ABSENT = "absent";
+
+export interface RoomChoice {
+  id: string;
+  name: string;
+}
+
+export class PersonCard extends LitElement {
+  @property({ type: String }) personId!: string;
+  @property({ type: String }) personName!: string;
+  @property({ attribute: false }) config!: PersonConfig;
+  @property({ attribute: false }) roomChoices: RoomChoice[] = [];
+  @property({ attribute: false }) ws!: WsClient;
+  @property({ attribute: false }) panel!: ClimateManagerPanel;
+
+  @state() _expanded = false;
+
+  connectedCallback() {
+    super.connectedCallback();
+    // Default: expand if any non-default setting (D-15)
+    this._expanded = this._isNonDefault();
+  }
+
+  private _isNonDefault(): boolean {
+    const c = this.config;
+    if (!c) return false;
+    return (
+      (c.mode != null && c.mode !== PRESENCE_MODE_AUTOMATIC) ||
+      (c.room_ids != null && c.room_ids.length > 0) ||
+      (c.schedule != null && this._hasSchedulePeriods(c.schedule))
+    );
+  }
+
+  private _hasSchedulePeriods(schedule: DailyProgram): boolean {
+    return Object.values(schedule).some((dayPeriods) => dayPeriods.length > 0);
+  }
+
+  static styles = css`
+    :host {
+      display: block;
+    }
+
+    ha-card {
+      margin-bottom: 12px;
+    }
+
+    .card-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      cursor: pointer;
+    }
+
+    .card-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .person-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--primary-text-color);
+    }
+
+    .mode-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .mode-badge.automatic {
+      background: var(--secondary-background-color, #f5f5f5);
+      color: var(--secondary-text-color, #757575);
+    }
+
+    .mode-badge.present {
+      border: 1px solid var(--primary-color, #03a9f4);
+      color: var(--primary-color, #03a9f4);
+    }
+
+    .mode-badge.absent {
+      background: var(--secondary-background-color, #f5f5f5);
+      color: var(--secondary-text-color, #757575);
+    }
+
+    .expand-icon {
+      color: var(--secondary-text-color);
+      transition: transform 0.2s;
+    }
+
+    .expand-icon.expanded {
+      transform: rotate(180deg);
+    }
+
+    .card-content {
+      padding: 0 16px 16px;
+      border-top: 1px solid var(--divider-color, #e0e0e0);
+    }
+
+    .section-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--secondary-text-color);
+      margin: 12px 0 8px;
+    }
+
+    ha-select {
+      width: 100%;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    /* Room checkboxes */
+    .room-checkboxes {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .room-checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--primary-text-color);
+      cursor: pointer;
+    }
+
+    ha-checkbox {
+      --mdc-checkbox-unchecked-color: var(--secondary-text-color);
+    }
+
+    /* Presence schedule */
+    .schedule-section {
+      margin-top: 12px;
+    }
+  `;
+
+  // -----------------------------------------------------------------------
+  // Save handlers
+  // -----------------------------------------------------------------------
+
+  private async _onModeChange(e: Event) {
+    const select = e.target as HTMLElement & { value: string };
+    try {
+      await this.ws.setPersonConfig(this.personId, { mode: select.value });
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onRoomCheckboxToggle(roomId: string, checked: boolean) {
+    const currentIds = [...(this.config?.room_ids ?? [])];
+    let newIds: string[];
+    if (checked) {
+      newIds = currentIds.includes(roomId) ? currentIds : [...currentIds, roomId];
+    } else {
+      newIds = currentIds.filter((id) => id !== roomId);
+    }
+    try {
+      await this.ws.setPersonConfig(this.personId, { room_ids: newIds });
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onSchedulePeriodsChanged(e: CustomEvent) {
+    const { dayIndex, periods } = e.detail as { dayIndex: number; periods: Period[] };
+
+    const currentSchedule = this.config.schedule ?? {
+      mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [],
+    };
+    const schedule: DailyProgram = { ...currentSchedule };
+    const key = dayIndexToKey(dayIndex);
+    schedule[key] = periods;
+
+    try {
+      await this.ws.setPersonConfig(this.personId, { schedule });
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+
+    e.stopPropagation();
+  }
+
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
+
+  private _getBadgeInfo(): { cls: string; text: string } {
+    const mode = this.config?.mode ?? PRESENCE_MODE_AUTOMATIC;
+    switch (mode) {
+      case PRESENCE_MODE_PRESENT: return { cls: "present", text: "Present" };
+      case PRESENCE_MODE_ABSENT: return { cls: "absent", text: "Absent" };
+      default: return { cls: "automatic", text: "Automatic" };
+    }
+  }
+
+  render() {
+    const { cls: badgeCls, text: badgeText } = this._getBadgeInfo();
+    const currentMode = this.config?.mode ?? PRESENCE_MODE_AUTOMATIC;
+    const isAutomatic = currentMode === PRESENCE_MODE_AUTOMATIC;
+    const currentRoomIds = this.config?.room_ids ?? [];
+
+    return html`
+      <ha-card>
+        <div class="card-header-row" @click=${() => { this._expanded = !this._expanded; }}>
+          <div class="card-header-left">
+            <span class="person-name">${this.personName}</span>
+            <span class="mode-badge ${badgeCls}">${badgeText}</span>
+          </div>
+          <ha-icon
+            class="expand-icon ${this._expanded ? "expanded" : ""}"
+            icon="mdi:chevron-down"
+          ></ha-icon>
+        </div>
+
+        ${this._expanded
+          ? html`
+            <div class="card-content">
+
+              <!-- Presence mode selector -->
+              <div class="section-label">Presence mode</div>
+              <ha-select
+                label="Mode"
+                .value=${currentMode}
+                @selected=${this._onModeChange}
+              >
+                <mwc-list-item value=${PRESENCE_MODE_AUTOMATIC}>Automatic</mwc-list-item>
+                <mwc-list-item value=${PRESENCE_MODE_PRESENT}>Present</mwc-list-item>
+                <mwc-list-item value=${PRESENCE_MODE_ABSENT}>Absent</mwc-list-item>
+              </ha-select>
+
+              <!-- Room associations -->
+              ${this.roomChoices.length > 0
+                ? html`
+                  <div class="section-label">Room associations</div>
+                  <div class="room-checkboxes">
+                    ${this.roomChoices.map(
+                      (room) => html`
+                        <label class="room-checkbox-row">
+                          <ha-checkbox
+                            .checked=${currentRoomIds.includes(room.id)}
+                            @change=${(e: Event) => {
+                              const cb = e.target as HTMLElement & { checked: boolean };
+                              void this._onRoomCheckboxToggle(room.id, cb.checked);
+                            }}
+                          ></ha-checkbox>
+                          ${room.name}
+                        </label>
+                      `,
+                    )}
+                  </div>
+                `
+                : ""}
+
+              <!-- Presence schedule (only in Automatic mode) -->
+              ${isAutomatic
+                ? html`
+                  <div class="section-label">Presence schedule</div>
+                  <div class="schedule-section">
+                    <climate-manager-time-bar
+                      mode="presence"
+                      .days=${programToDays(this.config?.schedule)}
+                      @periods-changed=${this._onSchedulePeriodsChanged}
+                    ></climate-manager-time-bar>
+                  </div>
+                `
+                : ""}
+            </div>
+          `
+          : ""}
+      </ha-card>
+    `;
+  }
+}
+
+customElements.define("climate-manager-person-card", PersonCard);
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "climate-manager-person-card": PersonCard;
+  }
+}
