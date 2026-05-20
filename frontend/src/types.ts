@@ -76,6 +76,8 @@ export interface Hass {
     ): Promise<() => void>;
   };
   states: Record<string, { state: string; attributes: Record<string, unknown> }>;
+  areas: Record<string, { area_id: string; name: string; floor_id: string | null }>;
+  floors: Record<string, { floor_id: string; name: string; level: number }>;
 }
 
 // ---------------------------------------------------------------------------
