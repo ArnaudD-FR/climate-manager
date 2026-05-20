@@ -1,6 +1,6 @@
 # Phase 3: WebSocket API & Frontend Panel - Context
 
-**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21)
+**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21, 2026-05-21)
 **Status:** Ready for planning
 
 <domain>
@@ -42,7 +42,7 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
   1. **Current Status** (read-only) — current global mode, active period name + end time, present persons with green dots.
   2. **Temperatures** — the 4 period temperature inputs (Frost protection, Reduced, Normal, Comfort). Card title is exactly "Temperatures" (not "Default temperatures" or similar).
   3. **Configuration** — mode selector dropdown + global time program editor.
-- **D-14:** Rooms tab: expandable cards per room. Collapsed card shows room name + program badge ("global program" or "custom program"). Expanded card shows: associated TRV entity IDs, "Override global time program" toggle, and (when override is enabled) the inline 7-bar editor. Room cards with a custom time program are expanded by default; all others are collapsed by default.
+- **D-14:** Rooms tab: expandable cards per room. Collapsed card shows room name + mode badge. Expanded card shows: associated TRV entity IDs, a 3-option room mode selector, and (when Custom mode is selected) the inline 7-bar editor. Room cards with a custom time program are expanded by default; all others are collapsed by default. See D-20 for the full room mode specification.
 - **D-14c (room card status — updated 2026-05-20):** The status summary (temperature, humidity, active period) is **always visible** on the room card, whether collapsed or expanded. It appears as a compact second line inside the card header area (below the room name + program badge row), using icons matching the existing status-row style (thermometer / water-percent / clock-outline). If temperature or humidity has no data (no sensor, no TRV reading), show "—" as placeholder. The `.status-row` inside the expanded `.card-content` section is **removed** to avoid duplication — the header line is the single source of status.
 - **D-14d (room card person count — added 2026-05-21):** The room status line includes an assigned-persons count as a 4th status item (after temperature, humidity, active period). Uses `mdi:account-group` icon + integer count. Shows "0" when no persons are assigned — the count is always rendered so the 4-item status line is always complete. Data source: `_getAssignedPersonIds().length` (already available from `panelConfig.persons`). This is assignment count, not real-time presence (present persons remain on the Global Settings tab per D-18).
 - **D-14a (ordering — updated 2026-05-20):** Rooms are ordered by floor then room name, matching the HA climate panel. Floor names appear as section headers between floor groups (e.g. "Ground floor", "First floor"). Floors are ordered by their `level` field from `hass.floors` (ascending integer). Within a floor, rooms are sorted alphabetically by name. Rooms with no floor assignment appear after all floored rooms, in alphabetical order, without a section header. This replaces the previous custom-program-first ordering — program type no longer affects sort position.
@@ -58,6 +58,27 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
   3. Temperature-only last resort: TRV `current_temperature` attribute (no humidity fallback from TRV).
   4. No data: return key absent from the room entry → frontend shows "—".
 - **D-18:** Present persons shown only on the Global Settings tab (in the Current Status section). Not duplicated on the Rooms tab.
+
+### Per-Room Mode
+
+- **D-20 (added 2026-05-21):** Each room has an independent mode selector with 3 values, stored as `rooms[area_id].room_mode`:
+  - **`"global"` (default)** — Room follows the global mode exactly (current default behavior). Default is sparse — absent key means `"global"`.
+  - **`"frost_protection"`** — Room ignores the global program entirely. The coordinator holds `period_temperatures["frost_protection"]` (from the configurable Temperatures card, not hardcoded) for all TRVs in this room, permanently.
+  - **`"custom"`** — Room has its own independent time program in `rooms[area_id].time_program`. When the user first switches a room to Custom mode (i.e., no `time_program` exists in the room's stored config), the current `global_time_program` is one-time copied into `rooms[area_id].time_program` as initial values. After that, the room program is fully independent — subsequent global program changes have no effect on it.
+
+  **Coordinator changes:** For each room, read `room_mode = room_config.get("room_mode", "global")`. Branch:
+    - `"frost_protection"`: push `period_temperatures[PERIOD_FROST_PROTECTION]` directly, no schedule evaluation.
+    - `"global"`: use global time program (current default path — no code change for this branch).
+    - `"custom"`: use `room_config["time_program"]` (same as existing override behavior).
+
+  **Panel UI:** Replaces the "Override global time program" toggle in the expanded room card with a 3-option mode selector (native `<select>` — ha-select is broken in HA 2026.x). Selecting Custom reveals the inline 7-bar editor. When switching to Custom for the first time, the panel includes the current global program as the initial `time_program` value in the same `set_room_config` WebSocket call.
+
+  **Badge text** in collapsed card header:
+    - `"frost_protection"` → badge: **"Frost protection"**
+    - `"global"` → badge: **"Global program"**
+    - `"custom"` → badge: **"Custom program"**
+
+  **Storage key added to `const.py`:** `ROOM_MODE_GLOBAL = "global"`, `ROOM_MODE_FROST = "frost_protection"`, `ROOM_MODE_CUSTOM = "custom"`.
 
 ### Assignment Picker
 
@@ -128,6 +149,7 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 ### Integration Points
 - `_getAssignedPersonIds()` in `room-card.ts` — already computes persons assigned to a room; use `.length` for D-14d person count without new data fetching.
 - Current add-person picker in `room-card.ts` and add-room picker in `person-card.ts` both use a native `<select>` — D-19 replaces both with the shared `search-picker` component.
+- Room card "Override global time program" toggle in `room-card.ts` — D-20 replaces this boolean toggle with a 3-option `<select>` for room mode. The coordinator's `_evaluate_time_program` loop in `coordinator.py` needs a new branch for `room_mode == "frost_protection"` that pushes `period_temperatures[PERIOD_FROST_PROTECTION]` directly without schedule evaluation. `const.py` gains `ROOM_MODE_GLOBAL`, `ROOM_MODE_FROST`, `ROOM_MODE_CUSTOM` constants.
 - `async_setup_entry` in `__init__.py` — Phase 3 adds WebSocket command registration and `async_register_panel` call here.
 - `async_unload_entry` in `__init__.py` — WebSocket commands auto-unregister with the config entry; no explicit cleanup needed.
 - `ClimateManagerData` dataclass — May need a `rooms_meta` field or similar to cache discovered room sensor associations; or discovery can be called inline per WebSocket request.

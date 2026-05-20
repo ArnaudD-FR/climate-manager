@@ -3,9 +3,9 @@
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
-**Date:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21)
+**Date:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21, 2026-05-21)
 **Phase:** 3-WebSocket API & Frontend Panel
-**Areas discussed:** Time program editor, Save model, Panel navigation, Panel status display, Rooms ordering (2026-05-20), Room card always-visible status (2026-05-20), Room card person count (2026-05-21), Global Settings temperatures card (2026-05-21), Assignment picker UI (2026-05-21)
+**Areas discussed:** Time program editor, Save model, Panel navigation, Panel status display, Rooms ordering (2026-05-20), Room card always-visible status (2026-05-20), Room card person count (2026-05-21), Global Settings temperatures card (2026-05-21), Assignment picker UI (2026-05-21), Per-room mode selector (2026-05-21)
 
 ---
 
@@ -331,3 +331,55 @@
 
 **User's choice:** Shared component
 **Notes:** Reference screenshot was HA's area sensor picker (entity picker popup with search). Native input + custom list — ha-select is broken in HA 2026.x.
+
+---
+
+## Per-room Mode Selector (2026-05-21)
+
+### Custom mode initialization
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| One-time copy | Copy global program when Custom first selected; room then independent | ✓ |
+| Always re-seed from global | Re-seed from current global each time user switches to Custom | |
+| You decide | Leave to implementor | |
+
+**User's choice:** One-time copy
+**Notes:** Room program becomes fully independent after the first switch to Custom. Subsequent changes to the global program have no effect on the room's custom program.
+
+---
+
+### Frost protection temperature source
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Configurable | Use period_temperatures['frost_protection'] from stored config | ✓ |
+| Hardcoded 7°C | Always 7°C regardless of Temperatures card | |
+| You decide | Leave to implementor | |
+
+**User's choice:** Configurable — use period_temperatures['frost_protection']
+**Notes:** Consistent with the rest of the temperature system. The Temperatures card already lets the user configure the frost protection temperature.
+
+---
+
+### Badge text in collapsed card header
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Frost / Global / Custom | Short, scannable | |
+| Frost protection / Global program / Custom program | Explicit, matches existing wording | ✓ |
+| You decide | Leave to implementor | |
+
+**User's choice:** Frost protection / Global program / Custom program
+
+---
+
+### 7-bar editor when Custom mode selected
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Inline 7-bar editor appears in expanded card | Same as current override toggle behavior | ✓ |
+| Navigate to separate editor | Link/button opens program in a separate view | |
+| You decide | Leave to implementor | |
+
+**User's choice:** Inline 7-bar editor appears when Custom mode is selected
