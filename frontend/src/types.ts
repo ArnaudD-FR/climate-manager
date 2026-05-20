@@ -25,7 +25,7 @@ export type DailyProgram = Record<
 export interface RoomConfig {
   temperature_sensor?: string;
   humidity_sensor?: string;
-  time_program?: DailyProgram;
+  time_program?: DailyProgram | null;
 }
 
 /** Per-person configuration stored in ClimateConfig.persons. */

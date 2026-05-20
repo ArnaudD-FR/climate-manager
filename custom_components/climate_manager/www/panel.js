@@ -1875,7 +1875,7 @@ const Tt = class Tt extends S {
     } else
       o = null;
     try {
-      await this.ws.setRoomConfig(this.roomId, { time_program: o ?? void 0 }), this.panel.showToast("Saved", !1);
+      await this.ws.setRoomConfig(this.roomId, { time_program: o }), this.panel.showToast("Saved", !1);
     } catch {
       this.panel.showToast("Save failed — retrying...", !0);
     }
