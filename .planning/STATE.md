@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-15)
 Phase: 3 (websocket-api-frontend-panel) — EXECUTING
 Plan: 1 of 4
 Status: Executing Phase 3
-Last activity: 2026-05-20 -- Completed quick task 260520-nn9: order rooms tab by floor then room name
+Last activity: 2026-05-20 -- Completed quick task 260520-o0l: rooms floor headers should show floor icon
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -76,6 +76,7 @@ None yet.
 |---|-------------|------|--------|-----------|
 | 260520-m0t | Fix rooms not displayed — device-level area assignment | 2026-05-20 | ff842bd | [260520-m0t-fix-rooms-not-displayed-investigate-webs](.planning/quick/260520-m0t-fix-rooms-not-displayed-investigate-webs/) |
 | 260520-nn9 | order rooms tab by floor then room name | 2026-05-20 | eabaffb | [260520-nn9-order-rooms-tab-by-floor-then-room-name](.planning/quick/260520-nn9-order-rooms-tab-by-floor-then-room-name/) |
+| 260520-o0l | rooms floor headers should show floor icon | 2026-05-20 | 1057fec | [260520-o0l-rooms-floor-headers-should-show-floor-ic](.planning/quick/260520-o0l-rooms-floor-headers-should-show-floor-ic/) |
 
 ### Blockers/Concerns
 
