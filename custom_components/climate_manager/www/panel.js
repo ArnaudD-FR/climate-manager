@@ -1919,7 +1919,7 @@ const Tt = class Tt extends C {
     } else
       o = null;
     try {
-      await this.ws.setRoomConfig(this.roomId, { time_program: o }), this.panel.showToast("Saved", !1);
+      await this.ws.setRoomConfig(this.roomId, { time_program: o }), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
     } catch {
       this.panel.showToast("Save failed — retrying...", !0);
     }
@@ -1936,7 +1936,7 @@ const Tt = class Tt extends C {
     } }, i = At(e);
     r[i] = o;
     try {
-      await this.ws.setRoomConfig(this.roomId, { time_program: r }), this.panel.showToast("Saved", !1);
+      await this.ws.setRoomConfig(this.roomId, { time_program: r }), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
     } catch {
       this.panel.showToast("Save failed — retrying...", !0);
     }
