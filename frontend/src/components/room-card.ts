@@ -365,6 +365,7 @@ export class RoomCard extends LitElement {
 
     try {
       await this.ws.setRoomConfig(this.roomId, { time_program: timeProgram });
+      await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
@@ -383,6 +384,7 @@ export class RoomCard extends LitElement {
 
     try {
       await this.ws.setRoomConfig(this.roomId, { time_program: program });
+      await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
