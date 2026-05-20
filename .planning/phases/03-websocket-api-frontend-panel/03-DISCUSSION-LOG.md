@@ -3,9 +3,9 @@
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
-**Date:** 2026-05-17 (updated 2026-05-20, 2026-05-20)
+**Date:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-21)
 **Phase:** 3-WebSocket API & Frontend Panel
-**Areas discussed:** Time program editor, Save model, Panel navigation, Panel status display, Rooms ordering (2026-05-20), Room card always-visible status (2026-05-20)
+**Areas discussed:** Time program editor, Save model, Panel navigation, Panel status display, Rooms ordering (2026-05-20), Room card always-visible status (2026-05-20), Room card person count (2026-05-21), Global Settings temperatures card (2026-05-21)
 
 ---
 
@@ -249,3 +249,45 @@
 ### Missing data
 - **Options presented:** Hide silently / Show "—" placeholder
 - **Decision:** Show "—" placeholder — consistent layout, all 3 slots always present
+
+---
+
+## Room Card Person Count (2026-05-21)
+
+### Zero persons state
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Show "0" | Always render count, even when 0 | ✓ |
+| Show "—" | Match unavailable-data style | |
+| Hide the item | Only show when ≥ 1 person assigned | |
+
+**User's choice:** Show "0"
+**Notes:** Consistent 4-item status line — all 4 items are always rendered.
+
+---
+
+### Icon
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| mdi:account-group | Two-person icon — reads as "assigned persons group" | ✓ |
+| mdi:account | Single person icon | |
+| mdi:account-multiple | Multiple accounts icon, different style | |
+
+**User's choice:** mdi:account-group
+
+---
+
+## Global Settings Temperatures Card (2026-05-21)
+
+### Extract default temperatures from Configuration card
+
+**User request:** Extract the 4 period temperature inputs from the "Configuration" card into a separate card. Card title: "Temperatures". Order: Current Status → Temperatures → Configuration.
+
+**Decision:** Three cards in Global Settings tab:
+1. Current Status (read-only)
+2. Temperatures (Frost protection, Reduced, Normal, Comfort inputs)
+3. Configuration (mode selector + global time program)
+
+**Notes:** Card title is exactly "Temperatures" — not "Default temperatures".
