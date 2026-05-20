@@ -310,6 +310,7 @@ class ClimateManagerCoordinator:
                 "area_id": area_id,
                 "name": _area.name if _area else area_id,
                 "active_period": self._last_active_period,
+                "entity_ids": entity_ids,
             }
 
             temp_sensor = room_cfg.get("temperature_sensor")

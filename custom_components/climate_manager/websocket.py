@@ -100,11 +100,19 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
         present_persons = getattr(coordinator, "_last_present_persons", [])
 
         # Build per-room status list
+        from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
+        _area_reg = ar.async_get(hass)
+
         rooms_status = []
         room_configs = runtime_config.get("rooms", {})
         for area_id, entity_ids in rooms.items():
             room_cfg = room_configs.get(area_id, {})
-            room_entry: dict = {"room_id": area_id}
+            _area = _area_reg.async_get_area(area_id)
+            room_entry: dict = {
+                "area_id": area_id,
+                "name": _area.name if _area else area_id,
+                "entity_ids": entity_ids,
+            }
 
             # Temperature: from configured temperature_sensor, else first TRV's current_temperature
             temp_sensor = room_cfg.get("temperature_sensor")

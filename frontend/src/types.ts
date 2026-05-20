@@ -47,6 +47,8 @@ export interface ClimateConfig {
 /** Per-room live status entry inside StatusPayload.rooms_status. */
 export interface RoomStatus {
   area_id: string;
+  name: string;
+  entity_ids?: string[];
   temperature?: number | null;
   humidity?: number | null;
   active_period?: string | null;
