@@ -78,6 +78,7 @@ None yet.
 | 260520-nn9 | order rooms tab by floor then room name | 2026-05-20 | eabaffb | [260520-nn9-order-rooms-tab-by-floor-then-room-name](.planning/quick/260520-nn9-order-rooms-tab-by-floor-then-room-name/) |
 | 260520-o0l | rooms floor headers should show floor icon | 2026-05-20 | 1057fec | [260520-o0l-rooms-floor-headers-should-show-floor-ic](.planning/quick/260520-o0l-rooms-floor-headers-should-show-floor-ic/) |
 | 260520-o3l | reverse floor order, start from upper floor | 2026-05-20 | 16f9b56 | [260520-o3l-reverse-floor-order-start-from-upper-flo](.planning/quick/260520-o3l-reverse-floor-order-start-from-upper-flo/) |
+| 260520-o6f | fix basement floor icon to match HA climate panel | 2026-05-20 | f13f4c8 | [260520-o6f-fix-basement-floor-icon-to-match-ha-clim](.planning/quick/260520-o6f-fix-basement-floor-icon-to-match-ha-clim/) |
 
 ### Blockers/Concerns
 
