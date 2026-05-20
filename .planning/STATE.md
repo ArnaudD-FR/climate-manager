@@ -83,6 +83,7 @@ None yet.
 | 260520-q5m | chip UI for room/person associations; add persons section to room-card | 2026-05-20 | b304370 | [260520-q5m-room-person-chip-associations](.planning/quick/260520-q5m-room-person-chip-associations/) |
 | 260520-r1v | fix override toggle not updating card/status line — missing reloadConfig | 2026-05-20 | ec38db7 | [260520-r1v-override-toggle-no-ui-update](.planning/quick/260520-r1v-override-toggle-no-ui-update/) |
 | 260520-s2t | fix room card content top padding — climate entities too close to header | 2026-05-20 | f91ae24 | [260520-s2t-room-card-content-top-padding](.planning/quick/260520-s2t-room-card-content-top-padding/) |
+| 260520-t4u | add temperature/humidity sensor pickers to room card expanded section | 2026-05-20 | 0802014 | [260520-t4u-room-sensor-pickers](.planning/quick/260520-t4u-room-sensor-pickers/) |
 
 ### Blockers/Concerns
 
