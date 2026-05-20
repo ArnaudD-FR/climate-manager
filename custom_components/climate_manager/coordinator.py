@@ -302,9 +302,7 @@ class ClimateManagerCoordinator:
         _area_reg = ar.async_get(self._hass)
 
         rooms_status = []
-        room_configs: dict = self._data.runtime_config.get("rooms", {})
         for area_id, entity_ids in self._data.rooms.items():
-            room_cfg = room_configs.get(area_id, {})
             _area = _area_reg.async_get_area(area_id)
             room_entry: dict = {
                 "area_id": area_id,
@@ -315,10 +313,12 @@ class ClimateManagerCoordinator:
 
             auto = self._data.room_auto_sensors.get(area_id, {})
 
-            temp_sensor = room_cfg.get("temperature_sensor") or auto.get("temperature")
+            # Temperature/humidity: HA area registry (HA 2026.5+) → auto-discovered → TRV built-in
+            temp_sensor = getattr(_area, "temperature_entity_id", None) or auto.get("temperature")
+            humidity_sensor = getattr(_area, "humidity_entity_id", None) or auto.get("humidity")
             if temp_sensor:
                 sensor_state = self._hass.states.get(temp_sensor)
-                if sensor_state is not None:
+                if sensor_state is not None and sensor_state.state not in ("unavailable", "unknown"):
                     room_entry["temperature"] = sensor_state.state
             elif entity_ids:
                 trv_state = self._hass.states.get(entity_ids[0])
@@ -327,10 +327,9 @@ class ClimateManagerCoordinator:
                     if current_temp is not None:
                         room_entry["temperature"] = current_temp
 
-            humidity_sensor = room_cfg.get("humidity_sensor") or auto.get("humidity")
             if humidity_sensor:
                 hum_state = self._hass.states.get(humidity_sensor)
-                if hum_state is not None:
+                if hum_state is not None and hum_state.state not in ("unavailable", "unknown"):
                     room_entry["humidity"] = hum_state.state
 
             rooms_status.append(room_entry)

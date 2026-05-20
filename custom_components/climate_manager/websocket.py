@@ -104,10 +104,8 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
         _area_reg = ar.async_get(hass)
 
         rooms_status = []
-        room_configs = runtime_config.get("rooms", {})
         room_auto_sensors = entry.runtime_data.room_auto_sensors
         for area_id, entity_ids in rooms.items():
-            room_cfg = room_configs.get(area_id, {})
             auto = room_auto_sensors.get(area_id, {})
             _area = _area_reg.async_get_area(area_id)
             room_entry: dict = {
@@ -116,11 +114,12 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
                 "entity_ids": entity_ids,
             }
 
-            # Temperature: configured override → HA area sensor → TRV built-in
-            temp_sensor = room_cfg.get("temperature_sensor") or auto.get("temperature")
+            # Temperature/humidity: HA area registry (HA 2026.5+) → auto-discovered → TRV built-in
+            temp_sensor = getattr(_area, "temperature_entity_id", None) or auto.get("temperature")
+            humidity_sensor = getattr(_area, "humidity_entity_id", None) or auto.get("humidity")
             if temp_sensor:
                 sensor_state = hass.states.get(temp_sensor)
-                if sensor_state is not None:
+                if sensor_state is not None and sensor_state.state not in ("unavailable", "unknown"):
                     room_entry["temperature"] = sensor_state.state
             elif entity_ids:
                 trv_state = hass.states.get(entity_ids[0])
@@ -129,11 +128,9 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
                     if current_temp is not None:
                         room_entry["temperature"] = current_temp
 
-            # Humidity: configured override → HA area sensor
-            humidity_sensor = room_cfg.get("humidity_sensor") or auto.get("humidity")
             if humidity_sensor:
                 hum_state = hass.states.get(humidity_sensor)
-                if hum_state is not None:
+                if hum_state is not None and hum_state.state not in ("unavailable", "unknown"):
                     room_entry["humidity"] = hum_state.state
 
             # Active period for this room (from coordinator's last result)
