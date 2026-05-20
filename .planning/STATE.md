@@ -5,7 +5,7 @@ milestone_name: milestone
 status: executing
 stopped_at: Phase 3 context updated — D-14c
 last_updated: "2026-05-20T15:53:40.094Z"
-last_activity: "2026-05-20 -- Completed quick task 260520-o0l: rooms floor headers should show floor icon"
+last_activity: "2026-05-20 -- Completed quick task 260520-s9s: remove sensors section from room card and fix backend sensor priority chain"
 progress:
   total_phases: 3
   completed_phases: 2
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-15)
 Phase: 3 (websocket-api-frontend-panel) — EXECUTING
 Plan: 1 of 4
 Status: Executing Phase 3
-Last activity: 2026-05-20 -- Completed quick task 260520-o0l: rooms floor headers should show floor icon
+Last activity: 2026-05-20 -- Completed quick task 260520-s9s: remove sensors section from room card and fix backend sensor priority chain
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -84,6 +84,7 @@ None yet.
 | 260520-r1v | fix override toggle not updating card/status line — missing reloadConfig | 2026-05-20 | ec38db7 | [260520-r1v-override-toggle-no-ui-update](.planning/quick/260520-r1v-override-toggle-no-ui-update/) |
 | 260520-s2t | fix room card content top padding — climate entities too close to header | 2026-05-20 | f91ae24 | [260520-s2t-room-card-content-top-padding](.planning/quick/260520-s2t-room-card-content-top-padding/) |
 | 260520-t4u | add temperature/humidity sensor pickers to room card expanded section | 2026-05-20 | 0802014 | [260520-t4u-room-sensor-pickers](.planning/quick/260520-t4u-room-sensor-pickers/) |
+| 260520-s9s | remove sensors section from room card and fix backend sensor priority chain | 2026-05-20 | f09eb50 | [260520-s9s-remove-sensors-section-from-room-card-an](.planning/quick/260520-s9s-remove-sensors-section-from-room-card-an/) |
 
 ### Blockers/Concerns
 
