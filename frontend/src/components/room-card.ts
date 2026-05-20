@@ -2,8 +2,8 @@
  * Climate Manager Panel — Room Card component (UI-03).
  *
  * Expandable card per room. Collapsed: room name + program badge.
- * Expanded: live status row, TRV entity IDs (read-only), optional sensor
- * fields (editable), override toggle, inline time-bar (when override enabled).
+ * Expanded: live status row, TRV entity IDs (read-only), associated persons
+ * chips, override toggle, inline time-bar (when override enabled).
  *
  * Auto-save on field blur and toggle change (D-08). Time-bar saves on
  * interaction end (D-09). Toast feedback on success/error (D-10).
@@ -25,7 +25,7 @@ export class RoomCard extends LitElement {
   @property({ attribute: false }) config!: RoomConfig;
   /** Entry from status.rooms_status matching this room. */
   @property({ attribute: false }) roomStatus: RoomStatus | null = null;
-  /** Full panel config — used to seed per-room override from global program. */
+  /** Full panel config — used to seed per-room override from global program and read persons. */
   @property({ attribute: false }) panelConfig!: ClimateConfig;
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
@@ -33,6 +33,7 @@ export class RoomCard extends LitElement {
 
   /** Whether the card is expanded. Default: expanded when has custom time_program. */
   @state() _expanded = false;
+  @state() _showPersonAdd = false;
 
   connectedCallback() {
     super.connectedCallback();
@@ -170,6 +171,86 @@ export class RoomCard extends LitElement {
       height: 16px;
     }
 
+    /* Person / room association chips */
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 16px;
+      background: var(--secondary-background-color, #f5f5f5);
+      border: 1px solid var(--divider-color, #e0e0e0);
+      font-size: 13px;
+      color: var(--primary-text-color);
+    }
+
+    .chip ha-icon {
+      --mdc-icon-size: 16px;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .chip-remove {
+      background: none;
+      border: none;
+      padding: 0 0 0 2px;
+      margin: 0;
+      cursor: pointer;
+      color: var(--secondary-text-color);
+      font-size: 18px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+    }
+
+    .chip-remove:hover {
+      color: var(--error-color, #f44336);
+    }
+
+    .chip-add {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 16px;
+      background: none;
+      border: 1px solid var(--primary-color, #03a9f4);
+      font-size: 13px;
+      color: var(--primary-color, #03a9f4);
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .chip-add:hover {
+      background: rgba(3, 169, 244, 0.08);
+    }
+
+    .chip-add ha-icon {
+      --mdc-icon-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    .add-select {
+      padding: 4px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--primary-text-color);
+      background-color: var(--card-background-color, var(--secondary-background-color));
+      border: 1px solid var(--primary-color, #03a9f4);
+      border-radius: 16px;
+      cursor: pointer;
+      outline: none;
+    }
+
     /* Override toggle row */
     .override-row {
       display: flex;
@@ -200,7 +281,65 @@ export class RoomCard extends LitElement {
   `;
 
   // -----------------------------------------------------------------------
-  // Save handlers
+  // Person association handlers
+  // -----------------------------------------------------------------------
+
+  private _getAssignedPersonIds(): string[] {
+    const persons = this.panelConfig?.persons ?? {};
+    return Object.entries(persons)
+      .filter(([, cfg]) => cfg.room_ids?.includes(this.roomId))
+      .map(([id]) => id);
+  }
+
+  private _getAllPersonIds(): string[] {
+    const fromHass = Object.keys(this.hass?.states ?? {}).filter((id) =>
+      id.startsWith("person."),
+    );
+    const fromConfig = Object.keys(this.panelConfig?.persons ?? {});
+    return [...new Set([...fromHass, ...fromConfig])];
+  }
+
+  private _getPersonName(personId: string): string {
+    return (
+      (this.hass?.states[personId]?.attributes?.["friendly_name"] as string | undefined) ??
+      personId.replace(/^person\./, "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    );
+  }
+
+  private _onAddPersonSelect(e: Event) {
+    const sel = e.target as HTMLSelectElement;
+    const personId = sel.value;
+    if (!personId) return;
+    this._showPersonAdd = false;
+    void this._onAddPerson(personId);
+  }
+
+  private async _onAddPerson(personId: string) {
+    const currentIds = [...(this.panelConfig?.persons?.[personId]?.room_ids ?? [])];
+    const newIds = currentIds.includes(this.roomId) ? currentIds : [...currentIds, this.roomId];
+    try {
+      await this.ws.setPersonConfig(personId, { room_ids: newIds });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onRemovePerson(personId: string) {
+    const currentIds = [...(this.panelConfig?.persons?.[personId]?.room_ids ?? [])];
+    const newIds = currentIds.filter((id) => id !== this.roomId);
+    try {
+      await this.ws.setPersonConfig(personId, { room_ids: newIds });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Schedule override handlers
   // -----------------------------------------------------------------------
 
   private async _onOverrideToggle(e: Event) {
@@ -312,6 +451,47 @@ export class RoomCard extends LitElement {
     `;
   }
 
+  private _renderPersonsSection() {
+    const assignedPersonIds = this._getAssignedPersonIds();
+    const allPersonIds = this._getAllPersonIds();
+    const unassignedPersonIds = allPersonIds.filter(
+      (id) => !assignedPersonIds.includes(id),
+    );
+
+    return html`
+      <div class="section-label">Associated persons</div>
+      <div class="chips">
+        ${assignedPersonIds.map((personId) => html`
+          <span class="chip">
+            <ha-icon icon="mdi:account"></ha-icon>
+            ${this._getPersonName(personId)}
+            <button
+              class="chip-remove"
+              @click=${() => void this._onRemovePerson(personId)}
+            >×</button>
+          </span>
+        `)}
+        ${unassignedPersonIds.length > 0
+          ? this._showPersonAdd
+            ? html`
+              <select class="add-select" @change=${(e: Event) => this._onAddPersonSelect(e)}>
+                <option value="">Select person…</option>
+                ${unassignedPersonIds.map((id) => html`
+                  <option value=${id}>${this._getPersonName(id)}</option>
+                `)}
+              </select>
+            `
+            : html`
+              <button class="chip-add" @click=${() => { this._showPersonAdd = true; }}>
+                <ha-icon icon="mdi:plus"></ha-icon>
+                Add person
+              </button>
+            `
+          : ""}
+      </div>
+    `;
+  }
+
   render() {
     const hasCustomProgram = !!this.config?.time_program;
     const badgeClass = hasCustomProgram ? "custom" : "global";
@@ -335,6 +515,7 @@ export class RoomCard extends LitElement {
             <div class="card-content">
               ${this._renderStatusRow()}
               ${this._renderTrvSection()}
+              ${this._renderPersonsSection()}
 
               <!-- Override toggle -->
               <div class="override-row">

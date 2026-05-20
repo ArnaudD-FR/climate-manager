@@ -2,8 +2,8 @@
  * Climate Manager Panel — Person Card component (UI-04).
  *
  * Expandable card per person. Collapsed: person name + presence mode badge.
- * Expanded: presence mode selector (3-option ha-select), room association
- * checkboxes, presence schedule bar (only visible when mode === "automatic").
+ * Expanded: presence mode selector (3-option select), room association
+ * chips, presence schedule bar (only visible when mode === "automatic").
  *
  * Auto-save on all changes (D-08). Presence time-bar saves on interaction
  * end (D-09). Toast feedback on success/error (D-10).
@@ -38,6 +38,7 @@ export class PersonCard extends LitElement {
   @property({ attribute: false }) panel!: ClimateManagerPanel;
 
   @state() _expanded = false;
+  @state() _showRoomAdd = false;
 
   connectedCallback() {
     super.connectedCallback();
@@ -139,13 +140,6 @@ export class PersonCard extends LitElement {
       margin-bottom: 4px;
     }
 
-    .select-label {
-      display: block;
-      font-size: 12px;
-      color: var(--secondary-text-color);
-      margin-bottom: 4px;
-    }
-
     .mode-select {
       width: 100%;
       padding: 10px 12px;
@@ -164,25 +158,84 @@ export class PersonCard extends LitElement {
       border-width: 2px;
     }
 
-    /* Room checkboxes */
-    .room-checkboxes {
+    /* Chip UI for room associations */
+    .chips {
       display: flex;
-      flex-direction: column;
+      flex-wrap: wrap;
       gap: 8px;
       margin-bottom: 16px;
     }
 
-    .room-checkbox-row {
-      display: flex;
+    .chip {
+      display: inline-flex;
       align-items: center;
-      gap: 8px;
-      font-size: 14px;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 16px;
+      background: var(--secondary-background-color, #f5f5f5);
+      border: 1px solid var(--divider-color, #e0e0e0);
+      font-size: 13px;
       color: var(--primary-text-color);
-      cursor: pointer;
     }
 
-    ha-checkbox {
-      --mdc-checkbox-unchecked-color: var(--secondary-text-color);
+    .chip ha-icon {
+      --mdc-icon-size: 16px;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .chip-remove {
+      background: none;
+      border: none;
+      padding: 0 0 0 2px;
+      margin: 0;
+      cursor: pointer;
+      color: var(--secondary-text-color);
+      font-size: 18px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+    }
+
+    .chip-remove:hover {
+      color: var(--error-color, #f44336);
+    }
+
+    .chip-add {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 16px;
+      background: none;
+      border: 1px solid var(--primary-color, #03a9f4);
+      font-size: 13px;
+      color: var(--primary-color, #03a9f4);
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .chip-add:hover {
+      background: rgba(3, 169, 244, 0.08);
+    }
+
+    .chip-add ha-icon {
+      --mdc-icon-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    .add-select {
+      padding: 4px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--primary-text-color);
+      background-color: var(--card-background-color, var(--secondary-background-color));
+      border: 1px solid var(--primary-color, #03a9f4);
+      border-radius: 16px;
+      cursor: pointer;
+      outline: none;
     }
 
     /* Presence schedule */
@@ -200,26 +253,33 @@ export class PersonCard extends LitElement {
     if (!newMode) return;
     try {
       await this.ws.setPersonConfig(this.personId, { mode: newMode });
+      await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
     }
   }
 
-  private async _onRoomCheckboxToggle(roomId: string, checked: boolean) {
+  private async _onRoomToggle(roomId: string, add: boolean) {
     const currentIds = [...(this.config?.room_ids ?? [])];
-    let newIds: string[];
-    if (checked) {
-      newIds = currentIds.includes(roomId) ? currentIds : [...currentIds, roomId];
-    } else {
-      newIds = currentIds.filter((id) => id !== roomId);
-    }
+    const newIds = add
+      ? currentIds.includes(roomId) ? currentIds : [...currentIds, roomId]
+      : currentIds.filter((id) => id !== roomId);
     try {
       await this.ws.setPersonConfig(this.personId, { room_ids: newIds });
+      await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
     }
+  }
+
+  private _onAddRoomSelect(e: Event) {
+    const sel = e.target as HTMLSelectElement;
+    const roomId = sel.value;
+    if (!roomId) return;
+    this._showRoomAdd = false;
+    void this._onRoomToggle(roomId, true);
   }
 
   private async _onSchedulePeriodsChanged(e: CustomEvent) {
@@ -260,6 +320,7 @@ export class PersonCard extends LitElement {
     const currentMode = this.config?.mode ?? PRESENCE_MODE_AUTOMATIC;
     const isAutomatic = currentMode === PRESENCE_MODE_AUTOMATIC;
     const currentRoomIds = this.config?.room_ids ?? [];
+    const unassignedRooms = this.roomChoices.filter((r) => !currentRoomIds.includes(r.id));
 
     return html`
       <ha-card>
@@ -288,28 +349,39 @@ export class PersonCard extends LitElement {
                 </select>
               </div>
 
-              <!-- Room associations -->
-              ${this.roomChoices.length > 0
-                ? html`
-                  <div class="section-label">Room associations</div>
-                  <div class="room-checkboxes">
-                    ${this.roomChoices.map(
-                      (room) => html`
-                        <label class="room-checkbox-row">
-                          <ha-checkbox
-                            .checked=${currentRoomIds.includes(room.id)}
-                            @change=${(e: Event) => {
-                              const cb = e.target as HTMLElement & { checked: boolean };
-                              void this._onRoomCheckboxToggle(room.id, cb.checked);
-                            }}
-                          ></ha-checkbox>
-                          ${room.name}
-                        </label>
-                      `,
-                    )}
-                  </div>
-                `
-                : ""}
+              <!-- Room associations as chips -->
+              <div class="section-label">Room associations</div>
+              <div class="chips">
+                ${currentRoomIds.map((roomId) => {
+                  const room = this.roomChoices.find((r) => r.id === roomId);
+                  if (!room) return "";
+                  return html`
+                    <span class="chip">
+                      <ha-icon icon="mdi:home-outline"></ha-icon>
+                      ${room.name}
+                      <button
+                        class="chip-remove"
+                        @click=${() => void this._onRoomToggle(roomId, false)}
+                      >×</button>
+                    </span>
+                  `;
+                })}
+                ${unassignedRooms.length > 0
+                  ? this._showRoomAdd
+                    ? html`
+                      <select class="add-select" @change=${(e: Event) => this._onAddRoomSelect(e)}>
+                        <option value="">Select room…</option>
+                        ${unassignedRooms.map((r) => html`<option value=${r.id}>${r.name}</option>`)}
+                      </select>
+                    `
+                    : html`
+                      <button class="chip-add" @click=${() => { this._showRoomAdd = true; }}>
+                        <ha-icon icon="mdi:plus"></ha-icon>
+                        Add room
+                      </button>
+                    `
+                  : ""}
+              </div>
 
               <!-- Presence schedule (only in Automatic mode) -->
               ${isAutomatic
