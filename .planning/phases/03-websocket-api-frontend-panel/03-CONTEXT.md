@@ -1,6 +1,6 @@
 # Phase 3: WebSocket API & Frontend Panel - Context
 
-**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20)
+**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20)
 **Status:** Ready for planning
 
 <domain>
@@ -47,8 +47,12 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 
 ### Room Status & Sensor Configuration
 
-- **D-16:** Each room supports two optional sensor entity IDs stored in the room's config: `temperature_sensor` (a `sensor.*` entity for room air temperature) and `humidity_sensor` (a `sensor.*` entity for room humidity). These are set by the user in the room card's expanded view.
-- **D-17:** Live room status display in the Rooms tab: current temperature (from `temperature_sensor` if defined, else from TRV's `current_temperature` attribute), current humidity (from `humidity_sensor` if defined, else not shown), and active period name. These values are read-only in the UI.
+- **D-16 (revised 2026-05-20):** The room card does NOT expose sensor configuration fields. Sensor assignment is HA's responsibility, not Climate Manager's. Sensors are designated in HA Settings → Areas → [Room] → Temperature entity / Humidity entity. The `AreaEntry.temperature_entity_id` and `.humidity_entity_id` fields (introduced in HA 2026.5, confirmed present in production at `core.area_registry`) are the authoritative source. The `RoomConfig.temperature_sensor` / `.humidity_sensor` storage fields are removed — no manual sensor override via the panel.
+- **D-17 (revised 2026-05-20):** Backend priority chain for room header temperature and humidity (applied in both `ws_get_status` in `websocket.py` and `_build_status_payload` in `coordinator.py`):
+  1. `AreaEntry.temperature_entity_id` / `.humidity_entity_id` from HA area registry — use `getattr(area, 'temperature_entity_id', None)` to handle older HA dev venv gracefully.
+  2. Fallback: auto-discovered sensor from `room_auto_sensors` (`discover_room_sensors` result).
+  3. Temperature-only last resort: TRV `current_temperature` attribute (no humidity fallback from TRV).
+  4. No data: return key absent from the room entry → frontend shows "—".
 - **D-18:** Present persons shown only on the Global Settings tab (in the Current Status section). Not duplicated on the Rooms tab.
 
 ### Claude's Discretion
@@ -124,7 +128,7 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 - **Tooltip during drag**: Shows exact time in `HH:MM` format (e.g., "10:15") while dragging a period boundary.
 - **Mode popup**: Appears on click (both on empty bar for split, and on existing block for edit/delete). Shows colored squares matching D-03 colors next to each mode name.
 - **Global status strip**: Shows "Active period: Normal (until 22:00)" — period name + end time. Derived from coordinator's last evaluation result.
-- **Room sensor fields**: Shown in the expanded room card as optional text inputs for `temperature_sensor` and `humidity_sensor` entity IDs. User types or pastes entity IDs (e.g., `sensor.bedroom_temperature`). No entity picker required in v1.
+- **HA area sensor fields**: All rooms already have `temperature_entity_id` and `humidity_entity_id` set in HA area registry (verified on production HA 2026.5.3 — every managed area has sensors designated). Room card displays these read-only values via the backend priority chain (D-17). No manual input in the panel.
 - **Presence schedule bar**: Uses the same 7-bar component as the time program editor, parameterized for 2 modes (Present/Absent) instead of 4. Green = present, gray = absent.
 
 </specifics>
@@ -135,7 +139,7 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 - **TRV availability indicator** (reachable/unreachable dot per TRV entity) — useful but not in requirements. Deferred to v2 — requires subscribing to each TRV entity state.
 - **Entity picker for sensor fields** — a searchable dropdown of `sensor.*` entities rather than a plain text input. v2 UX improvement.
 - **"Applied" confirmation** — showing "✓ Applied to TRVs" after the coordinator pushes. Decided against (D-11) — save toast is sufficient for v1.
-- **Auto-detect humidity sensors** — auto-discover `sensor.*_humidity` in the same area_id. v2 quality-of-life feature.
+- **Auto-detect sensors (promoted to implemented)** — superseded by D-17's area registry lookup. Implemented as fallback tier 2 in the priority chain.
 
 </deferred>
 
