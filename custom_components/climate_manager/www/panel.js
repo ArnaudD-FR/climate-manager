@@ -2224,7 +2224,7 @@ const Rt = class Rt extends S {
     const i = [...r.keys()].filter((g) => g !== null).sort(
       (g, m) => {
         var f, $, w, G, zt, Ht;
-        return (((w = ($ = (f = this.hass) == null ? void 0 : f.floors) == null ? void 0 : $[g]) == null ? void 0 : w.level) ?? 0) - (((Ht = (zt = (G = this.hass) == null ? void 0 : G.floors) == null ? void 0 : zt[m]) == null ? void 0 : Ht.level) ?? 0);
+        return (((w = ($ = (f = this.hass) == null ? void 0 : f.floors) == null ? void 0 : $[m]) == null ? void 0 : w.level) ?? 0) - (((Ht = (zt = (G = this.hass) == null ? void 0 : G.floors) == null ? void 0 : zt[g]) == null ? void 0 : Ht.level) ?? 0);
       }
     ), a = r.get(null) ?? [], c = (g) => {
       const m = t[g] ?? {}, f = this._getRoomStatus(g), $ = s(g);

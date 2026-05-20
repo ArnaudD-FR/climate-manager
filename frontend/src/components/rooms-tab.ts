@@ -111,8 +111,8 @@ export class RoomsTab extends LitElement {
       .filter((fid): fid is string => fid !== null)
       .sort(
         (a, b) =>
-          (this.hass?.floors?.[a]?.level ?? 0) -
-          (this.hass?.floors?.[b]?.level ?? 0),
+          (this.hass?.floors?.[b]?.level ?? 0) -
+          (this.hass?.floors?.[a]?.level ?? 0),
       );
 
     const floorlessIds = floorGroups.get(null) ?? [];
