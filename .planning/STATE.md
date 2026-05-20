@@ -85,6 +85,7 @@ None yet.
 | 260520-s2t | fix room card content top padding — climate entities too close to header | 2026-05-20 | f91ae24 | [260520-s2t-room-card-content-top-padding](.planning/quick/260520-s2t-room-card-content-top-padding/) |
 | 260520-t4u | add temperature/humidity sensor pickers to room card expanded section | 2026-05-20 | 0802014 | [260520-t4u-room-sensor-pickers](.planning/quick/260520-t4u-room-sensor-pickers/) |
 | 260520-s9s | remove sensors section from room card and fix backend sensor priority chain | 2026-05-20 | f09eb50 | [260520-s9s-remove-sensors-section-from-room-card-an](.planning/quick/260520-s9s-remove-sensors-section-from-room-card-an/) |
+| 260520-svm | investigate: TRV used for Bureau instead of area sensors — confirmed getattr works | 2026-05-20 | — | [260520-svm-investigate-trv-used-for-bureau-instead-](.planning/quick/260520-svm-investigate-trv-used-for-bureau-instead-/) |
 
 ### Blockers/Concerns
 
