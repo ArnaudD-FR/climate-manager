@@ -178,8 +178,31 @@ export class RoomCard extends LitElement {
       margin-bottom: 16px;
     }
 
-    ha-textfield {
-      display: block;
+    .sensor-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .sensor-label {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+
+    .sensor-input {
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--primary-text-color);
+      background-color: var(--card-background-color, var(--secondary-background-color));
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      outline: none;
+    }
+
+    .sensor-input:focus {
+      border-color: var(--primary-color);
+      border-width: 2px;
     }
 
     /* Override toggle row */
@@ -370,18 +393,26 @@ export class RoomCard extends LitElement {
 
               <!-- Sensor fields -->
               <div class="sensor-fields">
-                <ha-textfield
-                  label="Temperature sensor (optional)"
-                  placeholder="sensor.room_temperature"
-                  .value=${this.config?.temperature_sensor ?? ""}
-                  @blur=${this._onTemperatureSensorBlur}
-                ></ha-textfield>
-                <ha-textfield
-                  label="Humidity sensor (optional)"
-                  placeholder="sensor.room_humidity"
-                  .value=${this.config?.humidity_sensor ?? ""}
-                  @blur=${this._onHumiditySensorBlur}
-                ></ha-textfield>
+                <div class="sensor-field">
+                  <label class="sensor-label">Temperature sensor (optional)</label>
+                  <input
+                    class="sensor-input"
+                    type="text"
+                    placeholder="sensor.room_temperature"
+                    .value=${this.config?.temperature_sensor ?? ""}
+                    @blur=${this._onTemperatureSensorBlur}
+                  />
+                </div>
+                <div class="sensor-field">
+                  <label class="sensor-label">Humidity sensor (optional)</label>
+                  <input
+                    class="sensor-input"
+                    type="text"
+                    placeholder="sensor.room_humidity"
+                    .value=${this.config?.humidity_sensor ?? ""}
+                    @blur=${this._onHumiditySensorBlur}
+                  />
+                </div>
               </div>
 
               <!-- Override toggle -->
