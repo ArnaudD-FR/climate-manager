@@ -10,8 +10,8 @@
  *   - Full-width 40px colored bar (segments from `days[i]`)
  *   - [Copy] and [Paste] icon buttons
  *
- * Above all 7 rows: a time ruler showing hour markers every 3 hours.
- * Below all 7 rows: a shared time axis (00:00 / 06:00 / 12:00 / 18:00 / 24:00).
+ * Above all 7 rows: a time axis showing hour markers (00:00 / 06:00 / 12:00 / 18:00 / 24:00).
+ * Below all 7 rows: a shared time axis (same structure, same labels).
  *
  * Interactions (D-04…D-09):
  *   click empty bar   → mode popup "Split at HH:MM" → insert new segment
@@ -62,11 +62,6 @@ interface PopupState {
 // Day names
 // ---------------------------------------------------------------------------
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-// ---------------------------------------------------------------------------
-// Time scale tick hours (every 3h, 0..24)
-// ---------------------------------------------------------------------------
-const TIME_SCALE_HOURS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 
 // ---------------------------------------------------------------------------
 // Period type cycles used by "Split period" action
@@ -212,55 +207,7 @@ export class ClimateManagerTimeBar extends LitElement {
       opacity: 0.4;
     }
 
-    /* ---- Time scale ruler (above day rows) -------------------------------- */
-    .time-scale {
-      display: flex;
-      align-items: stretch;
-      padding-left: 48px; /* 40px label + 8px padding — matches bar start */
-      padding-right: 80px; /* approximate button column width */
-      height: 18px;
-    }
-
-    .time-scale-inner {
-      flex: 1;
-      position: relative;
-    }
-
-    .time-scale-tick {
-      position: absolute;
-      top: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      transform: translateX(-50%);
-    }
-
-    /* The last tick (24) must not overflow right — anchor it to the right edge */
-    .time-scale-tick.tick-last {
-      transform: translateX(-100%);
-    }
-
-    /* The first tick (0) must not overflow left — anchor to left edge */
-    .time-scale-tick.tick-first {
-      transform: translateX(0);
-    }
-
-    .time-scale-tick-line {
-      width: 1px;
-      height: 5px;
-      background: var(--divider-color, #e0e0e0);
-      flex-shrink: 0;
-    }
-
-    .time-scale-tick-label {
-      font-size: 10px;
-      line-height: 1;
-      color: var(--secondary-text-color, #757575);
-      margin-top: 1px;
-      white-space: nowrap;
-    }
-
-    /* ---- Time axis (below day rows) --------------------------------------- */
+    /* ---- Shared time axis (above and below day rows) ---------------------- */
     .time-axis {
       display: flex;
       align-items: center;
@@ -813,21 +760,15 @@ export class ClimateManagerTimeBar extends LitElement {
         @pointermove=${this._onPointerMove}
         @pointerup=${this._onPointerUp}
       >
-        <!-- Time scale ruler above day rows -->
-        ${this._renderTimeScale()}
+        <!-- Time axis above day rows — identical structure to bottom axis -->
+        ${this._renderTimeAxis()}
 
         ${DAY_LABELS.map((label, dayIndex) =>
           this._renderDayRow(label, dayIndex),
         )}
 
-        <!-- Shared time axis -->
-        <div class="time-axis">
-          <div class="time-axis-inner">
-            ${["00:00", "06:00", "12:00", "18:00", "24:00"].map(
-              (t) => html`<span class="axis-tick">${t}</span>`,
-            )}
-          </div>
-        </div>
+        <!-- Shared time axis below day rows -->
+        ${this._renderTimeAxis()}
       </div>
 
       <!-- Drag tooltip -->
@@ -860,35 +801,20 @@ export class ClimateManagerTimeBar extends LitElement {
   }
 
   /**
-   * Renders a horizontal time ruler above the day rows.
-   * 9 ticks at hours 0, 3, 6, 9, 12, 15, 18, 21, 24 — each absolutely
-   * positioned at (hour/24)*100% within the bar area. The padding-left/right
-   * mirrors .time-axis so ticks align with the period bars.
+   * Renders the shared time axis row — used for both top (above day rows)
+   * and bottom (below day rows). Identical structure and CSS class so both
+   * rulers are pixel-perfect matches of each other.
+   *
+   * Layout: 48px left pad (40px label + 8px gap) + flex bar area +
+   * 80px right pad (button column) — mirrors the day row geometry exactly.
    */
-  private _renderTimeScale() {
+  private _renderTimeAxis() {
     return html`
-      <div class="time-scale">
-        <div class="time-scale-inner">
-          ${TIME_SCALE_HOURS.map((hour, i) => {
-            const leftPct = (hour / 24) * 100;
-            const isFirst = i === 0;
-            const isLast = i === TIME_SCALE_HOURS.length - 1;
-            const tickClass = isFirst
-              ? "time-scale-tick tick-first"
-              : isLast
-                ? "time-scale-tick tick-last"
-                : "time-scale-tick";
-            return html`
-              <div
-                class="${tickClass}"
-                style="left:${leftPct}%"
-                aria-hidden="true"
-              >
-                <div class="time-scale-tick-line"></div>
-                <span class="time-scale-tick-label">${hour}</span>
-              </div>
-            `;
-          })}
+      <div class="time-axis">
+        <div class="time-axis-inner">
+          ${["00:00", "06:00", "12:00", "18:00", "24:00"].map(
+            (t) => html`<span class="axis-tick">${t}</span>`,
+          )}
         </div>
       </div>
     `;
