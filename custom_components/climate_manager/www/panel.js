@@ -2158,7 +2158,7 @@ Tt.styles = D`
     }
 
     .card-content {
-      padding: 0 16px 16px;
+      padding: 12px 16px 16px;
       border-top: 1px solid var(--divider-color, #e0e0e0);
     }
 
