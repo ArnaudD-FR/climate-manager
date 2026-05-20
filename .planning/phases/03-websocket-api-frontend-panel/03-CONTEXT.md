@@ -1,6 +1,6 @@
 # Phase 3: WebSocket API & Frontend Panel - Context
 
-**Gathered:** 2026-05-17
+**Gathered:** 2026-05-17 (updated 2026-05-20)
 **Status:** Ready for planning
 
 <domain>
@@ -39,7 +39,9 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 
 - **D-12:** Top-level navigation: three tabs — `[Global Settings]` `[Rooms]` `[Persons]`. Standard HA tab pattern.
 - **D-13:** Global Settings tab layout: a read-only **Current Status** section at the top (current global mode, active period name + end time, present persons with green dots), followed by the **Configuration** section (mode selector dropdown, default temperature inputs for all 4 period modes, global time program editor).
-- **D-14:** Rooms tab: expandable cards per room. Collapsed card shows room name + program badge ("global program" or "custom program"). Expanded card shows: associated TRV entity IDs, optional temperature and humidity sensor fields, "Override global time program" toggle, and (when override is enabled) the inline 7-bar editor. Rooms with a custom program are listed first (Phase 1 D-17) and expanded by default. Rooms using the global program are listed after, collapsed by default.
+- **D-14:** Rooms tab: expandable cards per room. Collapsed card shows room name + program badge ("global program" or "custom program"). Expanded card shows: associated TRV entity IDs, "Override global time program" toggle, and (when override is enabled) the inline 7-bar editor. Room cards with a custom time program are expanded by default; all others are collapsed by default.
+- **D-14a (ordering — updated 2026-05-20):** Rooms are ordered by floor then room name, matching the HA climate panel. Floor names appear as section headers between floor groups (e.g. "Ground floor", "First floor"). Floors are ordered by their `level` field from `hass.floors` (ascending integer). Within a floor, rooms are sorted alphabetically by name. Rooms with no floor assignment appear after all floored rooms, in alphabetical order, without a section header. This replaces the previous custom-program-first ordering — program type no longer affects sort position.
+- **D-14b (data source — Claude's discretion):** Floor and area data comes from `hass.areas` (each area has a `floor_id` field) and `hass.floors` (each floor has `floor_id`, `name`, `level`). No backend changes needed — all ordering is done in `rooms-tab.ts`. The `Hass` TypeScript interface must be extended with `areas: Record<string, { area_id: string; name: string; floor_id: string | null }>` and `floors: Record<string, { floor_id: string; name: string; level: number }>`.
 - **D-15:** Persons tab: expandable cards per person. Collapsed card shows name + presence mode badge (Automatic / Present / Absent). Expanded card shows: presence mode selector, room association checkboxes (one per discovered room), and the presence schedule bar editor (same 7-bar format with Present=green and Absent=gray blocks). Persons with any non-default setting are listed first (Phase 1 D-18) and expanded by default. Fully-default persons are listed after, collapsed by default.
 
 ### Room Status & Sensor Configuration
@@ -109,6 +111,7 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 - `async_unload_entry` in `__init__.py` — WebSocket commands auto-unregister with the config entry; no explicit cleanup needed.
 - `ClimateManagerData` dataclass — May need a `rooms_meta` field or similar to cache discovered room sensor associations; or discovery can be called inline per WebSocket request.
 - The per-day schema refactor (pre-condition) changes `const.py`'s `DEFAULT_CONFIG` shape and `schedule.py`'s evaluation logic — all Phase 3 code is written against the refactored schema.
+- **`frontend/src/types.ts` `Hass` interface** — Must be extended with `areas` and `floors` registry maps for floor-based room ordering (D-14b). `hass.areas[area_id].floor_id` is null for unassigned areas; guard for this in sort logic.
 
 </code_context>
 

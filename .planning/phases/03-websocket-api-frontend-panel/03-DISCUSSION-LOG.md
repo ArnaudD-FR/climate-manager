@@ -3,9 +3,9 @@
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
-**Date:** 2026-05-17
+**Date:** 2026-05-17 (updated 2026-05-20)
 **Phase:** 3-WebSocket API & Frontend Panel
-**Areas discussed:** Time program editor, Save model, Panel navigation, Panel status display
+**Areas discussed:** Time program editor, Save model, Panel navigation, Panel status display, Rooms ordering (2026-05-20)
 
 ---
 
@@ -188,3 +188,48 @@
 - Entity picker for sensor fields (searchable dropdown) — v2 UX improvement
 - "Applied" confirmation after coordinator push — decided against for v1
 - Auto-detect humidity sensors by area_id — v2 quality-of-life feature
+
+---
+
+## Rooms Ordering (2026-05-20)
+
+### D-14 Ordering Rule
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Replace D-14 entirely | Order purely by floor → room name; custom-program rooms expand but don't sort first | ✓ |
+| Floor then custom-program within floor | Within each floor, custom-program rooms first | |
+| Keep D-14, floor as secondary sort | Custom-program first, then floor within each group | |
+
+**User's choice:** Replace D-14 entirely
+**Notes:** Custom-program rooms still expand by default — only their sort position changes. The HA climate panel (ha.local/climate) was the reference.
+
+---
+
+### Floorless Rooms
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| At the end, unlabeled | After all floored rooms, alphabetical, no header | ✓ |
+| At the end, in an 'Other' group | Same position, with explicit 'Other' section header | |
+| At the top, alphabetically | Before all floored rooms | |
+
+**User's choice:** At the end, unlabeled
+
+---
+
+### Floor Section Headers
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Yes, show floor name headers | Section header per floor (e.g. "Ground floor") | ✓ |
+| No headers — just ordered cards | Ordered correctly but no visual separator | |
+
+**User's choice:** Yes, show floor name headers
+
+---
+
+### Claude's Discretion (Rooms Ordering)
+
+- Data source: `hass.areas` + `hass.floors` (frontend only — no backend changes)
+- Floor level ordering: ascending by `floor.level` integer
