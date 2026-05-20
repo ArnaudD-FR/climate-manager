@@ -40,6 +40,9 @@ export class RoomsTab extends LitElement {
     }
 
     .floor-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       font-size: 12px;
       font-weight: 600;
       letter-spacing: 0.5px;
@@ -50,6 +53,13 @@ export class RoomsTab extends LitElement {
 
     .floor-header:first-child {
       padding-top: 0;
+    }
+
+    .floor-header ha-icon {
+      --mdc-icon-size: 16px;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
     }
   `;
 
@@ -126,12 +136,27 @@ export class RoomsTab extends LitElement {
       `;
     };
 
+    const getFloorIcon = (fid: string): string => {
+      const floor = this.hass?.floors?.[fid];
+      if (floor?.icon) return floor.icon;
+      const level = floor?.level ?? 0;
+      if (level < 0) return "mdi:home-floor-b";
+      if (level === 1) return "mdi:home-floor-1";
+      if (level === 2) return "mdi:home-floor-2";
+      if (level === 3) return "mdi:home-floor-3";
+      if (level > 3) return "mdi:home-floor-3";
+      return "mdi:home-floor-0";
+    };
+
     return html`
       ${sortedFloorIds.map((fid) => {
         const floorName = this.hass?.floors?.[fid]?.name ?? fid;
         const ids = floorGroups.get(fid) ?? [];
         return html`
-          <div class="floor-header">${floorName}</div>
+          <div class="floor-header">
+            <ha-icon icon=${getFloorIcon(fid)}></ha-icon>
+            ${floorName}
+          </div>
           ${ids.map(renderRoomCard)}
         `;
       })}
