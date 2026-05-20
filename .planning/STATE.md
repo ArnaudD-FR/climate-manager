@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 3 context updated — assignment picker D-19
-last_updated: "2026-05-20T19:10:44.511Z"
+stopped_at: Phase 3 context updated — per-room mode selector D-20
+last_updated: "2026-05-20T19:34:35.872Z"
 last_activity: "2026-05-20 -- Completed quick task 260520-s9s: remove sensors section from room card and fix backend sensor priority chain"
 progress:
   total_phases: 3
-  completed_phases: 2
-  total_plans: 9
+  completed_phases: 3
+  total_plans: 8
   completed_plans: 8
-  percent: 67
+  percent: 100
 ---
 
 # Project State
@@ -106,6 +106,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-20T19:10:44.502Z
-Stopped at: Phase 3 context updated — assignment picker D-19
+Last session: 2026-05-20T19:34:35.862Z
+Stopped at: Phase 3 context updated — per-room mode selector D-20
 Resume file: .planning/phases/03-websocket-api-frontend-panel/03-CONTEXT.md
