@@ -137,6 +137,7 @@ export class ClimateManagerPanel extends LitElement {
     // Create a single WS client instance used by all tab components
     this._ws = new WsClient(this.hass);
     this._loadConfig();
+    this._loadStatus();
     this._subscribeStatus();
   }
 
@@ -157,6 +158,15 @@ export class ClimateManagerPanel extends LitElement {
     } catch {
       // Config load failure is shown via the error banner on next render.
       this._wsError = true;
+    }
+  }
+
+  private async _loadStatus() {
+    if (!this._ws) this._ws = new WsClient(this.hass);
+    try {
+      this._status = await this._ws.getStatus();
+    } catch {
+      // Non-fatal: subscribe_status push will populate status on next evaluation.
     }
   }
 
@@ -266,6 +276,7 @@ export class ClimateManagerPanel extends LitElement {
           .status=${this._status}
           .ws=${this._ws!}
           .panel=${this}
+          .hass=${this.hass}
         ></climate-manager-persons-tab>`;
       default:
         return html``;

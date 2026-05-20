@@ -296,11 +296,47 @@ class ClimateManagerCoordinator:
         """Build the status dict pushed to subscribed panel connections after each evaluation.
 
         Used by the Wave 2 subscribe_status WS command and the hass.bus event.
+        Includes rooms_status so the Rooms tab populates from push events.
         """
+        from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
+        _area_reg = ar.async_get(self._hass)
+
+        rooms_status = []
+        room_configs: dict = self._data.runtime_config.get("rooms", {})
+        for area_id, entity_ids in self._data.rooms.items():
+            room_cfg = room_configs.get(area_id, {})
+            _area = _area_reg.async_get_area(area_id)
+            room_entry: dict = {
+                "area_id": area_id,
+                "name": _area.name if _area else area_id,
+                "active_period": self._last_active_period,
+            }
+
+            temp_sensor = room_cfg.get("temperature_sensor")
+            if temp_sensor:
+                sensor_state = self._hass.states.get(temp_sensor)
+                if sensor_state is not None:
+                    room_entry["temperature"] = sensor_state.state
+            elif entity_ids:
+                trv_state = self._hass.states.get(entity_ids[0])
+                if trv_state is not None:
+                    current_temp = trv_state.attributes.get("current_temperature")
+                    if current_temp is not None:
+                        room_entry["temperature"] = current_temp
+
+            humidity_sensor = room_cfg.get("humidity_sensor")
+            if humidity_sensor:
+                hum_state = self._hass.states.get(humidity_sensor)
+                if hum_state is not None:
+                    room_entry["humidity"] = hum_state.state
+
+            rooms_status.append(room_entry)
+
         return {
             "global_mode": self._data.runtime_config["global_mode"],
-            "active_period": getattr(self, "_last_active_period", None),
-            "present_persons": getattr(self, "_last_present_persons", []),
+            "active_period": self._last_active_period,
+            "present_persons": self._last_present_persons,
+            "rooms_status": rooms_status,
         }
 
     async def _push_if_changed(self, entity_id: str, desired_temp: float) -> None:
