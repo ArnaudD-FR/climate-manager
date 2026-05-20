@@ -12,7 +12,7 @@
 import { LitElement, html, css } from "lit";
 import { property } from "lit/decorators.js";
 
-import type { ClimateConfig, StatusPayload, RoomStatus } from "../types.js";
+import type { ClimateConfig, StatusPayload, RoomStatus, Hass } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 
@@ -23,6 +23,7 @@ export class RoomsTab extends LitElement {
   @property({ attribute: false }) status: StatusPayload | null = null;
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
+  @property({ attribute: false }) hass!: Hass;
 
   static styles = css`
     :host {
@@ -75,9 +76,7 @@ export class RoomsTab extends LitElement {
         const roomConfig = rooms[roomId] ?? {};
         const roomStatus = this._getRoomStatus(roomId);
         // Display name: area_id as fallback (backend may provide a name in status)
-        const roomName =
-          (roomStatus as (RoomStatus & { name?: string }) | null)?.name ??
-          roomId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        const roomName = roomStatus?.name ?? roomId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
         return html`
           <climate-manager-room-card
@@ -88,6 +87,7 @@ export class RoomsTab extends LitElement {
             .panelConfig=${this.config}
             .ws=${this.ws}
             .panel=${this.panel}
+            .hass=${this.hass}
           ></climate-manager-room-card>
         `;
       })}

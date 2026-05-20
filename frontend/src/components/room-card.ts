@@ -12,7 +12,7 @@
 import { LitElement, html, css } from "lit";
 import { property, state } from "lit/decorators.js";
 
-import type { RoomConfig, RoomStatus, DailyProgram, Period, ClimateConfig } from "../types.js";
+import type { RoomConfig, RoomStatus, DailyProgram, Period, ClimateConfig, Hass } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
@@ -29,6 +29,7 @@ export class RoomCard extends LitElement {
   @property({ attribute: false }) panelConfig!: ClimateConfig;
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
+  @property({ attribute: false }) hass!: Hass;
 
   /** Whether the card is expanded. Default: expanded when has custom time_program. */
   @state() _expanded = false;
@@ -128,7 +129,7 @@ export class RoomCard extends LitElement {
       margin-bottom: 12px;
     }
 
-    /* TRV entity IDs */
+    /* TRV entity chips */
     .trv-section {
       margin-bottom: 12px;
     }
@@ -142,11 +143,31 @@ export class RoomCard extends LitElement {
       margin-bottom: 8px;
     }
 
-    .trv-entity {
+    .trv-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      margin: 0 4px 6px 0;
+      border-radius: 16px;
+      background: var(--secondary-background-color, #f5f5f5);
+      border: 1px solid var(--divider-color, #e0e0e0);
       font-size: 13px;
-      color: var(--secondary-text-color);
-      padding: 4px 0;
-      font-family: monospace;
+      color: var(--primary-text-color);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .trv-chip:hover {
+      background: var(--primary-color);
+      color: var(--text-primary-color, #fff);
+      border-color: var(--primary-color);
+    }
+
+    .trv-chip ha-icon {
+      --mdc-icon-size: 16px;
+      width: 16px;
+      height: 16px;
     }
 
     /* Sensor fields */
@@ -287,11 +308,16 @@ export class RoomCard extends LitElement {
     `;
   }
 
+  private _openMoreInfo(entityId: string) {
+    this.dispatchEvent(new CustomEvent("hass-more-info", {
+      bubbles: true,
+      composed: true,
+      detail: { entityId },
+    }));
+  }
+
   private _renderTrvSection() {
-    // TRV entity IDs come from status if available; otherwise show no-TRV badge
-    const entityIds = this.roomStatus
-      ? (this.roomStatus as RoomStatus & { entity_ids?: string[] }).entity_ids ?? []
-      : [];
+    const entityIds = this.roomStatus?.entity_ids ?? [];
 
     if (entityIds.length === 0) {
       return html`
@@ -305,7 +331,15 @@ export class RoomCard extends LitElement {
     return html`
       <div class="trv-section">
         <div class="section-label">Climate entities</div>
-        ${entityIds.map((id) => html`<div class="trv-entity">${id}</div>`)}
+        ${entityIds.map((id) => {
+          const name = this.hass?.states[id]?.attributes?.["friendly_name"] ?? id;
+          return html`
+            <span class="trv-chip" @click=${() => this._openMoreInfo(id)}>
+              <ha-icon icon="mdi:radiator"></ha-icon>
+              ${name}
+            </span>
+          `;
+        })}
       </div>
     `;
   }
