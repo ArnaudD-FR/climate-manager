@@ -3,9 +3,9 @@
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
-**Date:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-21)
+**Date:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21)
 **Phase:** 3-WebSocket API & Frontend Panel
-**Areas discussed:** Time program editor, Save model, Panel navigation, Panel status display, Rooms ordering (2026-05-20), Room card always-visible status (2026-05-20), Room card person count (2026-05-21), Global Settings temperatures card (2026-05-21)
+**Areas discussed:** Time program editor, Save model, Panel navigation, Panel status display, Rooms ordering (2026-05-20), Room card always-visible status (2026-05-20), Room card person count (2026-05-21), Global Settings temperatures card (2026-05-21), Assignment picker UI (2026-05-21)
 
 ---
 
@@ -291,3 +291,43 @@
 3. Configuration (mode selector + global time program)
 
 **Notes:** Card title is exactly "Temperatures" — not "Default temperatures".
+
+---
+
+## Assignment Picker UI (2026-05-21)
+
+**Reference:** Screenshot of HA's entity picker (search field + scrollable list with name + breadcrumb secondary text, floating popup).
+
+### Person item secondary text
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Presence state | "Home" / "Away" from hass.states | ✓ |
+| Entity ID | Technical breadcrumb e.g. "person.arnaud" | |
+| Nothing | Name only | |
+
+**User's choice:** Presence state
+
+---
+
+### Room item secondary text
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Floor name | E.g. "Ground floor" | ✓ |
+| Nothing | Room name only | |
+| Number of TRVs | E.g. "2 TRVs" | |
+
+**User's choice:** Floor name
+
+---
+
+### Shared component
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Shared component | One search-picker parameterised with items | ✓ |
+| Separate per card | Inline in each card file | |
+
+**User's choice:** Shared component
+**Notes:** Reference screenshot was HA's area sensor picker (entity picker popup with search). Native input + custom list — ha-select is broken in HA 2026.x.

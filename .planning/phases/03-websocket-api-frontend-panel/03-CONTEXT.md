@@ -1,6 +1,6 @@
 # Phase 3: WebSocket API & Frontend Panel - Context
 
-**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21)
+**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21)
 **Status:** Ready for planning
 
 <domain>
@@ -58,6 +58,16 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
   3. Temperature-only last resort: TRV `current_temperature` attribute (no humidity fallback from TRV).
   4. No data: return key absent from the room entry → frontend shows "—".
 - **D-18:** Present persons shown only on the Global Settings tab (in the Current Status section). Not duplicated on the Rooms tab.
+
+### Assignment Picker
+
+- **D-19 (added 2026-05-21):** Adding a person to a room (room card) and adding a room to a person (person card) both use a shared search-picker component — a floating popup with a search field + scrollable list, matching HA's native entity picker style. The current `<select>` dropdown is replaced.
+  - **Trigger:** Same "+" chip button as today — clicking it opens the popup overlay.
+  - **Person items** (in room card picker): person name (bold) + presence state as secondary text (e.g. "Home" / "Away" — from `hass.states[personId].state`).
+  - **Room items** (in person card picker): room name (bold) + floor name as secondary text (e.g. "Ground floor" — from `hass.floors[area.floor_id].name`; omit if no floor assigned).
+  - **Shared component:** One Lit component (e.g. `search-picker.ts`) parameterised with `items: Array<{id, label, secondary?, icon?}>`. Reused in both `room-card.ts` and `person-card.ts`.
+  - **ha-select is broken in HA 2026.x** — implementation uses a native `<input type="text">` for search and a custom `<ul>` list, not any `ha-*` select component.
+  - Items already assigned are excluded from the picker list (same logic as current `<select>` filtering).
 
 ### Claude's Discretion
 
@@ -117,6 +127,7 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 
 ### Integration Points
 - `_getAssignedPersonIds()` in `room-card.ts` — already computes persons assigned to a room; use `.length` for D-14d person count without new data fetching.
+- Current add-person picker in `room-card.ts` and add-room picker in `person-card.ts` both use a native `<select>` — D-19 replaces both with the shared `search-picker` component.
 - `async_setup_entry` in `__init__.py` — Phase 3 adds WebSocket command registration and `async_register_panel` call here.
 - `async_unload_entry` in `__init__.py` — WebSocket commands auto-unregister with the config entry; no explicit cleanup needed.
 - `ClimateManagerData` dataclass — May need a `rooms_meta` field or similar to cache discovered room sensor associations; or discovery can be called inline per WebSocket request.
