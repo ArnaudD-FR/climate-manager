@@ -286,7 +286,7 @@ Y.elementStyles = [], Y.shadowRootOptions = { mode: "open" }, Y[Z("elementProper
  */
 const K = globalThis, Bt = (n) => n, lt = K.trustedTypes, Ft = lt ? lt.createPolicy("lit-html", { createHTML: (n) => n }) : void 0, Zt = "$lit$", R = `lit$${Math.random().toFixed(9).slice(2)}$`, Kt = "?" + R, pe = `<${Kt}>`, L = document, Q = () => L.createComment(""), tt = (n) => n === null || typeof n != "object" && typeof n != "function", St = Array.isArray, he = (n) => St(n) || typeof (n == null ? void 0 : n[Symbol.iterator]) == "function", ut = `[ 	
 \f\r]`, J = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, Xt = /-->/g, Yt = />/g, I = RegExp(`>|${ut}(?:([^\\s"'>=/]+)(${ut}*=${ut}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), Wt = /'/g, qt = /"/g, Qt = /^(?:script|style|textarea|title)$/i, ue = (n) => (t, ...e) => ({ _$litType$: n, strings: t, values: e }), d = ue(1), W = Symbol.for("lit-noChange"), y = Symbol.for("lit-nothing"), Vt = /* @__PURE__ */ new WeakMap(), U = L.createTreeWalker(L, 129);
+\f\r"'\`<>=]|("|')|))|$)`, "g"), Vt = /'/g, Wt = /"/g, Qt = /^(?:script|style|textarea|title)$/i, ue = (n) => (t, ...e) => ({ _$litType$: n, strings: t, values: e }), d = ue(1), V = Symbol.for("lit-noChange"), y = Symbol.for("lit-nothing"), qt = /* @__PURE__ */ new WeakMap(), U = L.createTreeWalker(L, 129);
 function te(n, t) {
   if (!St(n) || !n.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return Ft !== void 0 ? Ft.createHTML(t) : t;
@@ -297,7 +297,7 @@ const me = (n, t) => {
   for (let a = 0; a < e; a++) {
     const c = n[a];
     let l, p, h = -1, _ = 0;
-    for (; _ < c.length && (i.lastIndex = _, p = i.exec(c), p !== null); ) _ = i.lastIndex, i === J ? p[1] === "!--" ? i = Xt : p[1] !== void 0 ? i = Yt : p[2] !== void 0 ? (Qt.test(p[2]) && (s = RegExp("</" + p[2], "g")), i = I) : p[3] !== void 0 && (i = I) : i === I ? p[0] === ">" ? (i = s ?? J, h = -1) : p[1] === void 0 ? h = -2 : (h = i.lastIndex - p[2].length, l = p[1], i = p[3] === void 0 ? I : p[3] === '"' ? qt : Wt) : i === qt || i === Wt ? i = I : i === Xt || i === Yt ? i = J : (i = I, s = void 0);
+    for (; _ < c.length && (i.lastIndex = _, p = i.exec(c), p !== null); ) _ = i.lastIndex, i === J ? p[1] === "!--" ? i = Xt : p[1] !== void 0 ? i = Yt : p[2] !== void 0 ? (Qt.test(p[2]) && (s = RegExp("</" + p[2], "g")), i = I) : p[3] !== void 0 && (i = I) : i === I ? p[0] === ">" ? (i = s ?? J, h = -1) : p[1] === void 0 ? h = -2 : (h = i.lastIndex - p[2].length, l = p[1], i = p[3] === void 0 ? I : p[3] === '"' ? Wt : Vt) : i === Wt || i === Vt ? i = I : i === Xt || i === Yt ? i = J : (i = I, s = void 0);
     const b = i === I && n[a + 1].startsWith("/>") ? " " : "";
     r += i === J ? c + pe : h >= 0 ? (o.push(l), c.slice(0, h) + Zt + c.slice(h) + R + b) : c + R + (h === -2 ? a : b);
   }
@@ -340,12 +340,12 @@ class et {
     return o.innerHTML = t, o;
   }
 }
-function q(n, t, e = n, o) {
+function W(n, t, e = n, o) {
   var i, a;
-  if (t === W) return t;
+  if (t === V) return t;
   let s = o !== void 0 ? (i = e._$Co) == null ? void 0 : i[o] : e._$Cl;
   const r = tt(t) ? void 0 : t._$litDirective$;
-  return (s == null ? void 0 : s.constructor) !== r && ((a = s == null ? void 0 : s._$AO) == null || a.call(s, !1), r === void 0 ? s = void 0 : (s = new r(n), s._$AT(n, e, o)), o !== void 0 ? (e._$Co ?? (e._$Co = []))[o] = s : e._$Cl = s), s !== void 0 && (t = q(n, s._$AS(n, t.values), s, o)), t;
+  return (s == null ? void 0 : s.constructor) !== r && ((a = s == null ? void 0 : s._$AO) == null || a.call(s, !1), r === void 0 ? s = void 0 : (s = new r(n), s._$AT(n, e, o)), o !== void 0 ? (e._$Co ?? (e._$Co = []))[o] = s : e._$Cl = s), s !== void 0 && (t = W(n, s._$AS(n, t.values), s, o)), t;
 }
 class ge {
   constructor(t, e) {
@@ -395,7 +395,7 @@ class st {
     return this._$AB;
   }
   _$AI(t, e = this) {
-    t = q(this, t, e), tt(t) ? t === y || t == null || t === "" ? (this._$AH !== y && this._$AR(), this._$AH = y) : t !== this._$AH && t !== W && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : he(t) ? this.k(t) : this._(t);
+    t = W(this, t, e), tt(t) ? t === y || t == null || t === "" ? (this._$AH !== y && this._$AR(), this._$AH = y) : t !== this._$AH && t !== V && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : he(t) ? this.k(t) : this._(t);
   }
   O(t) {
     return this._$AA.parentNode.insertBefore(t, this._$AB);
@@ -416,8 +416,8 @@ class st {
     }
   }
   _$AC(t) {
-    let e = Vt.get(t.strings);
-    return e === void 0 && Vt.set(t.strings, e = new et(t)), e;
+    let e = qt.get(t.strings);
+    return e === void 0 && qt.set(t.strings, e = new et(t)), e;
   }
   k(t) {
     St(this._$AH) || (this._$AH = [], this._$AR());
@@ -451,11 +451,11 @@ class dt {
   _$AI(t, e = this, o, s) {
     const r = this.strings;
     let i = !1;
-    if (r === void 0) t = q(this, t, e, 0), i = !tt(t) || t !== this._$AH && t !== W, i && (this._$AH = t);
+    if (r === void 0) t = W(this, t, e, 0), i = !tt(t) || t !== this._$AH && t !== V, i && (this._$AH = t);
     else {
       const a = t;
       let c, l;
-      for (t = r[0], c = 0; c < r.length - 1; c++) l = q(this, a[o + c], e, c), l === W && (l = this._$AH[c]), i || (i = !tt(l) || l !== this._$AH[c]), l === y ? t = y : t !== y && (t += (l ?? "") + r[c + 1]), this._$AH[c] = l;
+      for (t = r[0], c = 0; c < r.length - 1; c++) l = W(this, a[o + c], e, c), l === V && (l = this._$AH[c]), i || (i = !tt(l) || l !== this._$AH[c]), l === y ? t = y : t !== y && (t += (l ?? "") + r[c + 1]), this._$AH[c] = l;
     }
     i && !s && this.j(t);
   }
@@ -484,7 +484,7 @@ class be extends dt {
     super(t, e, o, s, r), this.type = 5;
   }
   _$AI(t, e = this) {
-    if ((t = q(this, t, e, 0) ?? y) === W) return;
+    if ((t = W(this, t, e, 0) ?? y) === V) return;
     const o = this._$AH, s = t === y && o !== y || t.capture !== o.capture || t.once !== o.once || t.passive !== o.passive, r = t !== y && (o === y || s);
     s && this.element.removeEventListener(this.name, this, o), r && this.element.addEventListener(this.name, this, t), this._$AH = t;
   }
@@ -501,7 +501,7 @@ class ve {
     return this._$AM._$AU;
   }
   _$AI(t) {
-    q(this, t);
+    W(this, t);
   }
 }
 const mt = K.litHtmlPolyfillSupport;
@@ -543,7 +543,7 @@ class C extends Y {
     super.disconnectedCallback(), (t = this._$Do) == null || t.setConnected(!1);
   }
   render() {
-    return W;
+    return V;
   }
 }
 var Gt;
@@ -758,17 +758,17 @@ kt.styles = D`
       color: var(--error-color, #db4437);
     }
   `;
-let V = kt;
+let q = kt;
 Ct([
   v()
-], V.prototype, "_visible");
+], q.prototype, "_visible");
 Ct([
   v()
-], V.prototype, "_message");
+], q.prototype, "_message");
 Ct([
   v()
-], V.prototype, "_isError");
-customElements.define("climate-manager-toast", V);
+], q.prototype, "_isError");
+customElements.define("climate-manager-toast", q);
 const F = {
   frost_protection: "#1565C0",
   reduced: "#64B5F6",
@@ -785,12 +785,12 @@ const F = {
   present: "Present",
   absent: "Absent"
 };
-var Ae = Object.defineProperty, M = (n, t, e, o) => {
+var Ae = Object.defineProperty, E = (n, t, e, o) => {
   for (var s = void 0, r = n.length - 1, i; r >= 0; r--)
     (i = n[r]) && (s = i(t, e, s) || s);
   return s && Ae(t, e, s), s;
 };
-const ke = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Ee = ["frost_protection", "reduced", "normal", "comfort"], Me = ["present", "absent"], Et = class Et extends C {
+const ke = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Te = ["frost_protection", "reduced", "normal", "comfort"], Ee = ["present", "absent"], Tt = class Tt extends C {
   constructor() {
     super(...arguments), this.days = Array.from(
       { length: 7 },
@@ -946,7 +946,7 @@ const ke = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Ee = ["frost_prote
     const i = s.startMin + r / 2, a = Math.max(
       s.startMin + 15,
       Math.min(s.endMin - 15, this._snapToMinutes(i))
-    ), c = this.mode === "presence" ? Me : Ee, l = this.mode === "presence" ? s.period.state ?? "absent" : s.period.mode ?? "frost_protection", p = c.indexOf(l), h = c[(p + 1) % c.length], _ = this.mode === "presence" ? { start: s.period.start, state: l } : { start: s.period.start, mode: l }, b = this.mode === "presence" ? { start: this._minutesToHHMM(a), state: h } : { start: this._minutesToHHMM(a), mode: h }, x = this.days[t] ?? [], g = x.some(
+    ), c = this.mode === "presence" ? Ee : Te, l = this.mode === "presence" ? s.period.state ?? "absent" : s.period.mode ?? "frost_protection", p = c.indexOf(l), h = c[(p + 1) % c.length], _ = this.mode === "presence" ? { start: s.period.start, state: l } : { start: s.period.start, mode: l }, b = this.mode === "presence" ? { start: this._minutesToHHMM(a), state: h } : { start: this._minutesToHHMM(a), mode: h }, x = this.days[t] ?? [], g = x.some(
       (f) => f.start === s.period.start
     );
     let m;
@@ -1222,7 +1222,7 @@ const ke = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Ee = ["frost_prote
     return d``;
   }
 };
-Et.styles = D`
+Tt.styles = D`
     :host {
       display: block;
       user-select: none;
@@ -1441,39 +1441,39 @@ Et.styles = D`
       color: var(--error-color, #db4437);
     }
   `;
-let P = Et;
-M([
+let P = Tt;
+E([
   u({ type: Array })
 ], P.prototype, "days");
-M([
+E([
   u({ type: String })
 ], P.prototype, "mode");
-M([
+E([
   v()
 ], P.prototype, "_clipboard");
-M([
+E([
   v()
 ], P.prototype, "_drag");
-M([
+E([
   v()
 ], P.prototype, "_dragTooltipMinutes");
-M([
+E([
   v()
 ], P.prototype, "_dragTooltipX");
-M([
+E([
   v()
 ], P.prototype, "_dragTooltipY");
-M([
+E([
   v()
 ], P.prototype, "_dragPreviewDays");
-M([
+E([
   v()
 ], P.prototype, "_popup");
 customElements.define("climate-manager-time-bar", P);
-var Te = Object.defineProperty, pt = (n, t, e, o) => {
+var Me = Object.defineProperty, pt = (n, t, e, o) => {
   for (var s = void 0, r = n.length - 1, i; r >= 0; r--)
     (i = n[r]) && (s = i(t, e, s) || s);
-  return s && Te(t, e, s), s;
+  return s && Me(t, e, s), s;
 };
 const ee = [
   "mon",
@@ -1494,7 +1494,7 @@ const bt = "off", vt = "time_program", yt = "time_program_presences", Re = {
   [bt]: "Off",
   [vt]: "Time program",
   [yt]: "Time program & presences"
-}, Mt = class Mt extends C {
+}, Et = class Et extends C {
   constructor() {
     super(...arguments), this.status = null;
   }
@@ -1677,7 +1677,7 @@ const bt = "off", vt = "time_program", yt = "time_program_presences", Re = {
     `;
   }
 };
-Mt.styles = D`
+Et.styles = D`
     :host {
       display: block;
     }
@@ -1835,7 +1835,7 @@ Mt.styles = D`
       flex-shrink: 0;
     }
   `;
-let B = Mt;
+let B = Et;
 pt([
   u({ attribute: !1 })
 ], B.prototype, "config");
@@ -1849,12 +1849,12 @@ pt([
   u({ attribute: !1 })
 ], B.prototype, "panel");
 customElements.define("climate-manager-global-settings-tab", B);
-var Oe = Object.defineProperty, E = (n, t, e, o) => {
+var Oe = Object.defineProperty, T = (n, t, e, o) => {
   for (var s = void 0, r = n.length - 1, i; r >= 0; r--)
     (i = n[r]) && (s = i(t, e, s) || s);
   return s && Oe(t, e, s), s;
 };
-const Tt = class Tt extends C {
+const Mt = class Mt extends C {
   constructor() {
     super(...arguments), this.roomStatus = null, this._expanded = !1, this._showPersonAdd = !1;
   }
@@ -1905,6 +1905,19 @@ const Tt = class Tt extends C {
     } catch {
       this.panel.showToast("Save failed — retrying...", !0);
     }
+  }
+  // -----------------------------------------------------------------------
+  // Sensor configuration handlers
+  // -----------------------------------------------------------------------
+  async _onSensorBlur(t, e) {
+    var i;
+    const s = e.target.value.trim() || null, r = ((i = this.config) == null ? void 0 : i[t]) ?? null;
+    if (s !== r)
+      try {
+        await this.ws.setRoomConfig(this.roomId, { [t]: s }), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
+      } catch {
+        this.panel.showToast("Save failed — retrying...", !0);
+      }
   }
   // -----------------------------------------------------------------------
   // Schedule override handlers
@@ -1995,6 +2008,34 @@ const Tt = class Tt extends C {
       </div>
     `;
   }
+  _renderSensorsSection() {
+    var t, e;
+    return d`
+      <div class="sensor-section">
+        <div class="section-label">Sensors</div>
+        <div class="sensor-row">
+          <span class="sensor-row-label">Temperature</span>
+          <input
+            class="sensor-input"
+            type="text"
+            placeholder="sensor.entity_id (auto-detect if empty)"
+            .value=${((t = this.config) == null ? void 0 : t.temperature_sensor) ?? ""}
+            @blur=${(o) => this._onSensorBlur("temperature_sensor", o)}
+          />
+        </div>
+        <div class="sensor-row">
+          <span class="sensor-row-label">Humidity</span>
+          <input
+            class="sensor-input"
+            type="text"
+            placeholder="sensor.entity_id (auto-detect if empty)"
+            .value=${((e = this.config) == null ? void 0 : e.humidity_sensor) ?? ""}
+            @blur=${(o) => this._onSensorBlur("humidity_sensor", o)}
+          />
+        </div>
+      </div>
+    `;
+  }
   _renderPersonsSection() {
     const t = this._getAssignedPersonIds(), o = this._getAllPersonIds().filter(
       (s) => !t.includes(s)
@@ -2054,6 +2095,7 @@ const Tt = class Tt extends C {
         ${this._expanded ? d`
             <div class="card-content">
               ${this._renderTrvSection()}
+              ${this._renderSensorsSection()}
               ${this._renderPersonsSection()}
 
               <!-- Override toggle -->
@@ -2081,7 +2123,7 @@ const Tt = class Tt extends C {
     `;
   }
 };
-Tt.styles = D`
+Mt.styles = D`
     :host {
       display: block;
     }
@@ -2296,6 +2338,41 @@ Tt.styles = D`
       outline: none;
     }
 
+    /* Sensor entity inputs */
+    .sensor-section {
+      margin-bottom: 12px;
+    }
+
+    .sensor-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .sensor-row-label {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+      min-width: 100px;
+      flex-shrink: 0;
+    }
+
+    .sensor-input {
+      flex: 1;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--primary-text-color);
+      background: var(--secondary-background-color, #f5f5f5);
+      border: 1px solid var(--divider-color, #e0e0e0);
+      border-radius: 4px;
+      outline: none;
+    }
+
+    .sensor-input:focus {
+      border-color: var(--primary-color, #03a9f4);
+    }
+
     /* Override toggle row */
     .override-row {
       display: flex;
@@ -2324,42 +2401,42 @@ Tt.styles = D`
       transform: rotate(180deg);
     }
   `;
-let w = Tt;
-E([
+let w = Mt;
+T([
   u({ type: String })
 ], w.prototype, "roomId");
-E([
+T([
   u({ type: String })
 ], w.prototype, "roomName");
-E([
+T([
   u({ attribute: !1 })
 ], w.prototype, "config");
-E([
+T([
   u({ attribute: !1 })
 ], w.prototype, "roomStatus");
-E([
+T([
   u({ attribute: !1 })
 ], w.prototype, "panelConfig");
-E([
+T([
   u({ attribute: !1 })
 ], w.prototype, "ws");
-E([
+T([
   u({ attribute: !1 })
 ], w.prototype, "panel");
-E([
+T([
   u({ attribute: !1 })
 ], w.prototype, "hass");
-E([
+T([
   v()
 ], w.prototype, "_expanded");
-E([
+T([
   v()
 ], w.prototype, "_showPersonAdd");
 customElements.define("climate-manager-room-card", w);
-var Ne = Object.defineProperty, ot = (n, t, e, o) => {
+var ze = Object.defineProperty, ot = (n, t, e, o) => {
   for (var s = void 0, r = n.length - 1, i; r >= 0; r--)
     (i = n[r]) && (s = i(t, e, s) || s);
-  return s && Ne(t, e, s), s;
+  return s && ze(t, e, s), s;
 };
 const Rt = class Rt extends C {
   constructor() {
@@ -2469,27 +2546,27 @@ Rt.styles = D`
       flex-shrink: 0;
     }
   `;
-let N = Rt;
+let z = Rt;
 ot([
   u({ attribute: !1 })
-], N.prototype, "config");
+], z.prototype, "config");
 ot([
   u({ attribute: !1 })
-], N.prototype, "status");
+], z.prototype, "status");
 ot([
   u({ attribute: !1 })
-], N.prototype, "ws");
+], z.prototype, "ws");
 ot([
   u({ attribute: !1 })
-], N.prototype, "panel");
+], z.prototype, "panel");
 ot([
   u({ attribute: !1 })
-], N.prototype, "hass");
-customElements.define("climate-manager-rooms-tab", N);
-var ze = Object.defineProperty, H = (n, t, e, o) => {
+], z.prototype, "hass");
+customElements.define("climate-manager-rooms-tab", z);
+var Ne = Object.defineProperty, H = (n, t, e, o) => {
   for (var s = void 0, r = n.length - 1, i; r >= 0; r--)
     (i = n[r]) && (s = i(t, e, s) || s);
-  return s && ze(t, e, s), s;
+  return s && Ne(t, e, s), s;
 };
 const X = "automatic", ft = "present", _t = "absent", Ot = class Ot extends C {
   constructor() {
@@ -2855,7 +2932,7 @@ var De = Object.defineProperty, rt = (n, t, e, o) => {
     (i = n[r]) && (s = i(t, e, s) || s);
   return s && De(t, e, s), s;
 };
-const Nt = class Nt extends C {
+const zt = class zt extends C {
   constructor() {
     super(...arguments), this.status = null;
   }
@@ -2913,7 +2990,7 @@ const Nt = class Nt extends C {
     `;
   }
 };
-Nt.styles = D`
+zt.styles = D`
     :host {
       display: block;
     }
@@ -2926,29 +3003,29 @@ Nt.styles = D`
       line-height: 1.5;
     }
   `;
-let z = Nt;
+let N = zt;
 rt([
   u({ attribute: !1 })
-], z.prototype, "config");
+], N.prototype, "config");
 rt([
   u({ attribute: !1 })
-], z.prototype, "status");
+], N.prototype, "status");
 rt([
   u({ attribute: !1 })
-], z.prototype, "ws");
+], N.prototype, "ws");
 rt([
   u({ attribute: !1 })
-], z.prototype, "panel");
+], N.prototype, "panel");
 rt([
   u({ attribute: !1 })
-], z.prototype, "hass");
-customElements.define("climate-manager-persons-tab", z);
-var He = Object.defineProperty, T = (n, t, e, o) => {
+], N.prototype, "hass");
+customElements.define("climate-manager-persons-tab", N);
+var He = Object.defineProperty, M = (n, t, e, o) => {
   for (var s = void 0, r = n.length - 1, i; r >= 0; r--)
     (i = n[r]) && (s = i(t, e, s) || s);
   return s && He(t, e, s), s;
 };
-const zt = class zt extends C {
+const Nt = class Nt extends C {
   constructor() {
     super(...arguments), this.narrow = !1, this.panel = null, this._config = null, this._status = null, this._activeTab = "global", this._unsubStatus = null, this._wsError = !1, this._ws = null;
   }
@@ -3069,7 +3146,7 @@ const zt = class zt extends C {
     }
   }
 };
-zt.styles = D`
+Nt.styles = D`
     :host {
       display: block;
       background: var(--primary-background-color);
@@ -3151,32 +3228,32 @@ zt.styles = D`
       text-align: center;
     }
   `;
-let A = zt;
-T([
+let A = Nt;
+M([
   u({ attribute: !1 })
 ], A.prototype, "hass");
-T([
+M([
   u({ type: Boolean })
 ], A.prototype, "narrow");
-T([
+M([
   u({ attribute: !1 })
 ], A.prototype, "panel");
-T([
+M([
   v()
 ], A.prototype, "_config");
-T([
+M([
   v()
 ], A.prototype, "_status");
-T([
+M([
   v()
 ], A.prototype, "_activeTab");
-T([
+M([
   v()
 ], A.prototype, "_unsubStatus");
-T([
+M([
   v()
 ], A.prototype, "_wsError");
-T([
+M([
   Se("climate-manager-toast")
 ], A.prototype, "_toast");
 customElements.define("climate-manager-panel", A);

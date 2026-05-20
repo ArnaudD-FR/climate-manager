@@ -257,6 +257,41 @@ export class RoomCard extends LitElement {
       outline: none;
     }
 
+    /* Sensor entity inputs */
+    .sensor-section {
+      margin-bottom: 12px;
+    }
+
+    .sensor-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .sensor-row-label {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+      min-width: 100px;
+      flex-shrink: 0;
+    }
+
+    .sensor-input {
+      flex: 1;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--primary-text-color);
+      background: var(--secondary-background-color, #f5f5f5);
+      border: 1px solid var(--divider-color, #e0e0e0);
+      border-radius: 4px;
+      outline: none;
+    }
+
+    .sensor-input:focus {
+      border-color: var(--primary-color, #03a9f4);
+    }
+
     /* Override toggle row */
     .override-row {
       display: flex;
@@ -337,6 +372,27 @@ export class RoomCard extends LitElement {
     const newIds = currentIds.filter((id) => id !== this.roomId);
     try {
       await this.ws.setPersonConfig(personId, { room_ids: newIds });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Sensor configuration handlers
+  // -----------------------------------------------------------------------
+
+  private async _onSensorBlur(
+    field: "temperature_sensor" | "humidity_sensor",
+    e: FocusEvent,
+  ) {
+    const input = e.target as HTMLInputElement;
+    const newVal = input.value.trim() || null;
+    const oldVal = this.config?.[field] ?? null;
+    if (newVal === oldVal) return;
+    try {
+      await this.ws.setRoomConfig(this.roomId, { [field]: newVal });
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
@@ -456,6 +512,34 @@ export class RoomCard extends LitElement {
     `;
   }
 
+  private _renderSensorsSection() {
+    return html`
+      <div class="sensor-section">
+        <div class="section-label">Sensors</div>
+        <div class="sensor-row">
+          <span class="sensor-row-label">Temperature</span>
+          <input
+            class="sensor-input"
+            type="text"
+            placeholder="sensor.entity_id (auto-detect if empty)"
+            .value=${this.config?.temperature_sensor ?? ""}
+            @blur=${(e: FocusEvent) => this._onSensorBlur("temperature_sensor", e)}
+          />
+        </div>
+        <div class="sensor-row">
+          <span class="sensor-row-label">Humidity</span>
+          <input
+            class="sensor-input"
+            type="text"
+            placeholder="sensor.entity_id (auto-detect if empty)"
+            .value=${this.config?.humidity_sensor ?? ""}
+            @blur=${(e: FocusEvent) => this._onSensorBlur("humidity_sensor", e)}
+          />
+        </div>
+      </div>
+    `;
+  }
+
   private _renderPersonsSection() {
     const assignedPersonIds = this._getAssignedPersonIds();
     const allPersonIds = this._getAllPersonIds();
@@ -522,6 +606,7 @@ export class RoomCard extends LitElement {
           ? html`
             <div class="card-content">
               ${this._renderTrvSection()}
+              ${this._renderSensorsSection()}
               ${this._renderPersonsSection()}
 
               <!-- Override toggle -->
