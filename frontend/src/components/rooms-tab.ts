@@ -140,6 +140,7 @@ export class RoomsTab extends LitElement {
       const floor = this.hass?.floors?.[fid];
       if (floor?.icon) return floor.icon;
       const level = floor?.level ?? 0;
+      if (level === -1) return "mdi:home-floor-negative-1";
       if (level < 0) return "mdi:home-floor-b";
       if (level === 1) return "mdi:home-floor-1";
       if (level === 2) return "mdi:home-floor-2";

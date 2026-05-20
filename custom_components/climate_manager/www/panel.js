@@ -2245,7 +2245,7 @@ const Rt = class Rt extends S {
       const m = (w = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : w[g];
       if (m != null && m.icon) return m.icon;
       const f = (m == null ? void 0 : m.level) ?? 0;
-      return f < 0 ? "mdi:home-floor-b" : f === 1 ? "mdi:home-floor-1" : f === 2 ? "mdi:home-floor-2" : f === 3 || f > 3 ? "mdi:home-floor-3" : "mdi:home-floor-0";
+      return f === -1 ? "mdi:home-floor-negative-1" : f < 0 ? "mdi:home-floor-b" : f === 1 ? "mdi:home-floor-1" : f === 2 ? "mdi:home-floor-2" : f === 3 || f > 3 ? "mdi:home-floor-3" : "mdi:home-floor-0";
     };
     return d`
       ${i.map((g) => {
