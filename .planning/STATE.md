@@ -80,6 +80,7 @@ None yet.
 | 260520-o3l | reverse floor order, start from upper floor | 2026-05-20 | 16f9b56 | [260520-o3l-reverse-floor-order-start-from-upper-flo](.planning/quick/260520-o3l-reverse-floor-order-start-from-upper-flo/) |
 | 260520-o6f | fix basement floor icon to match HA climate panel | 2026-05-20 | f13f4c8 | [260520-o6f-fix-basement-floor-icon-to-match-ha-clim](.planning/quick/260520-o6f-fix-basement-floor-icon-to-match-ha-clim/) |
 | 260520-p2s | fix override toggle — disabling has no effect after refresh | 2026-05-20 | eb4760c | [260520-p2s-fix-override-toggle-cannot-disable](.planning/quick/260520-p2s-fix-override-toggle-cannot-disable/) |
+| 260520-q5m | chip UI for room/person associations; add persons section to room-card | 2026-05-20 | b304370 | [260520-q5m-room-person-chip-associations](.planning/quick/260520-q5m-room-person-chip-associations/) |
 
 ### Blockers/Concerns
 
