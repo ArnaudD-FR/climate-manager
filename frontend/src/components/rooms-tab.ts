@@ -1,9 +1,10 @@
 /**
  * Climate Manager Panel — Rooms tab (UI-03).
  *
- * Ordered room list per D-14:
- *   1. Rooms with a time_program override — first, expanded by default
- *   2. Rooms using the global program — after, collapsed by default
+ * Ordered room list per D-14a/D-14b:
+ *   1. Rooms grouped by floor, ordered by floor.level ascending
+ *   2. Within each floor: alphabetical by room name
+ *   3. Floorless rooms at the end, alphabetical, no section header
  *
  * Each room renders a <climate-manager-room-card>.
  * Empty state: "No rooms discovered…" per Copywriting Contract.
@@ -37,6 +38,19 @@ export class RoomsTab extends LitElement {
       font-size: 14px;
       line-height: 1.5;
     }
+
+    .floor-header {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--secondary-text-color);
+      padding: 16px 4px 8px;
+    }
+
+    .floor-header:first-child {
+      padding-top: 0;
+    }
   `;
 
   private _getRoomStatus(roomId: string): RoomStatus | null {
@@ -62,35 +76,66 @@ export class RoomsTab extends LitElement {
       `;
     }
 
-    // Sort: rooms with time_program first, then the rest (D-14)
-    const sortedIds = [...allRoomIds].sort((a, b) => {
-      const aHasProgram = !!(rooms[a]?.time_program);
-      const bHasProgram = !!(rooms[b]?.time_program);
-      if (aHasProgram && !bHasProgram) return -1;
-      if (!aHasProgram && bHasProgram) return 1;
-      return a.localeCompare(b);
-    });
+    // Display name helper: prefer status name, fall back to formatted area_id
+    const getName = (id: string) =>
+      this.status?.rooms_status?.find((r) => r.area_id === id)?.name ??
+      id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+    // Group rooms by floor_id (null = floorless)
+    const floorGroups = new Map<string | null, string[]>();
+    for (const roomId of allRoomIds) {
+      const floorId = this.hass?.areas?.[roomId]?.floor_id ?? null;
+      if (!floorGroups.has(floorId)) {
+        floorGroups.set(floorId, []);
+      }
+      floorGroups.get(floorId)!.push(roomId);
+    }
+
+    // Sort each group alphabetically by display name
+    for (const ids of floorGroups.values()) {
+      ids.sort((a, b) => getName(a).localeCompare(getName(b)));
+    }
+
+    // Sort non-null floor IDs by floor.level ascending
+    const sortedFloorIds = [...floorGroups.keys()]
+      .filter((fid): fid is string => fid !== null)
+      .sort(
+        (a, b) =>
+          (this.hass?.floors?.[a]?.level ?? 0) -
+          (this.hass?.floors?.[b]?.level ?? 0),
+      );
+
+    const floorlessIds = floorGroups.get(null) ?? [];
+
+    // Room card renderer (shared for all groups)
+    const renderRoomCard = (roomId: string) => {
+      const roomConfig = rooms[roomId] ?? {};
+      const roomStatus = this._getRoomStatus(roomId);
+      const roomName = getName(roomId);
+      return html`
+        <climate-manager-room-card
+          .roomId=${roomId}
+          .roomName=${roomName}
+          .config=${roomConfig}
+          .roomStatus=${roomStatus}
+          .panelConfig=${this.config}
+          .ws=${this.ws}
+          .panel=${this.panel}
+          .hass=${this.hass}
+        ></climate-manager-room-card>
+      `;
+    };
 
     return html`
-      ${sortedIds.map((roomId) => {
-        const roomConfig = rooms[roomId] ?? {};
-        const roomStatus = this._getRoomStatus(roomId);
-        // Display name: area_id as fallback (backend may provide a name in status)
-        const roomName = roomStatus?.name ?? roomId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-
+      ${sortedFloorIds.map((fid) => {
+        const floorName = this.hass?.floors?.[fid]?.name ?? fid;
+        const ids = floorGroups.get(fid) ?? [];
         return html`
-          <climate-manager-room-card
-            .roomId=${roomId}
-            .roomName=${roomName}
-            .config=${roomConfig}
-            .roomStatus=${roomStatus}
-            .panelConfig=${this.config}
-            .ws=${this.ws}
-            .panel=${this.panel}
-            .hass=${this.hass}
-          ></climate-manager-room-card>
+          <div class="floor-header">${floorName}</div>
+          ${ids.map(renderRoomCard)}
         `;
       })}
+      ${floorlessIds.map(renderRoomCard)}
     `;
   }
 }
