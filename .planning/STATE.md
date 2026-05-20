@@ -70,6 +70,12 @@ Recent decisions affecting current work:
 
 None yet.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260520-m0t | Fix rooms not displayed — device-level area assignment | 2026-05-20 | ff842bd | [260520-m0t-fix-rooms-not-displayed-investigate-webs](.planning/quick/260520-m0t-fix-rooms-not-displayed-investigate-webs/) |
+
 ### Blockers/Concerns
 
 - Phase 2: Must hardware-validate coordinator with real Tado X TRVs before Phase 3 begins — a coordinator flaw found mid-frontend forces two-layer simultaneous rework
