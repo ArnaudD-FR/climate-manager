@@ -36,7 +36,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_time_interval
 
 from .coordinator import ClimateManagerCoordinator
-from .discovery import discover_persons, discover_rooms
+from .discovery import discover_persons, discover_room_sensors, discover_rooms
 from .storage import ClimateManagerStore
 from . import websocket as cm_ws
 from .const import DOMAIN
@@ -73,6 +73,7 @@ class ClimateManagerData:
     runtime_config: dict
     rooms: dict[str, list[str]]
     persons: list[str]
+    room_auto_sensors: dict[str, dict[str, str]]
     # Phase 2 additions — use field(default=None) to avoid mutable default error (Pitfall 5).
     # String annotations used to avoid import cycle (coordinator.py imports ClimateManagerData).
     coordinator: "ClimateManagerCoordinator | None" = field(default=None)
@@ -107,12 +108,14 @@ async def async_setup_entry(
     runtime_config = await store.async_load()
     rooms = await discover_rooms(hass)
     persons = await discover_persons(hass)
+    room_auto_sensors = await discover_room_sensors(hass)
 
     entry.runtime_data = ClimateManagerData(
         store=store,
         runtime_config=runtime_config,
         rooms=rooms,
         persons=persons,
+        room_auto_sensors=room_auto_sensors,
     )
 
     # Phase 2: wire coordinator and scheduler

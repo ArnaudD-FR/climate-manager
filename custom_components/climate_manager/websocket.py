@@ -105,8 +105,10 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
 
         rooms_status = []
         room_configs = runtime_config.get("rooms", {})
+        room_auto_sensors = entry.runtime_data.room_auto_sensors
         for area_id, entity_ids in rooms.items():
             room_cfg = room_configs.get(area_id, {})
+            auto = room_auto_sensors.get(area_id, {})
             _area = _area_reg.async_get_area(area_id)
             room_entry: dict = {
                 "area_id": area_id,
@@ -114,8 +116,8 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
                 "entity_ids": entity_ids,
             }
 
-            # Temperature: from configured temperature_sensor, else first TRV's current_temperature
-            temp_sensor = room_cfg.get("temperature_sensor")
+            # Temperature: configured override → HA area sensor → TRV built-in
+            temp_sensor = room_cfg.get("temperature_sensor") or auto.get("temperature")
             if temp_sensor:
                 sensor_state = hass.states.get(temp_sensor)
                 if sensor_state is not None:
@@ -127,8 +129,8 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
                     if current_temp is not None:
                         room_entry["temperature"] = current_temp
 
-            # Humidity: only if humidity_sensor is configured
-            humidity_sensor = room_cfg.get("humidity_sensor")
+            # Humidity: configured override → HA area sensor
+            humidity_sensor = room_cfg.get("humidity_sensor") or auto.get("humidity")
             if humidity_sensor:
                 hum_state = hass.states.get(humidity_sensor)
                 if hum_state is not None:

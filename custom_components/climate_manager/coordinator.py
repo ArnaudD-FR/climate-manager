@@ -313,7 +313,9 @@ class ClimateManagerCoordinator:
                 "entity_ids": entity_ids,
             }
 
-            temp_sensor = room_cfg.get("temperature_sensor")
+            auto = self._data.room_auto_sensors.get(area_id, {})
+
+            temp_sensor = room_cfg.get("temperature_sensor") or auto.get("temperature")
             if temp_sensor:
                 sensor_state = self._hass.states.get(temp_sensor)
                 if sensor_state is not None:
@@ -325,7 +327,7 @@ class ClimateManagerCoordinator:
                     if current_temp is not None:
                         room_entry["temperature"] = current_temp
 
-            humidity_sensor = room_cfg.get("humidity_sensor")
+            humidity_sensor = room_cfg.get("humidity_sensor") or auto.get("humidity")
             if humidity_sensor:
                 hum_state = self._hass.states.get(humidity_sensor)
                 if hum_state is not None:
