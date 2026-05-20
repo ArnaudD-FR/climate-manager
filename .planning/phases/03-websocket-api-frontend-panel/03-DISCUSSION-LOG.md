@@ -3,9 +3,9 @@
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
-**Date:** 2026-05-17 (updated 2026-05-20)
+**Date:** 2026-05-17 (updated 2026-05-20, 2026-05-20)
 **Phase:** 3-WebSocket API & Frontend Panel
-**Areas discussed:** Time program editor, Save model, Panel navigation, Panel status display, Rooms ordering (2026-05-20)
+**Areas discussed:** Time program editor, Save model, Panel navigation, Panel status display, Rooms ordering (2026-05-20), Room card always-visible status (2026-05-20)
 
 ---
 
@@ -233,3 +233,19 @@
 
 - Data source: `hass.areas` + `hass.floors` (frontend only — no backend changes)
 - Floor level ordering: ascending by `floor.level` integer
+
+---
+
+## Room Card Always-Visible Status (2026-05-20)
+
+### Layout
+- **Options presented:** Second line in header (compact row below name+badge) / Right side of header row (inline with chevron)
+- **Decision:** Second line in the header — compact row below name + badge, always visible whether expanded or not
+
+### Expanded card duplication
+- **Options presented:** Remove status row from expanded content / Keep it (redundant)
+- **Decision:** Remove the `.status-row` from expanded `.card-content` — header is the single source
+
+### Missing data
+- **Options presented:** Hide silently / Show "—" placeholder
+- **Decision:** Show "—" placeholder — consistent layout, all 3 slots always present
