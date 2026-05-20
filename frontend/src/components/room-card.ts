@@ -1,9 +1,10 @@
 /**
  * Climate Manager Panel — Room Card component (UI-03).
  *
- * Expandable card per room. Collapsed: room name + program badge.
- * Expanded: live status row, TRV entity IDs (read-only), associated persons
- * chips, override toggle, inline time-bar (when override enabled).
+ * Expandable card per room. Header (always visible): room name + program
+ * badge + compact status line (°C / humidity / active period, D-14c).
+ * Expanded: TRV entity IDs, associated persons chips, override toggle,
+ * inline time-bar (when override enabled).
  *
  * Auto-save on field blur and toggle change (D-08). Time-bar saves on
  * interaction end (D-09). Toast feedback on success/error (D-10).
@@ -60,6 +61,13 @@ export class RoomCard extends LitElement {
 
     .card-header-left {
       display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .card-header-top {
+      display: flex;
       align-items: center;
       gap: 8px;
     }
@@ -68,6 +76,27 @@ export class RoomCard extends LitElement {
       font-size: 16px;
       font-weight: 600;
       color: var(--primary-text-color);
+    }
+
+    /* Always-visible status line in the card header (D-14c) */
+    .card-header-status {
+      display: flex;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--secondary-text-color);
+    }
+
+    .card-header-status .status-item {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .card-header-status .status-item ha-icon {
+      width: 15px;
+      height: 15px;
+      --mdc-icon-size: 15px;
+      flex-shrink: 0;
     }
 
     .program-badge {
@@ -92,29 +121,6 @@ export class RoomCard extends LitElement {
     .card-content {
       padding: 0 16px 16px;
       border-top: 1px solid var(--divider-color, #e0e0e0);
-    }
-
-    /* Live status row */
-    .status-row {
-      display: flex;
-      gap: 16px;
-      padding: 12px 0 8px;
-      font-size: 14px;
-      color: var(--secondary-text-color);
-      flex-wrap: wrap;
-    }
-
-    .status-item {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .status-item ha-icon {
-      width: 18px;
-      height: 18px;
-      --mdc-icon-size: 18px;
-      color: var(--secondary-text-color);
     }
 
     /* No TRV badge */
@@ -389,28 +395,25 @@ export class RoomCard extends LitElement {
   // Render helpers
   // -----------------------------------------------------------------------
 
-  private _renderStatusRow() {
+  private _renderHeaderStatus() {
     const s = this.roomStatus;
+    const temp = s?.temperature != null ? `${s.temperature}°C` : "—";
+    const humidity = s?.humidity != null ? `${s.humidity}%` : "—";
+    const period = s?.active_period ?? "—";
     return html`
-      <div class="status-row">
-        ${s?.temperature != null
-          ? html`<span class="status-item">
-              <ha-icon icon="mdi:thermometer"></ha-icon>
-              ${s.temperature}°C
-            </span>`
-          : ""}
-        ${s?.humidity != null
-          ? html`<span class="status-item">
-              <ha-icon icon="mdi:water-percent"></ha-icon>
-              ${s.humidity}%
-            </span>`
-          : ""}
-        ${s?.active_period
-          ? html`<span class="status-item">
-              <ha-icon icon="mdi:clock-outline"></ha-icon>
-              ${s.active_period}
-            </span>`
-          : ""}
+      <div class="card-header-status">
+        <span class="status-item">
+          <ha-icon icon="mdi:thermometer"></ha-icon>
+          ${temp}
+        </span>
+        <span class="status-item">
+          <ha-icon icon="mdi:water-percent"></ha-icon>
+          ${humidity}
+        </span>
+        <span class="status-item">
+          <ha-icon icon="mdi:clock-outline"></ha-icon>
+          ${period}
+        </span>
       </div>
     `;
   }
@@ -501,8 +504,11 @@ export class RoomCard extends LitElement {
       <ha-card>
         <div class="card-header-row" @click=${() => { this._expanded = !this._expanded; }}>
           <div class="card-header-left">
-            <span class="room-name">${this.roomName}</span>
-            <span class="program-badge ${badgeClass}">${badgeText}</span>
+            <div class="card-header-top">
+              <span class="room-name">${this.roomName}</span>
+              <span class="program-badge ${badgeClass}">${badgeText}</span>
+            </div>
+            ${this._renderHeaderStatus()}
           </div>
           <ha-icon
             class="expand-icon ${this._expanded ? "expanded" : ""}"
@@ -513,7 +519,6 @@ export class RoomCard extends LitElement {
         ${this._expanded
           ? html`
             <div class="card-content">
-              ${this._renderStatusRow()}
               ${this._renderTrvSection()}
               ${this._renderPersonsSection()}
 
