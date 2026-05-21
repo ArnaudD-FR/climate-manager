@@ -47,6 +47,8 @@ from .const import (
     MODE_TIME_PROGRAM,
     MODE_TIME_PROGRAM_PRESENCES,
     PERIOD_FROST_PROTECTION,
+    ROOM_MODE_FROST,
+    ROOM_MODE_CUSTOM,
 )
 from .schedule import compute_occupied_temp, evaluate_schedule, resolve_presence
 from .trv import set_trv_temperature
@@ -157,20 +159,29 @@ class ClimateManagerCoordinator:
         self._last_present_persons = []
 
         for area_id, entity_ids in rooms.items():
-            # Resolve daily_program: room override else global (per-day dict, D-01)
-            room_daily_program = (
-                room_configs.get(area_id, {})
-                .get("time_program")
-            )
-            daily_program = room_daily_program if room_daily_program else global_daily_program
+            room_config = room_configs.get(area_id, {})
+            room_mode = room_config.get("room_mode", "global")
 
-            period_mode = evaluate_schedule(daily_program, now)
-            desired_temp = period_temperatures.get(period_mode)
-            if desired_temp is None:
-                _LOGGER.warning(
-                    "Unknown period mode %r for area %s — skipping", period_mode, area_id
-                )
-                continue
+            # D-20: branch on room_mode before schedule evaluation
+            if room_mode == ROOM_MODE_FROST:
+                # Frost protection: push frost temp directly, skip schedule evaluation
+                desired_temp = period_temperatures[PERIOD_FROST_PROTECTION]
+            else:
+                # Resolve daily_program: custom room program else global (per-day dict, D-01)
+                if room_mode == ROOM_MODE_CUSTOM:
+                    room_daily_program = room_config.get("time_program")
+                    daily_program = room_daily_program if room_daily_program else global_daily_program
+                else:
+                    # ROOM_MODE_GLOBAL or unknown → use global (default path, no behavior change)
+                    daily_program = global_daily_program
+
+                period_mode = evaluate_schedule(daily_program, now)
+                desired_temp = period_temperatures.get(period_mode)
+                if desired_temp is None:
+                    _LOGGER.warning(
+                        "Unknown period mode %r for area %s — skipping", period_mode, area_id
+                    )
+                    continue
 
             for entity_id in entity_ids:
                 try:
@@ -207,20 +218,33 @@ class ClimateManagerCoordinator:
 
         # Step 1: baseline — time-program temp for every managed room
         desired_temps: dict[str, float] = {}
+        # Rooms with room_mode=frost_protection are locked at frost temp and skipped
+        # during presence override (Step 2) — track them separately.
+        frost_locked_rooms: set[str] = set()
         for area_id in rooms:
-            room_daily_program = (
-                room_configs.get(area_id, {})
-                .get("time_program")
-            )
-            daily_program = room_daily_program if room_daily_program else global_daily_program
-            period_mode = evaluate_schedule(daily_program, now)
-            desired_temp_baseline = period_temperatures.get(period_mode)
-            if desired_temp_baseline is None:
-                _LOGGER.warning(
-                    "Unknown period mode %r for area %s — skipping", period_mode, area_id
-                )
-                continue
-            desired_temps[area_id] = desired_temp_baseline
+            room_config = room_configs.get(area_id, {})
+            room_mode = room_config.get("room_mode", "global")
+
+            # D-20: branch on room_mode before schedule evaluation
+            if room_mode == ROOM_MODE_FROST:
+                # Frost protection: hold at frost temp, skip schedule evaluation and presence
+                desired_temps[area_id] = period_temperatures[PERIOD_FROST_PROTECTION]
+                frost_locked_rooms.add(area_id)
+            else:
+                if room_mode == ROOM_MODE_CUSTOM:
+                    room_daily_program = room_config.get("time_program")
+                    daily_program = room_daily_program if room_daily_program else global_daily_program
+                else:
+                    daily_program = global_daily_program
+
+                period_mode = evaluate_schedule(daily_program, now)
+                desired_temp_baseline = period_temperatures.get(period_mode)
+                if desired_temp_baseline is None:
+                    _LOGGER.warning(
+                        "Unknown period mode %r for area %s — skipping", period_mode, area_id
+                    )
+                    continue
+                desired_temps[area_id] = desired_temp_baseline
 
         # Wave 2: track global active period for status push
         global_period_mode = evaluate_schedule(global_daily_program, now)
@@ -248,14 +272,18 @@ class ClimateManagerCoordinator:
                     # Person references an area not managed by this integration
                     continue
 
-                # Resolve daily_program for this room (per-day dict, D-01)
-                room_daily_program = (
-                    room_configs.get(area_id, {})
-                    .get("time_program")
-                )
-                daily_program = (
-                    room_daily_program if room_daily_program else global_daily_program
-                )
+                # D-20: skip frost-locked rooms — room_mode overrides presence
+                if area_id in frost_locked_rooms:
+                    continue
+
+                # Resolve daily_program for this room respecting room_mode (per-day dict, D-01)
+                room_config = room_configs.get(area_id, {})
+                room_mode = room_config.get("room_mode", "global")
+                if room_mode == ROOM_MODE_CUSTOM:
+                    room_daily_program = room_config.get("time_program")
+                    daily_program = room_daily_program if room_daily_program else global_daily_program
+                else:
+                    daily_program = global_daily_program
 
                 occupied_temp = compute_occupied_temp(
                     daily_program, now, is_present, period_temperatures
