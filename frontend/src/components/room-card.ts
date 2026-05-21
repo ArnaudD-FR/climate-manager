@@ -2,11 +2,11 @@
  * Climate Manager Panel — Room Card component (UI-03).
  *
  * Expandable card per room. Header (always visible): room name + program
- * badge + compact status line (°C / humidity / active period, D-14c).
- * Expanded: TRV entity IDs, associated persons chips, override toggle,
- * inline time-bar (when override enabled).
+ * badge + compact 4-item status line (°C / humidity / active period / persons, D-14d).
+ * Expanded: TRV entity IDs, associated persons chips, 3-way mode selector (D-20),
+ * inline time-bar (when Custom mode, D-20).
  *
- * Auto-save on field blur and toggle change (D-08). Time-bar saves on
+ * Auto-save on field blur and select change (D-08). Time-bar saves on
  * interaction end (D-09). Toast feedback on success/error (D-10).
  */
 
@@ -19,6 +19,7 @@ import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
 
 import "./time-bar.js";
+import "./search-picker.js";
 
 export class RoomCard extends LitElement {
   @property({ type: String }) roomId!: string;
@@ -32,14 +33,12 @@ export class RoomCard extends LitElement {
   @property({ attribute: false }) panel!: ClimateManagerPanel;
   @property({ attribute: false }) hass!: Hass;
 
-  /** Whether the card is expanded. Default: expanded when has custom time_program. */
+  /** Whether the card is expanded. Default: expanded when room_mode is "custom". */
   @state() _expanded = false;
-  @state() _showPersonAdd = false;
 
   connectedCallback() {
     super.connectedCallback();
-    // Default: expand if this room has a custom time program override (D-14)
-    this._expanded = !!this.config?.time_program;
+    this._expanded = (this.config?.room_mode === "custom");
   }
 
   static styles = css`
@@ -78,7 +77,7 @@ export class RoomCard extends LitElement {
       color: var(--primary-text-color);
     }
 
-    /* Always-visible status line in the card header (D-14c) */
+    /* Always-visible 4-item status line in the card header (D-14d) */
     .card-header-status {
       display: flex;
       gap: 12px;
@@ -116,6 +115,11 @@ export class RoomCard extends LitElement {
     .program-badge.global {
       background: var(--secondary-background-color, #f5f5f5);
       color: var(--secondary-text-color, #757575);
+    }
+
+    .program-badge.frost {
+      background: #1565C0;
+      color: #fff;
     }
 
     .card-content {
@@ -245,30 +249,34 @@ export class RoomCard extends LitElement {
       height: 16px;
     }
 
-    .add-select {
-      padding: 4px 10px;
-      font-size: 13px;
+    /* 3-way room mode selector (D-20) */
+    .select-wrapper {
+      margin-bottom: 16px;
+    }
+
+    .select-label {
+      display: block;
+      font-size: 12px;
+      color: var(--secondary-text-color);
+      margin-bottom: 4px;
+    }
+
+    .mode-select {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 16px;
       font-family: inherit;
       color: var(--primary-text-color);
       background-color: var(--card-background-color, var(--secondary-background-color));
-      border: 1px solid var(--primary-color, #03a9f4);
-      border-radius: 16px;
-      cursor: pointer;
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
       outline: none;
+      cursor: pointer;
     }
 
-    /* Override toggle row */
-    .override-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 0;
-      margin-bottom: 8px;
-    }
-
-    .override-label {
-      font-size: 14px;
-      color: var(--primary-text-color);
+    .mode-select:focus {
+      border-color: var(--primary-color);
+      border-width: 2px;
     }
 
     /* Inline time bar */
@@ -312,11 +320,18 @@ export class RoomCard extends LitElement {
     );
   }
 
-  private _onAddPersonSelect(e: Event) {
-    const sel = e.target as HTMLSelectElement;
-    const personId = sel.value;
+  private _getPersonPresenceState(personId: string): string {
+    const state = this.hass?.states[personId]?.state;
+    if (state === "home") return "Home";
+    if (state === "not_home") return "Away";
+    if (state) return state.charAt(0).toUpperCase() + state.slice(1);
+    return "—";
+  }
+
+  private _onPersonPicked(e: CustomEvent) {
+    e.stopPropagation();
+    const personId = (e.detail as { id: string }).id;
     if (!personId) return;
-    this._showPersonAdd = false;
     void this._onAddPerson(personId);
   }
 
@@ -345,32 +360,35 @@ export class RoomCard extends LitElement {
   }
 
   // -----------------------------------------------------------------------
-  // Schedule override handlers
+  // Room mode handler (D-20)
   // -----------------------------------------------------------------------
 
-  private async _onOverrideToggle(e: Event) {
-    const checkbox = e.target as HTMLElement & { checked: boolean };
-    let timeProgram: DailyProgram | null;
+  private async _onRoomModeChange(e: Event) {
+    const newMode = (e.target as HTMLSelectElement).value as "global" | "frost_protection" | "custom";
 
-    if (checkbox.checked) {
-      // Enabling override — seed from global program (or empty program if none)
-      const globalProgram = this.panelConfig?.global_time_program;
-      timeProgram = globalProgram
-        ? { ...globalProgram }
-        : { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
+    let payload: Partial<RoomConfig>;
+    if (newMode === "custom" && !this.config?.time_program) {
+      // First switch to Custom: seed from global program (deep copy to avoid shared refs)
+      payload = {
+        room_mode: "custom",
+        time_program: JSON.parse(JSON.stringify(this.panelConfig.global_time_program)) as DailyProgram,
+      };
     } else {
-      // Disabling override — clear the per-room program
-      timeProgram = null;
+      payload = { room_mode: newMode };
     }
 
     try {
-      await this.ws.setRoomConfig(this.roomId, { time_program: timeProgram });
+      await this.ws.setRoomConfig(this.roomId, payload);
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
     }
   }
+
+  // -----------------------------------------------------------------------
+  // Schedule override handlers
+  // -----------------------------------------------------------------------
 
   private async _onPeriodsChanged(e: CustomEvent) {
     const { dayIndex, periods } = e.detail as { dayIndex: number; periods: Period[] };
@@ -402,6 +420,7 @@ export class RoomCard extends LitElement {
     const temp = s?.temperature != null ? `${s.temperature}°C` : "—";
     const humidity = s?.humidity != null ? `${s.humidity}%` : "—";
     const period = s?.active_period ?? "—";
+    const personCount = this._getAssignedPersonIds().length;
     return html`
       <div class="card-header-status">
         <span class="status-item">
@@ -415,6 +434,10 @@ export class RoomCard extends LitElement {
         <span class="status-item">
           <ha-icon icon="mdi:clock-outline"></ha-icon>
           ${period}
+        </span>
+        <span class="status-item">
+          <ha-icon icon="mdi:account-group"></ha-icon>
+          ${personCount}
         </span>
       </div>
     `;
@@ -463,6 +486,13 @@ export class RoomCard extends LitElement {
       (id) => !assignedPersonIds.includes(id),
     );
 
+    const pickerItems = unassignedPersonIds.map((id) => ({
+      id,
+      label: this._getPersonName(id),
+      secondary: this._getPersonPresenceState(id),
+      icon: "mdi:account",
+    }));
+
     return html`
       <div class="section-label">Associated persons</div>
       <div class="chips">
@@ -477,30 +507,29 @@ export class RoomCard extends LitElement {
           </span>
         `)}
         ${unassignedPersonIds.length > 0
-          ? this._showPersonAdd
-            ? html`
-              <select class="add-select" @change=${(e: Event) => this._onAddPersonSelect(e)}>
-                <option value="">Select person…</option>
-                ${unassignedPersonIds.map((id) => html`
-                  <option value=${id}>${this._getPersonName(id)}</option>
-                `)}
-              </select>
-            `
-            : html`
-              <button class="chip-add" @click=${() => { this._showPersonAdd = true; }}>
-                <ha-icon icon="mdi:plus"></ha-icon>
-                Add person
-              </button>
-            `
+          ? html`
+            <search-picker
+              .items=${pickerItems}
+              triggerLabel="Add person"
+              triggerIcon="mdi:plus"
+              placeholder="Search persons…"
+              @picked=${(e: CustomEvent) => this._onPersonPicked(e)}
+            ></search-picker>
+          `
           : ""}
       </div>
     `;
   }
 
   render() {
-    const hasCustomProgram = !!this.config?.time_program;
-    const badgeClass = hasCustomProgram ? "custom" : "global";
-    const badgeText = hasCustomProgram ? "Custom program" : "Global program";
+    const resolvedMode = this.config?.room_mode ?? "global";
+
+    const badgeClass = resolvedMode === "frost_protection" ? "frost"
+      : resolvedMode === "custom" ? "custom"
+      : "global";
+    const badgeText = resolvedMode === "frost_protection" ? "Frost protection"
+      : resolvedMode === "custom" ? "Custom program"
+      : "Global program";
 
     return html`
       <ha-card>
@@ -524,17 +553,22 @@ export class RoomCard extends LitElement {
               ${this._renderTrvSection()}
               ${this._renderPersonsSection()}
 
-              <!-- Override toggle -->
-              <div class="override-row">
-                <span class="override-label">Override global time program</span>
-                <ha-switch
-                  .checked=${hasCustomProgram}
-                  @change=${this._onOverrideToggle}
-                ></ha-switch>
+              <!-- 3-way room mode selector (D-20) -->
+              <div class="section-label">Mode</div>
+              <div class="select-wrapper">
+                <select
+                  class="mode-select"
+                  .value=${resolvedMode}
+                  @change=${this._onRoomModeChange}
+                >
+                  <option value="global" ?selected=${resolvedMode === "global"}>Global program</option>
+                  <option value="frost_protection" ?selected=${resolvedMode === "frost_protection"}>Frost protection</option>
+                  <option value="custom" ?selected=${resolvedMode === "custom"}>Custom program</option>
+                </select>
               </div>
 
-              <!-- Inline time-bar (only when override enabled) -->
-              ${hasCustomProgram
+              <!-- Inline time-bar (only in Custom mode) -->
+              ${resolvedMode === "custom"
                 ? html`
                   <div class="time-bar-section">
                     <climate-manager-time-bar
