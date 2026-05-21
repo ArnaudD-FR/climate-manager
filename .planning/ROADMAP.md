@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Foundation** - HACS-compatible integration scaffold with persistent storage and verified TRV control
 - [x] **Phase 2: Backend Engines & Coordinator** - Complete scheduling/presence logic and coordinator control loop, hardware-validated with real TRVs (completed 2026-05-17)
-- [ ] **Phase 3: WebSocket API & Frontend Panel** - Full Lovelace dashboard panel for configuring global settings, rooms, and persons
+- [x] **Phase 3: WebSocket API & Frontend Panel** - Full Lovelace dashboard panel for configuring global settings, rooms, and persons (completed 2026-05-21)
 
 ## Phase Details
 
@@ -101,8 +101,8 @@ Plans:
 
 **Wave 4 (replan)** *(D-13, D-14d, D-19, D-20 — parallel)*
 
-- [ ] 03-04-PLAN.md — Backend room_mode constants + coordinator branching (D-20 backend) + test_coordinator.py
-- [ ] 03-05-PLAN.md — Shared search-picker.ts component (D-19) + Global Settings Temperatures card extraction (D-13)
+- [x] 03-04-PLAN.md — Backend room_mode constants + coordinator branching (D-20 backend) + test_coordinator.py
+- [x] 03-05-PLAN.md — Shared search-picker.ts component (D-19) + Global Settings Temperatures card extraction (D-13)
 
 **Wave 5 (replan)** *(blocked on 03-04 and 03-05)*
 
@@ -124,4 +124,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
 | 2. Backend Engines & Coordinator | 2/2 | Complete    | 2026-05-17 |
-| 3. WebSocket API & Frontend Panel | 3/4 | In Progress|  |
+| 3. WebSocket API & Frontend Panel | 5/4 | Complete   | 2026-05-21 |
