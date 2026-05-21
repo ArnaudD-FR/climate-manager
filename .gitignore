@@ -23,3 +23,4 @@ build/
 # Frontend build artifacts
 frontend/node_modules/
 frontend/dist/
+node_modules/

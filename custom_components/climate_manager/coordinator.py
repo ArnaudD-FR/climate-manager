@@ -87,6 +87,8 @@ class ClimateManagerCoordinator:
         # Wave 2: track last evaluation results for status push and get_status WS command.
         self._last_active_period: str | None = None
         self._last_present_persons: list[str] = []
+        # Per-room effective period (may differ from global in time_program_presences mode).
+        self._last_room_periods: dict[str, str] = {}
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
@@ -189,6 +191,7 @@ class ClimateManagerCoordinator:
         self._last_present_persons = self._compute_present_persons(config, now)
 
         pushes: list[tuple[str, float]] = []
+        room_periods: dict[str, str] = {}
         for area_id, entity_ids in rooms.items():
             room_config = room_configs.get(area_id, {})
             room_mode = room_config.get("room_mode", "global")
@@ -197,6 +200,7 @@ class ClimateManagerCoordinator:
             if room_mode == ROOM_MODE_FROST:
                 # Frost protection: push frost temp directly, skip schedule evaluation
                 desired_temp = period_temperatures[PERIOD_FROST_PROTECTION]
+                room_periods[area_id] = PERIOD_FROST_PROTECTION
             else:
                 # Resolve daily_program: custom room program else global (per-day dict, D-01)
                 if room_mode == ROOM_MODE_CUSTOM:
@@ -213,8 +217,11 @@ class ClimateManagerCoordinator:
                         "Unknown period mode %r for area %s — skipping", period_mode, area_id
                     )
                     continue
+                room_periods[area_id] = period_mode
 
             pushes.extend((entity_id, desired_temp) for entity_id in entity_ids)
+
+        self._last_room_periods = room_periods
 
         await asyncio.gather(*(
             self._push_safely(eid, temp, "MODE_TIME_PROGRAM")
@@ -248,6 +255,7 @@ class ClimateManagerCoordinator:
 
         # Step 1: baseline — time-program temp for every managed room
         desired_temps: dict[str, float] = {}
+        room_periods: dict[str, str] = {}
         # Rooms with room_mode=frost_protection are locked at frost temp and skipped
         # during presence override (Step 2) — track them separately.
         frost_locked_rooms: set[str] = set()
@@ -259,6 +267,7 @@ class ClimateManagerCoordinator:
             if room_mode == ROOM_MODE_FROST:
                 # Frost protection: hold at frost temp, skip schedule evaluation and presence
                 desired_temps[area_id] = period_temperatures[PERIOD_FROST_PROTECTION]
+                room_periods[area_id] = PERIOD_FROST_PROTECTION
                 frost_locked_rooms.add(area_id)
             else:
                 if room_mode == ROOM_MODE_CUSTOM:
@@ -275,6 +284,7 @@ class ClimateManagerCoordinator:
                     )
                     continue
                 desired_temps[area_id] = desired_temp_baseline
+                room_periods[area_id] = period_mode
 
         # Wave 2: track global active period for status push
         global_period_mode = evaluate_schedule(global_daily_program, now)
@@ -315,7 +325,7 @@ class ClimateManagerCoordinator:
                 else:
                     daily_program = global_daily_program
 
-                occupied_temp = compute_occupied_temp(
+                occupied_temp, occupied_period = compute_occupied_temp(
                     daily_program, now, is_present, period_temperatures
                 )
 
@@ -325,18 +335,23 @@ class ClimateManagerCoordinator:
                     # If another present person previously set a higher temp, keep that.
                     if area_id in present_locked_rooms:
                         # Room already locked by a prior present person — take the max
-                        desired_temps[area_id] = max(desired_temps[area_id], occupied_temp)
+                        if occupied_temp > desired_temps[area_id]:
+                            desired_temps[area_id] = occupied_temp
+                            room_periods[area_id] = occupied_period
                     else:
                         desired_temps[area_id] = occupied_temp
+                        room_periods[area_id] = occupied_period
                         present_locked_rooms.add(area_id)
                 else:
                     # Absent person: only lower the temperature if no present person
                     # has already locked this room in this tick.
                     if area_id not in present_locked_rooms:
                         desired_temps[area_id] = occupied_temp
+                        room_periods[area_id] = occupied_period
 
-        # Wave 2: store resolved present persons list for status push
+        # Wave 2: store resolved present persons list and per-room periods for status push
         self._last_present_persons = present_persons_this_tick
+        self._last_room_periods = room_periods
 
         # Step 4: push each room's resolved temperature to its TRVs (parallel)
         await asyncio.gather(*(
@@ -365,7 +380,7 @@ class ClimateManagerCoordinator:
             room_entry: dict = {
                 "area_id": area_id,
                 "name": _area.name if _area else area_id,
-                "active_period": self._last_active_period,
+                "active_period": self._last_room_periods.get(area_id, self._last_active_period),
                 "entity_ids": entity_ids,
             }
 

@@ -138,8 +138,8 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
                 if hum_state is not None and hum_state.state not in ("unavailable", "unknown"):
                     room_entry["humidity"] = hum_state.state
 
-            # Active period for this room (from coordinator's last result)
-            room_entry["active_period"] = active_period
+            # Active period for this room — per-room value when available, global fallback
+            room_entry["active_period"] = coordinator._last_room_periods.get(area_id, active_period)
 
             # D-24: count persons assigned to this area who are currently present
             room_entry["present_person_count"] = sum(

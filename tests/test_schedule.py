@@ -270,8 +270,9 @@ def test_resolve_presence_automatic_missing_day_in_schedule_returns_false():
 def test_compute_occupied_temp_absent_returns_reduced():
     """PERSON-09: absent person → PERIOD_REDUCED temperature regardless of schedule."""
     now = datetime.datetime(2026, 1, 5, 10, 0, tzinfo=datetime.timezone.utc)  # Monday 10:00
-    result = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=False, period_temperatures=TEMPS)
-    assert result == TEMPS[PERIOD_REDUCED]
+    temp, period = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=False, period_temperatures=TEMPS)
+    assert temp == TEMPS[PERIOD_REDUCED]
+    assert period == PERIOD_REDUCED
 
 
 def test_compute_occupied_temp_present_no_nc_periods_returns_reduced():
@@ -284,16 +285,18 @@ def test_compute_occupied_temp_present_no_nc_periods_returns_reduced():
         for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
     }
     now = datetime.datetime(2026, 1, 5, 10, 0, tzinfo=datetime.timezone.utc)
-    result = compute_occupied_temp(frost_only_program, now, is_present=True, period_temperatures=TEMPS)
-    assert result == TEMPS[PERIOD_REDUCED]
+    temp, period = compute_occupied_temp(frost_only_program, now, is_present=True, period_temperatures=TEMPS)
+    assert temp == TEMPS[PERIOD_REDUCED]
+    assert period == PERIOD_REDUCED
 
 
 def test_compute_occupied_temp_present_before_first_nc_period():
     """Present but before the first Normal/Comfort period of the day → Reduced temp."""
     # FULL_WEEK_PROGRAM: first N/C period starts at 07:00 (normal)
     now = datetime.datetime(2026, 1, 5, 6, 30, tzinfo=datetime.timezone.utc)  # Monday 06:30
-    result = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=True, period_temperatures=TEMPS)
-    assert result == TEMPS[PERIOD_REDUCED]
+    temp, period = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=True, period_temperatures=TEMPS)
+    assert temp == TEMPS[PERIOD_REDUCED]
+    assert period == PERIOD_REDUCED
 
 
 def test_compute_occupied_temp_present_after_last_nc_period_end():
@@ -303,24 +306,27 @@ def test_compute_occupied_temp_present_after_last_nc_period_end():
     After 22:00 (the period following the last N/C) → Reduced.
     """
     now = datetime.datetime(2026, 1, 5, 22, 30, tzinfo=datetime.timezone.utc)  # Monday 22:30
-    result = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=True, period_temperatures=TEMPS)
-    assert result == TEMPS[PERIOD_REDUCED]
+    temp, period = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=True, period_temperatures=TEMPS)
+    assert temp == TEMPS[PERIOD_REDUCED]
+    assert period == PERIOD_REDUCED
 
 
 def test_compute_occupied_temp_present_during_normal_period():
     """PERSON-07: present during a Normal period within the occupied window → Normal temp."""
     # FULL_WEEK_PROGRAM: 07:00 normal
     now = datetime.datetime(2026, 1, 5, 8, 0, tzinfo=datetime.timezone.utc)  # Monday 08:00
-    result = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=True, period_temperatures=TEMPS)
-    assert result == TEMPS[PERIOD_NORMAL]
+    temp, period = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=True, period_temperatures=TEMPS)
+    assert temp == TEMPS[PERIOD_NORMAL]
+    assert period == PERIOD_NORMAL
 
 
 def test_compute_occupied_temp_present_during_comfort_period():
     """PERSON-07: present during a Comfort period within the occupied window → Comfort temp."""
     # FULL_WEEK_PROGRAM: 14:00 comfort
     now = datetime.datetime(2026, 1, 5, 15, 0, tzinfo=datetime.timezone.utc)  # Monday 15:00
-    result = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=True, period_temperatures=TEMPS)
-    assert result == TEMPS[PERIOD_COMFORT]
+    temp, period = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=True, period_temperatures=TEMPS)
+    assert temp == TEMPS[PERIOD_COMFORT]
+    assert period == PERIOD_COMFORT
 
 
 def test_compute_occupied_temp_person08_sandwiched_reduced_returns_preceding_nc_temp():
@@ -331,10 +337,11 @@ def test_compute_occupied_temp_person08_sandwiched_reduced_returns_preceding_nc_
     At 12:30 (active period: reduced, preceded by normal) → Normal temperature.
     """
     now = datetime.datetime(2026, 1, 5, 12, 30, tzinfo=datetime.timezone.utc)  # Monday 12:30
-    result = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=True, period_temperatures=TEMPS)
-    assert result == TEMPS[PERIOD_NORMAL], (
+    temp, period = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=True, period_temperatures=TEMPS)
+    assert temp == TEMPS[PERIOD_NORMAL], (
         "Sandwiched Reduced period should return preceding Normal temperature (PERSON-08 gap-fill)"
     )
+    assert period == PERIOD_NORMAL
 
 
 def test_compute_occupied_temp_person08_after_last_nc_returns_reduced():
@@ -345,16 +352,18 @@ def test_compute_occupied_temp_person08_after_last_nc_returns_reduced():
     22:30 is outside the occupied window → Reduced.
     """
     now = datetime.datetime(2026, 1, 5, 22, 30, tzinfo=datetime.timezone.utc)  # Monday 22:30
-    result = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=True, period_temperatures=TEMPS)
-    assert result == TEMPS[PERIOD_REDUCED]
+    temp, period = compute_occupied_temp(FULL_WEEK_PROGRAM, now, is_present=True, period_temperatures=TEMPS)
+    assert temp == TEMPS[PERIOD_REDUCED]
+    assert period == PERIOD_REDUCED
 
 
 def test_compute_occupied_temp_present_empty_program_returns_reduced():
     """Present but empty per-day program (all days []) → Reduced (no N/C periods)."""
     empty_program = {d: [] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]}
     now = datetime.datetime(2026, 1, 5, 10, 0, tzinfo=datetime.timezone.utc)
-    result = compute_occupied_temp(empty_program, now, is_present=True, period_temperatures=TEMPS)
-    assert result == TEMPS[PERIOD_REDUCED]
+    temp, period = compute_occupied_temp(empty_program, now, is_present=True, period_temperatures=TEMPS)
+    assert temp == TEMPS[PERIOD_REDUCED]
+    assert period == PERIOD_REDUCED
 
 
 # ---------------------------------------------------------------------------

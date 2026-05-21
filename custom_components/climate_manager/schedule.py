@@ -162,8 +162,8 @@ def compute_occupied_temp(
     now: datetime.datetime,
     is_present: bool,
     period_temperatures: dict[str, float],
-) -> float:
-    """Return the desired temperature for a person-associated room.
+) -> tuple[float, str]:
+    """Return (desired_temperature, effective_period_name) for a person-associated room.
 
     PERSON-07: present → heat continuously from first Normal/Comfort period
                to end of last Normal/Comfort period of the day.
@@ -171,9 +171,12 @@ def compute_occupied_temp(
                → hold temperature of the preceding Normal/Comfort period (gap-fill).
     PERSON-09: absent → PERIOD_REDUCED temperature always.
     D-05: present + today has no Normal/Comfort periods → PERIOD_REDUCED temperature.
+
+    Returns a (temperature, period_name) tuple so callers can surface the effective
+    period in the status payload without re-deriving it from the temperature value.
     """
     if not is_present:
-        return period_temperatures[PERIOD_REDUCED]
+        return period_temperatures[PERIOD_REDUCED], PERIOD_REDUCED
 
     day_name = WEEKDAY_TO_DAY[now.weekday()]
     current_time = now.time()
@@ -191,7 +194,7 @@ def compute_occupied_temp(
             "compute_occupied_temp: no N/C periods for today (%s) — returning Reduced for present person",
             day_name,
         )
-        return period_temperatures[PERIOD_REDUCED]
+        return period_temperatures[PERIOD_REDUCED], PERIOD_REDUCED
 
     # Occupied window: [start of first N/C, start of period after last N/C]
     first_nc_start = _parse_time(nc_periods[0]["start"])
@@ -206,11 +209,11 @@ def compute_occupied_temp(
 
     # Before the occupied window → Reduced
     if current_time < first_nc_start:
-        return period_temperatures[PERIOD_REDUCED]
+        return period_temperatures[PERIOD_REDUCED], PERIOD_REDUCED
 
     # After the occupied window → Reduced
     if occupied_end is not None and current_time >= occupied_end:
-        return period_temperatures[PERIOD_REDUCED]
+        return period_temperatures[PERIOD_REDUCED], PERIOD_REDUCED
 
     # Within the occupied window: walk periods forward tracking last N/C mode seen
     active_mode = None
@@ -228,7 +231,8 @@ def compute_occupied_temp(
     if active_mode not in nc_modes and last_nc_mode_seen is not None:
         active_mode = last_nc_mode_seen
 
-    return period_temperatures.get(active_mode, period_temperatures[PERIOD_REDUCED])
+    effective = active_mode if active_mode is not None else PERIOD_REDUCED
+    return period_temperatures.get(effective, period_temperatures[PERIOD_REDUCED]), effective
 
 
 def validate_daily_program(

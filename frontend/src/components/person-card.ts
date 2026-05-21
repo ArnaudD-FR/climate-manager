@@ -58,6 +58,19 @@ export class PersonCard extends LitElement {
 
   @state() _expanded = false;
 
+  // Memoize days array — same pattern as global-settings-tab to prevent
+  // time-bar drag-preview from clearing on status-only re-renders.
+  private _lastSchedule: DailyProgram | undefined = undefined;
+  private _cachedDays: Period[][] = [];
+  private get _days(): Period[][] {
+    const schedule = this.config?.schedule;
+    if (schedule !== this._lastSchedule) {
+      this._lastSchedule = schedule;
+      this._cachedDays = programToDays(schedule);
+    }
+    return this._cachedDays;
+  }
+
   connectedCallback() {
     super.connectedCallback();
     // D-15 (updated): always collapsed by default
@@ -417,7 +430,7 @@ export class PersonCard extends LitElement {
                   <div class="schedule-section">
                     <climate-manager-time-bar
                       mode="presence"
-                      .days=${programToDays(this.config?.schedule)}
+                      .days=${this._days}
                       @periods-changed=${this._onSchedulePeriodsChanged}
                     ></climate-manager-time-bar>
                   </div>
