@@ -106,7 +106,7 @@ Plans:
 
 **Wave 5 (replan)** *(blocked on 03-04 and 03-05)*
 
-- [ ] 03-06-PLAN.md — Room card overhaul: 4-item header status (D-14d), 3-way room_mode select (D-20 frontend), add-person search-picker (D-19)
+- [x] 03-06-PLAN.md — Room card overhaul: 4-item header status (D-14d), 3-way room_mode select (D-20 frontend), add-person search-picker (D-19)
 
 **Wave 6 (replan)** *(blocked on 03-06)*
 
@@ -124,4 +124,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
 | 2. Backend Engines & Coordinator | 2/2 | Complete    | 2026-05-17 |
-| 3. WebSocket API & Frontend Panel | 5/4 | Complete   | 2026-05-21 |
+| 3. WebSocket API & Frontend Panel | 6/4 | Complete   | 2026-05-21 |
