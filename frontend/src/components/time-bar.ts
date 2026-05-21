@@ -631,6 +631,7 @@ export class ClimateManagerTimeBar extends LitElement {
   ) {
     e.stopPropagation();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    this._dragPreviewDays = null; // clear any stale preview from previous drag
 
     const segments = this._toSegments(this.days[dayIndex] ?? []);
     const seg = segments[segIndex];
@@ -773,9 +774,31 @@ export class ClimateManagerTimeBar extends LitElement {
   // Render
   // -----------------------------------------------------------------------
 
+  // Compare committed `days` content against the current preview to avoid
+  // clearing the preview on spurious reference-only changes (e.g. when a
+  // parent status push re-renders before the config arrives, producing new
+  // array refs with the same content as the pending preview).
+  private _previewMatchesDays(): boolean {
+    if (!this._dragPreviewDays) return false;
+    if (this.days.length !== this._dragPreviewDays.length) return false;
+    return this.days.every((day, i) => {
+      const preview = this._dragPreviewDays![i];
+      if (!preview || day.length !== preview.length) return false;
+      return day.every((p, j) => {
+        const q = preview[j];
+        return p.start === q.start && p.mode === q.mode && p.state === q.state;
+      });
+    });
+  }
+
   protected updated(changedProperties: PropertyValues): void {
     if (changedProperties.has("days") && this._dragPreviewDays) {
-      this._dragPreviewDays = null;
+      // Only clear when committed days differ from the preview; same-content
+      // reference changes (parent re-renders for unrelated state) must not
+      // cause a flash back to the old position.
+      if (!this._previewMatchesDays()) {
+        this._dragPreviewDays = null;
+      }
     }
   }
 
