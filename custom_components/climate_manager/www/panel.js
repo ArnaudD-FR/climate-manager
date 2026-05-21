@@ -1028,21 +1028,8 @@ const Te = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Re = ["frost_prote
   // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
-  // Compare committed `days` content against the current preview to avoid
-  // clearing the preview on spurious reference-only changes (e.g. when a
-  // parent status push re-renders before the config arrives, producing new
-  // array refs with the same content as the pending preview).
-  _previewMatchesDays() {
-    return !this._dragPreviewDays || this.days.length !== this._dragPreviewDays.length ? !1 : this.days.every((t, e) => {
-      const o = this._dragPreviewDays[e];
-      return !o || t.length !== o.length ? !1 : t.every((s, r) => {
-        const i = o[r];
-        return s.start === i.start && s.mode === i.mode && s.state === i.state;
-      });
-    });
-  }
   updated(t) {
-    t.has("days") && this._dragPreviewDays && (this._previewMatchesDays() || (this._dragPreviewDays = null));
+    t.has("days") && this._dragPreviewDays && (this._dragPreviewDays = null);
   }
   render() {
     return l`
@@ -1536,7 +1523,7 @@ const yt = "off", xt = "time_program", $t = "time_program_presences", De = {
   };
 })(), Rt = class Rt extends w {
   constructor() {
-    super(...arguments), this.status = null, this._onModeChange = async (t) => {
+    super(...arguments), this.status = null, this._lastProgram = void 0, this._cachedDays = [], this._onModeChange = async (t) => {
       const e = t.target.value;
       if (!(!e || e === this.config.global_mode))
         try {
@@ -1583,6 +1570,11 @@ const yt = "off", xt = "time_program", $t = "time_program_presences", De = {
         this.panel.showToast("Reset failed — retrying...", !0);
       }
     };
+  }
+  get _days() {
+    var e;
+    const t = (e = this.config) == null ? void 0 : e.global_time_program;
+    return t !== this._lastProgram && (this._lastProgram = t, this._cachedDays = At(t)), this._cachedDays;
   }
   // -----------------------------------------------------------------------
   // Render helpers
@@ -1663,7 +1655,6 @@ const yt = "off", xt = "time_program", $t = "time_program_presences", De = {
     `;
   }
   _renderConfigCard() {
-    const t = At(this.config.global_time_program);
     return l`
       <ha-card>
         <div class="card-header">Configuration</div>
@@ -1683,7 +1674,7 @@ const yt = "off", xt = "time_program", $t = "time_program_presences", De = {
           <div class="time-program-section">
             <climate-manager-time-bar
               mode="schedule"
-              .days=${t}
+              .days=${this._days}
               @periods-changed=${this._onPeriodsChanged}
             ></climate-manager-time-bar>
           </div>

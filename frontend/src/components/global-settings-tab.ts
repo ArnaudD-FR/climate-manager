@@ -104,6 +104,21 @@ export class GlobalSettingsTab extends LitElement {
   /** Reference to root panel for showToast() and reloadConfig(). */
   @property({ attribute: false }) panel!: ClimateManagerPanel;
 
+  // Memoize the days array by program identity — programToDays() creates new
+  // array references on every call. Without this, any status-only re-render
+  // (which happens before config arrives after a WS save) passes a new days
+  // reference to the time-bar, causing it to clear _dragPreviewDays and flash.
+  private _lastProgram: DailyProgram | undefined = undefined;
+  private _cachedDays: Period[][] = [];
+  private get _days(): Period[][] {
+    const program = this.config?.global_time_program;
+    if (program !== this._lastProgram) {
+      this._lastProgram = program;
+      this._cachedDays = programToDays(program);
+    }
+    return this._cachedDays;
+  }
+
   static styles = css`
     :host {
       display: block;
@@ -267,22 +282,25 @@ export class GlobalSettingsTab extends LitElement {
   `;
 
   // -----------------------------------------------------------------------
-  // Save handlers
+  // Save handlers — arrow function class fields so `this` is always the
+  // component instance, even when passed as a bare event listener reference
+  // in Lit @event=${} bindings (Lit calls addEventListener(name, fn) which
+  // would otherwise set `this` to the DOM element).
   // -----------------------------------------------------------------------
 
-  private async _onModeChange(e: Event) {
+  private _onModeChange = async (e: Event) => {
     const newMode = (e.target as HTMLSelectElement).value;
     if (!newMode || newMode === this.config.global_mode) return;
     try {
       await this.ws.setGlobalMode(newMode);
-      this.panel.patchConfig({ global_mode: newMode });
+      await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed", true);
     }
-  }
+  };
 
-  private async _onTemperatureBlur(e: FocusEvent) {
+  private _onTemperatureBlur = async (e: FocusEvent) => {
     // Collect current values from all 4 temperature fields
     const root = this.shadowRoot;
     if (!root) return;
@@ -307,9 +325,9 @@ export class GlobalSettingsTab extends LitElement {
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
     }
-  }
+  };
 
-  private async _onPeriodsChanged(e: CustomEvent) {
+  private _onPeriodsChanged = async (e: CustomEvent) => {
     const { dayIndex, periods } = e.detail as { dayIndex: number; periods: Period[] };
 
     // Rebuild the full DailyProgram, replacing the changed day
@@ -326,9 +344,9 @@ export class GlobalSettingsTab extends LitElement {
     }
 
     e.stopPropagation();
-  }
+  };
 
-  private async _onResetTemperatures() {
+  private _onResetTemperatures = async () => {
     try {
       await this.ws.setPeriodTemperatures(DEFAULT_TEMPERATURES);
       await this.panel.reloadConfig();
@@ -336,9 +354,9 @@ export class GlobalSettingsTab extends LitElement {
     } catch {
       this.panel.showToast("Reset failed — retrying...", true);
     }
-  }
+  };
 
-  private async _onResetConfiguration() {
+  private _onResetConfiguration = async () => {
     try {
       await this.ws.setGlobalMode(DEFAULT_GLOBAL_MODE);
       await this.ws.setTimeProgram(DEFAULT_TIME_PROGRAM);
@@ -347,7 +365,7 @@ export class GlobalSettingsTab extends LitElement {
     } catch {
       this.panel.showToast("Reset failed — retrying...", true);
     }
-  }
+  };
 
   // -----------------------------------------------------------------------
   // Render helpers
@@ -441,8 +459,6 @@ export class GlobalSettingsTab extends LitElement {
   }
 
   private _renderConfigCard() {
-    const days = programToDays(this.config.global_time_program);
-
     return html`
       <ha-card>
         <div class="card-header">Configuration</div>
@@ -462,7 +478,7 @@ export class GlobalSettingsTab extends LitElement {
           <div class="time-program-section">
             <climate-manager-time-bar
               mode="schedule"
-              .days=${days}
+              .days=${this._days}
               @periods-changed=${this._onPeriodsChanged}
             ></climate-manager-time-bar>
           </div>
