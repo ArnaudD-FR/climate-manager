@@ -65,6 +65,28 @@ const DEFAULT_TEMPERATURES = {
   comfort: 22,
 };
 
+// Default global mode (mirrors backend DEFAULT_GLOBAL_MODE in const.py)
+const DEFAULT_GLOBAL_MODE = "time_program";
+
+// Default 7-day time program (mirrors backend _DEFAULT_DAY_PERIODS in const.py)
+// Each day gets its own independent array — deep-cloned to prevent mutation of shared refs.
+const DEFAULT_TIME_PROGRAM: DailyProgram = (() => {
+  const mkDay = (): Period[] => [
+    { start: "00:00", mode: "frost_protection" },
+    { start: "06:00", mode: "normal" },
+    { start: "22:00", mode: "frost_protection" },
+  ];
+  return {
+    mon: mkDay(),
+    tue: mkDay(),
+    wed: mkDay(),
+    thu: mkDay(),
+    fri: mkDay(),
+    sat: mkDay(),
+    sun: mkDay(),
+  };
+})();
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -306,9 +328,20 @@ export class GlobalSettingsTab extends LitElement {
     e.stopPropagation();
   }
 
-  private async _onResetToDefault() {
+  private async _onResetTemperatures() {
     try {
       await this.ws.setPeriodTemperatures(DEFAULT_TEMPERATURES);
+      await this.panel.reloadConfig();
+      this.panel.showToast("Reset to defaults", false);
+    } catch {
+      this.panel.showToast("Reset failed — retrying...", true);
+    }
+  }
+
+  private async _onResetConfiguration() {
+    try {
+      await this.ws.setGlobalMode(DEFAULT_GLOBAL_MODE);
+      await this.ws.setTimeProgram(DEFAULT_TIME_PROGRAM);
       await this.panel.reloadConfig();
       this.panel.showToast("Reset to defaults", false);
     } catch {
@@ -401,6 +434,7 @@ export class GlobalSettingsTab extends LitElement {
             ${tempField("normal", "Normal", 20)}
             ${tempField("comfort", "Comfort", 22)}
           </div>
+          <button class="reset-btn" @click=${this._onResetTemperatures}>Reset to default</button>
         </div>
       </ha-card>
     `;
@@ -433,7 +467,7 @@ export class GlobalSettingsTab extends LitElement {
             ></climate-manager-time-bar>
           </div>
 
-          <button class="reset-btn" @click=${this._onResetToDefault}>Reset to default</button>
+          <button class="reset-btn" @click=${this._onResetConfiguration}>Reset to default</button>
         </div>
       </ha-card>
     `;
