@@ -45,6 +45,7 @@ export interface ClimateConfig {
   global_time_program: DailyProgram;
   rooms: Record<string, RoomConfig>;
   persons: Record<string, PersonConfig>;
+  climate_entities: string[];
 }
 
 /** Per-room live status entry inside StatusPayload.rooms_status. */
@@ -55,6 +56,7 @@ export interface RoomStatus {
   temperature?: number | null;
   humidity?: number | null;
   active_period?: string | null;
+  present_person_count: number;
 }
 
 /** Payload pushed by climate_manager/subscribe_status and returned by get_status. */

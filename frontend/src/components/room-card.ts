@@ -407,8 +407,9 @@ export class RoomCard extends LitElement {
     const totalPersons = assignedIds.length;
     const globalMode = this.status?.global_mode ?? this.panelConfig?.global_mode ?? "";
     const isPresenceMode = globalMode === "time_program_presences";
+    // D-23: present count comes from backend (rooms_status.present_person_count) — no TS-side intersection.
     const presentCount = isPresenceMode
-      ? assignedIds.filter(id => this.status?.present_persons?.includes(id)).length
+      ? (this.roomStatus?.present_person_count ?? 0)
       : null;
     const personDisplay = presentCount != null
       ? `${presentCount}/${totalPersons}`
