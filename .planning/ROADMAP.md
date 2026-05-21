@@ -122,8 +122,8 @@ Plans:
 
 **Wave 9 (gap-closure)** *(D-23/D-24/D-25/D-26/D-27 — added 2026-05-21)*
 
-- [ ] 03-10-PLAN.md — D-24 backend (present_person_count in rooms_status) + D-25 backend (climate_entities in get_config) + tests
-- [ ] 03-11-PLAN.md — D-26 styling (PERIOD_COLORS/PRESENCE_COLORS single source) + D-27 (HA CSS variables for all non-period styling) — parallel with 03-10
+- [x] 03-10-PLAN.md — D-24 backend (present_person_count in rooms_status) + D-25 backend (climate_entities in get_config) + tests
+- [x] 03-11-PLAN.md — D-26 styling (PERIOD_COLORS/PRESENCE_COLORS single source) + D-27 (HA CSS variables for all non-period styling) — parallel with 03-10
 
 **Wave 10 (gap-closure)** *(blocked on 03-10 and 03-11)*
 
@@ -141,4 +141,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
 | 2. Backend Engines & Coordinator | 2/2 | Complete    | 2026-05-17 |
-| 3. WebSocket API & Frontend Panel | 8/6 | Complete   | 2026-05-21 |
+| 3. WebSocket API & Frontend Panel | 11/9 | Complete   | 2026-05-21 |
