@@ -300,24 +300,21 @@ export class GlobalSettingsTab extends LitElement {
     }
   };
 
-  private _onTemperatureBlur = async (e: FocusEvent) => {
-    // Collect current values from all 4 temperature fields
+  private _tempSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private async _saveTemperatures(): Promise<void> {
     const root = this.shadowRoot;
     if (!root) return;
     const getValue = (id: string): number => {
       const field = root.querySelector<HTMLInputElement>(`#temp-${id}`);
       return field ? parseFloat(field.value) : (this.config.period_temperatures[id] ?? 0);
     };
-
-    void e; // used only to trigger on blur
-
     const temperatures = {
       frost_protection: getValue("frost_protection"),
       reduced: getValue("reduced"),
       normal: getValue("normal"),
       comfort: getValue("comfort"),
     };
-
     try {
       await this.ws.setPeriodTemperatures(temperatures);
       await this.panel.reloadConfig();
@@ -325,6 +322,19 @@ export class GlobalSettingsTab extends LitElement {
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
     }
+  }
+
+  private _onTemperatureInput = () => {
+    if (this._tempSaveTimer !== null) clearTimeout(this._tempSaveTimer);
+    this._tempSaveTimer = setTimeout(() => { void this._saveTemperatures(); }, 600);
+  };
+
+  private _onTemperatureBlur = () => {
+    if (this._tempSaveTimer !== null) {
+      clearTimeout(this._tempSaveTimer);
+      this._tempSaveTimer = null;
+    }
+    void this._saveTemperatures();
   };
 
   private _onPeriodsChanged = async (e: CustomEvent) => {
@@ -434,6 +444,7 @@ export class GlobalSettingsTab extends LitElement {
             max="30"
             data-key="${id}"
             .value=${String(temps[id] ?? defaultVal)}
+            @input=${this._onTemperatureInput}
             @blur=${this._onTemperatureBlur}
             @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
           />
