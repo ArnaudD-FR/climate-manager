@@ -30,6 +30,8 @@ export class RoomCard extends LitElement {
   @property({ attribute: false }) roomStatus: RoomStatus | null = null;
   /** Full panel config — used to seed per-room override from global program and read persons. */
   @property({ attribute: false }) panelConfig!: ClimateConfig;
+  /** Full live status — used for present_persons and global_mode in header. */
+  @property({ attribute: false }) status: import("../types.js").StatusPayload | null = null;
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
   @property({ attribute: false }) hass!: Hass;
@@ -406,10 +408,25 @@ export class RoomCard extends LitElement {
     const periodDisplay = periodTempVal != null
       ? `${periodLabel} · ${periodTempVal}°C`
       : periodLabel;
-    const personCount = this._getAssignedPersonIds().length;
+    const assignedIds = this._getAssignedPersonIds();
+    const totalPersons = assignedIds.length;
+    const globalMode = this.status?.global_mode ?? this.panelConfig?.global_mode ?? "";
+    const isPresenceMode = globalMode === "time_program_presences";
+    const presentCount = isPresenceMode
+      ? assignedIds.filter(id => this.status?.present_persons?.includes(id)).length
+      : null;
+    const personDisplay = presentCount != null
+      ? `${presentCount}/${totalPersons}`
+      : `${totalPersons}`;
+    const modeLabels: Record<string, string> = {
+      "off": "Off",
+      "time_program": "Time program",
+      "time_program_presences": "Time & presence",
+    };
+    const modeLabel = modeLabels[globalMode] ?? globalMode;
     return html`
       <div class="card-header-status">
-        <span class="status-item">
+        <span class="status-item" title="Mode: ${modeLabel}">
           <ha-icon icon="mdi:thermometer"></ha-icon>
           ${temp}
         </span>
@@ -417,13 +434,13 @@ export class RoomCard extends LitElement {
           <ha-icon icon="mdi:water-percent"></ha-icon>
           ${humidity}
         </span>
-        <span class="status-item">
+        <span class="status-item" title="${modeLabel}">
           <ha-icon icon="mdi:clock-outline"></ha-icon>
           ${periodDisplay}
         </span>
-        <span class="status-item">
+        <span class="status-item" title="${isPresenceMode ? `${presentCount} present / ${totalPersons} assigned` : `${totalPersons} assigned`}">
           <ha-icon icon="mdi:account-group"></ha-icon>
-          ${personCount}
+          ${personDisplay}
         </span>
       </div>
     `;

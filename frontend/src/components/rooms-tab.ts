@@ -129,6 +129,7 @@ export class RoomsTab extends LitElement {
           .config=${roomConfig}
           .roomStatus=${roomStatus}
           .panelConfig=${this.config}
+          .status=${this.status}
           .ws=${this.ws}
           .panel=${this.panel}
           .hass=${this.hass}

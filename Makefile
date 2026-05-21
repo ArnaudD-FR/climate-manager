@@ -9,7 +9,8 @@ build:
 	cd frontend && npm install --no-audit --no-fund && npm run build
 
 deploy: build
-	rsync -av --delete $(SRC_DIR)/ $(HA_USER)@$(HA_HOST):$(HA_COMPONENT_DIR)/
+	ssh $(HA_USER)@$(HA_HOST) "mkdir -p $(HA_COMPONENT_DIR)"
+	scp -r $(SRC_DIR)/. $(HA_USER)@$(HA_HOST):$(HA_COMPONENT_DIR)/
 	ssh $(HA_USER)@$(HA_HOST) "ha core restart"
 
 test:

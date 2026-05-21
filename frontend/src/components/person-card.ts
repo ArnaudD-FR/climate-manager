@@ -305,6 +305,7 @@ export class PersonCard extends LitElement {
 
     try {
       await this.ws.setPersonConfig(this.personId, { schedule });
+      await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
@@ -346,12 +347,12 @@ export class PersonCard extends LitElement {
       <ha-card>
         <div class="card-header-row" @click=${() => { this._expanded = !this._expanded; }}>
           <div class="card-header-left">
-            <span class="person-name">${this.personName}</span>
-            <span class="mode-badge ${badgeCls}">${badgeText}</span>
             <span
               class="presence-dot ${this._isCurrentlyPresent() ? "present" : "absent"}"
               title="Currently ${this._isCurrentlyPresent() ? "present" : "absent"}"
             >●</span>
+            <span class="person-name">${this.personName}</span>
+            <span class="mode-badge ${badgeCls}">${badgeText}</span>
           </div>
           <ha-icon
             class="expand-icon ${this._expanded ? "expanded" : ""}"

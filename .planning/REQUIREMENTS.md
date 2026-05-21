@@ -10,17 +10,17 @@
 
 ### Global Mode & Temperature (GLOBAL)
 
-- [ ] **GLOBAL-01**: User can set the global mode to one of: Off, Time program, Time program & presences
-- [ ] **GLOBAL-02**: In Off mode, all rooms are set to frost protection temperature unless overridden by a specific period
-- [ ] **GLOBAL-03**: User can configure default temperatures for each period mode: Frost protection (default 7°C), Reduced (default 18°C), Normal (default 20°C), Comfort (default 22°C)
+- [x] **GLOBAL-01**: User can set the global mode to one of: Off, Time program, Time program & presences
+- [x] **GLOBAL-02**: In Off mode, all rooms are set to frost protection temperature unless overridden by a specific period
+- [x] **GLOBAL-03**: User can configure default temperatures for each period mode: Frost protection (default 7°C), Reduced (default 18°C), Normal (default 20°C), Comfort (default 22°C)
 
 ### Time Programs (SCHED)
 
-- [ ] **SCHED-01**: User can define a global time program made of weekday groups, each with a set of week days and a sequence of time periods
-- [ ] **SCHED-02**: Each time period in a program is defined by a start time and a period mode (Frost protection / Reduced / Normal / Comfort)
-- [ ] **SCHED-03**: The last time period of the day ends at midnight; the first period of the next weekday group takes over
-- [ ] **SCHED-04**: Each calendar day must appear in at most one weekday group within a time program (validated at save time)
-- [ ] **SCHED-05**: User can define a per-room time program that overrides the global time program for that room; if not defined, the room inherits the global time program
+- [x] **SCHED-01**: User can define a global time program made of weekday groups, each with a set of week days and a sequence of time periods
+- [x] **SCHED-02**: Each time period in a program is defined by a start time and a period mode (Frost protection / Reduced / Normal / Comfort)
+- [x] **SCHED-03**: The last time period of the day ends at midnight; the first period of the next weekday group takes over
+- [x] **SCHED-04**: Each calendar day must appear in at most one weekday group within a time program (validated at save time)
+- [x] **SCHED-05**: User can define a per-room time program that overrides the global time program for that room; if not defined, the room inherits the global time program
 
 ### Rooms (ROOM)
 
@@ -30,15 +30,15 @@
 
 ### Person Presence (PERSON)
 
-- [ ] **PERSON-01**: User can configure persons; each person has a presence mode: Automatic, Present, or Absent
-- [ ] **PERSON-02**: In Present mode, the person is always considered present regardless of time or schedule
-- [ ] **PERSON-03**: In Absent mode, the person is always considered absent regardless of time or schedule
-- [ ] **PERSON-04**: In Automatic mode, presence is determined by a periodic schedule (weekday groups with time periods marked present/absent)
-- [ ] **PERSON-05**: In Automatic mode with no schedule periods configured, the person defaults to absent
-- [ ] **PERSON-06**: Each person has a set of associated rooms; when the person is present, those rooms are warmed up
-- [ ] **PERSON-07**: In "Time program & presences" mode, when a person is present, the room heats from the start of the first Normal or Comfort period of the day to the end of the last Normal or Comfort period of the day
-- [ ] **PERSON-08**: In "Time program & presences" mode, when a person is present and a Reduced or Frost protection period falls between two Normal/Comfort periods, the room maintains the temperature of the preceding Normal/Comfort period (no cool-down during the gap)
-- [ ] **PERSON-09**: In "Time program & presences" mode, when a person is absent, the room is set to Reduced temperature
+- [x] **PERSON-01**: User can configure persons; each person has a presence mode: Automatic, Present, or Absent
+- [x] **PERSON-02**: In Present mode, the person is always considered present regardless of time or schedule
+- [x] **PERSON-03**: In Absent mode, the person is always considered absent regardless of time or schedule
+- [x] **PERSON-04**: In Automatic mode, presence is determined by a periodic schedule (weekday groups with time periods marked present/absent)
+- [x] **PERSON-05**: In Automatic mode with no schedule periods configured, the person defaults to absent
+- [x] **PERSON-06**: Each person has a set of associated rooms; when the person is present, those rooms are warmed up
+- [x] **PERSON-07**: In "Time program & presences" mode, when a person is present, the room heats from the start of the first Normal or Comfort period of the day to the end of the last Normal or Comfort period of the day
+- [x] **PERSON-08**: In "Time program & presences" mode, when a person is present and a Reduced or Frost protection period falls between two Normal/Comfort periods, the room maintains the temperature of the preceding Normal/Comfort period (no cool-down during the gap)
+- [x] **PERSON-09**: In "Time program & presences" mode, when a person is absent, the room is set to Reduced temperature
 
 ### UI Panel (UI)
 
@@ -51,9 +51,9 @@
 
 - [ ] **INFRA-01**: The integration has a correct HA custom integration structure (manifest.json with required fields, config flow, no external PyPI dependencies); deploys via SSH/rsync to `/config/custom_components/`; HACS publishing is out of scope for v1
 - [ ] **INFRA-02**: All configuration persists across HA restarts (stored via homeassistant.helpers.storage.Store)
-- [ ] **INFRA-03**: On HA startup, the integration recomputes the active period from the current time and immediately applies the correct temperature to all managed TRVs (no reliance on state restore)
+- [x] **INFRA-03**: On HA startup, the integration recomputes the active period from the current time and immediately applies the correct temperature to all managed TRVs (no reliance on state restore)
 - [ ] **INFRA-04**: TRVs are controlled via two sequential service calls: climate.set_hvac_mode (heat) then climate.set_temperature — auto mode is never used
-- [ ] **INFRA-05**: The integration handles DST transitions correctly by always deriving the active period from the current wall-clock time (dt_util.now())
+- [x] **INFRA-05**: The integration handles DST transitions correctly by always deriving the active period from the current wall-clock time (dt_util.now())
 
 ---
 
@@ -93,25 +93,25 @@ When a person is present, the room is heated continuously from the first Normal/
 | ROOM-01 | Phase 1 | Pending |
 | ROOM-02 | Phase 1 | Pending |
 | ROOM-03 | Phase 1 | Pending |
-| GLOBAL-01 | Phase 2 | Pending |
-| GLOBAL-02 | Phase 2 | Pending |
-| GLOBAL-03 | Phase 2 | Pending |
-| SCHED-01 | Phase 2 | Pending |
-| SCHED-02 | Phase 2 | Pending |
-| SCHED-03 | Phase 2 | Pending |
-| SCHED-04 | Phase 2 | Pending |
-| SCHED-05 | Phase 2 | Pending |
-| PERSON-01 | Phase 2 | Pending |
-| PERSON-02 | Phase 2 | Pending |
-| PERSON-03 | Phase 2 | Pending |
-| PERSON-04 | Phase 2 | Pending |
-| PERSON-05 | Phase 2 | Pending |
-| PERSON-06 | Phase 2 | Pending |
-| PERSON-07 | Phase 2 | Pending |
-| PERSON-08 | Phase 2 | Pending |
-| PERSON-09 | Phase 2 | Pending |
-| INFRA-03 | Phase 2 | Pending |
-| INFRA-05 | Phase 2 | Pending |
+| GLOBAL-01 | Phase 2 | Complete |
+| GLOBAL-02 | Phase 2 | Complete |
+| GLOBAL-03 | Phase 2 | Complete |
+| SCHED-01 | Phase 2 | Complete |
+| SCHED-02 | Phase 2 | Complete |
+| SCHED-03 | Phase 2 | Complete |
+| SCHED-04 | Phase 2 | Complete |
+| SCHED-05 | Phase 2 | Complete |
+| PERSON-01 | Phase 2 | Complete |
+| PERSON-02 | Phase 2 | Complete |
+| PERSON-03 | Phase 2 | Complete |
+| PERSON-04 | Phase 2 | Complete |
+| PERSON-05 | Phase 2 | Complete |
+| PERSON-06 | Phase 2 | Complete |
+| PERSON-07 | Phase 2 | Complete |
+| PERSON-08 | Phase 2 | Complete |
+| PERSON-09 | Phase 2 | Complete |
+| INFRA-03 | Phase 2 | Complete |
+| INFRA-05 | Phase 2 | Complete |
 | UI-01 | Phase 3 | Pending |
 | UI-02 | Phase 3 | Pending |
 | UI-03 | Phase 3 | Pending |
