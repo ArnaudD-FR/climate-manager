@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-15)
 Phase: 03 (websocket-api-frontend-panel) — EXECUTING
 Plan: 1 of 4
 Status: Executing Phase 03
-Last activity: 2026-05-21 - Completed quick task 260521-gck: perf: push TRVs concurrently with asyncio.gather
+Last activity: 2026-05-21 - Completed quick task 260521-ggx: tab persistence + period temperature in room card
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -87,6 +87,7 @@ None yet.
 | 260520-s9s | remove sensors section from room card and fix backend sensor priority chain | 2026-05-20 | f09eb50 | [260520-s9s-remove-sensors-section-from-room-card-an](.planning/quick/260520-s9s-remove-sensors-section-from-room-card-an/) |
 | 260520-svm | investigate: TRV used for Bureau instead of area sensors — confirmed getattr works | 2026-05-20 | — | [260520-svm-investigate-trv-used-for-bureau-instead-](.planning/quick/260520-svm-investigate-trv-used-for-bureau-instead-/) |
 | 260521-gck | perf: push TRVs concurrently with asyncio.gather — eliminates ~10s mode-change delay | 2026-05-21 | 721786f | [260521-gck-parallel-trv-push-commit](.planning/quick/260521-gck-parallel-trv-push-commit/) |
+| 260521-ggx | tab persistence on refresh + period temperature in room card header | 2026-05-21 | 5c57d2e | [260521-ggx-tab-persist-and-period-temp](.planning/quick/260521-ggx-tab-persist-and-period-temp/) |
 
 ### Blockers/Concerns
 
