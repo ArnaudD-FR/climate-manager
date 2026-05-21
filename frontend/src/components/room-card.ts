@@ -140,8 +140,11 @@ export class RoomCard extends LitElement {
       margin-bottom: 12px;
     }
 
-    /* TRV entity chips */
+    /* TRV section */
     .trv-section {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px;
       margin-bottom: 12px;
     }
 
@@ -152,33 +155,6 @@ export class RoomCard extends LitElement {
       text-transform: uppercase;
       color: var(--secondary-text-color);
       margin-bottom: 8px;
-    }
-
-    .trv-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      margin: 0 4px 6px 0;
-      border-radius: 16px;
-      background: var(--secondary-background-color, #f5f5f5);
-      border: 1px solid var(--divider-color, #e0e0e0);
-      font-size: 13px;
-      color: var(--primary-text-color);
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-
-    .trv-chip:hover {
-      background: var(--primary-color);
-      color: var(--text-primary-color, #fff);
-      border-color: var(--primary-color);
-    }
-
-    .trv-chip ha-icon {
-      --mdc-icon-size: 16px;
-      width: 16px;
-      height: 16px;
     }
 
     /* Person / room association chips */
@@ -443,12 +419,22 @@ export class RoomCard extends LitElement {
     `;
   }
 
-  private _openMoreInfo(entityId: string) {
-    this.dispatchEvent(new CustomEvent("hass-more-info", {
-      bubbles: true,
-      composed: true,
-      detail: { entityId },
-    }));
+  // Cache hui-thermostat-card instances so they are not recreated on every render.
+  // On each render we only need to push the updated hass object to each card.
+  private _trvCards = new Map<string, HTMLElement>();
+
+  private _getTrvCard(entityId: string): HTMLElement {
+    let card = this._trvCards.get(entityId);
+    if (!card) {
+      card = document.createElement("hui-thermostat-card") as HTMLElement;
+      (card as unknown as { setConfig(c: object): void }).setConfig({
+        type: "thermostat",
+        entity: entityId,
+      });
+      this._trvCards.set(entityId, card);
+    }
+    (card as unknown as { hass: unknown }).hass = this.hass;
+    return card;
   }
 
   private _renderTrvSection() {
@@ -465,16 +451,7 @@ export class RoomCard extends LitElement {
 
     return html`
       <div class="trv-section">
-        <div class="section-label">Climate entities</div>
-        ${entityIds.map((id) => {
-          const name = this.hass?.states[id]?.attributes?.["friendly_name"] ?? id;
-          return html`
-            <span class="trv-chip" @click=${() => this._openMoreInfo(id)}>
-              <ha-icon icon="mdi:radiator"></ha-icon>
-              ${name}
-            </span>
-          `;
-        })}
+        ${entityIds.map((id) => this._getTrvCard(id))}
       </div>
     `;
   }

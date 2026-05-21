@@ -3,10 +3,10 @@
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const lt = globalThis, wt = lt.ShadowRoot && (lt.ShadyCSS === void 0 || lt.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, St = Symbol(), Lt = /* @__PURE__ */ new WeakMap();
+const lt = globalThis, wt = lt.ShadowRoot && (lt.ShadyCSS === void 0 || lt.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, Ct = Symbol(), Lt = /* @__PURE__ */ new WeakMap();
 let Qt = class {
   constructor(t, e, o) {
-    if (this._$cssResult$ = !0, o !== St) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
+    if (this._$cssResult$ = !0, o !== Ct) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
     this.cssText = t, this.t = e;
   }
   get styleSheet() {
@@ -22,13 +22,13 @@ let Qt = class {
     return this.cssText;
   }
 };
-const ie = (n) => new Qt(typeof n == "string" ? n : n + "", void 0, St), E = (n, ...t) => {
+const ie = (n) => new Qt(typeof n == "string" ? n : n + "", void 0, Ct), E = (n, ...t) => {
   const e = n.length === 1 ? n[0] : t.reduce((o, s, r) => o + ((i) => {
     if (i._$cssResult$ === !0) return i.cssText;
     if (typeof i == "number") return i;
     throw Error("Value passed to 'css' function must be a 'css' function result: " + i + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
   })(s) + n[r + 1], n[0]);
-  return new Qt(e, n, St);
+  return new Qt(e, n, Ct);
 }, ne = (n, t) => {
   if (wt) n.adoptedStyleSheets = t.map((e) => e instanceof CSSStyleSheet ? e : e.styleSheet);
   else for (const e of t) {
@@ -73,7 +73,7 @@ const { is: ae, defineProperty: ce, getOwnPropertyDescriptor: le, getOwnProperty
       }
   }
   return e;
-} }, Ct = (n, t) => !ae(n, t), qt = { attribute: !0, type: String, converter: dt, reflect: !1, useDefault: !1, hasChanged: Ct };
+} }, St = (n, t) => !ae(n, t), qt = { attribute: !0, type: String, converter: dt, reflect: !1, useDefault: !1, hasChanged: St };
 Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), D.litPropertyMetadata ?? (D.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
 let Y = class extends HTMLElement {
   static addInitializer(t) {
@@ -202,7 +202,7 @@ let Y = class extends HTMLElement {
     var i;
     if (t !== void 0) {
       const a = this.constructor;
-      if (s === !1 && (r = this[t]), o ?? (o = a.getPropertyOptions(t)), !((o.hasChanged ?? Ct)(r, e) || o.useDefault && o.reflect && r === ((i = this._$Ej) == null ? void 0 : i.get(t)) && !this.hasAttribute(a._$Eu(t, o)))) return;
+      if (s === !1 && (r = this[t]), o ?? (o = a.getPropertyOptions(t)), !((o.hasChanged ?? St)(r, e) || o.useDefault && o.reflect && r === ((i = this._$Ej) == null ? void 0 : i.get(t)) && !this.hasAttribute(a._$Eu(t, o)))) return;
       this.C(t, e, o);
     }
     this.isUpdatePending === !1 && (this._$ES = this._$EP());
@@ -285,7 +285,7 @@ Y.elementStyles = [], Y.shadowRootOptions = { mode: "open" }, Y[Q("elementProper
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const tt = globalThis, Xt = (n) => n, pt = tt.trustedTypes, Yt = pt ? pt.createPolicy("lit-html", { createHTML: (n) => n }) : void 0, te = "$lit$", z = `lit$${Math.random().toFixed(9).slice(2)}$`, ee = "?" + z, me = `<${ee}>`, L = document, et = () => L.createComment(""), st = (n) => n === null || typeof n != "object" && typeof n != "function", Pt = Array.isArray, ge = (n) => Pt(n) || typeof (n == null ? void 0 : n[Symbol.iterator]) == "function", gt = `[ 	
-\f\r]`, Z = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, Gt = /-->/g, Vt = />/g, H = RegExp(`>|${gt}(?:([^\\s"'>=/]+)(${gt}*=${gt}*(?:[^ 	
+\f\r]`, Z = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, Gt = /-->/g, Vt = />/g, I = RegExp(`>|${gt}(?:([^\\s"'>=/]+)(${gt}*=${gt}*(?:[^ 	
 \f\r"'\`<>=]|("|')|))|$)`, "g"), Wt = /'/g, Jt = /"/g, se = /^(?:script|style|textarea|title)$/i, fe = (n) => (t, ...e) => ({ _$litType$: n, strings: t, values: e }), l = fe(1), G = Symbol.for("lit-noChange"), x = Symbol.for("lit-nothing"), Kt = /* @__PURE__ */ new WeakMap(), U = L.createTreeWalker(L, 129);
 function oe(n, t) {
   if (!Pt(n) || !n.hasOwnProperty("raw")) throw Error("invalid template strings array");
@@ -297,8 +297,8 @@ const _e = (n, t) => {
   for (let a = 0; a < e; a++) {
     const c = n[a];
     let d, p, h = -1, _ = 0;
-    for (; _ < c.length && (i.lastIndex = _, p = i.exec(c), p !== null); ) _ = i.lastIndex, i === Z ? p[1] === "!--" ? i = Gt : p[1] !== void 0 ? i = Vt : p[2] !== void 0 ? (se.test(p[2]) && (s = RegExp("</" + p[2], "g")), i = H) : p[3] !== void 0 && (i = H) : i === H ? p[0] === ">" ? (i = s ?? Z, h = -1) : p[1] === void 0 ? h = -2 : (h = i.lastIndex - p[2].length, d = p[1], i = p[3] === void 0 ? H : p[3] === '"' ? Jt : Wt) : i === Jt || i === Wt ? i = H : i === Gt || i === Vt ? i = Z : (i = H, s = void 0);
-    const b = i === H && n[a + 1].startsWith("/>") ? " " : "";
+    for (; _ < c.length && (i.lastIndex = _, p = i.exec(c), p !== null); ) _ = i.lastIndex, i === Z ? p[1] === "!--" ? i = Gt : p[1] !== void 0 ? i = Vt : p[2] !== void 0 ? (se.test(p[2]) && (s = RegExp("</" + p[2], "g")), i = I) : p[3] !== void 0 && (i = I) : i === I ? p[0] === ">" ? (i = s ?? Z, h = -1) : p[1] === void 0 ? h = -2 : (h = i.lastIndex - p[2].length, d = p[1], i = p[3] === void 0 ? I : p[3] === '"' ? Jt : Wt) : i === Jt || i === Wt ? i = I : i === Gt || i === Vt ? i = Z : (i = I, s = void 0);
+    const b = i === I && n[a + 1].startsWith("/>") ? " " : "";
     r += i === Z ? c + me : h >= 0 ? (o.push(d), c.slice(0, h) + te + c.slice(h) + z + b) : c + z + (h === -2 ? a : b);
   }
   return [oe(n, r + (n[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), o];
@@ -556,7 +556,7 @@ _t == null || _t({ LitElement: w });
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Se = { attribute: !0, type: String, converter: dt, reflect: !1, hasChanged: Ct }, Ce = (n = Se, t, e) => {
+const Ce = { attribute: !0, type: String, converter: dt, reflect: !1, hasChanged: St }, Se = (n = Ce, t, e) => {
   const { kind: o, metadata: s } = e;
   let r = globalThis.litPropertyMetadata.get(s);
   if (r === void 0 && globalThis.litPropertyMetadata.set(s, r = /* @__PURE__ */ new Map()), o === "setter" && ((n = Object.create(n)).wrapped = !0), r.set(e.name, n), o === "accessor") {
@@ -578,7 +578,7 @@ const Se = { attribute: !0, type: String, converter: dt, reflect: !1, hasChanged
   throw Error("Unsupported decorator location: " + o);
 };
 function m(n) {
-  return (t, e) => typeof e == "object" ? Ce(n, t, e) : ((o, s, r) => {
+  return (t, e) => typeof e == "object" ? Se(n, t, e) : ((o, s, r) => {
     const i = s.hasOwnProperty(r);
     return s.constructor.createProperty(r, o), i ? Object.getOwnPropertyDescriptor(s, r) : void 0;
   })(n, t, e);
@@ -1448,35 +1448,35 @@ Mt.styles = E`
       color: var(--error-color, #db4437);
     }
   `;
-let C = Mt;
+let S = Mt;
 M([
   m({ type: Array })
-], C.prototype, "days");
+], S.prototype, "days");
 M([
   m({ type: String })
-], C.prototype, "mode");
+], S.prototype, "mode");
 M([
   v()
-], C.prototype, "_clipboard");
+], S.prototype, "_clipboard");
 M([
   v()
-], C.prototype, "_drag");
+], S.prototype, "_drag");
 M([
   v()
-], C.prototype, "_dragTooltipMinutes");
+], S.prototype, "_dragTooltipMinutes");
 M([
   v()
-], C.prototype, "_dragTooltipX");
+], S.prototype, "_dragTooltipX");
 M([
   v()
-], C.prototype, "_dragTooltipY");
+], S.prototype, "_dragTooltipY");
 M([
   v()
-], C.prototype, "_dragPreviewDays");
+], S.prototype, "_dragPreviewDays");
 M([
   v()
-], C.prototype, "_popup");
-customElements.define("climate-manager-time-bar", C);
+], S.prototype, "_popup");
+customElements.define("climate-manager-time-bar", S);
 var ze = Object.defineProperty, ut = (n, t, e, o) => {
   for (var s = void 0, r = n.length - 1, i; r >= 0; r--)
     (i = n[r]) && (s = i(t, e, s) || s);
@@ -1501,12 +1501,12 @@ const yt = "off", xt = "time_program", $t = "time_program_presences", De = {
   [yt]: "Off",
   [xt]: "Time program",
   [$t]: "Time program & presences"
-}, Ie = {
+}, Ne = {
   frost_protection: 7,
   reduced: 18,
   normal: 20,
   comfort: 22
-}, Ne = "time_program", He = (() => {
+}, He = "time_program", Ie = (() => {
   const n = () => [
     { start: "00:00", mode: "reduced" },
     { start: "06:00", mode: "normal" },
@@ -1548,13 +1548,13 @@ const yt = "off", xt = "time_program", $t = "time_program_presences", De = {
       t.stopPropagation();
     }, this._onResetTemperatures = async () => {
       try {
-        await this.ws.setPeriodTemperatures(Ie), await this.panel.reloadConfig(), this.panel.showToast("Reset to defaults", !1);
+        await this.ws.setPeriodTemperatures(Ne), await this.panel.reloadConfig(), this.panel.showToast("Reset to defaults", !1);
       } catch {
         this.panel.showToast("Reset failed — retrying...", !0);
       }
     }, this._onResetConfiguration = async () => {
       try {
-        await this.ws.setGlobalMode(Ne), await this.ws.setTimeProgram(He), await this.panel.reloadConfig(), this.panel.showToast("Reset to defaults", !1);
+        await this.ws.setGlobalMode(He), await this.ws.setTimeProgram(Ie), await this.panel.reloadConfig(), this.panel.showToast("Reset to defaults", !1);
       } catch {
         this.panel.showToast("Reset failed — retrying...", !0);
       }
@@ -2148,7 +2148,7 @@ var je = Object.defineProperty, R = (n, t, e, o) => {
 };
 const zt = class zt extends w {
   constructor() {
-    super(...arguments), this.roomStatus = null, this._expanded = !1;
+    super(...arguments), this.roomStatus = null, this._expanded = !1, this._trvCards = /* @__PURE__ */ new Map();
   }
   connectedCallback() {
     var t;
@@ -2268,12 +2268,12 @@ const zt = class zt extends w {
       </div>
     `;
   }
-  _openMoreInfo(t) {
-    this.dispatchEvent(new CustomEvent("hass-more-info", {
-      bubbles: !0,
-      composed: !0,
-      detail: { entityId: t }
-    }));
+  _getTrvCard(t) {
+    let e = this._trvCards.get(t);
+    return e || (e = document.createElement("hui-thermostat-card"), e.setConfig({
+      type: "thermostat",
+      entity: t
+    }), this._trvCards.set(t, e)), e.hass = this.hass, e;
   }
   _renderTrvSection() {
     var e;
@@ -2285,17 +2285,7 @@ const zt = class zt extends w {
         </div>
       ` : l`
       <div class="trv-section">
-        <div class="section-label">Climate entities</div>
-        ${t.map((o) => {
-      var r, i, a;
-      const s = ((a = (i = (r = this.hass) == null ? void 0 : r.states[o]) == null ? void 0 : i.attributes) == null ? void 0 : a.friendly_name) ?? o;
-      return l`
-            <span class="trv-chip" @click=${() => this._openMoreInfo(o)}>
-              <ha-icon icon="mdi:radiator"></ha-icon>
-              ${s}
-            </span>
-          `;
-    })}
+        ${t.map((o) => this._getTrvCard(o))}
       </div>
     `;
   }
@@ -2488,8 +2478,11 @@ zt.styles = E`
       margin-bottom: 12px;
     }
 
-    /* TRV entity chips */
+    /* TRV section */
     .trv-section {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px;
       margin-bottom: 12px;
     }
 
@@ -2500,33 +2493,6 @@ zt.styles = E`
       text-transform: uppercase;
       color: var(--secondary-text-color);
       margin-bottom: 8px;
-    }
-
-    .trv-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      margin: 0 4px 6px 0;
-      border-radius: 16px;
-      background: var(--secondary-background-color, #f5f5f5);
-      border: 1px solid var(--divider-color, #e0e0e0);
-      font-size: 13px;
-      color: var(--primary-text-color);
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-
-    .trv-chip:hover {
-      background: var(--primary-color);
-      color: var(--text-primary-color, #fff);
-      border-color: var(--primary-color);
-    }
-
-    .trv-chip ha-icon {
-      --mdc-icon-size: 16px;
-      width: 16px;
-      height: 16px;
     }
 
     /* Person / room association chips */
@@ -2697,7 +2663,7 @@ const Dt = class Dt extends w {
       `;
     const s = (g) => {
       var f, u, $;
-      return (($ = (u = (f = this.status) == null ? void 0 : f.rooms_status) == null ? void 0 : u.find((S) => S.area_id === g)) == null ? void 0 : $.name) ?? g.replace(/_/g, " ").replace(/\b\w/g, (S) => S.toUpperCase());
+      return (($ = (u = (f = this.status) == null ? void 0 : f.rooms_status) == null ? void 0 : u.find((C) => C.area_id === g)) == null ? void 0 : $.name) ?? g.replace(/_/g, " ").replace(/\b\w/g, (C) => C.toUpperCase());
     }, r = /* @__PURE__ */ new Map();
     for (const g of o) {
       const f = ((y = (b = (_ = this.hass) == null ? void 0 : _.areas) == null ? void 0 : b[g]) == null ? void 0 : y.floor_id) ?? null;
@@ -2707,8 +2673,8 @@ const Dt = class Dt extends w {
       g.sort((f, u) => s(f).localeCompare(s(u)));
     const i = [...r.keys()].filter((g) => g !== null).sort(
       (g, f) => {
-        var u, $, S, K, Ut, jt;
-        return (((S = ($ = (u = this.hass) == null ? void 0 : u.floors) == null ? void 0 : $[f]) == null ? void 0 : S.level) ?? 0) - (((jt = (Ut = (K = this.hass) == null ? void 0 : K.floors) == null ? void 0 : Ut[g]) == null ? void 0 : jt.level) ?? 0);
+        var u, $, C, K, Ut, jt;
+        return (((C = ($ = (u = this.hass) == null ? void 0 : u.floors) == null ? void 0 : $[f]) == null ? void 0 : C.level) ?? 0) - (((jt = (Ut = (K = this.hass) == null ? void 0 : K.floors) == null ? void 0 : Ut[g]) == null ? void 0 : jt.level) ?? 0);
       }
     ), a = r.get(null) ?? [], c = (g) => {
       const f = t[g] ?? {}, u = this._getRoomStatus(g), $ = s(g);
@@ -2725,16 +2691,16 @@ const Dt = class Dt extends w {
         ></climate-manager-room-card>
       `;
     }, d = (g) => {
-      var $, S;
-      const f = (S = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : S[g];
+      var $, C;
+      const f = (C = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : C[g];
       if (f != null && f.icon) return f.icon;
       const u = (f == null ? void 0 : f.level) ?? 0;
       return u === -1 ? "mdi:home-floor-negative-1" : u < 0 ? "mdi:home-floor-b" : u === 1 ? "mdi:home-floor-1" : u === 2 ? "mdi:home-floor-2" : u === 3 || u > 3 ? "mdi:home-floor-3" : "mdi:home-floor-0";
     };
     return l`
       ${i.map((g) => {
-      var $, S, K;
-      const f = ((K = (S = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : S[g]) == null ? void 0 : K.name) ?? g, u = r.get(g) ?? [];
+      var $, C, K;
+      const f = ((K = (C = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : C[g]) == null ? void 0 : K.name) ?? g, u = r.get(g) ?? [];
       return l`
           <div class="floor-header">
             <ha-icon icon=${d(g)}></ha-icon>
@@ -2783,29 +2749,29 @@ Dt.styles = E`
       flex-shrink: 0;
     }
   `;
-let I = Dt;
+let N = Dt;
 it([
   m({ attribute: !1 })
-], I.prototype, "config");
+], N.prototype, "config");
 it([
   m({ attribute: !1 })
-], I.prototype, "status");
+], N.prototype, "status");
 it([
   m({ attribute: !1 })
-], I.prototype, "ws");
+], N.prototype, "ws");
 it([
   m({ attribute: !1 })
-], I.prototype, "panel");
+], N.prototype, "panel");
 it([
   m({ attribute: !1 })
-], I.prototype, "hass");
-customElements.define("climate-manager-rooms-tab", I);
+], N.prototype, "hass");
+customElements.define("climate-manager-rooms-tab", N);
 var Be = Object.defineProperty, F = (n, t, e, o) => {
   for (var s = void 0, r = n.length - 1, i; r >= 0; r--)
     (i = n[r]) && (s = i(t, e, s) || s);
   return s && Be(t, e, s), s;
 };
-const X = "automatic", bt = "present", vt = "absent", It = class It extends w {
+const X = "automatic", bt = "present", vt = "absent", Nt = class Nt extends w {
   constructor() {
     super(...arguments), this.roomChoices = [], this._expanded = !1;
   }
@@ -2955,7 +2921,7 @@ const X = "automatic", bt = "present", vt = "absent", It = class It extends w {
     `;
   }
 };
-It.styles = E`
+Nt.styles = E`
     :host {
       display: block;
     }
@@ -3126,7 +3092,7 @@ It.styles = E`
       margin-top: 12px;
     }
   `;
-let T = It;
+let T = Nt;
 F([
   m({ type: String })
 ], T.prototype, "personId");
@@ -3154,7 +3120,7 @@ var Fe = Object.defineProperty, nt = (n, t, e, o) => {
     (i = n[r]) && (s = i(t, e, s) || s);
   return s && Fe(t, e, s), s;
 };
-const Nt = class Nt extends w {
+const Ht = class Ht extends w {
   constructor() {
     super(...arguments), this.status = null;
   }
@@ -3209,7 +3175,7 @@ const Nt = class Nt extends w {
     `;
   }
 };
-Nt.styles = E`
+Ht.styles = E`
     :host {
       display: block;
     }
@@ -3222,29 +3188,29 @@ Nt.styles = E`
       line-height: 1.5;
     }
   `;
-let N = Nt;
+let H = Ht;
 nt([
   m({ attribute: !1 })
-], N.prototype, "config");
+], H.prototype, "config");
 nt([
   m({ attribute: !1 })
-], N.prototype, "status");
+], H.prototype, "status");
 nt([
   m({ attribute: !1 })
-], N.prototype, "ws");
+], H.prototype, "ws");
 nt([
   m({ attribute: !1 })
-], N.prototype, "panel");
+], H.prototype, "panel");
 nt([
   m({ attribute: !1 })
-], N.prototype, "hass");
-customElements.define("climate-manager-persons-tab", N);
+], H.prototype, "hass");
+customElements.define("climate-manager-persons-tab", H);
 var qe = Object.defineProperty, O = (n, t, e, o) => {
   for (var s = void 0, r = n.length - 1, i; r >= 0; r--)
     (i = n[r]) && (s = i(t, e, s) || s);
   return s && qe(t, e, s), s;
 };
-const Ht = class Ht extends w {
+const It = class It extends w {
   constructor() {
     super(...arguments), this.narrow = !1, this.panel = null, this._config = null, this._status = null, this._activeTab = "global", this._unsubStatus = null, this._wsError = !1, this._ws = null;
   }
@@ -3365,7 +3331,7 @@ const Ht = class Ht extends w {
     }
   }
 };
-Ht.styles = E`
+It.styles = E`
     :host {
       display: block;
       background: var(--primary-background-color);
@@ -3447,7 +3413,7 @@ Ht.styles = E`
       text-align: center;
     }
   `;
-let k = Ht;
+let k = It;
 O([
   m({ attribute: !1 })
 ], k.prototype, "hass");
