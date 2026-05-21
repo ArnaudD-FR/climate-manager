@@ -7,6 +7,7 @@ Tests:
 - Manual override hold: skip entity when TRV reports different temp (D-03)
 - Present person wins over absent person for a shared room (D-07 multi-person conflict)
 - Frost protection before first period (WR-04)
+- Room mode branching: global / frost_protection / custom (D-20)
 
 All tests use MockConfigEntry + hass fixture following the pattern from test_init.py.
 TRV states are seeded before setup; climate services are captured via async_mock_service.
@@ -26,7 +27,19 @@ from custom_components.climate_manager.const import (
     PERIOD_NORMAL,
     PERIOD_REDUCED,
     DEFAULT_PERIOD_TEMPERATURES,
+    ROOM_MODE_GLOBAL,
+    ROOM_MODE_FROST,
+    ROOM_MODE_CUSTOM,
 )
+
+# ---------------------------------------------------------------------------
+# Module-level fixture: all days Comfort (for custom room_mode tests)
+# ---------------------------------------------------------------------------
+
+ALL_DAYS_COMFORT_PROGRAM: dict = {
+    day: [{"start": "00:00", "mode": PERIOD_COMFORT}]
+    for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+}
 
 # ---------------------------------------------------------------------------
 # Test fixtures / helpers — per-day schema (D-01)
@@ -353,4 +366,216 @@ async def test_coordinator_applies_frost_before_first_period(hass):
     assert pushed_temp == DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION], (
         f"Expected frost-protection temp {DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION]} "
         f"before first period, got {pushed_temp}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tests 7-12: Per-room mode branching (D-20)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")  # Monday 12:00 UTC = 04:00 US/Pacific (Normal in ALL_DAYS_NORMAL)
+async def test_room_mode_frost_protection_pushes_frost_temp(hass):
+    """D-20: room with room_mode='frost_protection' receives frost temp regardless of schedule.
+
+    Global program is Normal (20.0) at this time. Room mode overrides to frost protection (7.0).
+    """
+    hass.states.async_set("climate.frost_trv", "heat", {"temperature": 20.0})
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Global program: Normal all day. Room mode overrides to frost_protection.
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config={"area_x": {"room_mode": ROOM_MODE_FROST}},
+    )
+    entry.runtime_data.rooms = {"area_x": ["climate.frost_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    calls = [c for c in temp_calls if c.data.get("entity_id") == "climate.frost_trv"]
+    assert len(calls) >= 1, "Expected set_temperature call for frost_trv"
+    assert calls[-1].data["temperature"] == DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION], (
+        f"room_mode=frost_protection should push 7.0, got {calls[-1].data['temperature']}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")  # Monday 12:00 UTC — Normal active in global
+async def test_room_mode_custom_uses_room_time_program(hass):
+    """D-20: room with room_mode='custom' uses its own time_program (Comfort all day → 22.0).
+
+    Global program gives Normal (20.0). Room's custom program is Comfort all day (22.0).
+    """
+    hass.states.async_set("climate.custom_trv", "heat", {"temperature": 15.0})
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config={"area_y": {"room_mode": ROOM_MODE_CUSTOM, "time_program": ALL_DAYS_COMFORT_PROGRAM}},
+    )
+    entry.runtime_data.rooms = {"area_y": ["climate.custom_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    calls = [c for c in temp_calls if c.data.get("entity_id") == "climate.custom_trv"]
+    assert len(calls) >= 1, "Expected set_temperature call for custom_trv"
+    assert calls[-1].data["temperature"] == DEFAULT_PERIOD_TEMPERATURES[PERIOD_COMFORT], (
+        f"room_mode=custom with Comfort program should push 22.0, got {calls[-1].data['temperature']}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")  # Monday 12:00 UTC — Normal active
+async def test_room_mode_global_explicit_key_uses_global_program(hass):
+    """D-20: room with room_mode='global' (explicit key) follows the global time program.
+
+    Global program is Normal all day (20.0). room_mode='global' → 20.0.
+    """
+    hass.states.async_set("climate.global_trv", "heat", {"temperature": 15.0})
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config={"area_z": {"room_mode": ROOM_MODE_GLOBAL}},
+    )
+    entry.runtime_data.rooms = {"area_z": ["climate.global_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    calls = [c for c in temp_calls if c.data.get("entity_id") == "climate.global_trv"]
+    assert len(calls) >= 1, "Expected set_temperature call for global_trv"
+    assert calls[-1].data["temperature"] == DEFAULT_PERIOD_TEMPERATURES[PERIOD_NORMAL], (
+        f"room_mode=global should use global program (Normal=20.0), got {calls[-1].data['temperature']}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")  # Monday 12:00 UTC — Normal active
+async def test_room_mode_absent_key_uses_global_program(hass):
+    """D-20: room with no room_mode key (absent) defaults to global time program.
+
+    Absent key behavior must be identical to room_mode='global'.
+    """
+    hass.states.async_set("climate.default_trv", "heat", {"temperature": 15.0})
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config={"area_w": {}},  # no room_mode key — should default to global
+    )
+    entry.runtime_data.rooms = {"area_w": ["climate.default_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    calls = [c for c in temp_calls if c.data.get("entity_id") == "climate.default_trv"]
+    assert len(calls) >= 1, "Expected set_temperature call for default_trv"
+    assert calls[-1].data["temperature"] == DEFAULT_PERIOD_TEMPERATURES[PERIOD_NORMAL], (
+        f"Absent room_mode key should default to global (Normal=20.0), got {calls[-1].data['temperature']}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")  # Monday 12:00 UTC — Normal active
+async def test_room_mode_frost_wins_over_stale_time_program(hass):
+    """D-20: room with room_mode='frost_protection' ignores a stale time_program.
+
+    Even when a time_program is stored for the room, frost_protection wins.
+    """
+    hass.states.async_set("climate.combo_trv", "heat", {"temperature": 15.0})
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # room_mode=frost_protection AND a time_program (Comfort) — frost wins
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config={"area_v": {"room_mode": ROOM_MODE_FROST, "time_program": ALL_DAYS_COMFORT_PROGRAM}},
+    )
+    entry.runtime_data.rooms = {"area_v": ["climate.combo_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    calls = [c for c in temp_calls if c.data.get("entity_id") == "climate.combo_trv"]
+    assert len(calls) >= 1, "Expected set_temperature call for combo_trv"
+    pushed = calls[-1].data["temperature"]
+    assert pushed == DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION], (
+        f"room_mode=frost_protection should push 7.0 ignoring time_program, got {pushed}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 16:30:00")  # Monday 16:30 UTC = 08:30 US/Pacific (Normal period)
+async def test_room_mode_frost_wins_over_presence(hass):
+    """D-20: room_mode='frost_protection' overrides presence mode for the room.
+
+    Even when a present person is associated with the room, frost_protection wins.
+    The room is held at 7.0 regardless of presence.
+    """
+    hass.states.async_set("climate.presence_frost_trv", "heat", {"temperature": 15.0})
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Person A is present and associated with area_p
+    persons_config = {
+        "person.alice": {
+            "mode": "present",
+            "room_ids": ["area_p"],
+            "schedule": {},
+        },
+    }
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM_PRESENCES,
+        daily_program=TYPICAL_WEEKDAY_PROGRAM,
+        rooms_config={"area_p": {"room_mode": ROOM_MODE_FROST}},
+        persons_config=persons_config,
+    )
+    entry.runtime_data.rooms = {"area_p": ["climate.presence_frost_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    calls = [c for c in temp_calls if c.data.get("entity_id") == "climate.presence_frost_trv"]
+    assert len(calls) >= 1, "Expected set_temperature call for presence_frost_trv"
+    pushed = calls[-1].data["temperature"]
+    assert pushed == DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION], (
+        f"room_mode=frost_protection should override presence and push 7.0, got {pushed}"
     )
