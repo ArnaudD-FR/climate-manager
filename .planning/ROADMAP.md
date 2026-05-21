@@ -118,7 +118,16 @@ Plans:
 
 **Wave 8 (add-more)** *(D-21 frontend + D-22 + D-15 update — blocked on 03-08)*
 
-- [ ] 03-09-PLAN.md — D-21 frontend (4-option mode selector incl. HA), D-22 default schedule seeding on Scheduled, D-15 update (always-collapsed cards + presence dot in header), human-verify
+- [x] 03-09-PLAN.md — D-21 frontend (4-option mode selector incl. HA), D-22 default schedule seeding on Scheduled, D-15 update (always-collapsed cards + presence dot in header), human-verify
+
+**Wave 9 (gap-closure)** *(D-23/D-24/D-25/D-26/D-27 — added 2026-05-21)*
+
+- [ ] 03-10-PLAN.md — D-24 backend (present_person_count in rooms_status) + D-25 backend (climate_entities in get_config) + tests
+- [ ] 03-11-PLAN.md — D-26 styling (PERIOD_COLORS/PRESENCE_COLORS single source) + D-27 (HA CSS variables for all non-period styling) — parallel with 03-10
+
+**Wave 10 (gap-closure)** *(blocked on 03-10 and 03-11)*
+
+- [ ] 03-12-PLAN.md — D-23 frontend cleanup: types.ts contract additions + room-card.ts direct binding from present_person_count, human-verify
 
 **UI hint**: yes
 **Plans created:** 2026-05-17 (initial), replanned 2026-05-20 for D-13/D-14d/D-19/D-20, add-more 2026-05-21 for D-21/D-22/D-15-update
