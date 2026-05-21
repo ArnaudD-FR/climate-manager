@@ -1,6 +1,6 @@
 # Phase 3: WebSocket API & Frontend Panel - Context
 
-**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21)
+**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21)
 **Status:** Ready for planning
 
 <domain>
@@ -123,6 +123,29 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
   - **ha-select is broken in HA 2026.x** — implementation uses a native `<input type="text">` for search and a custom `<ul>` list, not any `ha-*` select component.
   - Items already assigned are excluded from the picker list (same logic as current `<select>` filtering).
 
+### Frontend/Backend Separation Policy (added 2026-05-21)
+
+- **D-23 (architectural rule):** "All logic in backend" means: business logic (schedule evaluation, temperature derivation, mode resolution, presence determination) and any display-computed values that require backend data joins (e.g., per-room present-person count). **Acceptable in frontend:** UI state management (filtering picker items, sorting lists for display, array manipulation to build a save payload before sending), simple lookup bindings (`.includes()`, `.find()` to bind a label to an ID), template rendering loops.
+- **D-24:** `rooms_status` entries in both `ws_get_status` (`websocket.py`) and `_build_status_payload` (`coordinator.py`) include a `present_person_count: int` field. Computed as: the number of persons assigned to the room (from `runtime_config.persons`, checking `person_config.get("room_ids", [])` contains `area_id`) that also appear in `_last_present_persons`. Frontend binds `status.present_person_count` directly — no array intersection in TS.
+- **D-25:** The list of available climate entities is provided by the backend. `get_config` response (or a new `get_climate_entities` command if `get_config` becomes too heavy) includes a `climate_entities: list[str]` key — all `climate.*` entity IDs discovered in HA. Frontend does NOT filter `hass.states` by domain to build the TRV picker. Backend discovery already reads HA entity registry; exposing the list via WebSocket is a small addition.
+
+### Styling Policy (added 2026-05-21)
+
+- **D-26:** Period colors and presence schedule colors are defined **once** as exported const objects in `frontend/src/types.ts`:
+  - `PERIOD_COLORS: Record<string, string> = { frost_protection: '#1565C0', reduced: '#0277BD', normal: '#2E7D32', comfort: '#E65100' }`
+  - `PRESENCE_COLORS: Record<string, string> = { present: '#2E7D32', absent: '#9E9E9E' }`
+  Components import these — no inline hex literals elsewhere. These are product-specific semantic colors; HA's `--success-color` / `--warning-color` palette does not map cleanly to period semantics.
+- **D-27:** All non-period-badge styling uses HA CSS custom properties. No other hardcoded color or size values anywhere in the panel. Mandatory variables: `--primary-text-color`, `--secondary-text-color`, `--primary-color`, `--card-background-color`, `--secondary-background-color`, `--ha-card-border-radius`, `--divider-color`. Any new element with a custom color must use an HA CSS variable or draw from `PERIOD_COLORS` / `PRESENCE_COLORS`.
+
+### HA Component Policy (added 2026-05-21)
+
+- **D-28 (default):** Default to `ha-*` and `hui-*` web components — assume they work until a rendering failure is observed during dev or on-device testing. When a component is confirmed broken, fall back to native HTML + HA CSS variables and add a note to this section.
+- **D-29 (confirmed broken in HA 2026.x):**
+  - `ha-select` — does not render slotted items; `.items` API absent. **Fallback:** native `<select>` element styled with HA CSS variables.
+  - `ha-textfield` — renders nothing. **Fallback:** `<input>` + `<label>` + suffix `<span>`, styled with HA CSS variables.
+  - `ha-tabs` / `paper-tab` — removed. **Fallback:** CSS flexbox button row with `--primary-color` underline on active tab (already implemented in the panel header). Specific replacement patterns at Claude's discretion per plan.
+- **D-30:** For popup overlays (time-bar split/edit popup, search-picker dropdown), try `ha-dialog` first. If it does not serve the use case (e.g., modal semantics too heavy for a small positional popup), fall back to a `position:fixed` div with HA CSS `--card-background-color`, `--ha-card-border-radius`, and box-shadow matching HA card style.
+
 ### Claude's Discretion
 
 - WebSocket command granularity: whether to use one command per field (e.g., `climate_manager/set_global_mode`) or section-level saves (e.g., `climate_manager/save_global_settings`) — left to the researcher/planner to design the minimal command set that supports auto-save.
@@ -188,6 +211,9 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 - `ClimateManagerData` dataclass — May need a `rooms_meta` field or similar to cache discovered room sensor associations; or discovery can be called inline per WebSocket request.
 - The per-day schema refactor (pre-condition) changes `const.py`'s `DEFAULT_CONFIG` shape and `schedule.py`'s evaluation logic — all Phase 3 code is written against the refactored schema.
 - **`frontend/src/types.ts` `Hass` interface** — Must be extended with `areas` and `floors` registry maps for floor-based room ordering (D-14b). `hass.areas[area_id].floor_id` is null for unassigned areas; guard for this in sort logic.
+- **`frontend/src/types.ts` `PERIOD_COLORS` / `PRESENCE_COLORS`** — Exported const objects (D-26). All components referencing period or presence badge colors import from here; no inline hex literals.
+- **`rooms_status[].present_person_count`** — New int field in status payload (D-24). `coordinator.py` `_build_status_payload` and `websocket.py` `ws_get_status` both compute it. Room card binds this value directly instead of computing an array intersection in TS.
+- **`get_config` response `climate_entities`** — New list field (D-25). Backend exposes all discovered `climate.*` entity IDs. TRV picker in room card reads this instead of filtering `hass.states` by domain.
 
 </code_context>
 
