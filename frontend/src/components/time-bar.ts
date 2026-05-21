@@ -24,7 +24,7 @@
  * Never calls WebSocket — presentational + interaction only.
  */
 
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import {
@@ -501,6 +501,11 @@ export class ClimateManagerTimeBar extends LitElement {
       e.stopPropagation();
       return;
     }
+    if (this._justDragged) {
+      this._justDragged = false;
+      e.stopPropagation();
+      return;
+    }
     this._popup = {
       kind: "edit",
       dayIndex,
@@ -726,9 +731,15 @@ export class ClimateManagerTimeBar extends LitElement {
           return p;
         });
 
+        // Keep preview at the final drag position to prevent flicker while
+        // the parent round-trips through WS → reloadConfig → prop update.
+        // Cleared in updated() when the `days` prop actually changes.
+        const finalPreviewDays = this.days.map((day, i) =>
+          i === dayIndex ? newPeriods : day,
+        );
         this._drag = null;
         this._dragTooltipMinutes = null;
-        this._dragPreviewDays = null;
+        this._dragPreviewDays = finalPreviewDays;
         this._justDragged = true;
         this._emitChange(dayIndex, newPeriods);
         return;
@@ -761,6 +772,12 @@ export class ClimateManagerTimeBar extends LitElement {
   // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
+
+  protected updated(changedProperties: PropertyValues): void {
+    if (changedProperties.has("days") && this._dragPreviewDays) {
+      this._dragPreviewDays = null;
+    }
+  }
 
   render() {
     return html`
