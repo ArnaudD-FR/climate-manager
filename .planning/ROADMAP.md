@@ -84,7 +84,7 @@ Plans:
   3. The Rooms section lets the user assign a per-room time program or reset it to inherit the global program, and manage the climate entity associations for each room
   4. The Persons section lets the user set presence mode (Automatic/Present/Absent), manage room associations, and configure the periodic presence schedule for each person
 
-**Plans**: 7 plans
+**Plans**: 9 plans
 
 Plans:
 **Wave 1**
@@ -112,8 +112,16 @@ Plans:
 
 - [ ] 03-07-PLAN.md — Person card add-room search-picker (D-19), time-bar drag UAT gap fix, end-to-end human-verify checkpoint
 
+**Wave 7 (add-more)** *(D-21 backend — blocked on 03-07)*
+
+- [ ] 03-08-PLAN.md — D-21 backend: rename PRESENCE_PRESENT/ABSENT wire values to force_present/force_absent, add PRESENCE_HA, coordinator HA-mode branch, storage migration + tests
+
+**Wave 8 (add-more)** *(D-21 frontend + D-22 + D-15 update — blocked on 03-08)*
+
+- [ ] 03-09-PLAN.md — D-21 frontend (4-option mode selector incl. HA), D-22 default schedule seeding on Scheduled, D-15 update (always-collapsed cards + presence dot in header), human-verify
+
 **UI hint**: yes
-**Plans created:** 2026-05-17 (initial), replanned 2026-05-20 for D-13/D-14d/D-19/D-20
+**Plans created:** 2026-05-17 (initial), replanned 2026-05-20 for D-13/D-14d/D-19/D-20, add-more 2026-05-21 for D-21/D-22/D-15-update
 
 ## Progress
 
