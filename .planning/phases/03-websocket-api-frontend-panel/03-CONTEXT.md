@@ -1,6 +1,6 @@
 # Phase 3: WebSocket API & Frontend Panel - Context
 
-**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21, 2026-05-21)
+**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21)
 **Status:** Ready for planning
 
 <domain>
@@ -37,7 +37,7 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 
 ### Panel Navigation
 
-- **D-12:** Top-level navigation: three tabs — `[Global Settings]` `[Rooms]` `[Persons]`. Standard HA tab pattern.
+- **D-12 (updated 2026-05-21):** Top-level navigation: three tabs — `[Overview]` `[Rooms]` `[Persons]`. Tab formerly called "Global Settings" is now "Overview". Standard HA tab pattern.
 - **D-13 (updated 2026-05-21):** Global Settings tab layout — three cards in order:
   1. **Current Status** (read-only) — current global mode, active period name + end time, present persons with green dots.
   2. **Temperatures** — the 4 period temperature inputs (Frost protection, Reduced, Normal, Comfort). Card title is exactly "Temperatures" (not "Default temperatures" or similar).
@@ -47,7 +47,14 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 - **D-14d (room card person count — added 2026-05-21):** The room status line includes an assigned-persons count as a 4th status item (after temperature, humidity, active period). Uses `mdi:account-group` icon + integer count. Shows "0" when no persons are assigned — the count is always rendered so the 4-item status line is always complete. Data source: `_getAssignedPersonIds().length` (already available from `panelConfig.persons`). This is assignment count, not real-time presence (present persons remain on the Global Settings tab per D-18).
 - **D-14a (ordering — updated 2026-05-20):** Rooms are ordered by floor then room name, matching the HA climate panel. Floor names appear as section headers between floor groups (e.g. "Ground floor", "First floor"). Floors are ordered by their `level` field from `hass.floors` (ascending integer). Within a floor, rooms are sorted alphabetically by name. Rooms with no floor assignment appear after all floored rooms, in alphabetical order, without a section header. This replaces the previous custom-program-first ordering — program type no longer affects sort position.
 - **D-14b (data source — Claude's discretion):** Floor and area data comes from `hass.areas` (each area has a `floor_id` field) and `hass.floors` (each floor has `floor_id`, `name`, `level`). No backend changes needed — all ordering is done in `rooms-tab.ts`. The `Hass` TypeScript interface must be extended with `areas: Record<string, { area_id: string; name: string; floor_id: string | null }>` and `floors: Record<string, { floor_id: string; name: string; level: number }>`.
-- **D-15:** Persons tab: expandable cards per person. Collapsed card shows name + presence mode badge (Automatic / Present / Absent). Expanded card shows: presence mode selector, room association checkboxes (one per discovered room), and the presence schedule bar editor (same 7-bar format with Present=green and Absent=gray blocks). Persons with any non-default setting are listed first (Phase 1 D-18) and expanded by default. Fully-default persons are listed after, collapsed by default.
+- **D-15 (updated 2026-05-21):** Persons tab: expandable cards per person. **All cards are always collapsed by default** — the previous "expanded if non-default" rule is removed.
+
+  **Card header (collapsed state)** shows three elements in order:
+  1. Person name
+  2. Mode badge — shows current mode: "Scheduled", "HA", "Force Present", "Force Absent"
+  3. Presence status dot — green (●) if currently present, gray (●) if absent. Derived from `status.present_persons.includes(personId)` (status pushed by subscribe_status). `status: StatusPayload | null` prop added to `person-card`; `persons-tab` passes `.status=${this.status}` to each card.
+
+  **Card expanded state** shows: presence mode selector (4 options), room association chips, and the presence schedule bar editor (same 7-bar format, Present=green and Absent=gray — only visible when mode is "Scheduled").
 
 ### Room Status & Sensor Configuration
 
@@ -79,6 +86,32 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
     - `"custom"` → badge: **"Custom program"**
 
   **Storage key added to `const.py`:** `ROOM_MODE_GLOBAL = "global"`, `ROOM_MODE_FROST = "frost_protection"`, `ROOM_MODE_CUSTOM = "custom"`.
+
+### Presence Modes — Persons
+
+- **D-21 (added 2026-05-21):** Four person presence modes replace the previous three. Stored as `persons[person_id].mode`:
+  - `"scheduled"` — follow the person's periodic presence schedule (was "automatic", already migrated)
+  - `"force_present"` — always present regardless of time or HA state (was "present")
+  - `"force_absent"` — always absent (was "absent")
+  - `"ha"` — presence is driven by HA's internal person entity: present when `hass.states[person_entity_id].state === "home"`, absent for all other states (`"not_home"`, zone names, `"unknown"`, `"unavailable"`).
+
+  **Backend (`const.py`):** `PRESENCE_PRESENT = "force_present"`, `PRESENCE_ABSENT = "force_absent"`, add `PRESENCE_HA = "ha"`. `PRESENCE_AUTOMATIC = "scheduled"` already in place.
+
+  **Backend (`schedule.py` `resolve_presence()`):** Update to use `PRESENCE_PRESENT = "force_present"` and `PRESENCE_ABSENT = "force_absent"`. HA mode (`"ha"`) is NOT handled in `resolve_presence()` — it's handled upstream in the coordinator, keeping the function pure (no `hass` param).
+
+  **Backend (`coordinator.py` `_compute_present_persons()`):** Add `ha` mode branch: `hass_state = self.hass.states.get(person_id); if hass_state and hass_state.state == "home": present`. Called for all global modes to populate `_last_present_persons` for status display and TRV control.
+
+  **Storage migration (`storage.py`):** On load, iterate `persons` and rename `"mode": "present"` → `"force_present"`, `"mode": "absent"` → `"force_absent"`. Analogous to the `"automatic"` → `"scheduled"` migration already in place.
+
+  **Frontend (`person-card.ts`):** `PRESENCE_MODE_PRESENT = "force_present"`, `PRESENCE_MODE_ABSENT = "force_absent"`, add `PRESENCE_MODE_HA = "ha"`. Add 4th option to mode selector dropdown. Badge text: `"force_present"` → "Force Present", `"force_absent"` → "Force Absent", `"ha"` → "HA".
+
+- **D-22 (added 2026-05-21):** Scheduled mode default schedule — applied one-time when a person switches TO `"scheduled"` mode and has no existing schedule (empty or absent `schedule` key). The panel includes the default schedule in the `set_person_config` call as initial values. Not stored in `DEFAULT_CONFIG`.
+
+  Default schedule value:
+  - Mon–Fri: `[{"start": "00:00", "state": "present"}, {"start": "08:00", "state": "absent"}, {"start": "18:00", "state": "present"}]`
+  - Sat–Sun: `[{"start": "00:00", "state": "present"}]`
+
+  Implementation: in `person-card.ts` `_onModeChange()`, when the selected value is `"scheduled"` and `this.config.schedule` is empty/absent, build the default schedule object and include it in the WebSocket save payload. Analogous to room Custom mode copying the global program on first switch (D-20).
 
 ### Assignment Picker
 
