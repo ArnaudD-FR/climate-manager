@@ -99,6 +99,10 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
         active_period = getattr(coordinator, "_last_active_period", None)
         present_persons = getattr(coordinator, "_last_present_persons", [])
 
+        # D-24: pre-compute persons join data for present_person_count
+        persons_config: dict = runtime_config.get("persons", {})
+        present_set = set(present_persons)
+
         # Build per-room status list
         from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
         _area_reg = ar.async_get(hass)
@@ -135,6 +139,13 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
 
             # Active period for this room (from coordinator's last result)
             room_entry["active_period"] = active_period
+
+            # D-24: count persons assigned to this area who are currently present
+            room_entry["present_person_count"] = sum(
+                1
+                for person_id, person_config in persons_config.items()
+                if area_id in person_config.get("room_ids", []) and person_id in present_set
+            )
 
             rooms_status.append(room_entry)
 

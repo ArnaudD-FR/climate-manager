@@ -355,6 +355,10 @@ class ClimateManagerCoordinator:
         from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
         _area_reg = ar.async_get(self._hass)
 
+        # D-24: pre-compute persons join data for present_person_count
+        persons_config: dict = self._data.runtime_config.get("persons", {})
+        present_set = set(self._last_present_persons)
+
         rooms_status = []
         for area_id, entity_ids in self._data.rooms.items():
             _area = _area_reg.async_get_area(area_id)
@@ -364,6 +368,13 @@ class ClimateManagerCoordinator:
                 "active_period": self._last_active_period,
                 "entity_ids": entity_ids,
             }
+
+            # D-24: count persons assigned to this area who are currently present
+            room_entry["present_person_count"] = sum(
+                1
+                for person_id, person_config in persons_config.items()
+                if area_id in person_config.get("room_ids", []) and person_id in present_set
+            )
 
             auto = self._data.room_auto_sensors.get(area_id, {})
 
