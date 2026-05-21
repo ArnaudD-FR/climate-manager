@@ -112,9 +112,11 @@ class ClimateManagerCoordinator:
                 for entity_ids in rooms.values()
                 for entity_id in entity_ids
             ))
-            # Wave 2: reset status tracking for MODE_OFF
+            # Wave 2: reset status tracking for MODE_OFF.
+            # Active period is None (no schedule evaluated), but presence is still
+            # computed for status display — mode only affects TRV control, not reporting.
             self._last_active_period = None
-            self._last_present_persons = []
+            self._last_present_persons = self._compute_present_persons(config, now)
 
         elif global_mode == MODE_TIME_PROGRAM:
             # SCHED-05: per-room override if defined, else global program
@@ -136,6 +138,23 @@ class ClimateManagerCoordinator:
             self._build_status_payload(),
         )
 
+    def _compute_present_persons(self, config: dict, now: datetime) -> list[str]:
+        """Return the list of person IDs currently present, regardless of global mode.
+
+        Used for status reporting in all modes. Presence mode only affects TRV
+        temperature control (MODE_TIME_PROGRAM_PRESENCES) — it never suppresses
+        the presence state from the status display.
+
+        Persons with mode=present always appear; absent always absent; automatic
+        is evaluated against the person's periodic schedule via resolve_presence().
+        """
+        persons_config: dict = config.get("persons", {})
+        return [
+            person_id
+            for person_id, person_config in persons_config.items()
+            if resolve_presence(person_config, now)
+        ]
+
     async def _evaluate_time_program(
         self,
         now: datetime,
@@ -151,10 +170,12 @@ class ClimateManagerCoordinator:
         global_daily_program: dict = config["global_time_program"]
         room_configs: dict = config.get("rooms", {})
 
-        # Wave 2: track global active period for status push (no present persons in this mode)
+        # Wave 2: track global active period for status push.
+        # Present persons are computed for status display even though presence does
+        # not influence TRV temperatures in this mode.
         global_period_mode = evaluate_schedule(global_daily_program, now)
         self._last_active_period = global_period_mode
-        self._last_present_persons = []
+        self._last_present_persons = self._compute_present_persons(config, now)
 
         pushes: list[tuple[str, float]] = []
         for area_id, entity_ids in rooms.items():
