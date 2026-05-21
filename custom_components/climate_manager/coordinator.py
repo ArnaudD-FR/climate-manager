@@ -34,6 +34,7 @@ Pitfalls mitigated:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
@@ -106,14 +107,11 @@ class ClimateManagerCoordinator:
         if global_mode == MODE_OFF:
             # GLOBAL-02: all TRVs → frost protection temperature
             desired_temp = period_temperatures[PERIOD_FROST_PROTECTION]
-            for entity_ids in rooms.values():
-                for entity_id in entity_ids:
-                    try:
-                        await self._push_if_changed(entity_id, desired_temp)
-                    except Exception:  # noqa: BLE001
-                        _LOGGER.warning(
-                            "Failed to push temperature to %s in MODE_OFF", entity_id
-                        )
+            await asyncio.gather(*(
+                self._push_safely(entity_id, desired_temp, "MODE_OFF")
+                for entity_ids in rooms.values()
+                for entity_id in entity_ids
+            ))
             # Wave 2: reset status tracking for MODE_OFF
             self._last_active_period = None
             self._last_present_persons = []
@@ -158,6 +156,7 @@ class ClimateManagerCoordinator:
         self._last_active_period = global_period_mode
         self._last_present_persons = []
 
+        pushes: list[tuple[str, float]] = []
         for area_id, entity_ids in rooms.items():
             room_config = room_configs.get(area_id, {})
             room_mode = room_config.get("room_mode", "global")
@@ -183,13 +182,12 @@ class ClimateManagerCoordinator:
                     )
                     continue
 
-            for entity_id in entity_ids:
-                try:
-                    await self._push_if_changed(entity_id, desired_temp)
-                except Exception:  # noqa: BLE001
-                    _LOGGER.warning(
-                        "Failed to push temperature to %s in MODE_TIME_PROGRAM", entity_id
-                    )
+            pushes.extend((entity_id, desired_temp) for entity_id in entity_ids)
+
+        await asyncio.gather(*(
+            self._push_safely(eid, temp, "MODE_TIME_PROGRAM")
+            for eid, temp in pushes
+        ))
 
     async def _evaluate_time_program_presences(
         self,
@@ -308,17 +306,13 @@ class ClimateManagerCoordinator:
         # Wave 2: store resolved present persons list for status push
         self._last_present_persons = present_persons_this_tick
 
-        # Step 4: push each room's resolved temperature to its TRVs
-        for area_id, entity_ids in rooms.items():
-            desired_temp = desired_temps[area_id]
-            for entity_id in entity_ids:
-                try:
-                    await self._push_if_changed(entity_id, desired_temp)
-                except Exception:  # noqa: BLE001
-                    _LOGGER.warning(
-                        "Failed to push temperature to %s in MODE_TIME_PROGRAM_PRESENCES",
-                        entity_id,
-                    )
+        # Step 4: push each room's resolved temperature to its TRVs (parallel)
+        await asyncio.gather(*(
+            self._push_safely(entity_id, desired_temps[area_id], "MODE_TIME_PROGRAM_PRESENCES")
+            for area_id, entity_ids in rooms.items()
+            for entity_id in entity_ids
+            if area_id in desired_temps
+        ))
 
     def _build_status_payload(self) -> dict:
         """Build the status dict pushed to subscribed panel connections after each evaluation.
@@ -368,6 +362,13 @@ class ClimateManagerCoordinator:
             "present_persons": self._last_present_persons,
             "rooms_status": rooms_status,
         }
+
+    async def _push_safely(self, entity_id: str, desired_temp: float, context: str) -> None:
+        """Wrapper around _push_if_changed that logs exceptions instead of propagating them."""
+        try:
+            await self._push_if_changed(entity_id, desired_temp)
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("Failed to push temperature to %s in %s", entity_id, context)
 
     async def _push_if_changed(self, entity_id: str, desired_temp: float) -> None:
         """Push temperature to TRV only if it differs from the last pushed value.
