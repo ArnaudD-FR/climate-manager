@@ -81,7 +81,7 @@ export class ClimateManagerPanel extends LitElement {
 
     .error-banner {
       background: var(--error-color, #db4437);
-      color: #fff;
+      color: var(--text-primary-color, white);
       padding: 8px 16px;
       font-size: 14px;
       text-align: center;

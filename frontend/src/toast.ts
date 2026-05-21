@@ -34,7 +34,7 @@ export class ClimateManagerToast extends LitElement {
       padding: 12px 16px;
       border-radius: 4px;
       background: var(--card-background-color, #fff);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0,0,0,0.2));
       font-size: 14px;
       font-family: inherit;
       color: var(--primary-text-color, #212121);

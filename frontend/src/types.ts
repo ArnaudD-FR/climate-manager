@@ -91,14 +91,14 @@ export interface Hass {
 /** Colors for 4-mode schedule bars. */
 export const PERIOD_COLORS: Record<string, string> = {
   frost_protection: "#1565C0",
-  reduced: "#64B5F6",
-  normal: "#F57C00",
-  comfort: "#D32F2F",
+  reduced: "#0277BD",
+  normal: "#2E7D32",
+  comfort: "#E65100",
 };
 
 /** Colors for 2-mode presence bars. */
 export const PRESENCE_COLORS: Record<string, string> = {
-  present: "#388E3C",
+  present: "#2E7D32",
   absent: "#9E9E9E",
 };
 

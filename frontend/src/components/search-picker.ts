@@ -72,7 +72,7 @@ export class SearchPicker extends LitElement {
     }
 
     .trigger-btn:hover {
-      background: rgba(3, 169, 244, 0.08);
+      background: var(--secondary-background-color);
     }
 
     .trigger-btn ha-icon {
@@ -93,7 +93,7 @@ export class SearchPicker extends LitElement {
       background: var(--card-background-color, #fff);
       border: 1px solid var(--divider-color, #e0e0e0);
       border-radius: 8px;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      box-shadow: var(--ha-card-box-shadow, 0 4px 16px rgba(0,0,0,0.15));
       overflow: hidden;
     }
 
