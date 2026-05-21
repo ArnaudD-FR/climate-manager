@@ -291,12 +291,12 @@ async def test_present_person_wins_absent_for_same_room(hass):
     # compute_occupied_temp for an absent person → returns 18.0 (Reduced)
     persons_config = {
         "person.alice": {
-            "mode": "present",
+            "mode": "force_present",
             "room_ids": ["lounge"],
             "schedule": {},  # per-day: empty dict = no schedule
         },
         "person.bob": {
-            "mode": "absent",
+            "mode": "force_absent",
             "room_ids": ["lounge"],
             "schedule": {},  # per-day: empty dict = no schedule
         },
@@ -556,7 +556,7 @@ async def test_room_mode_frost_wins_over_presence(hass):
     # Person A is present and associated with area_p
     persons_config = {
         "person.alice": {
-            "mode": "present",
+            "mode": "force_present",
             "room_ids": ["area_p"],
             "schedule": {},
         },

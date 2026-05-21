@@ -152,7 +152,9 @@ def resolve_presence(
             active_state = period["state"]
         else:
             break
-    return active_state == PRESENCE_PRESENT
+    # Note: period schedule states are binary literals "present"/"absent" (PERSON-04),
+    # NOT the presence mode constants PRESENCE_PRESENT/PRESENCE_ABSENT (D-21).
+    return active_state == "present"
 
 
 def compute_occupied_temp(

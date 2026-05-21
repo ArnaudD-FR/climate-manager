@@ -33,12 +33,13 @@ PERIOD_NORMAL = "normal"
 PERIOD_COMFORT = "comfort"
 
 # ---------------------------------------------------------------------------
-# Presence mode constants (PERSON-01; Pitfall 7 — define before use in schedule.py)
+# Presence mode constants (PERSON-01; Pitfall 7 — define before use in schedule.py; D-21)
 # ---------------------------------------------------------------------------
 
 PRESENCE_AUTOMATIC = "scheduled"
-PRESENCE_PRESENT = "present"
-PRESENCE_ABSENT = "absent"
+PRESENCE_PRESENT = "force_present"
+PRESENCE_ABSENT = "force_absent"
+PRESENCE_HA = "ha"
 
 # ---------------------------------------------------------------------------
 # Per-room mode constants (D-20)
@@ -108,7 +109,7 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 # Persons sub-schema (keyed by person.* entity_id — D-15):
 #   {
 #     "person.<name>": {
-#       "mode": "<presence_mode>",   # "scheduled" | "present" | "absent"
+#       "mode": "<presence_mode>",   # "scheduled" | "force_present" | "force_absent" | "ha"
 #       "room_ids": ["<area_id>", ...],
 #       "schedule": {
 #         "mon": [{"start": "HH:MM", "state": "present"|"absent"}, ...],
