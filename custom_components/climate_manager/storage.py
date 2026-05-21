@@ -71,10 +71,16 @@ class ClimateManagerStore:
             if not periods:
                 time_program[day] = copy.deepcopy(_DEFAULT_DAY_PERIODS)
 
-        # Migration: rename person presence mode "automatic" → "scheduled".
+        # Migration: rename person presence modes to current wire values.
         for person_cfg in result.get("persons", {}).values():
+            # Pre-D-21: "automatic" → "scheduled"
             if person_cfg.get("mode") == "automatic":
                 person_cfg["mode"] = "scheduled"
+            # D-21: "present" → "force_present", "absent" → "force_absent"
+            elif person_cfg.get("mode") == "present":
+                person_cfg["mode"] = "force_present"
+            elif person_cfg.get("mode") == "absent":
+                person_cfg["mode"] = "force_absent"
 
         return result
 
