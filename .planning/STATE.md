@@ -88,6 +88,7 @@ None yet.
 | 260520-svm | investigate: TRV used for Bureau instead of area sensors — confirmed getattr works | 2026-05-20 | — | [260520-svm-investigate-trv-used-for-bureau-instead-](.planning/quick/260520-svm-investigate-trv-used-for-bureau-instead-/) |
 | 260521-gck | perf: push TRVs concurrently with asyncio.gather — eliminates ~10s mode-change delay | 2026-05-21 | 721786f | [260521-gck-parallel-trv-push-commit](.planning/quick/260521-gck-parallel-trv-push-commit/) |
 | 260521-ggx | tab persistence on refresh + period temperature in room card header | 2026-05-21 | 5c57d2e | [260521-ggx-tab-persist-and-period-temp](.planning/quick/260521-ggx-tab-persist-and-period-temp/) |
+| 260521-gj9 | sidebar icon mdi:home-thermometer to match Climate panel style | 2026-05-21 | 625fc02 | [260521-gj9-sidebar-icon-home-thermometer](.planning/quick/260521-gj9-sidebar-icon-home-thermometer/) |
 
 ### Blockers/Concerns
 
