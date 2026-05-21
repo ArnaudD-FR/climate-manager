@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 import voluptuous as vol
 
 if TYPE_CHECKING:
@@ -99,6 +100,10 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
         active_period = getattr(coordinator, "_last_active_period", None)
         present_persons = getattr(coordinator, "_last_present_persons", [])
 
+        # D-24: pre-compute persons join data for present_person_count
+        persons_config: dict = runtime_config.get("persons", {})
+        present_set = set(present_persons)
+
         # Build per-room status list
         from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
         _area_reg = ar.async_get(hass)
@@ -136,6 +141,13 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
             # Active period for this room (from coordinator's last result)
             room_entry["active_period"] = active_period
 
+            # D-24: count persons assigned to this area who are currently present
+            room_entry["present_person_count"] = sum(
+                1
+                for person_id, person_config in persons_config.items()
+                if area_id in person_config.get("room_ids", []) and person_id in present_set
+            )
+
             rooms_status.append(room_entry)
 
         connection.send_result(
@@ -165,8 +177,20 @@ def _make_ws_get_config(entry: ClimateManagerConfigEntry):
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Return full runtime_config unchanged."""
-        connection.send_result(msg["id"], entry.runtime_data.runtime_config)
+        """Return full runtime_config plus derived climate_entities list.
+
+        D-25: climate_entities is the sorted list of all climate.* entity IDs
+        from the HA entity registry. Merged into a NEW dict — runtime_config is
+        never mutated so the derived key never pollutes persistent storage.
+        """
+        entity_reg = er.async_get(hass)
+        climate_entities = sorted(
+            entry.entity_id
+            for entry in entity_reg.entities.values()
+            if entry.entity_id.split(".")[0] == "climate"
+        )
+        payload = {**entry.runtime_data.runtime_config, "climate_entities": climate_entities}
+        connection.send_result(msg["id"], payload)
 
     return ws_get_config
 

@@ -110,3 +110,103 @@ async def test_ws_set_time_program_rejects_partial(hass, hass_ws_client):
 
     # global_time_program must be unchanged — T-03-05 validation gate
     assert entry.runtime_data.runtime_config["global_time_program"] == original_program
+
+
+# ---------------------------------------------------------------------------
+# Test 4: D-24 — get_status rooms_status includes present_person_count
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_get_status_includes_present_person_count(hass, hass_ws_client):
+    """D-24: get_status returns rooms_status entries with present_person_count.
+
+    Seeded: living_room has alice (present) assigned; kitchen has no present persons.
+    Expected: living_room.present_person_count == 1, kitchen.present_person_count == 0.
+    """
+    entry = await _setup_entry(hass)
+
+    # Seed rooms, persons config, and coordinator state
+    entry.runtime_data.rooms = {"living_room": ["climate.x"], "kitchen": ["climate.y"]}
+    entry.runtime_data.runtime_config["persons"] = {
+        "person.alice": {"room_ids": ["living_room"]},
+    }
+    entry.runtime_data.coordinator._last_present_persons = ["person.alice"]
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/get_status"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+
+    rooms_status = msg["result"]["rooms_status"]
+
+    # Every entry must have the key
+    for room_entry in rooms_status:
+        assert "present_person_count" in room_entry, (
+            f"present_person_count missing from {room_entry['area_id']}"
+        )
+
+    living_entry = next(e for e in rooms_status if e["area_id"] == "living_room")
+    kitchen_entry = next(e for e in rooms_status if e["area_id"] == "kitchen")
+
+    assert living_entry["present_person_count"] == 1
+    assert kitchen_entry["present_person_count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests 5-6: D-25 — get_config includes climate_entities list
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_get_config_includes_climate_entities(hass, hass_ws_client):
+    """D-25: get_config returns climate_entities list with all registered climate entity IDs.
+
+    Registers a fake climate entity via entity registry, then verifies:
+    - climate_entities key is present
+    - every element starts with 'climate.'
+    - the registered entity ID is in the list
+    - the list is sorted
+    - original runtime_config keys (global_mode, period_temperatures) are still present
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    await _setup_entry(hass)
+
+    # Register a fake climate entity
+    entity_reg = er.async_get(hass)
+    entity_reg.async_get_or_create("climate", "test", "fake_trv")
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/get_config"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert "climate_entities" in msg["result"]
+
+    climate_entities = msg["result"]["climate_entities"]
+    assert isinstance(climate_entities, list)
+    for eid in climate_entities:
+        assert eid.startswith("climate."), f"Expected climate. prefix, got: {eid}"
+
+    # The registered fake entity must appear
+    assert "climate.test_fake_trv" in climate_entities
+
+    # Must be sorted
+    assert climate_entities == sorted(climate_entities)
+
+    # Original runtime_config keys still present alongside climate_entities
+    assert "global_mode" in msg["result"]
+    assert "period_temperatures" in msg["result"]
+
+
+async def test_ws_get_config_climate_entities_empty_when_none_registered(hass, hass_ws_client):
+    """D-25: get_config returns climate_entities=[] when no climate entities are registered."""
+    await _setup_entry(hass)
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/get_config"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert "climate_entities" in msg["result"]
+    assert msg["result"]["climate_entities"] == []
