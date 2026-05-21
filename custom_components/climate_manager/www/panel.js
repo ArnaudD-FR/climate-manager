@@ -3210,6 +3210,7 @@ const Ut = class Ut extends w {
             .roomChoices=${s}
             .ws=${this.ws}
             .panel=${this.panel}
+            .status=${this.status}
           ></climate-manager-person-card>
         `;
     })}
