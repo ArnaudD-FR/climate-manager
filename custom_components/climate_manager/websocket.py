@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 import voluptuous as vol
 
 if TYPE_CHECKING:
@@ -176,8 +177,20 @@ def _make_ws_get_config(entry: ClimateManagerConfigEntry):
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Return full runtime_config unchanged."""
-        connection.send_result(msg["id"], entry.runtime_data.runtime_config)
+        """Return full runtime_config plus derived climate_entities list.
+
+        D-25: climate_entities is the sorted list of all climate.* entity IDs
+        from the HA entity registry. Merged into a NEW dict — runtime_config is
+        never mutated so the derived key never pollutes persistent storage.
+        """
+        entity_reg = er.async_get(hass)
+        climate_entities = sorted(
+            entry.entity_id
+            for entry in entity_reg.entities.values()
+            if entry.entity_id.split(".")[0] == "climate"
+        )
+        payload = {**entry.runtime_data.runtime_config, "climate_entities": climate_entities}
+        connection.send_result(msg["id"], payload)
 
     return ws_get_config
 
