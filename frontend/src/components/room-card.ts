@@ -14,6 +14,7 @@ import { LitElement, html, css } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import type { RoomConfig, RoomStatus, DailyProgram, Period, ClimateConfig, Hass } from "../types.js";
+import { PERIOD_DISPLAY_NAMES } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
@@ -395,7 +396,16 @@ export class RoomCard extends LitElement {
     const s = this.roomStatus;
     const temp = s?.temperature != null ? `${s.temperature}°C` : "—";
     const humidity = s?.humidity != null ? `${s.humidity}%` : "—";
-    const period = s?.active_period ?? "—";
+    const period = s?.active_period ?? null;
+    const periodLabel = period
+      ? (PERIOD_DISPLAY_NAMES[period] ?? period)
+      : "—";
+    const periodTempVal = period != null
+      ? this.panelConfig?.period_temperatures?.[period]
+      : undefined;
+    const periodDisplay = periodTempVal != null
+      ? `${periodLabel} · ${periodTempVal}°C`
+      : periodLabel;
     const personCount = this._getAssignedPersonIds().length;
     return html`
       <div class="card-header-status">
@@ -409,7 +419,7 @@ export class RoomCard extends LitElement {
         </span>
         <span class="status-item">
           <ha-icon icon="mdi:clock-outline"></ha-icon>
-          ${period}
+          ${periodDisplay}
         </span>
         <span class="status-item">
           <ha-icon icon="mdi:account-group"></ha-icon>

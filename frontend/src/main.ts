@@ -39,7 +39,10 @@ export class ClimateManagerPanel extends LitElement {
   // Internal state
   @state() private _config: ClimateConfig | null = null;
   @state() private _status: StatusPayload | null = null;
-  @state() private _activeTab = "global";
+  @state() private _activeTab: string = (() => {
+    const t = localStorage.getItem("climate-manager-tab");
+    return ["global", "rooms", "persons"].includes(t ?? "") ? t! : "global";
+  })();
   @state() private _unsubStatus: Promise<() => void> | null = null;
   @state() private _wsError = false;
 
@@ -208,6 +211,7 @@ export class ClimateManagerPanel extends LitElement {
 
   private _setTab(tab: string) {
     this._activeTab = tab;
+    localStorage.setItem("climate-manager-tab", tab);
   }
 
   render() {
