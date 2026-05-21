@@ -7,6 +7,7 @@ Tests:
 - Manual override hold: skip entity when TRV reports different temp (D-03)
 - Present person wins over absent person for a shared room (D-07 multi-person conflict)
 - Frost protection before first period (WR-04)
+- Room mode branching: global / frost_protection / custom (D-20)
 
 All tests use MockConfigEntry + hass fixture following the pattern from test_init.py.
 TRV states are seeded before setup; climate services are captured via async_mock_service.
@@ -26,7 +27,19 @@ from custom_components.climate_manager.const import (
     PERIOD_NORMAL,
     PERIOD_REDUCED,
     DEFAULT_PERIOD_TEMPERATURES,
+    ROOM_MODE_GLOBAL,
+    ROOM_MODE_FROST,
+    ROOM_MODE_CUSTOM,
 )
+
+# ---------------------------------------------------------------------------
+# Module-level fixture: all days Comfort (for custom room_mode tests)
+# ---------------------------------------------------------------------------
+
+ALL_DAYS_COMFORT_PROGRAM: dict = {
+    day: [{"start": "00:00", "mode": PERIOD_COMFORT}]
+    for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+}
 
 # ---------------------------------------------------------------------------
 # Test fixtures / helpers — per-day schema (D-01)
