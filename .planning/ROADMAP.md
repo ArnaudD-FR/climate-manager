@@ -110,11 +110,11 @@ Plans:
 
 **Wave 6 (replan)** *(blocked on 03-06)*
 
-- [ ] 03-07-PLAN.md — Person card add-room search-picker (D-19), time-bar drag UAT gap fix, end-to-end human-verify checkpoint
+- [x] 03-07-PLAN.md — Person card add-room search-picker (D-19), time-bar drag UAT gap fix, end-to-end human-verify checkpoint
 
 **Wave 7 (add-more)** *(D-21 backend — blocked on 03-07)*
 
-- [ ] 03-08-PLAN.md — D-21 backend: rename PRESENCE_PRESENT/ABSENT wire values to force_present/force_absent, add PRESENCE_HA, coordinator HA-mode branch, storage migration + tests
+- [x] 03-08-PLAN.md — D-21 backend: rename PRESENCE_PRESENT/ABSENT wire values to force_present/force_absent, add PRESENCE_HA, coordinator HA-mode branch, storage migration + tests
 
 **Wave 8 (add-more)** *(D-21 frontend + D-22 + D-15 update — blocked on 03-08)*
 
@@ -132,4 +132,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
 | 2. Backend Engines & Coordinator | 2/2 | Complete    | 2026-05-17 |
-| 3. WebSocket API & Frontend Panel | 6/4 | Complete   | 2026-05-21 |
+| 3. WebSocket API & Frontend Panel | 8/6 | Complete   | 2026-05-21 |
