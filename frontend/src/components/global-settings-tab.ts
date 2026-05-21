@@ -19,6 +19,7 @@
 import { LitElement, html, css } from "lit";
 import { property } from "lit/decorators.js";
 
+import { PERIOD_DISPLAY_NAMES } from "../types.js";
 import type { Hass, ClimateConfig, StatusPayload, DailyProgram, Period } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
@@ -393,7 +394,7 @@ export class GlobalSettingsTab extends LitElement {
     // Active period
     let activePeriodText = "No active period";
     if (status?.active_period) {
-      activePeriodText = status.active_period;
+      activePeriodText = PERIOD_DISPLAY_NAMES[status.active_period] ?? status.active_period;
     }
 
     // Present persons
