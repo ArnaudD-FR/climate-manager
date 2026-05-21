@@ -539,7 +539,7 @@ export class RoomCard extends LitElement {
                   <div class="time-bar-section">
                     <climate-manager-time-bar
                       mode="schedule"
-                      .days=${programToDays(this.config.time_program)}
+                      .days=${programToDays(this.config.time_program ?? undefined)}
                       @periods-changed=${this._onPeriodsChanged}
                     ></climate-manager-time-bar>
                   </div>
