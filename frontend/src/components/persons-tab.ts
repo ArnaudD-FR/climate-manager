@@ -112,6 +112,7 @@ export class PersonsTab extends LitElement {
             .roomChoices=${roomChoices}
             .ws=${this.ws}
             .panel=${this.panel}
+            .status=${this.status}
           ></climate-manager-person-card>
         `;
       })}
