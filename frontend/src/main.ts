@@ -266,6 +266,7 @@ export class ClimateManagerPanel extends LitElement {
           .status=${this._status}
           .ws=${this._ws!}
           .panel=${this}
+          .hass=${this.hass}
         ></climate-manager-global-settings-tab>`;
       case "rooms":
         return html`<climate-manager-rooms-tab

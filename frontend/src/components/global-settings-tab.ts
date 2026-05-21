@@ -19,7 +19,7 @@
 import { LitElement, html, css } from "lit";
 import { property } from "lit/decorators.js";
 
-import type { ClimateConfig, StatusPayload, DailyProgram, Period } from "../types.js";
+import type { Hass, ClimateConfig, StatusPayload, DailyProgram, Period } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 
@@ -103,6 +103,9 @@ export class GlobalSettingsTab extends LitElement {
 
   /** Reference to root panel for showToast() and reloadConfig(). */
   @property({ attribute: false }) panel!: ClimateManagerPanel;
+
+  /** HA hass object — used for resolving person entity friendly names. */
+  @property({ attribute: false }) hass!: Hass;
 
   // Memoize the days array by program identity — programToDays() creates new
   // array references on every call. Without this, any status-only re-render
@@ -399,9 +402,10 @@ export class GlobalSettingsTab extends LitElement {
       personsContent = html`
         <span class="status-value">
           ${status.present_persons.map(
-            (name, i) => html`
-              <span class="person-dot"></span>${name}${i < (status?.present_persons?.length ?? 1) - 1 ? ", " : ""}
-            `,
+            (personId, i) => {
+              const name = this.hass?.states[personId]?.attributes?.friendly_name ?? personId;
+              return html`<span class="person-dot"></span>${name}${i < (status?.present_persons?.length ?? 1) - 1 ? ", " : ""}`;
+            },
           )}
         </span>
       `;
