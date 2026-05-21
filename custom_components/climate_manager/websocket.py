@@ -12,7 +12,7 @@ Registers 8 WebSocket commands for the panel ↔ backend protocol:
 
 All handlers access state via the entry closure (never hass.data[DOMAIN]).
 Write handlers follow the write-then-evaluate pattern:
-  mutate runtime_config → store.async_save → coordinator.async_evaluate → send_result.
+  mutate runtime_config → store.async_save → send_result → coordinator.async_evaluate (background).
 
 Security:
 - T-03-04: vol.In/vol.Coerce schema gates reject invalid payloads before handler runs
@@ -197,8 +197,8 @@ def _make_ws_set_global_mode(entry: ClimateManagerConfigEntry):
         """
         entry.runtime_data.runtime_config["global_mode"] = msg["mode"]
         await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
-        await entry.runtime_data.coordinator.async_evaluate()
         connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_set_global_mode
 
@@ -234,8 +234,8 @@ def _make_ws_set_period_temperatures(entry: ClimateManagerConfigEntry):
         for key, value in temps.items():
             period_temps[key] = value
         await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
-        await entry.runtime_data.coordinator.async_evaluate()
         connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_set_period_temperatures
 
@@ -267,8 +267,8 @@ def _make_ws_set_time_program(entry: ClimateManagerConfigEntry):
 
         entry.runtime_data.runtime_config["global_time_program"] = msg["program"]
         await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
-        await entry.runtime_data.coordinator.async_evaluate()
         connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_set_time_program
 
@@ -301,8 +301,8 @@ def _make_ws_set_room_config(entry: ClimateManagerConfigEntry):
             .update(msg["config"])
         )
         await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
-        await entry.runtime_data.coordinator.async_evaluate()
         connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_set_room_config
 
@@ -334,8 +334,8 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
             .update(msg["config"])
         )
         await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
-        await entry.runtime_data.coordinator.async_evaluate()
         connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_set_person_config
 
