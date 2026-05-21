@@ -203,7 +203,7 @@ export class ClimateManagerPanel extends LitElement {
    * the value just saved on the backend.
    */
   async reloadConfig(): Promise<void> {
-    await this._loadConfig();
+    await Promise.all([this._loadConfig(), this._loadStatus()]);
   }
 
   private _setTab(tab: string) {
