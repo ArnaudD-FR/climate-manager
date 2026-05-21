@@ -102,6 +102,8 @@ export class ClimateManagerTimeBar extends LitElement {
    */
   @state() private _dragPreviewDays: Period[][] | null = null;
   @state() private _popup: PopupState | null = null;
+  /** Set true by _onPointerUp; cleared by _onBarClick/_onSegmentClick to swallow the synthetic post-drag click. */
+  private _justDragged = false;
 
   // -----------------------------------------------------------------------
   // Styles
@@ -443,8 +445,13 @@ export class ClimateManagerTimeBar extends LitElement {
   // -----------------------------------------------------------------------
 
   private _onBarClick(e: MouseEvent, dayIndex: number) {
-    // Ignore if a drag just ended
+    // Ignore if a drag is active or just ended
     if (this._drag) return;
+    if (this._justDragged) {
+      this._justDragged = false;
+      e.stopPropagation();
+      return;
+    }
 
     const barEl = (e.currentTarget as HTMLElement);
     const rect = barEl.getBoundingClientRect();
@@ -722,6 +729,7 @@ export class ClimateManagerTimeBar extends LitElement {
         this._drag = null;
         this._dragTooltipMinutes = null;
         this._dragPreviewDays = null;
+        this._justDragged = true;
         this._emitChange(dayIndex, newPeriods);
         return;
       }
@@ -730,6 +738,7 @@ export class ClimateManagerTimeBar extends LitElement {
     this._drag = null;
     this._dragTooltipMinutes = null;
     this._dragPreviewDays = null;
+    this._justDragged = true;
   }
 
   // -----------------------------------------------------------------------
