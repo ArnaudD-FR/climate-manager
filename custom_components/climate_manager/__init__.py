@@ -152,7 +152,7 @@ async def async_setup_entry(
         frontend_url_path=DOMAIN,
         webcomponent_name=PANEL_COMPONENT_NAME,
         sidebar_title="Climate Manager",
-        sidebar_icon="mdi:thermometer",
+        sidebar_icon="mdi:home-thermometer",
         module_url=f"{PANEL_URL}/panel.js",
         embed_iframe=False,
         require_admin=False,
