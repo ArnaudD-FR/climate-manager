@@ -72,9 +72,9 @@ const DEFAULT_GLOBAL_MODE = "time_program";
 // Each day gets its own independent array — deep-cloned to prevent mutation of shared refs.
 const DEFAULT_TIME_PROGRAM: DailyProgram = (() => {
   const mkDay = (): Period[] => [
-    { start: "00:00", mode: "frost_protection" },
+    { start: "00:00", mode: "reduced" },
     { start: "06:00", mode: "normal" },
-    { start: "22:00", mode: "frost_protection" },
+    { start: "22:00", mode: "reduced" },
   ];
   return {
     mon: mkDay(),

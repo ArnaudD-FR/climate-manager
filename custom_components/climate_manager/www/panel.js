@@ -1508,9 +1508,9 @@ const yt = "off", xt = "time_program", $t = "time_program_presences", De = {
   comfort: 22
 }, Ne = "time_program", He = (() => {
   const n = () => [
-    { start: "00:00", mode: "frost_protection" },
+    { start: "00:00", mode: "reduced" },
     { start: "06:00", mode: "normal" },
-    { start: "22:00", mode: "frost_protection" }
+    { start: "22:00", mode: "reduced" }
   ];
   return {
     mon: n(),

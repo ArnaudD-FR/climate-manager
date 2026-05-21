@@ -67,14 +67,14 @@ DEFAULT_PERIOD_TEMPERATURES: dict[str, float] = {
 
 _DAYS_ORDERED = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
-# Default daily schedule: frost_protection overnight, normal during the day.
-#   00:00 – 06:00  frost_protection
+# Default daily schedule: reduced overnight, normal during the day.
+#   00:00 – 06:00  reduced
 #   06:00 – 22:00  normal
-#   22:00 – 24:00  frost_protection  (implicit: last period runs to midnight)
+#   22:00 – 24:00  reduced  (implicit: last period runs to midnight)
 _DEFAULT_DAY_PERIODS: list[dict] = [
-    {"start": "00:00", "mode": PERIOD_FROST_PROTECTION},
+    {"start": "00:00", "mode": PERIOD_REDUCED},
     {"start": "06:00", "mode": PERIOD_NORMAL},
-    {"start": "22:00", "mode": PERIOD_FROST_PROTECTION},
+    {"start": "22:00", "mode": PERIOD_REDUCED},
 ]
 
 _DEFAULT_DAILY_PROGRAM: dict = {
