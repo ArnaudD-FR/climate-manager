@@ -1,14 +1,19 @@
 /**
  * Climate Manager Panel — Global Settings tab (UI-02).
  *
- * Renders two ha-card sections per D-13:
+ * Renders three ha-card sections per D-13 (updated 2026-05-21):
  *   1. "Current Status" — read-only, fed by subscribe_status push (D-18):
  *        current global mode, active period name + end time, present persons
- *   2. "Configuration" — editable, auto-saves on every change (D-08):
- *        global mode selector, 4 default temperature inputs, global time program
+ *   2. "Temperatures" — the 4 period temperature inputs (Frost protection,
+ *        Reduced, Normal, Comfort). Auto-saves on blur.
+ *   3. "Configuration" — editable, auto-saves on every change (D-08):
+ *        global mode selector, global time program, reset button
  *
  * Auto-save on every change — no Save button (D-08).
  * Toast feedback on success/error (D-10).
+ *
+ * HA 2026.x: uses native <input type="number"> for temperature fields
+ * (ha-textfield renders nothing in HA 2026.x).
  */
 
 import { LitElement, html, css } from "lit";
@@ -50,6 +55,14 @@ const MODE_LABELS: Record<string, string> = {
   [MODE_OFF]: "Off",
   [MODE_TIME_PROGRAM]: "Time program",
   [MODE_TIME_PROGRAM_PRESENCES]: "Time program & presences",
+};
+
+// Default temperature values (used by Reset to default)
+const DEFAULT_TEMPERATURES = {
+  frost_protection: 7,
+  reduced: 18,
+  normal: 20,
+  comfort: 22,
 };
 
 // ---------------------------------------------------------------------------
@@ -129,6 +142,7 @@ export class GlobalSettingsTab extends LitElement {
       color: var(--secondary-text-color);
     }
 
+    /* ---- Temperatures card ---- */
     .temp-fields {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -136,6 +150,49 @@ export class GlobalSettingsTab extends LitElement {
       margin-bottom: 16px;
     }
 
+    .temp-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .temp-label {
+      display: block;
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+
+    .temp-input-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .temp-input {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--primary-text-color);
+      background-color: var(--card-background-color, var(--secondary-background-color));
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    .temp-input:focus {
+      border-color: var(--primary-color);
+      border-width: 2px;
+    }
+
+    .temp-suffix {
+      font-size: 14px;
+      color: var(--secondary-text-color);
+      flex-shrink: 0;
+    }
+
+    /* ---- Config card ---- */
     .time-program-section {
       margin-top: 16px;
     }
@@ -169,8 +226,21 @@ export class GlobalSettingsTab extends LitElement {
       border-width: 2px;
     }
 
-    ha-textfield {
-      display: block;
+    /* Reset button */
+    .reset-btn {
+      margin-top: 16px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--primary-color, #03a9f4);
+      background: none;
+      border: 1px solid var(--primary-color, #03a9f4);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .reset-btn:hover {
+      background: rgba(3, 169, 244, 0.08);
     }
   `;
 
@@ -195,7 +265,7 @@ export class GlobalSettingsTab extends LitElement {
     const root = this.shadowRoot;
     if (!root) return;
     const getValue = (id: string): number => {
-      const field = root.querySelector<HTMLElement & { value: string }>(`#temp-${id}`);
+      const field = root.querySelector<HTMLInputElement>(`#temp-${id}`);
       return field ? parseFloat(field.value) : (this.config.period_temperatures[id] ?? 0);
     };
 
@@ -234,6 +304,16 @@ export class GlobalSettingsTab extends LitElement {
     }
 
     e.stopPropagation();
+  }
+
+  private async _onResetToDefault() {
+    try {
+      await this.ws.setPeriodTemperatures(DEFAULT_TEMPERATURES);
+      await this.panel.reloadConfig();
+      this.panel.showToast("Reset to defaults", false);
+    } catch {
+      this.panel.showToast("Reset failed — retrying...", true);
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -287,8 +367,46 @@ export class GlobalSettingsTab extends LitElement {
     `;
   }
 
-  private _renderConfigCard() {
+  private _renderTemperaturesCard() {
     const temps = this.config.period_temperatures;
+
+    const tempField = (id: string, label: string, defaultVal: number) => html`
+      <div class="temp-field">
+        <label class="temp-label" for="temp-${id}">${label}</label>
+        <div class="temp-input-row">
+          <input
+            id="temp-${id}"
+            class="temp-input"
+            type="number"
+            step="0.5"
+            min="5"
+            max="30"
+            data-key="${id}"
+            .value=${String(temps[id] ?? defaultVal)}
+            @blur=${this._onTemperatureBlur}
+            @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
+          />
+          <span class="temp-suffix">°C</span>
+        </div>
+      </div>
+    `;
+
+    return html`
+      <ha-card>
+        <div class="card-header">Temperatures</div>
+        <div class="card-content">
+          <div class="temp-fields">
+            ${tempField("frost_protection", "Frost protection", 7)}
+            ${tempField("reduced", "Reduced", 18)}
+            ${tempField("normal", "Normal", 20)}
+            ${tempField("comfort", "Comfort", 22)}
+          </div>
+        </div>
+      </ha-card>
+    `;
+  }
+
+  private _renderConfigCard() {
     const days = programToDays(this.config.global_time_program);
 
     return html`
@@ -305,59 +423,6 @@ export class GlobalSettingsTab extends LitElement {
             </select>
           </div>
 
-          <!-- Default temperatures -->
-          <div class="section-divider">Default temperatures</div>
-          <div class="temp-fields">
-            <ha-textfield
-              id="temp-frost_protection"
-              label="Frost protection"
-              type="number"
-              step="0.5"
-              min="5"
-              max="30"
-              suffix="°C"
-              .value=${String(temps["frost_protection"] ?? 7)}
-              @blur=${this._onTemperatureBlur}
-              @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
-            ></ha-textfield>
-            <ha-textfield
-              id="temp-reduced"
-              label="Reduced"
-              type="number"
-              step="0.5"
-              min="5"
-              max="30"
-              suffix="°C"
-              .value=${String(temps["reduced"] ?? 18)}
-              @blur=${this._onTemperatureBlur}
-              @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
-            ></ha-textfield>
-            <ha-textfield
-              id="temp-normal"
-              label="Normal"
-              type="number"
-              step="0.5"
-              min="5"
-              max="30"
-              suffix="°C"
-              .value=${String(temps["normal"] ?? 20)}
-              @blur=${this._onTemperatureBlur}
-              @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
-            ></ha-textfield>
-            <ha-textfield
-              id="temp-comfort"
-              label="Comfort"
-              type="number"
-              step="0.5"
-              min="5"
-              max="30"
-              suffix="°C"
-              .value=${String(temps["comfort"] ?? 22)}
-              @blur=${this._onTemperatureBlur}
-              @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
-            ></ha-textfield>
-          </div>
-
           <!-- Global time program editor -->
           <div class="section-divider">Global time program</div>
           <div class="time-program-section">
@@ -367,6 +432,8 @@ export class GlobalSettingsTab extends LitElement {
               @periods-changed=${this._onPeriodsChanged}
             ></climate-manager-time-bar>
           </div>
+
+          <button class="reset-btn" @click=${this._onResetToDefault}>Reset to default</button>
         </div>
       </ha-card>
     `;
@@ -375,6 +442,7 @@ export class GlobalSettingsTab extends LitElement {
   render() {
     return html`
       ${this._renderStatusCard()}
+      ${this._renderTemperaturesCard()}
       ${this._renderConfigCard()}
     `;
   }
