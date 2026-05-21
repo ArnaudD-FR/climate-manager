@@ -84,7 +84,7 @@ Plans:
   3. The Rooms section lets the user assign a per-room time program or reset it to inherit the global program, and manage the climate entity associations for each room
   4. The Persons section lets the user set presence mode (Automatic/Present/Absent), manage room associations, and configure the periodic presence schedule for each person
 
-**Plans**: 4 plans
+**Plans**: 7 plans
 
 Plans:
 **Wave 1**
@@ -97,14 +97,23 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-03-PLAN.md — Vite/Lit frontend scaffold: single-file build, root panel shell, shared time-bar component, Makefile build/deploy wiring
+- [x] 03-03-PLAN.md — Vite/Lit frontend scaffold: single-file build, root panel shell, shared time-bar component, Makefile build/deploy wiring
 
-**Wave 4** *(blocked on Wave 3 completion)*
+**Wave 4 (replan)** *(D-13, D-14d, D-19, D-20 — parallel)*
 
-- [ ] 03-04-PLAN.md — Global Settings / Rooms / Persons tabs wired to auto-save + end-to-end human-verify checkpoint
+- [ ] 03-04-PLAN.md — Backend room_mode constants + coordinator branching (D-20 backend) + test_coordinator.py
+- [ ] 03-05-PLAN.md — Shared search-picker.ts component (D-19) + Global Settings Temperatures card extraction (D-13)
+
+**Wave 5 (replan)** *(blocked on 03-04 and 03-05)*
+
+- [ ] 03-06-PLAN.md — Room card overhaul: 4-item header status (D-14d), 3-way room_mode select (D-20 frontend), add-person search-picker (D-19)
+
+**Wave 6 (replan)** *(blocked on 03-06)*
+
+- [ ] 03-07-PLAN.md — Person card add-room search-picker (D-19), time-bar drag UAT gap fix, end-to-end human-verify checkpoint
 
 **UI hint**: yes
-**Plans created:** 2026-05-17
+**Plans created:** 2026-05-17 (initial), replanned 2026-05-20 for D-13/D-14d/D-19/D-20
 
 ## Progress
 
@@ -115,4 +124,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
 | 2. Backend Engines & Coordinator | 2/2 | Complete    | 2026-05-17 |
-| 3. WebSocket API & Frontend Panel | 2/4 | In Progress|  |
+| 3. WebSocket API & Frontend Panel | 3/4 | In Progress|  |

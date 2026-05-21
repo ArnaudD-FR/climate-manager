@@ -23,7 +23,7 @@
 - **D-10:** Toast/snackbar: "Saved" (3s) on success, "Save failed — retrying..." (persistent) on error.
 - **D-11:** No "Applied" confirmation after coordinator push.
 - **D-12:** Three top-level tabs: Global Settings / Rooms / Persons.
-- **D-13:** Global Settings tab: Current Status section (mode, active period, present persons) + Configuration section.
+- **D-13:** Global Settings tab — three cards in order: Current Status (mode, active period, present persons) + Temperatures (Frost protection, Reduced, Normal, Comfort temperature inputs) + Configuration (global mode selector + global time program). [Updated 2026-05-21 per discuss-phase]
 - **D-14:** Rooms tab: expandable cards; custom-program rooms listed first and expanded.
 - **D-15:** Persons tab: expandable cards; non-default persons listed first and expanded.
 - **D-16:** Rooms have optional `temperature_sensor` and `humidity_sensor` entity ID fields.
@@ -762,22 +762,25 @@ def _build_status_payload(self) -> dict:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **ha-* component lazy-loading in panels**
    - What we know: HA Lovelace lazy-loads components; core MDC components are generally available
    - What's unclear: Whether `ha-tabs` specifically needs explicit loading in a panel context vs. a card context
    - Recommendation: In Wave 0 of the frontend build plan, test a minimal `<ha-tabs>` render and verify it appears. If not, add `customElements.whenDefined("ha-tabs")` guard or import `@kipk/load-ha-components`.
+   - **RESOLVED (2026-05-20):** `ha-select`, `ha-textfield`, and `ha-tabs`/`paper-tab` are all broken or removed in HA 2026.x. No lazy-loading needed — replaced with native `<select>`, `<input type="number">`, and CSS button tabs throughout the frontend. Project memory updated with these constraints.
 
 2. **hass.bus.async_fire from coordinator thread safety**
    - What we know: `async_evaluate` runs in the HA event loop (it's `async`); `hass.bus.async_fire` is a `@callback` (sync, event-loop-safe)
    - What's unclear: Whether firing from inside `async_evaluate` adds latency to TRV push
    - Recommendation: Call `hass.bus.async_fire` after all TRV push calls complete. No concern on latency — it's a single dict copy.
+   - **RESOLVED:** Confirmed safe — `async_fire` called after all TRV push calls complete in `async_evaluate`; no observed latency issue.
 
 3. **Storage version bump for per-day schema migration**
    - What we know: `STORAGE_VERSION = 1` is the current version; changing schema technically requires a migration
    - What's unclear: Whether any stored data exists that uses weekday_groups format (no users yet — dev-only)
    - Recommendation: Since this is a development integration with no existing users, simply increment `STORAGE_VERSION = 2` and delete any existing `.storage/climate_manager` file. No migration function needed for v0→v2.
+   - **RESOLVED (2026-05-20):** `STORAGE_VERSION = 2` set in const.py; no migration function written (dev-only integration, no existing users). Existing `.storage/climate_manager` deleted manually during deployment.
 
 ---
 
