@@ -13,6 +13,8 @@ All tests use MockConfigEntry + hass fixture following the pattern from test_ini
 TRV states are seeded before setup; climate services are captured via async_mock_service.
 """
 
+import datetime
+
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
 
@@ -291,12 +293,12 @@ async def test_present_person_wins_absent_for_same_room(hass):
     # compute_occupied_temp for an absent person → returns 18.0 (Reduced)
     persons_config = {
         "person.alice": {
-            "mode": "present",
+            "mode": "force_present",
             "room_ids": ["lounge"],
             "schedule": {},  # per-day: empty dict = no schedule
         },
         "person.bob": {
-            "mode": "absent",
+            "mode": "force_absent",
             "room_ids": ["lounge"],
             "schedule": {},  # per-day: empty dict = no schedule
         },
@@ -556,7 +558,7 @@ async def test_room_mode_frost_wins_over_presence(hass):
     # Person A is present and associated with area_p
     persons_config = {
         "person.alice": {
-            "mode": "present",
+            "mode": "force_present",
             "room_ids": ["area_p"],
             "schedule": {},
         },
@@ -579,3 +581,124 @@ async def test_room_mode_frost_wins_over_presence(hass):
     assert pushed == DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION], (
         f"room_mode=frost_protection should override presence and push 7.0, got {pushed}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests 13-19: HA-mode branch in _compute_present_persons (D-21)
+#
+# These tests directly instantiate ClimateManagerCoordinator (bypassing
+# the full entry setup) and call _compute_present_persons() directly.
+# HA entity states are seeded via hass.states.async_set().
+# ---------------------------------------------------------------------------
+
+
+def _make_simple_coordinator(hass) -> ClimateManagerCoordinator:
+    """Build a minimal coordinator for _compute_present_persons unit tests."""
+    from custom_components.climate_manager.storage import ClimateManagerStore
+    data = ClimateManagerData(
+        store=ClimateManagerStore(hass),
+        runtime_config=_make_runtime_config(),
+        rooms={},
+        persons=[],
+        room_auto_sensors={},
+    )
+    return ClimateManagerCoordinator(hass, data)
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+def test_compute_present_persons_ha_mode_state_home(hass):
+    """D-21: person with mode='ha' and state='home' is present."""
+    hass.states.async_set("person.alice", "home")
+    coordinator = _make_simple_coordinator(hass)
+    config = _make_runtime_config(
+        persons_config={"person.alice": {"mode": "ha", "room_ids": []}}
+    )
+    now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
+    result = coordinator._compute_present_persons(config, now)
+    assert "person.alice" in result
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+def test_compute_present_persons_ha_mode_state_not_home(hass):
+    """D-21: person with mode='ha' and state='not_home' is absent."""
+    hass.states.async_set("person.alice", "not_home")
+    coordinator = _make_simple_coordinator(hass)
+    config = _make_runtime_config(
+        persons_config={"person.alice": {"mode": "ha", "room_ids": []}}
+    )
+    now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
+    result = coordinator._compute_present_persons(config, now)
+    assert "person.alice" not in result
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+def test_compute_present_persons_ha_mode_state_unknown(hass):
+    """D-21: person with mode='ha' and state='unknown' is absent."""
+    hass.states.async_set("person.alice", "unknown")
+    coordinator = _make_simple_coordinator(hass)
+    config = _make_runtime_config(
+        persons_config={"person.alice": {"mode": "ha", "room_ids": []}}
+    )
+    now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
+    result = coordinator._compute_present_persons(config, now)
+    assert "person.alice" not in result
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+def test_compute_present_persons_ha_mode_state_missing(hass):
+    """D-21: person with mode='ha' and no HA state (entity not found) is absent."""
+    # Do NOT seed any state for person.alice — hass.states.get returns None
+    coordinator = _make_simple_coordinator(hass)
+    config = _make_runtime_config(
+        persons_config={"person.alice": {"mode": "ha", "room_ids": []}}
+    )
+    now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
+    result = coordinator._compute_present_persons(config, now)
+    assert "person.alice" not in result
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+def test_compute_present_persons_ha_mode_state_unavailable(hass):
+    """D-21: person with mode='ha' and state='unavailable' is absent."""
+    hass.states.async_set("person.alice", "unavailable")
+    coordinator = _make_simple_coordinator(hass)
+    config = _make_runtime_config(
+        persons_config={"person.alice": {"mode": "ha", "room_ids": []}}
+    )
+    now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
+    result = coordinator._compute_present_persons(config, now)
+    assert "person.alice" not in result
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+def test_compute_present_persons_ha_mode_state_zone_name(hass):
+    """D-21: person with mode='ha' and state='work' (zone name) is absent — only 'home' qualifies."""
+    hass.states.async_set("person.alice", "work")
+    coordinator = _make_simple_coordinator(hass)
+    config = _make_runtime_config(
+        persons_config={"person.alice": {"mode": "ha", "room_ids": []}}
+    )
+    now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
+    result = coordinator._compute_present_persons(config, now)
+    assert "person.alice" not in result
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+def test_compute_present_persons_mixed_modes(hass):
+    """D-21: mixed modes — force_present always present, ha+home present, ha+not_home absent."""
+    hass.states.async_set("person.bob", "home")
+    hass.states.async_set("person.carol", "not_home")
+    coordinator = _make_simple_coordinator(hass)
+    config = _make_runtime_config(
+        persons_config={
+            "person.alice": {"mode": "force_present", "room_ids": []},
+            "person.bob": {"mode": "ha", "room_ids": []},
+            "person.carol": {"mode": "ha", "room_ids": []},
+        }
+    )
+    now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
+    result = coordinator._compute_present_persons(config, now)
+    assert "person.alice" in result
+    assert "person.bob" in result
+    assert "person.carol" not in result
+    assert len(result) == 2

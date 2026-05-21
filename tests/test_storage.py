@@ -86,3 +86,46 @@ async def test_load_room_override_survives(hass):
     assert loaded["rooms"]["living_room"] == {
         "time_program": room_time_program
     }
+
+
+# ---------------------------------------------------------------------------
+# D-21 migration tests: present → force_present, absent → force_absent
+# ---------------------------------------------------------------------------
+
+
+async def test_load_migrates_present_to_force_present(hass):
+    """D-21 migration: stored person mode 'present' is renamed to 'force_present' on load."""
+    store = ClimateManagerStore(hass)
+    await store._store.async_save({"persons": {"person.a": {"mode": "present"}}})
+    result = await store.async_load()
+    assert result["persons"]["person.a"]["mode"] == "force_present"
+
+
+async def test_load_migrates_absent_to_force_absent(hass):
+    """D-21 migration: stored person mode 'absent' is renamed to 'force_absent' on load."""
+    store = ClimateManagerStore(hass)
+    await store._store.async_save({"persons": {"person.a": {"mode": "absent"}}})
+    result = await store.async_load()
+    assert result["persons"]["person.a"]["mode"] == "force_absent"
+
+
+async def test_load_already_migrated_force_present_unchanged(hass):
+    """D-21 migration idempotency: 'force_present' mode is not modified on re-load."""
+    store = ClimateManagerStore(hass)
+    await store._store.async_save({"persons": {"person.a": {"mode": "force_present"}}})
+    result = await store.async_load()
+    assert result["persons"]["person.a"]["mode"] == "force_present"
+
+
+async def test_load_unrelated_modes_unchanged(hass):
+    """D-21 migration: 'scheduled' and 'ha' modes are not affected by the migration."""
+    store = ClimateManagerStore(hass)
+    await store._store.async_save({
+        "persons": {
+            "person.sched": {"mode": "scheduled"},
+            "person.ha": {"mode": "ha"},
+        }
+    })
+    result = await store.async_load()
+    assert result["persons"]["person.sched"]["mode"] == "scheduled"
+    assert result["persons"]["person.ha"]["mode"] == "ha"

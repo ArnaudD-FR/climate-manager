@@ -48,6 +48,7 @@ from .const import (
     MODE_TIME_PROGRAM,
     MODE_TIME_PROGRAM_PRESENCES,
     PERIOD_FROST_PROTECTION,
+    PRESENCE_HA,
     ROOM_MODE_FROST,
     ROOM_MODE_CUSTOM,
 )
@@ -145,15 +146,25 @@ class ClimateManagerCoordinator:
         temperature control (MODE_TIME_PROGRAM_PRESENCES) — it never suppresses
         the presence state from the status display.
 
-        Persons with mode=present always appear; absent always absent; automatic
-        is evaluated against the person's periodic schedule via resolve_presence().
+        Persons with mode=force_present always appear; force_absent always absent;
+        scheduled is evaluated against the person's periodic schedule via resolve_presence().
+        HA mode (D-21): mode='ha' delegates presence detection to HA's own person.*
+        entity state — person is present iff hass.states.get(person_id).state == 'home'.
+        All other HA states (not_home, unknown, unavailable, zone names, None) → absent.
         """
         persons_config: dict = config.get("persons", {})
-        return [
-            person_id
-            for person_id, person_config in persons_config.items()
-            if resolve_presence(person_config, now)
-        ]
+        present: list[str] = []
+        for person_id, person_config in persons_config.items():
+            if person_config.get("mode") == PRESENCE_HA:
+                # D-21: HA-mode — read person.* entity state from HA directly
+                state_obj = self._hass.states.get(person_id)
+                if state_obj is not None and state_obj.state == "home":
+                    present.append(person_id)
+            else:
+                # scheduled, force_present, force_absent, or unknown → delegate to resolve_presence
+                if resolve_presence(person_config, now):
+                    present.append(person_id)
+        return present
 
     async def _evaluate_time_program(
         self,
