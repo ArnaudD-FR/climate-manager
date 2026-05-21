@@ -239,7 +239,7 @@ export class ClimateManagerPanel extends LitElement {
         <button
           class="tab-btn ${this._activeTab === "global" ? "active" : ""}"
           @click=${() => this._setTab("global")}
-        >Global Settings</button>
+        >Overview</button>
         <button
           class="tab-btn ${this._activeTab === "rooms" ? "active" : ""}"
           @click=${() => this._setTab("rooms")}

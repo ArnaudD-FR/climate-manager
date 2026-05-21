@@ -64,7 +64,7 @@ export class PersonsTab extends LitElement {
   private _isNonDefault(personId: string): boolean {
     const c = this.config?.persons?.[personId];
     if (!c) return false;
-    const hasNonDefaultMode = c.mode != null && c.mode !== "automatic";
+    const hasNonDefaultMode = c.mode != null && c.mode !== "scheduled";
     const hasRooms = (c.room_ids?.length ?? 0) > 0;
     const hasSchedule = c.schedule
       ? Object.values(c.schedule).some((dayPeriods) => dayPeriods.length > 0)

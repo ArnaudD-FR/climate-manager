@@ -21,7 +21,7 @@ import "./time-bar.js";
 import "./search-picker.js";
 
 // Presence mode constants
-const PRESENCE_MODE_AUTOMATIC = "automatic";
+const PRESENCE_MODE_AUTOMATIC = "scheduled";
 const PRESENCE_MODE_PRESENT = "present";
 const PRESENCE_MODE_ABSENT = "absent";
 
@@ -293,7 +293,7 @@ export class PersonCard extends LitElement {
     switch (mode) {
       case PRESENCE_MODE_PRESENT: return { cls: "present", text: "Present" };
       case PRESENCE_MODE_ABSENT: return { cls: "absent", text: "Absent" };
-      default: return { cls: "automatic", text: "Automatic" };
+      default: return { cls: "automatic", text: "Scheduled" };
     }
   }
 
@@ -325,7 +325,7 @@ export class PersonCard extends LitElement {
               <div class="section-label">Presence mode</div>
               <div class="select-wrapper">
                 <select class="mode-select" @change=${this._onModeChange}>
-                  <option value=${PRESENCE_MODE_AUTOMATIC} ?selected=${currentMode === PRESENCE_MODE_AUTOMATIC}>Automatic</option>
+                  <option value=${PRESENCE_MODE_AUTOMATIC} ?selected=${currentMode === PRESENCE_MODE_AUTOMATIC}>Scheduled</option>
                   <option value=${PRESENCE_MODE_PRESENT} ?selected=${currentMode === PRESENCE_MODE_PRESENT}>Present</option>
                   <option value=${PRESENCE_MODE_ABSENT} ?selected=${currentMode === PRESENCE_MODE_ABSENT}>Absent</option>
                 </select>

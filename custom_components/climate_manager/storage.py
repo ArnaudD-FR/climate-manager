@@ -71,6 +71,11 @@ class ClimateManagerStore:
             if not periods:
                 time_program[day] = copy.deepcopy(_DEFAULT_DAY_PERIODS)
 
+        # Migration: rename person presence mode "automatic" → "scheduled".
+        for person_cfg in result.get("persons", {}).values():
+            if person_cfg.get("mode") == "automatic":
+                person_cfg["mode"] = "scheduled"
+
         return result
 
     async def async_save(self, config: dict) -> None:
