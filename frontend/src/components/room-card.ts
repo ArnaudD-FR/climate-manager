@@ -132,8 +132,8 @@ export class RoomCard extends LitElement {
       gap: 4px;
       padding: 4px 8px;
       border-radius: 4px;
-      background: rgba(255, 152, 0, 0.12);
-      color: #e65100;
+      background: var(--secondary-background-color);
+      color: var(--warning-color, #e65100);
       font-size: 12px;
       margin-bottom: 12px;
     }
@@ -214,7 +214,7 @@ export class RoomCard extends LitElement {
     }
 
     .chip-add:hover {
-      background: rgba(3, 169, 244, 0.08);
+      background: var(--secondary-background-color);
     }
 
     .chip-add ha-icon {

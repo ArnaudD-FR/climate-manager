@@ -239,7 +239,7 @@ export class PersonCard extends LitElement {
     }
 
     .chip-add:hover {
-      background: rgba(3, 169, 244, 0.08);
+      background: var(--secondary-background-color);
     }
 
     .chip-add ha-icon {

@@ -159,7 +159,7 @@ export class ClimateManagerTimeBar extends LitElement {
       justify-content: center;
       font-size: 11px;
       font-weight: 600;
-      color: rgba(255, 255, 255, 0.9);
+      color: var(--text-primary-color, white);
       overflow: hidden;
       position: relative;
       cursor: pointer;
@@ -232,8 +232,8 @@ export class ClimateManagerTimeBar extends LitElement {
     /* Drag tooltip */
     .drag-tooltip {
       position: fixed;
-      background: rgba(0, 0, 0, 0.75);
-      color: #fff;
+      background: var(--app-header-background-color, rgba(0, 0, 0, 0.75));
+      color: var(--text-primary-color, white);
       font-size: 12px;
       border-radius: 3px;
       padding: 2px 6px;
@@ -253,7 +253,7 @@ export class ClimateManagerTimeBar extends LitElement {
       position: fixed;
       background: var(--card-background-color, #fff);
       border-radius: 4px;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+      box-shadow: var(--ha-card-box-shadow, 0 4px 16px rgba(0,0,0,0.25));
       padding: 12px;
       z-index: 9991;
       min-width: 160px;
