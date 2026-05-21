@@ -702,3 +702,59 @@ def test_compute_present_persons_mixed_modes(hass):
     assert "person.bob" in result
     assert "person.carol" not in result
     assert len(result) == 2
+
+
+# ---------------------------------------------------------------------------
+# Test: D-24 — _build_status_payload includes present_person_count (plan 03-10)
+# ---------------------------------------------------------------------------
+
+
+def test_build_status_payload_includes_present_person_count(hass):
+    """D-24: _build_status_payload sets present_person_count on every rooms_status entry.
+
+    Setup:
+    - rooms: living_room (climate.x), kitchen (climate.y)
+    - persons: alice assigned to living_room, bob assigned to living_room + kitchen
+    - _last_present_persons: [person.alice] only
+
+    Expected:
+    - living_room.present_person_count == 1 (alice is present and assigned)
+    - kitchen.present_person_count == 0 (bob is assigned but absent; alice not assigned)
+    - Both entries have the key present_person_count
+    """
+    from custom_components.climate_manager.storage import ClimateManagerStore
+
+    runtime_config = _make_runtime_config(
+        persons_config={
+            "person.alice": {"room_ids": ["living_room"]},
+            "person.bob": {"room_ids": ["living_room", "kitchen"]},
+        }
+    )
+    data = ClimateManagerData(
+        store=ClimateManagerStore(hass),
+        runtime_config=runtime_config,
+        rooms={"living_room": ["climate.x"], "kitchen": ["climate.y"]},
+        persons=[],
+        room_auto_sensors={},
+    )
+    coordinator = ClimateManagerCoordinator(hass, data)
+    coordinator._last_present_persons = ["person.alice"]
+
+    payload = coordinator._build_status_payload()
+
+    rooms_status = payload["rooms_status"]
+    # Both entries must have the key
+    for entry in rooms_status:
+        assert "present_person_count" in entry, (
+            f"present_person_count missing from room entry {entry['area_id']}"
+        )
+
+    living_entry = next(e for e in rooms_status if e["area_id"] == "living_room")
+    kitchen_entry = next(e for e in rooms_status if e["area_id"] == "kitchen")
+
+    assert living_entry["present_person_count"] == 1, (
+        f"living_room: expected 1 (alice present+assigned), got {living_entry['present_person_count']}"
+    )
+    assert kitchen_entry["present_person_count"] == 0, (
+        f"kitchen: expected 0 (bob assigned but absent), got {kitchen_entry['present_person_count']}"
+    )

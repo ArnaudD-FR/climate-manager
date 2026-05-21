@@ -110,3 +110,44 @@ async def test_ws_set_time_program_rejects_partial(hass, hass_ws_client):
 
     # global_time_program must be unchanged — T-03-05 validation gate
     assert entry.runtime_data.runtime_config["global_time_program"] == original_program
+
+
+# ---------------------------------------------------------------------------
+# Test 4: D-24 — get_status rooms_status includes present_person_count
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_get_status_includes_present_person_count(hass, hass_ws_client):
+    """D-24: get_status returns rooms_status entries with present_person_count.
+
+    Seeded: living_room has alice (present) assigned; kitchen has no present persons.
+    Expected: living_room.present_person_count == 1, kitchen.present_person_count == 0.
+    """
+    entry = await _setup_entry(hass)
+
+    # Seed rooms, persons config, and coordinator state
+    entry.runtime_data.rooms = {"living_room": ["climate.x"], "kitchen": ["climate.y"]}
+    entry.runtime_data.runtime_config["persons"] = {
+        "person.alice": {"room_ids": ["living_room"]},
+    }
+    entry.runtime_data.coordinator._last_present_persons = ["person.alice"]
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/get_status"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+
+    rooms_status = msg["result"]["rooms_status"]
+
+    # Every entry must have the key
+    for room_entry in rooms_status:
+        assert "present_person_count" in room_entry, (
+            f"present_person_count missing from {room_entry['area_id']}"
+        )
+
+    living_entry = next(e for e in rooms_status if e["area_id"] == "living_room")
+    kitchen_entry = next(e for e in rooms_status if e["area_id"] == "kitchen")
+
+    assert living_entry["present_person_count"] == 1
+    assert kitchen_entry["present_person_count"] == 0
