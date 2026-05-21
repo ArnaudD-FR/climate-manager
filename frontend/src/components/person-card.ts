@@ -1,18 +1,21 @@
 /**
  * Climate Manager Panel — Person Card component (UI-04).
  *
- * Expandable card per person. Collapsed: person name + presence mode badge.
- * Expanded: presence mode selector (3-option select), room association
- * chips, presence schedule bar (only visible when mode === "automatic").
+ * Expandable card per person. Collapsed: person name + presence mode badge + presence dot.
+ * Expanded: presence mode selector (4-option select), room association
+ * chips, presence schedule bar (only visible when mode === "scheduled").
  *
  * Auto-save on all changes (D-08). Presence time-bar saves on interaction
  * end (D-09). Toast feedback on success/error (D-10).
+ * D-15 (updated): always collapsed by default.
+ * D-21: four presence modes — scheduled, ha, force_present, force_absent.
+ * D-22: default schedule seeded on first switch to scheduled mode.
  */
 
 import { LitElement, html, css } from "lit";
 import { property, state } from "lit/decorators.js";
 
-import type { PersonConfig, DailyProgram, Period } from "../types.js";
+import type { PersonConfig, DailyProgram, Period, StatusPayload } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
@@ -20,10 +23,22 @@ import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
 import "./time-bar.js";
 import "./search-picker.js";
 
-// Presence mode constants
-const PRESENCE_MODE_AUTOMATIC = "scheduled";
-const PRESENCE_MODE_PRESENT = "present";
-const PRESENCE_MODE_ABSENT = "absent";
+// Presence mode constants (D-21)
+const PRESENCE_MODE_SCHEDULED = "scheduled";
+const PRESENCE_MODE_HA = "ha";
+const PRESENCE_MODE_FORCE_PRESENT = "force_present";
+const PRESENCE_MODE_FORCE_ABSENT = "force_absent";
+
+// Default schedule seeded when switching to Scheduled mode with no existing schedule (D-22)
+const DEFAULT_SCHEDULE: DailyProgram = {
+  mon: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
+  tue: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
+  wed: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
+  thu: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
+  fri: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
+  sat: [{ start: "00:00", state: "present" }],
+  sun: [{ start: "00:00", state: "present" }],
+};
 
 export interface RoomChoice {
   id: string;
@@ -39,27 +54,14 @@ export class PersonCard extends LitElement {
   @property({ attribute: false }) roomChoices: RoomChoice[] = [];
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
+  @property({ attribute: false }) status: StatusPayload | null = null;
 
   @state() _expanded = false;
 
   connectedCallback() {
     super.connectedCallback();
-    // Default: expand if any non-default setting (D-15)
-    this._expanded = this._isNonDefault();
-  }
-
-  private _isNonDefault(): boolean {
-    const c = this.config;
-    if (!c) return false;
-    return (
-      (c.mode != null && c.mode !== PRESENCE_MODE_AUTOMATIC) ||
-      (c.room_ids != null && c.room_ids.length > 0) ||
-      (c.schedule != null && this._hasSchedulePeriods(c.schedule))
-    );
-  }
-
-  private _hasSchedulePeriods(schedule: DailyProgram): boolean {
-    return Object.values(schedule).some((dayPeriods) => dayPeriods.length > 0);
+    // D-15 (updated): always collapsed by default
+    this._expanded = false;
   }
 
   static styles = css`
@@ -100,19 +102,37 @@ export class PersonCard extends LitElement {
       font-weight: 400;
     }
 
-    .mode-badge.automatic {
+    .mode-badge.scheduled {
       background: var(--secondary-background-color, #f5f5f5);
       color: var(--secondary-text-color, #757575);
     }
 
-    .mode-badge.present {
+    .mode-badge.force-present {
       border: 1px solid var(--primary-color, #03a9f4);
       color: var(--primary-color, #03a9f4);
     }
 
-    .mode-badge.absent {
+    .mode-badge.force-absent {
       background: var(--secondary-background-color, #f5f5f5);
       color: var(--secondary-text-color, #757575);
+    }
+
+    .mode-badge.ha {
+      background: var(--secondary-background-color, #f5f5f5);
+      color: var(--secondary-text-color, #757575);
+    }
+
+    .presence-dot {
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .presence-dot.present {
+      color: var(--success-color, #4caf50);
+    }
+
+    .presence-dot.absent {
+      color: var(--secondary-text-color, #9e9e9e);
     }
 
     .expand-icon {
@@ -242,7 +262,16 @@ export class PersonCard extends LitElement {
     const newMode = (e.target as HTMLSelectElement).value;
     if (!newMode) return;
     try {
-      await this.ws.setPersonConfig(this.personId, { mode: newMode });
+      // D-22: seed default schedule when switching to Scheduled with no existing schedule
+      const hasSchedule =
+        !!this.config?.schedule &&
+        Object.values(this.config.schedule).some((day) => day.length > 0);
+
+      if (newMode === PRESENCE_MODE_SCHEDULED && !hasSchedule) {
+        await this.ws.setPersonConfig(this.personId, { mode: newMode, schedule: DEFAULT_SCHEDULE });
+      } else {
+        await this.ws.setPersonConfig(this.personId, { mode: newMode });
+      }
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
@@ -285,22 +314,31 @@ export class PersonCard extends LitElement {
   }
 
   // -----------------------------------------------------------------------
+  // Helpers
+  // -----------------------------------------------------------------------
+
+  private _isCurrentlyPresent(): boolean {
+    return this.status?.present_persons?.includes(this.personId) ?? false;
+  }
+
+  // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
 
   private _getBadgeInfo(): { cls: string; text: string } {
-    const mode = this.config?.mode ?? PRESENCE_MODE_AUTOMATIC;
+    const mode = this.config?.mode ?? PRESENCE_MODE_SCHEDULED;
     switch (mode) {
-      case PRESENCE_MODE_PRESENT: return { cls: "present", text: "Present" };
-      case PRESENCE_MODE_ABSENT: return { cls: "absent", text: "Absent" };
-      default: return { cls: "automatic", text: "Scheduled" };
+      case PRESENCE_MODE_FORCE_PRESENT: return { cls: "force-present", text: "Force Present" };
+      case PRESENCE_MODE_FORCE_ABSENT: return { cls: "force-absent", text: "Force Absent" };
+      case PRESENCE_MODE_HA: return { cls: "ha", text: "HA" };
+      default: return { cls: "scheduled", text: "Scheduled" };
     }
   }
 
   render() {
     const { cls: badgeCls, text: badgeText } = this._getBadgeInfo();
-    const currentMode = this.config?.mode ?? PRESENCE_MODE_AUTOMATIC;
-    const isAutomatic = currentMode === PRESENCE_MODE_AUTOMATIC;
+    const currentMode = this.config?.mode ?? PRESENCE_MODE_SCHEDULED;
+    const isScheduled = currentMode === PRESENCE_MODE_SCHEDULED;
     const currentRoomIds = this.config?.room_ids ?? [];
     const unassignedRooms = this.roomChoices.filter((r) => !currentRoomIds.includes(r.id));
 
@@ -310,6 +348,10 @@ export class PersonCard extends LitElement {
           <div class="card-header-left">
             <span class="person-name">${this.personName}</span>
             <span class="mode-badge ${badgeCls}">${badgeText}</span>
+            <span
+              class="presence-dot ${this._isCurrentlyPresent() ? "present" : "absent"}"
+              title="Currently ${this._isCurrentlyPresent() ? "present" : "absent"}"
+            >●</span>
           </div>
           <ha-icon
             class="expand-icon ${this._expanded ? "expanded" : ""}"
@@ -325,9 +367,10 @@ export class PersonCard extends LitElement {
               <div class="section-label">Presence mode</div>
               <div class="select-wrapper">
                 <select class="mode-select" @change=${this._onModeChange}>
-                  <option value=${PRESENCE_MODE_AUTOMATIC} ?selected=${currentMode === PRESENCE_MODE_AUTOMATIC}>Scheduled</option>
-                  <option value=${PRESENCE_MODE_PRESENT} ?selected=${currentMode === PRESENCE_MODE_PRESENT}>Present</option>
-                  <option value=${PRESENCE_MODE_ABSENT} ?selected=${currentMode === PRESENCE_MODE_ABSENT}>Absent</option>
+                  <option value=${PRESENCE_MODE_SCHEDULED} ?selected=${currentMode === PRESENCE_MODE_SCHEDULED}>Scheduled</option>
+                  <option value=${PRESENCE_MODE_HA} ?selected=${currentMode === PRESENCE_MODE_HA}>HA</option>
+                  <option value=${PRESENCE_MODE_FORCE_PRESENT} ?selected=${currentMode === PRESENCE_MODE_FORCE_PRESENT}>Force Present</option>
+                  <option value=${PRESENCE_MODE_FORCE_ABSENT} ?selected=${currentMode === PRESENCE_MODE_FORCE_ABSENT}>Force Absent</option>
                 </select>
               </div>
 
@@ -366,8 +409,8 @@ export class PersonCard extends LitElement {
                   : ""}
               </div>
 
-              <!-- Presence schedule (only in Automatic mode) -->
-              ${isAutomatic
+              <!-- Presence schedule (only in Scheduled mode) -->
+              ${isScheduled
                 ? html`
                   <div class="section-label">Presence schedule</div>
                   <div class="schedule-section">
