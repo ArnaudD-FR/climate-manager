@@ -18,6 +18,7 @@ import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
 
 import "./time-bar.js";
+import "./search-picker.js";
 
 // Presence mode constants
 const PRESENCE_MODE_AUTOMATIC = "automatic";
@@ -27,6 +28,8 @@ const PRESENCE_MODE_ABSENT = "absent";
 export interface RoomChoice {
   id: string;
   name: string;
+  /** Optional floor name shown as secondary text in the add-room search-picker (D-19). */
+  secondary?: string;
 }
 
 export class PersonCard extends LitElement {
@@ -38,7 +41,6 @@ export class PersonCard extends LitElement {
   @property({ attribute: false }) panel!: ClimateManagerPanel;
 
   @state() _expanded = false;
-  @state() _showRoomAdd = false;
 
   connectedCallback() {
     super.connectedCallback();
@@ -226,18 +228,6 @@ export class PersonCard extends LitElement {
       height: 16px;
     }
 
-    .add-select {
-      padding: 4px 10px;
-      font-size: 13px;
-      font-family: inherit;
-      color: var(--primary-text-color);
-      background-color: var(--card-background-color, var(--secondary-background-color));
-      border: 1px solid var(--primary-color, #03a9f4);
-      border-radius: 16px;
-      cursor: pointer;
-      outline: none;
-    }
-
     /* Presence schedule */
     .schedule-section {
       margin-top: 12px;
@@ -272,14 +262,6 @@ export class PersonCard extends LitElement {
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
     }
-  }
-
-  private _onAddRoomSelect(e: Event) {
-    const sel = e.target as HTMLSelectElement;
-    const roomId = sel.value;
-    if (!roomId) return;
-    this._showRoomAdd = false;
-    void this._onRoomToggle(roomId, true);
   }
 
   private async _onSchedulePeriodsChanged(e: CustomEvent) {
@@ -367,19 +349,20 @@ export class PersonCard extends LitElement {
                   `;
                 })}
                 ${unassignedRooms.length > 0
-                  ? this._showRoomAdd
-                    ? html`
-                      <select class="add-select" @change=${(e: Event) => this._onAddRoomSelect(e)}>
-                        <option value="">Select room…</option>
-                        ${unassignedRooms.map((r) => html`<option value=${r.id}>${r.name}</option>`)}
-                      </select>
-                    `
-                    : html`
-                      <button class="chip-add" @click=${() => { this._showRoomAdd = true; }}>
-                        <ha-icon icon="mdi:plus"></ha-icon>
-                        Add room
-                      </button>
-                    `
+                  ? html`
+                    <search-picker
+                      .items=${unassignedRooms.map((r) => ({
+                        id: r.id,
+                        label: r.name,
+                        secondary: r.secondary,
+                        icon: "mdi:home-outline",
+                      }))}
+                      triggerLabel="Add room"
+                      triggerIcon="mdi:plus"
+                      placeholder="Search rooms…"
+                      @picked=${(e: CustomEvent) => { const {id} = e.detail as {id: string}; void this._onRoomToggle(id, true); }}
+                    ></search-picker>
+                  `
                   : ""}
               </div>
 

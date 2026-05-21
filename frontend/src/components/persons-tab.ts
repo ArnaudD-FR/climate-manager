@@ -12,7 +12,7 @@
 import { LitElement, html, css } from "lit";
 import { property } from "lit/decorators.js";
 
-import type { ClimateConfig, StatusPayload, RoomStatus } from "../types.js";
+import type { ClimateConfig, StatusPayload, RoomStatus, Hass } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import type { RoomChoice } from "./person-card.js";
@@ -24,6 +24,7 @@ export class PersonsTab extends LitElement {
   @property({ attribute: false }) status: StatusPayload | null = null;
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
+  @property({ attribute: false }) hass!: Hass;
 
   static styles = css`
     :host {
@@ -53,7 +54,9 @@ export class PersonsTab extends LitElement {
       const name =
         (statusRooms.find((r) => r.area_id === roomId) as (RoomStatus & { name?: string }) | undefined)?.name ??
         roomId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-      return { id: roomId, name };
+      const floorId = this.hass?.areas?.[roomId]?.floor_id ?? null;
+      const secondary = floorId ? (this.hass?.floors?.[floorId]?.name ?? undefined) : undefined;
+      return { id: roomId, name, secondary };
     });
   }
 
