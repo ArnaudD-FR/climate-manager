@@ -16,10 +16,10 @@
  * (ha-textfield renders nothing in HA 2026.x).
  */
 
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css, unsafeCSS } from "lit";
 import { property } from "lit/decorators.js";
 
-import { PERIOD_DISPLAY_NAMES } from "../types.js";
+import { PERIOD_DISPLAY_NAMES, PRESENCE_COLORS } from "../types.js";
 import type { Hass, ClimateConfig, StatusPayload, DailyProgram, Period } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
@@ -126,6 +126,7 @@ export class GlobalSettingsTab extends LitElement {
   static styles = css`
     :host {
       display: block;
+      --present-color: ${unsafeCSS(PRESENCE_COLORS.present)};
     }
 
     ha-card {
@@ -168,7 +169,7 @@ export class GlobalSettingsTab extends LitElement {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #388E3C;
+      background: var(--present-color);
       margin-right: 4px;
       vertical-align: middle;
     }

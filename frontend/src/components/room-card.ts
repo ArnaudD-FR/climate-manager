@@ -14,7 +14,7 @@ import { LitElement, html, css } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import type { RoomConfig, RoomStatus, DailyProgram, Period, ClimateConfig, Hass } from "../types.js";
-import { PERIOD_DISPLAY_NAMES } from "../types.js";
+import { PERIOD_DISPLAY_NAMES, PERIOD_COLORS } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
@@ -118,11 +118,6 @@ export class RoomCard extends LitElement {
     .program-badge.global {
       background: var(--secondary-background-color, #f5f5f5);
       color: var(--secondary-text-color, #757575);
-    }
-
-    .program-badge.frost {
-      background: #1565C0;
-      color: #fff;
     }
 
     .card-content {
@@ -541,7 +536,10 @@ export class RoomCard extends LitElement {
           <div class="card-header-left">
             <div class="card-header-top">
               <span class="room-name">${this.roomName}</span>
-              <span class="program-badge ${badgeClass}">${badgeText}</span>
+              <span
+                class="program-badge ${badgeClass}"
+                style=${badgeClass === "frost" ? `background: ${PERIOD_COLORS.frost_protection}; color: white;` : ""}
+              >${badgeText}</span>
             </div>
             ${this._renderHeaderStatus()}
           </div>
