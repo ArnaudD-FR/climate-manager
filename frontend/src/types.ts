@@ -23,6 +23,11 @@ export type DailyProgram = Record<
 
 /** Per-room configuration stored in ClimateConfig.rooms. */
 export interface RoomConfig {
+  /**
+   * Room heating mode (D-20). Absent key implies "global".
+   * Legal values: "global" | "frost_protection" | "custom"
+   */
+  room_mode?: "global" | "frost_protection" | "custom";
   time_program?: DailyProgram | null;
 }
 
