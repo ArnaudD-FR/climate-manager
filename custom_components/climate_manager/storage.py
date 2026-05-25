@@ -69,7 +69,7 @@ class ClimateManagerStore:
         time_program = result.get("global_time_program", {})
         for day, periods in time_program.items():
             if not periods:
-                time_program[day] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM.get(day, _DEFAULT_DAILY_PROGRAM["mon"]))
+                time_program[day] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM[day])
 
         # Migration: rename person presence modes to current wire values.
         for person_cfg in result.get("persons", {}).values():
