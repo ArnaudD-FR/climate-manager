@@ -265,6 +265,22 @@ export class PersonCard extends LitElement {
     .schedule-section {
       margin-top: 12px;
     }
+
+    .reset-btn {
+      margin-top: 12px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--primary-color, #03a9f4);
+      background: none;
+      border: 1px solid var(--primary-color, #03a9f4);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .reset-btn:hover {
+      background: var(--secondary-background-color);
+    }
   `;
 
   // -----------------------------------------------------------------------
@@ -303,6 +319,16 @@ export class PersonCard extends LitElement {
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onResetSchedule() {
+    try {
+      await this.ws.setPersonConfig(this.personId, { schedule: DEFAULT_SCHEDULE });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Reset to defaults", false);
+    } catch {
+      this.panel.showToast("Reset failed — retrying...", true);
     }
   }
 
@@ -434,6 +460,7 @@ export class PersonCard extends LitElement {
                       @periods-changed=${this._onSchedulePeriodsChanged}
                     ></climate-manager-time-bar>
                   </div>
+                  <button class="reset-btn" @click=${() => void this._onResetSchedule()}>Reset to default</button>
                 `
                 : ""}
             </div>
