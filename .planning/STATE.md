@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 03 context updated with architectural constraints D-23-D-30
-last_updated: "2026-05-21T21:20:05.876Z"
-last_activity: 2026-05-25 - Completed quick task 260525-lmn: default time program weekday/weekend split
+stopped_at: context exhaustion at 76% (2026-05-25)
+last_updated: "2026-05-25T13:52:28.710Z"
+last_activity: 2026-05-21 -- Phase 03 execution started
 progress:
   total_phases: 3
   completed_phases: 3
   total_plans: 14
-  completed_plans: 14
+  completed_plans: 17
   percent: 100
 ---
 
@@ -92,6 +92,7 @@ None yet.
 | 260525-ldv | time-bar UI polish: normal=orange, comfort=red colors; reduce copy/paste button spacing; center-align timestamp labels on time axis | 2026-05-25 | 4f5d413 | [260525-ldv-time-bar-ui-polish-normal-orange-comfort](.planning/quick/260525-ldv-time-bar-ui-polish-normal-orange-comfort/) |
 | 260525-lmn | update default global time program: weekdays have morning+evening normal blocks, weekends have full-day normal | 2026-05-25 | cc97a0c | [260525-lmn-update-default-global-time-program-weekd](.planning/quick/260525-lmn-update-default-global-time-program-weekd/) |
 | 260525-lqb | weekend default time program: change 07:00 to 06:00 for sat and sun | 2026-05-25 | 84e23a1 | [260525-lqb-weekend-default-time-program-change-07-0](.planning/quick/260525-lqb-weekend-default-time-program-change-07-0/) |
+| 260525-1606 | add reset schedule to default button in person presence schedule | 2026-05-25 | 22fdd6d | [260525-1606-person-schedule-reset-to-default](.planning/quick/260525-1606-person-schedule-reset-to-default/) |
 
 ### Blockers/Concerns
 
@@ -112,6 +113,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-21T20:58:21.238Z
-Stopped at: Phase 03 context updated with architectural constraints D-23-D-30
-Resume file: .planning/phases/03-websocket-api-frontend-panel/03-CONTEXT.md
+Last session: 2026-05-25T13:52:28.707Z
+Stopped at: context exhaustion at 76% (2026-05-25)
+Resume file: None
