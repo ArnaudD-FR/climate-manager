@@ -203,9 +203,8 @@ export class ClimateManagerTimeBar extends LitElement {
       display: flex;
       align-items: center;
       flex-shrink: 0;
-      margin-left: 4px;
+      margin-left: 2px;
       gap: 0;
-      --mdc-icon-button-size: 32px;
     }
 
     ha-icon-button.paste-disabled {
@@ -918,12 +917,14 @@ export class ClimateManagerTimeBar extends LitElement {
 
         <div class="day-actions">
           <ha-icon-button
+            style="--mdc-icon-button-size:32px"
             .label=${"Copy " + label + " schedule"}
             @click=${() => this._onCopy(dayIndex)}
           >
             <ha-icon icon="mdi:content-copy"></ha-icon>
           </ha-icon-button>
           <ha-icon-button
+            style="--mdc-icon-button-size:32px"
             class=${this._clipboard === null ? "paste-disabled" : ""}
             .label=${"Paste to " + label}
             .disabled=${this._clipboard === null}

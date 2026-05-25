@@ -802,7 +802,7 @@ var Mt = Object.defineProperty, R = (a, e, t, o) => {
     (i = a[r]) && (s = i(e, t, s) || s);
   return s && Mt(e, t, s), s;
 };
-const Rt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Ot = ["frost_protection", "reduced", "normal", "comfort"], zt = ["present", "absent"], Oe = class Oe extends C {
+const Rt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], zt = ["frost_protection", "reduced", "normal", "comfort"], Ot = ["present", "absent"], ze = class ze extends C {
   constructor() {
     super(...arguments), this.days = Array.from(
       { length: 7 },
@@ -962,7 +962,7 @@ const Rt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Ot = ["frost_prote
     const i = s.startMin + r / 2, n = Math.max(
       s.startMin + 15,
       Math.min(s.endMin - 15, this._snapToMinutes(i))
-    ), c = this.mode === "presence" ? zt : Ot, l = this.mode === "presence" ? s.period.state ?? "absent" : s.period.mode ?? "frost_protection", h = c.indexOf(l), p = c[(h + 1) % c.length], _ = this.mode === "presence" ? { start: s.period.start, state: l } : { start: s.period.start, mode: l }, b = this.mode === "presence" ? { start: this._minutesToHHMM(n), state: p } : { start: this._minutesToHHMM(n), mode: p }, y = this.days[e] ?? [], u = y.some(
+    ), c = this.mode === "presence" ? Ot : zt, l = this.mode === "presence" ? s.period.state ?? "absent" : s.period.mode ?? "frost_protection", h = c.indexOf(l), p = c[(h + 1) % c.length], _ = this.mode === "presence" ? { start: s.period.start, state: l } : { start: s.period.start, mode: l }, b = this.mode === "presence" ? { start: this._minutesToHHMM(n), state: p } : { start: this._minutesToHHMM(n), mode: p }, y = this.days[e] ?? [], u = y.some(
       (g) => g.start === s.period.start
     );
     let f;
@@ -1132,12 +1132,14 @@ const Rt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Ot = ["frost_prote
 
         <div class="day-actions">
           <ha-icon-button
+            style="--mdc-icon-button-size:32px"
             .label=${"Copy " + e + " schedule"}
             @click=${() => this._onCopy(t)}
           >
             <ha-icon icon="mdi:content-copy"></ha-icon>
           </ha-icon-button>
           <ha-icon-button
+            style="--mdc-icon-button-size:32px"
             class=${this._clipboard === null ? "paste-disabled" : ""}
             .label=${"Paste to " + e}
             .disabled=${this._clipboard === null}
@@ -1246,7 +1248,7 @@ const Rt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Ot = ["frost_prote
     return d``;
   }
 };
-Oe.styles = M`
+ze.styles = M`
     :host {
       display: block;
       user-select: none;
@@ -1341,9 +1343,8 @@ Oe.styles = M`
       display: flex;
       align-items: center;
       flex-shrink: 0;
-      margin-left: 4px;
+      margin-left: 2px;
       gap: 0;
-      --mdc-icon-button-size: 32px;
     }
 
     ha-icon-button.paste-disabled {
@@ -1497,7 +1498,7 @@ Oe.styles = M`
       color: var(--error-color, #db4437);
     }
   `;
-let k = Oe;
+let k = ze;
 R([
   m({ type: Array })
 ], k.prototype, "days");
@@ -1550,7 +1551,7 @@ const $e = "off", pe = "time_program", we = "time_program_presences", Ht = {
   [$e]: "Off",
   [pe]: "Time program",
   [we]: "Time program & presences"
-}, ze = class ze extends C {
+}, Oe = class Oe extends C {
   constructor() {
     super(...arguments), this.status = null, this._lastProgram = void 0, this._cachedDays = [], this._onModeChange = async (e) => {
       const t = e.target.value;
@@ -1728,7 +1729,7 @@ const $e = "off", pe = "time_program", we = "time_program_presences", Ht = {
     `;
   }
 };
-ze.styles = M`
+Oe.styles = M`
     :host {
       display: block;
       --present-color: ${st(Q.present)};
@@ -1890,7 +1891,7 @@ ze.styles = M`
       background: var(--secondary-background-color);
     }
   `;
-let I = ze;
+let I = Oe;
 ae([
   m({ attribute: !1 })
 ], I.prototype, "config");
@@ -2278,8 +2279,8 @@ const He = class He extends C {
   // Render helpers
   // -----------------------------------------------------------------------
   _renderHeaderStatus() {
-    var f, g, v, w, z;
-    const e = this.roomStatus, t = (e == null ? void 0 : e.temperature) != null ? `${e.temperature}°C` : "—", o = (e == null ? void 0 : e.humidity) != null ? `${e.humidity}%` : "—", s = (e == null ? void 0 : e.active_period) ?? null, r = s ? Ee[s] ?? s : "—", i = s != null ? (g = (f = this.panelConfig) == null ? void 0 : f.period_temperatures) == null ? void 0 : g[s] : void 0, n = i != null ? `${r} · ${i}°C` : r, l = this._getAssignedPersonIds().length, h = ((v = this.status) == null ? void 0 : v.global_mode) ?? ((w = this.panelConfig) == null ? void 0 : w.global_mode) ?? "", p = h === "time_program_presences", _ = p ? ((z = this.roomStatus) == null ? void 0 : z.present_person_count) ?? 0 : null, b = _ != null ? `${_}/${l}` : `${l}`, u = {
+    var f, g, v, w, O;
+    const e = this.roomStatus, t = (e == null ? void 0 : e.temperature) != null ? `${e.temperature}°C` : "—", o = (e == null ? void 0 : e.humidity) != null ? `${e.humidity}%` : "—", s = (e == null ? void 0 : e.active_period) ?? null, r = s ? Ee[s] ?? s : "—", i = s != null ? (g = (f = this.panelConfig) == null ? void 0 : f.period_temperatures) == null ? void 0 : g[s] : void 0, n = i != null ? `${r} · ${i}°C` : r, l = this._getAssignedPersonIds().length, h = ((v = this.status) == null ? void 0 : v.global_mode) ?? ((w = this.panelConfig) == null ? void 0 : w.global_mode) ?? "", p = h === "time_program_presences", _ = p ? ((O = this.roomStatus) == null ? void 0 : O.present_person_count) ?? 0 : null, b = _ != null ? `${_}/${l}` : `${l}`, u = {
       off: "Off",
       time_program: "Time program",
       time_program_presences: "Time & presence"
@@ -2710,8 +2711,8 @@ const Ie = class Ie extends C {
       u.sort((f, g) => s(f).localeCompare(s(g)));
     const i = [...r.keys()].filter((u) => u !== null).sort(
       (u, f) => {
-        var g, v, w, z, je, Be;
-        return (((w = (v = (g = this.hass) == null ? void 0 : g.floors) == null ? void 0 : v[f]) == null ? void 0 : w.level) ?? 0) - (((Be = (je = (z = this.hass) == null ? void 0 : z.floors) == null ? void 0 : je[u]) == null ? void 0 : Be.level) ?? 0);
+        var g, v, w, O, je, Be;
+        return (((w = (v = (g = this.hass) == null ? void 0 : g.floors) == null ? void 0 : v[f]) == null ? void 0 : w.level) ?? 0) - (((Be = (je = (O = this.hass) == null ? void 0 : O.floors) == null ? void 0 : je[u]) == null ? void 0 : Be.level) ?? 0);
       }
     ), n = r.get(null) ?? [], c = (u) => {
       const f = e[u] ?? {}, g = this._getRoomStatus(u), v = s(u);
@@ -2737,8 +2738,8 @@ const Ie = class Ie extends C {
     };
     return d`
       ${i.map((u) => {
-      var v, w, z;
-      const f = ((z = (w = (v = this.hass) == null ? void 0 : v.floors) == null ? void 0 : w[u]) == null ? void 0 : z.name) ?? u, g = r.get(u) ?? [];
+      var v, w, O;
+      const f = ((O = (w = (v = this.hass) == null ? void 0 : v.floors) == null ? void 0 : w[u]) == null ? void 0 : O.name) ?? u, g = r.get(u) ?? [];
       return d`
           <div class="floor-header">
             <ha-icon icon=${l(u)}></ha-icon>
@@ -3286,7 +3287,7 @@ ce([
   m({ attribute: !1 })
 ], U.prototype, "hass");
 customElements.define("climate-manager-persons-tab", U);
-var Ft = Object.defineProperty, O = (a, e, t, o) => {
+var Ft = Object.defineProperty, z = (a, e, t, o) => {
   for (var s = void 0, r = a.length - 1, i; r >= 0; r--)
     (i = a[r]) && (s = i(e, t, s) || s);
   return s && Ft(e, t, s), s;
@@ -3499,31 +3500,31 @@ Le.styles = M`
     }
   `;
 let P = Le;
-O([
+z([
   m({ attribute: !1 })
 ], P.prototype, "hass");
-O([
+z([
   m({ type: Boolean })
 ], P.prototype, "narrow");
-O([
+z([
   m({ attribute: !1 })
 ], P.prototype, "panel");
-O([
+z([
   x()
 ], P.prototype, "_config");
-O([
+z([
   x()
 ], P.prototype, "_status");
-O([
+z([
   x()
 ], P.prototype, "_activeTab");
-O([
+z([
   x()
 ], P.prototype, "_unsubStatus");
-O([
+z([
   x()
 ], P.prototype, "_wsError");
-O([
+z([
   Et("climate-manager-toast")
 ], P.prototype, "_toast");
 customElements.define("climate-manager-panel", P);
