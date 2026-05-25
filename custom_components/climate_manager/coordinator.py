@@ -53,7 +53,7 @@ from .const import (
     ROOM_MODE_CUSTOM,
 )
 from .schedule import compute_occupied_temp, evaluate_schedule, resolve_presence
-from .trv import set_trv_temperature
+from .trv import is_trv_entity, set_trv_temperature
 
 if TYPE_CHECKING:
     from . import ClimateManagerData
@@ -412,11 +412,7 @@ class ClimateManagerCoordinator:
                 if hum_state is not None and hum_state.state not in ("unavailable", "unknown"):
                     room_entry["humidity"] = hum_state.state
 
-            # TRV rooms have current_temperature; boiler relays (chaudière) do not
-            room_entry["has_trv"] = any(
-                (s := self._hass.states.get(eid)) is not None and "current_temperature" in s.attributes
-                for eid in entity_ids
-            )
+            room_entry["has_trv"] = any(is_trv_entity(self._hass, eid) for eid in entity_ids)
 
             rooms_status.append(room_entry)
 

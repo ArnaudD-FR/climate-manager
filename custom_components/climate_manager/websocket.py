@@ -46,6 +46,7 @@ from .const import (
     PERIOD_REDUCED,
 )
 from .schedule import validate_daily_program
+from .trv import is_trv_entity
 
 VALID_MODES = [MODE_OFF, MODE_TIME_PROGRAM, MODE_TIME_PROGRAM_PRESENCES]
 
@@ -148,11 +149,7 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
                 if area_id in person_config.get("room_ids", []) and person_id in present_set
             )
 
-            # TRV rooms have current_temperature; boiler relays (chaudière) do not
-            room_entry["has_trv"] = any(
-                (s := hass.states.get(eid)) is not None and "current_temperature" in s.attributes
-                for eid in entity_ids
-            )
+            room_entry["has_trv"] = any(is_trv_entity(hass, eid) for eid in entity_ids)
 
             rooms_status.append(room_entry)
 

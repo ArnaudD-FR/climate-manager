@@ -13,6 +13,23 @@ Design decisions (from RESEARCH.md / CLAUDE.md):
 """
 from homeassistant.core import HomeAssistant
 
+# TRV rooms control individual radiators; boilers/HVAC units have max_temp > 45°C.
+_TRV_MAX_TEMP_THRESHOLD = 45.0
+
+
+def is_trv_entity(hass: HomeAssistant, entity_id: str) -> bool:
+    """Return True if entity_id is a room TRV (not a boiler or HVAC unit).
+
+    Distinguishes TRVs (max_temp ~30°C) from boiler/HVAC entities like Viessmann
+    vicare (max_temp=60°C). Falls back to True when max_temp is absent so that
+    unknown climate entities are included rather than silently dropped.
+    """
+    state = hass.states.get(entity_id)
+    if state is None or state.attributes.get("current_temperature") is None:
+        return False
+    max_t = state.attributes.get("max_temp")
+    return max_t is None or float(max_t) <= _TRV_MAX_TEMP_THRESHOLD
+
 
 async def set_trv_temperature(
     hass: HomeAssistant, entity_id: str, temperature: float
