@@ -67,19 +67,36 @@ DEFAULT_PERIOD_TEMPERATURES: dict[str, float] = {
 # ---------------------------------------------------------------------------
 
 _DAYS_ORDERED = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"]
+_WEEKEND = ["sat", "sun"]
 
-# Default daily schedule: reduced overnight, normal during the day.
-#   00:00 – 06:00  reduced
-#   06:00 – 22:00  normal
-#   22:00 – 24:00  reduced  (implicit: last period runs to midnight)
-_DEFAULT_DAY_PERIODS: list[dict] = [
+# Default weekday schedule: reduced overnight, two normal blocks (morning + evening).
+#   00:00 – 06:00  reduced   (night)
+#   06:00 – 08:00  normal    (morning routine)
+#   08:00 – 17:00  reduced   (away / work hours)
+#   17:00 – 22:00  normal    (evening home)
+#   22:00 – 24:00  reduced   (night)
+_DEFAULT_WEEKDAY_PERIODS: list[dict] = [
     {"start": "00:00", "mode": PERIOD_REDUCED},
     {"start": "06:00", "mode": PERIOD_NORMAL},
+    {"start": "08:00", "mode": PERIOD_REDUCED},
+    {"start": "17:00", "mode": PERIOD_NORMAL},
+    {"start": "22:00", "mode": PERIOD_REDUCED},
+]
+
+# Default weekend schedule: reduced overnight, normal all day.
+#   00:00 – 07:00  reduced   (night)
+#   07:00 – 22:00  normal    (full day home)
+#   22:00 – 24:00  reduced   (night)
+_DEFAULT_WEEKEND_PERIODS: list[dict] = [
+    {"start": "00:00", "mode": PERIOD_REDUCED},
+    {"start": "07:00", "mode": PERIOD_NORMAL},
     {"start": "22:00", "mode": PERIOD_REDUCED},
 ]
 
 _DEFAULT_DAILY_PROGRAM: dict = {
-    day: copy.deepcopy(_DEFAULT_DAY_PERIODS) for day in _DAYS_ORDERED
+    **{day: copy.deepcopy(_DEFAULT_WEEKDAY_PERIODS) for day in _WEEKDAYS},
+    **{day: copy.deepcopy(_DEFAULT_WEEKEND_PERIODS) for day in _WEEKEND},
 }
 
 # ---------------------------------------------------------------------------

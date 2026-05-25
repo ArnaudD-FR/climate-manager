@@ -254,8 +254,8 @@ async def test_ws_reset_time_program_writes_defaults(hass, hass_ws_client):
     """reset_time_program resets global_time_program to _DEFAULT_DAILY_PROGRAM.
 
     Mutates global_time_program to a 1-day stub first, then sends the reset command
-    and asserts the resulting program has all 7 day keys with 3 periods each
-    matching the const.py default starts ("00:00", "06:00", "22:00").
+    and asserts the resulting program has all 7 day keys with weekday/weekend splits
+    matching the const.py defaults.
     """
     entry = await _setup_entry(hass)
 
@@ -277,11 +277,17 @@ async def test_ws_reset_time_program_writes_defaults(hass, hass_ws_client):
     for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun"):
         assert day in program, f"Missing day key: {day}"
 
-    # Each day must have 3 periods with the canonical default starts
-    expected_starts = ("00:00", "06:00", "22:00")
-    for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun"):
+    # Weekdays: 5 periods (morning + evening normal blocks)
+    expected_weekday_starts = ("00:00", "06:00", "08:00", "17:00", "22:00")
+    for day in ("mon", "tue", "wed", "thu", "fri"):
         starts = tuple(p["start"] for p in program[day])
-        assert starts == expected_starts, f"Day {day}: expected starts {expected_starts}, got {starts}"
+        assert starts == expected_weekday_starts, f"Day {day}: expected starts {expected_weekday_starts}, got {starts}"
+
+    # Weekends: 3 periods (full-day normal)
+    expected_weekend_starts = ("00:00", "07:00", "22:00")
+    for day in ("sat", "sun"):
+        starts = tuple(p["start"] for p in program[day])
+        assert starts == expected_weekend_starts, f"Day {day}: expected starts {expected_weekend_starts}, got {starts}"
 
     # Must equal the module-level default (deep equality check)
     assert program == _DEFAULT_DAILY_PROGRAM

@@ -15,7 +15,7 @@ import copy
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import DEFAULT_CONFIG, STORAGE_KEY, STORAGE_VERSION, _DEFAULT_DAY_PERIODS
+from .const import DEFAULT_CONFIG, STORAGE_KEY, STORAGE_VERSION, _DEFAULT_DAILY_PROGRAM
 
 
 class ClimateManagerStore:
@@ -69,7 +69,7 @@ class ClimateManagerStore:
         time_program = result.get("global_time_program", {})
         for day, periods in time_program.items():
             if not periods:
-                time_program[day] = copy.deepcopy(_DEFAULT_DAY_PERIODS)
+                time_program[day] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM.get(day, _DEFAULT_DAILY_PROGRAM["mon"]))
 
         # Migration: rename person presence modes to current wire values.
         for person_cfg in result.get("persons", {}).values():
