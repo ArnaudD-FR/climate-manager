@@ -203,6 +203,8 @@ export class ClimateManagerTimeBar extends LitElement {
       align-items: center;
       flex-shrink: 0;
       margin-left: 4px;
+      gap: 0;
+      --mdc-icon-button-size: 32px;
     }
 
     ha-icon-button.paste-disabled {
@@ -219,15 +221,23 @@ export class ClimateManagerTimeBar extends LitElement {
     }
 
     .time-axis-inner {
+      position: relative;
       flex: 1;
-      display: flex;
-      justify-content: space-between;
+      height: 1em;
     }
 
     .axis-tick {
+      position: absolute;
+      transform: translateX(-50%);
       font-size: 11px;
       color: var(--secondary-text-color, #757575);
     }
+
+    .time-axis-inner > .axis-tick:nth-child(1) { left: 0%; }
+    .time-axis-inner > .axis-tick:nth-child(2) { left: 25%; }
+    .time-axis-inner > .axis-tick:nth-child(3) { left: 50%; }
+    .time-axis-inner > .axis-tick:nth-child(4) { left: 75%; }
+    .time-axis-inner > .axis-tick:nth-child(5) { left: 100%; }
 
     /* Drag tooltip */
     .drag-tooltip {
