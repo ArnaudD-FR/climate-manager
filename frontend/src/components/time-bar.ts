@@ -212,18 +212,35 @@ export class ClimateManagerTimeBar extends LitElement {
     }
 
     /* ---- Shared time axis (above and below day rows) ---------------------- */
+    /* Mirrors the exact 3-column layout of .day-row so ticks align pixel-
+       perfectly with the bar area regardless of button size. */
     .time-axis {
       display: flex;
       align-items: center;
       margin-top: 2px;
-      padding-left: 48px; /* 40px label + 8px padding */
-      padding-right: 80px; /* approximate button width */
+    }
+
+    .time-axis-label-spacer {
+      width: 40px;
+      flex-shrink: 0;
+      padding-right: 8px;
     }
 
     .time-axis-inner {
       position: relative;
       flex: 1;
       height: 1em;
+    }
+
+    /* Invisible clone of .day-actions — forces the inner to match bar-wrap width */
+    .time-axis-actions-ghost {
+      display: flex;
+      flex-shrink: 0;
+      margin-left: 4px;
+      gap: 0;
+      visibility: hidden;
+      pointer-events: none;
+      --mdc-icon-button-size: 32px;
     }
 
     .axis-tick {
@@ -839,19 +856,24 @@ export class ClimateManagerTimeBar extends LitElement {
 
   /**
    * Renders the shared time axis row — used for both top (above day rows)
-   * and bottom (below day rows). Identical structure and CSS class so both
-   * rulers are pixel-perfect matches of each other.
+   * and bottom (below day rows).
    *
-   * Layout: 48px left pad (40px label + 8px gap) + flex bar area +
-   * 80px right pad (button column) — mirrors the day row geometry exactly.
+   * Mirrors the exact 3-column layout of a day row:
+   *   [label spacer 40px+8px] [bar area flex:1] [invisible action buttons]
+   * so ticks align pixel-perfectly with the bar regardless of button size.
    */
   private _renderTimeAxis() {
     return html`
       <div class="time-axis">
+        <div class="time-axis-label-spacer"></div>
         <div class="time-axis-inner">
           ${["00:00", "06:00", "12:00", "18:00", "24:00"].map(
             (t) => html`<span class="axis-tick">${t}</span>`,
           )}
+        </div>
+        <div class="time-axis-actions-ghost" aria-hidden="true">
+          <ha-icon-button><ha-icon icon="mdi:content-copy"></ha-icon></ha-icon-button>
+          <ha-icon-button><ha-icon icon="mdi:content-paste"></ha-icon></ha-icon-button>
         </div>
       </div>
     `;
