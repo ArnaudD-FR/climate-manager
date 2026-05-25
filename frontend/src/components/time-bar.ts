@@ -117,7 +117,7 @@ export class ClimateManagerTimeBar extends LitElement {
     .week-grid {
       display: flex;
       flex-direction: column;
-      gap: 1px;
+      gap: 4px;
     }
 
     .day-row {
