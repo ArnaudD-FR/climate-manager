@@ -58,35 +58,6 @@ const MODE_LABELS: Record<string, string> = {
   [MODE_TIME_PROGRAM_PRESENCES]: "Time program & presences",
 };
 
-// Default temperature values (used by Reset to default)
-const DEFAULT_TEMPERATURES = {
-  frost_protection: 7,
-  reduced: 18,
-  normal: 20,
-  comfort: 22,
-};
-
-// Default global mode (mirrors backend DEFAULT_GLOBAL_MODE in const.py)
-const DEFAULT_GLOBAL_MODE = "time_program";
-
-// Default 7-day time program (mirrors backend _DEFAULT_DAY_PERIODS in const.py)
-// Each day gets its own independent array — deep-cloned to prevent mutation of shared refs.
-const DEFAULT_TIME_PROGRAM: DailyProgram = (() => {
-  const mkDay = (): Period[] => [
-    { start: "00:00", mode: "reduced" },
-    { start: "06:00", mode: "normal" },
-    { start: "22:00", mode: "reduced" },
-  ];
-  return {
-    mon: mkDay(),
-    tue: mkDay(),
-    wed: mkDay(),
-    thu: mkDay(),
-    fri: mkDay(),
-    sat: mkDay(),
-    sun: mkDay(),
-  };
-})();
 
 // ---------------------------------------------------------------------------
 // Component
@@ -363,7 +334,7 @@ export class GlobalSettingsTab extends LitElement {
 
   private _onResetTemperatures = async () => {
     try {
-      await this.ws.setPeriodTemperatures(DEFAULT_TEMPERATURES);
+      await this.ws.resetPeriodTemperatures();
       await this.panel.reloadConfig();
       this.panel.showToast("Reset to defaults", false);
     } catch {
@@ -373,8 +344,9 @@ export class GlobalSettingsTab extends LitElement {
 
   private _onResetConfiguration = async () => {
     try {
-      await this.ws.setGlobalMode(DEFAULT_GLOBAL_MODE);
-      await this.ws.setTimeProgram(DEFAULT_TIME_PROGRAM);
+      await this.ws.resetTimeProgram();
+      // Reset global mode to time_program — mirrors DEFAULT_GLOBAL_MODE in const.py
+      await this.ws.setGlobalMode(MODE_TIME_PROGRAM);
       await this.panel.reloadConfig();
       this.panel.showToast("Reset to defaults", false);
     } catch {
@@ -437,7 +409,7 @@ export class GlobalSettingsTab extends LitElement {
   private _renderTemperaturesCard() {
     const temps = this.config.period_temperatures;
 
-    const tempField = (id: string, label: string, defaultVal: number) => html`
+    const tempField = (id: string, label: string) => html`
       <div class="temp-field">
         <label class="temp-label" for="temp-${id}">${label}</label>
         <div class="temp-input-row">
@@ -449,7 +421,7 @@ export class GlobalSettingsTab extends LitElement {
             min="5"
             max="30"
             data-key="${id}"
-            .value=${String(temps[id] ?? defaultVal)}
+            .value=${temps[id] != null ? String(temps[id]) : ""}
             @input=${this._onTemperatureInput}
             @blur=${this._onTemperatureBlur}
             @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
@@ -464,10 +436,10 @@ export class GlobalSettingsTab extends LitElement {
         <div class="card-header">Temperatures</div>
         <div class="card-content">
           <div class="temp-fields">
-            ${tempField("frost_protection", "Frost protection", 7)}
-            ${tempField("reduced", "Reduced", 18)}
-            ${tempField("normal", "Normal", 20)}
-            ${tempField("comfort", "Comfort", 22)}
+            ${tempField("frost_protection", "Frost protection")}
+            ${tempField("reduced", "Reduced")}
+            ${tempField("normal", "Normal")}
+            ${tempField("comfort", "Comfort")}
           </div>
           <button class="reset-btn" @click=${this._onResetTemperatures}>Reset to default</button>
         </div>

@@ -58,6 +58,20 @@ export class WsClient {
     });
   }
 
+  /** Reset period temperatures to backend defaults (DEFAULT_PERIOD_TEMPERATURES in const.py). */
+  resetPeriodTemperatures(): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/reset_period_temperatures",
+    });
+  }
+
+  /** Reset global time program to backend defaults (_DEFAULT_DAILY_PROGRAM in const.py). */
+  resetTimeProgram(): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/reset_time_program",
+    });
+  }
+
   /** Sparse-merge a config delta into a specific room. */
   setRoomConfig(
     roomId: string,
