@@ -5,7 +5,7 @@ milestone_name: milestone
 status: executing
 stopped_at: Phase 03 context updated with architectural constraints D-23-D-30
 last_updated: "2026-05-21T21:20:05.876Z"
-last_activity: 2026-05-25 - Completed quick task 260525-ldv: time-bar UI polish
+last_activity: 2026-05-25 - Completed quick task 260525-lmn: default time program weekday/weekend split
 progress:
   total_phases: 3
   completed_phases: 3
@@ -90,6 +90,7 @@ None yet.
 | 260521-ggx | tab persistence on refresh + period temperature in room card header | 2026-05-21 | 5c57d2e | [260521-ggx-tab-persist-and-period-temp](.planning/quick/260521-ggx-tab-persist-and-period-temp/) |
 | 260521-gj9 | sidebar icon mdi:home-thermometer to match Climate panel style | 2026-05-21 | 625fc02 | [260521-gj9-sidebar-icon-home-thermometer](.planning/quick/260521-gj9-sidebar-icon-home-thermometer/) |
 | 260525-ldv | time-bar UI polish: normal=orange, comfort=red colors; reduce copy/paste button spacing; center-align timestamp labels on time axis | 2026-05-25 | 4f5d413 | [260525-ldv-time-bar-ui-polish-normal-orange-comfort](.planning/quick/260525-ldv-time-bar-ui-polish-normal-orange-comfort/) |
+| 260525-lmn | update default global time program: weekdays have morning+evening normal blocks, weekends have full-day normal | 2026-05-25 | cc97a0c | [260525-lmn-update-default-global-time-program-weekd](.planning/quick/260525-lmn-update-default-global-time-program-weekd/) |
 
 ### Blockers/Concerns
 
