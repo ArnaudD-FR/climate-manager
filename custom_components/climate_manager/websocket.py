@@ -1,6 +1,6 @@
 """Climate Manager WebSocket command handlers.
 
-Registers 8 WebSocket commands for the panel ↔ backend protocol:
+Registers 10 WebSocket commands for the panel ↔ backend protocol:
 - get_status: returns global_mode, active_period, present_persons, rooms_status
 - get_config: returns full runtime_config
 - set_global_mode: mutates global_mode, persists, re-evaluates
@@ -9,6 +9,8 @@ Registers 8 WebSocket commands for the panel ↔ backend protocol:
 - set_room_config: sparse-merges into rooms[room_id]
 - set_person_config: sparse-merges into persons[person_id]
 - subscribe_status: registers a push listener in connection.subscriptions
+- reset_period_temperatures: resets period_temperatures to DEFAULT_PERIOD_TEMPERATURES from const.py
+- reset_time_program: resets global_time_program to _DEFAULT_DAILY_PROGRAM from const.py
 
 All handlers access state via the entry closure (never hass.data[DOMAIN]).
 Write handlers follow the write-then-evaluate pattern:
@@ -25,6 +27,7 @@ Security:
 
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING
 
 from homeassistant.components import websocket_api
@@ -36,6 +39,7 @@ if TYPE_CHECKING:
     from . import ClimateManagerConfigEntry
 
 from .const import (
+    DEFAULT_PERIOD_TEMPERATURES,
     DOMAIN,
     MODE_OFF,
     MODE_TIME_PROGRAM,
@@ -44,6 +48,7 @@ from .const import (
     PERIOD_FROST_PROTECTION,
     PERIOD_NORMAL,
     PERIOD_REDUCED,
+    _DEFAULT_DAILY_PROGRAM,
 )
 from .schedule import validate_daily_program
 from .trv import is_trv_entity
@@ -67,6 +72,8 @@ def async_register_commands(
     websocket_api.async_register_command(hass, _make_ws_set_room_config(entry))
     websocket_api.async_register_command(hass, _make_ws_set_person_config(entry))
     websocket_api.async_register_command(hass, _make_ws_subscribe_status(entry))
+    websocket_api.async_register_command(hass, _make_ws_reset_period_temperatures(entry))
+    websocket_api.async_register_command(hass, _make_ws_reset_time_program(entry))
 
 
 # ---------------------------------------------------------------------------
@@ -365,6 +372,61 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_set_person_config
+
+
+def _make_ws_reset_period_temperatures(entry: ClimateManagerConfigEntry):
+    """Factory: create reset_period_temperatures handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/reset_period_temperatures",
+        }
+    )
+    @websocket_api.async_response
+    async def ws_reset_period_temperatures(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Reset period_temperatures to DEFAULT_PERIOD_TEMPERATURES from const.py.
+
+        T-03-09: A shallow copy of the module-level constant is used so the
+                 runtime_config never shares references with the module default.
+        """
+        entry.runtime_data.runtime_config["period_temperatures"] = dict(DEFAULT_PERIOD_TEMPERATURES)
+        await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
+        connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+    return ws_reset_period_temperatures
+
+
+def _make_ws_reset_time_program(entry: ClimateManagerConfigEntry):
+    """Factory: create reset_time_program handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/reset_time_program",
+        }
+    )
+    @websocket_api.async_response
+    async def ws_reset_time_program(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Reset global_time_program to _DEFAULT_DAILY_PROGRAM from const.py.
+
+        T-03-09: A deep copy is used so the runtime_config never shares list
+                 references with the module-level default (each day's period list
+                 must be independent).
+        """
+        entry.runtime_data.runtime_config["global_time_program"] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM)
+        await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
+        connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+    return ws_reset_time_program
 
 
 # ---------------------------------------------------------------------------

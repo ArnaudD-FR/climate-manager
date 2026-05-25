@@ -15,9 +15,11 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.climate_manager.const import (
+    DEFAULT_PERIOD_TEMPERATURES,
     DOMAIN,
     MODE_OFF,
     MODE_TIME_PROGRAM,
+    _DEFAULT_DAILY_PROGRAM,
 )
 
 
@@ -210,3 +212,80 @@ async def test_ws_get_config_climate_entities_empty_when_none_registered(hass, h
     assert msg["success"] is True
     assert "climate_entities" in msg["result"]
     assert msg["result"]["climate_entities"] == []
+
+
+# ---------------------------------------------------------------------------
+# Tests 7-8: reset_period_temperatures and reset_time_program WS commands
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_reset_period_temperatures_writes_defaults(hass, hass_ws_client):
+    """reset_period_temperatures resets period_temperatures to DEFAULT_PERIOD_TEMPERATURES.
+
+    Mutates period_temperatures to non-default values first, then sends the reset
+    command and asserts the result matches DEFAULT_PERIOD_TEMPERATURES from const.py.
+    """
+    entry = await _setup_entry(hass)
+
+    # Mutate to obviously non-default values
+    entry.runtime_data.runtime_config["period_temperatures"] = {
+        "frost_protection": 99.0,
+        "reduced": 99.0,
+        "normal": 99.0,
+        "comfort": 99.0,
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/reset_period_temperatures"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+
+    # Must match the module-level defaults exactly
+    assert entry.runtime_data.runtime_config["period_temperatures"] == DEFAULT_PERIOD_TEMPERATURES
+
+    # Verify no reference sharing: mutating runtime_config must not affect the constant
+    entry.runtime_data.runtime_config["period_temperatures"]["frost_protection"] = 1.0
+    assert DEFAULT_PERIOD_TEMPERATURES["frost_protection"] == 5.0
+
+
+async def test_ws_reset_time_program_writes_defaults(hass, hass_ws_client):
+    """reset_time_program resets global_time_program to _DEFAULT_DAILY_PROGRAM.
+
+    Mutates global_time_program to a 1-day stub first, then sends the reset command
+    and asserts the resulting program has all 7 day keys with 3 periods each
+    matching the const.py default starts ("00:00", "06:00", "22:00").
+    """
+    entry = await _setup_entry(hass)
+
+    # Mutate to a 1-day stub (missing tue..sun)
+    entry.runtime_data.runtime_config["global_time_program"] = {
+        "mon": [{"start": "00:00", "mode": "normal"}],
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/reset_time_program"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+
+    program = entry.runtime_data.runtime_config["global_time_program"]
+
+    # Must have all 7 day keys
+    for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun"):
+        assert day in program, f"Missing day key: {day}"
+
+    # Each day must have 3 periods with the canonical default starts
+    expected_starts = ("00:00", "06:00", "22:00")
+    for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun"):
+        starts = tuple(p["start"] for p in program[day])
+        assert starts == expected_starts, f"Day {day}: expected starts {expected_starts}, got {starts}"
+
+    # Must equal the module-level default (deep equality check)
+    assert program == _DEFAULT_DAILY_PROGRAM
+
+    # Verify deep copy: mutating runtime_config must not affect the constant
+    program["mon"][0]["mode"] = "comfort"
+    assert _DEFAULT_DAILY_PROGRAM["mon"][0]["mode"] == "reduced"
