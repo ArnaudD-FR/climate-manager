@@ -91,6 +91,7 @@ None yet.
 | 260521-gj9 | sidebar icon mdi:home-thermometer to match Climate panel style | 2026-05-21 | 625fc02 | [260521-gj9-sidebar-icon-home-thermometer](.planning/quick/260521-gj9-sidebar-icon-home-thermometer/) |
 | 260525-ldv | time-bar UI polish: normal=orange, comfort=red colors; reduce copy/paste button spacing; center-align timestamp labels on time axis | 2026-05-25 | 4f5d413 | [260525-ldv-time-bar-ui-polish-normal-orange-comfort](.planning/quick/260525-ldv-time-bar-ui-polish-normal-orange-comfort/) |
 | 260525-lmn | update default global time program: weekdays have morning+evening normal blocks, weekends have full-day normal | 2026-05-25 | cc97a0c | [260525-lmn-update-default-global-time-program-weekd](.planning/quick/260525-lmn-update-default-global-time-program-weekd/) |
+| 260525-lqb | weekend default time program: change 07:00 to 06:00 for sat and sun | 2026-05-25 | 84e23a1 | [260525-lqb-weekend-default-time-program-change-07-0](.planning/quick/260525-lqb-weekend-default-time-program-change-07-0/) |
 
 ### Blockers/Concerns
 
