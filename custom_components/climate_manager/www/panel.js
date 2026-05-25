@@ -1370,7 +1370,9 @@ Oe.styles = M`
       height: 1em;
     }
 
-    /* Invisible clone of .day-actions — forces the inner to match bar-wrap width */
+    /* Invisible clone of .day-actions — forces the inner to match bar-wrap width.
+       height:0 + overflow:hidden collapses the row to label height only while
+       still letting the browser compute the natural button width for flex layout. */
     .time-axis-actions-ghost {
       display: flex;
       flex-shrink: 0;
@@ -1379,6 +1381,8 @@ Oe.styles = M`
       visibility: hidden;
       pointer-events: none;
       --mdc-icon-button-size: 32px;
+      height: 0;
+      overflow: hidden;
     }
 
     .axis-tick {
