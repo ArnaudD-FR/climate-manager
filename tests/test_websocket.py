@@ -284,7 +284,7 @@ async def test_ws_reset_time_program_writes_defaults(hass, hass_ws_client):
         assert starts == expected_weekday_starts, f"Day {day}: expected starts {expected_weekday_starts}, got {starts}"
 
     # Weekends: 3 periods (full-day normal)
-    expected_weekend_starts = ("00:00", "07:00", "22:00")
+    expected_weekend_starts = ("00:00", "06:00", "22:00")
     for day in ("sat", "sun"):
         starts = tuple(p["start"] for p in program[day])
         assert starts == expected_weekend_starts, f"Day {day}: expected starts {expected_weekend_starts}, got {starts}"

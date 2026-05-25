@@ -85,12 +85,12 @@ _DEFAULT_WEEKDAY_PERIODS: list[dict] = [
 ]
 
 # Default weekend schedule: reduced overnight, normal all day.
-#   00:00 – 07:00  reduced   (night)
-#   07:00 – 22:00  normal    (full day home)
+#   00:00 – 06:00  reduced   (night)
+#   06:00 – 22:00  normal    (full day home)
 #   22:00 – 24:00  reduced   (night)
 _DEFAULT_WEEKEND_PERIODS: list[dict] = [
     {"start": "00:00", "mode": PERIOD_REDUCED},
-    {"start": "07:00", "mode": PERIOD_NORMAL},
+    {"start": "06:00", "mode": PERIOD_NORMAL},
     {"start": "22:00", "mode": PERIOD_REDUCED},
 ]
 
