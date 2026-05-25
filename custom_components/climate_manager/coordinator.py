@@ -412,6 +412,12 @@ class ClimateManagerCoordinator:
                 if hum_state is not None and hum_state.state not in ("unavailable", "unknown"):
                     room_entry["humidity"] = hum_state.state
 
+            # TRV rooms have current_temperature; boiler relays (chaudière) do not
+            room_entry["has_trv"] = any(
+                (s := self._hass.states.get(eid)) is not None and "current_temperature" in s.attributes
+                for eid in entity_ids
+            )
+
             rooms_status.append(room_entry)
 
         return {

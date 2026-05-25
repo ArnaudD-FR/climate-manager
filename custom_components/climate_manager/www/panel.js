@@ -950,12 +950,12 @@ const Re = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], De = ["frost_prote
     const i = s.startMin + r / 2, n = Math.max(
       s.startMin + 15,
       Math.min(s.endMin - 15, this._snapToMinutes(i))
-    ), c = this.mode === "presence" ? Oe : De, l = this.mode === "presence" ? s.period.state ?? "absent" : s.period.mode ?? "frost_protection", h = c.indexOf(l), p = c[(h + 1) % c.length], _ = this.mode === "presence" ? { start: s.period.start, state: l } : { start: s.period.start, mode: l }, b = this.mode === "presence" ? { start: this._minutesToHHMM(n), state: p } : { start: this._minutesToHHMM(n), mode: p }, y = this.days[t] ?? [], g = y.some(
-      (u) => u.start === s.period.start
+    ), c = this.mode === "presence" ? Oe : De, l = this.mode === "presence" ? s.period.state ?? "absent" : s.period.mode ?? "frost_protection", h = c.indexOf(l), p = c[(h + 1) % c.length], _ = this.mode === "presence" ? { start: s.period.start, state: l } : { start: s.period.start, mode: l }, b = this.mode === "presence" ? { start: this._minutesToHHMM(n), state: p } : { start: this._minutesToHHMM(n), mode: p }, y = this.days[t] ?? [], u = y.some(
+      (g) => g.start === s.period.start
     );
     let f;
-    g ? f = y.flatMap(
-      (u) => u.start === s.period.start ? [_, b] : [u]
+    u ? f = y.flatMap(
+      (g) => g.start === s.period.start ? [_, b] : [g]
     ) : f = [b, ...y], this._closePopup(), this._emitChange(t, f);
   }
   // -----------------------------------------------------------------------
@@ -982,8 +982,8 @@ const Re = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], De = ["frost_prote
     this._dragTooltipMinutes = n, this._dragTooltipX = t.clientX, this._dragTooltipY = t.clientY;
     const c = this._toSegments(this.days[e] ?? []), l = c[o], h = c[o + 1];
     if (l && h) {
-      const _ = l.startMin + 15, b = h.endMin - 15, y = Math.max(_, Math.min(b, n)), g = (this.days[e] ?? []).map((u) => u.start === h.period.start ? { ...u, start: this._minutesToHHMM(y) } : u), f = this.days.map(
-        (u, v) => v === e ? g : u
+      const _ = l.startMin + 15, b = h.endMin - 15, y = Math.max(_, Math.min(b, n)), u = (this.days[e] ?? []).map((g) => g.start === h.period.start ? { ...g, start: this._minutesToHHMM(y) } : g), f = this.days.map(
+        (g, v) => v === e ? u : g
       );
       this._dragPreviewDays = f;
     }
@@ -1003,10 +1003,10 @@ const Re = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], De = ["frost_prote
         const _ = h.startMin + 15, b = p.endMin - 15, y = Math.max(
           _,
           Math.min(b, c)
-        ), g = (this.days[e] ?? []).map((u) => u.start === p.period.start ? { ...u, start: this._minutesToHHMM(y) } : u), f = this.days.map(
-          (u, v) => v === e ? g : u
+        ), u = (this.days[e] ?? []).map((g) => g.start === p.period.start ? { ...g, start: this._minutesToHHMM(y) } : g), f = this.days.map(
+          (g, v) => v === e ? u : g
         );
-        this._drag = null, this._dragTooltipMinutes = null, this._dragPreviewDays = f, this._justDragged = !0, this._emitChange(e, g);
+        this._drag = null, this._dragTooltipMinutes = null, this._dragPreviewDays = f, this._justDragged = !0, this._emitChange(e, u);
         return;
       }
     }
@@ -2249,15 +2249,15 @@ const Ht = class Ht extends S {
   // Render helpers
   // -----------------------------------------------------------------------
   _renderHeaderStatus() {
-    var f, u, v, w, O;
-    const t = this.roomStatus, e = (t == null ? void 0 : t.temperature) != null ? `${t.temperature}°C` : "—", o = (t == null ? void 0 : t.humidity) != null ? `${t.humidity}%` : "—", s = (t == null ? void 0 : t.active_period) ?? null, r = s ? Tt[s] ?? s : "—", i = s != null ? (u = (f = this.panelConfig) == null ? void 0 : f.period_temperatures) == null ? void 0 : u[s] : void 0, n = i != null ? `${r} · ${i}°C` : r, l = this._getAssignedPersonIds().length, h = ((v = this.status) == null ? void 0 : v.global_mode) ?? ((w = this.panelConfig) == null ? void 0 : w.global_mode) ?? "", p = h === "time_program_presences", _ = p ? ((O = this.roomStatus) == null ? void 0 : O.present_person_count) ?? 0 : null, b = _ != null ? `${_}/${l}` : `${l}`, g = {
+    var f, g, v, w, O;
+    const t = this.roomStatus, e = (t == null ? void 0 : t.temperature) != null ? `${t.temperature}°C` : "—", o = (t == null ? void 0 : t.humidity) != null ? `${t.humidity}%` : "—", s = (t == null ? void 0 : t.active_period) ?? null, r = s ? Tt[s] ?? s : "—", i = s != null ? (g = (f = this.panelConfig) == null ? void 0 : f.period_temperatures) == null ? void 0 : g[s] : void 0, n = i != null ? `${r} · ${i}°C` : r, l = this._getAssignedPersonIds().length, h = ((v = this.status) == null ? void 0 : v.global_mode) ?? ((w = this.panelConfig) == null ? void 0 : w.global_mode) ?? "", p = h === "time_program_presences", _ = p ? ((O = this.roomStatus) == null ? void 0 : O.present_person_count) ?? 0 : null, b = _ != null ? `${_}/${l}` : `${l}`, u = {
       off: "Off",
       time_program: "Time program",
       time_program_presences: "Time & presence"
     }[h] ?? h;
     return d`
       <div class="card-header-status">
-        <span class="status-item" title="Mode: ${g}">
+        <span class="status-item" title="Mode: ${u}">
           <ha-icon icon="mdi:thermometer"></ha-icon>
           ${e}
         </span>
@@ -2265,7 +2265,7 @@ const Ht = class Ht extends S {
           <ha-icon icon="mdi:water-percent"></ha-icon>
           ${o}
         </span>
-        <span class="status-item" title="${g}">
+        <span class="status-item" title="${u}">
           <ha-icon icon="mdi:clock-outline"></ha-icon>
           ${n}
         </span>
@@ -2660,9 +2660,8 @@ const It = class It extends S {
   }
   render() {
     var h, p, _, b, y;
-    const t = ((h = this.config) == null ? void 0 : h.rooms) ?? {}, e = ((p = this.status) == null ? void 0 : p.rooms_status) ?? [], o = /* @__PURE__ */ new Set([
-      ...Object.keys(t),
-      ...e.map((g) => g.area_id)
+    const t = ((h = this.config) == null ? void 0 : h.rooms) ?? {}, e = (((p = this.status) == null ? void 0 : p.rooms_status) ?? []).filter((u) => u.has_trv !== !1), o = /* @__PURE__ */ new Set([
+      ...e.map((u) => u.area_id)
     ]);
     if (o.size === 0)
       return d`
@@ -2670,29 +2669,29 @@ const It = class It extends S {
           No rooms discovered. Create areas in Home Assistant and assign climate entities.
         </div>
       `;
-    const s = (g) => {
-      var f, u, v;
-      return ((v = (u = (f = this.status) == null ? void 0 : f.rooms_status) == null ? void 0 : u.find((w) => w.area_id === g)) == null ? void 0 : v.name) ?? g.replace(/_/g, " ").replace(/\b\w/g, (w) => w.toUpperCase());
+    const s = (u) => {
+      var f, g, v;
+      return ((v = (g = (f = this.status) == null ? void 0 : f.rooms_status) == null ? void 0 : g.find((w) => w.area_id === u)) == null ? void 0 : v.name) ?? u.replace(/_/g, " ").replace(/\b\w/g, (w) => w.toUpperCase());
     }, r = /* @__PURE__ */ new Map();
-    for (const g of o) {
-      const f = ((y = (b = (_ = this.hass) == null ? void 0 : _.areas) == null ? void 0 : b[g]) == null ? void 0 : y.floor_id) ?? null;
-      r.has(f) || r.set(f, []), r.get(f).push(g);
+    for (const u of o) {
+      const f = ((y = (b = (_ = this.hass) == null ? void 0 : _.areas) == null ? void 0 : b[u]) == null ? void 0 : y.floor_id) ?? null;
+      r.has(f) || r.set(f, []), r.get(f).push(u);
     }
-    for (const g of r.values())
-      g.sort((f, u) => s(f).localeCompare(s(u)));
-    const i = [...r.keys()].filter((g) => g !== null).sort(
-      (g, f) => {
-        var u, v, w, O, jt, Bt;
-        return (((w = (v = (u = this.hass) == null ? void 0 : u.floors) == null ? void 0 : v[f]) == null ? void 0 : w.level) ?? 0) - (((Bt = (jt = (O = this.hass) == null ? void 0 : O.floors) == null ? void 0 : jt[g]) == null ? void 0 : Bt.level) ?? 0);
+    for (const u of r.values())
+      u.sort((f, g) => s(f).localeCompare(s(g)));
+    const i = [...r.keys()].filter((u) => u !== null).sort(
+      (u, f) => {
+        var g, v, w, O, jt, Bt;
+        return (((w = (v = (g = this.hass) == null ? void 0 : g.floors) == null ? void 0 : v[f]) == null ? void 0 : w.level) ?? 0) - (((Bt = (jt = (O = this.hass) == null ? void 0 : O.floors) == null ? void 0 : jt[u]) == null ? void 0 : Bt.level) ?? 0);
       }
-    ), n = r.get(null) ?? [], c = (g) => {
-      const f = t[g] ?? {}, u = this._getRoomStatus(g), v = s(g);
+    ), n = r.get(null) ?? [], c = (u) => {
+      const f = t[u] ?? {}, g = this._getRoomStatus(u), v = s(u);
       return d`
         <climate-manager-room-card
-          .roomId=${g}
+          .roomId=${u}
           .roomName=${v}
           .config=${f}
-          .roomStatus=${u}
+          .roomStatus=${g}
           .panelConfig=${this.config}
           .status=${this.status}
           .ws=${this.ws}
@@ -2700,23 +2699,23 @@ const It = class It extends S {
           .hass=${this.hass}
         ></climate-manager-room-card>
       `;
-    }, l = (g) => {
+    }, l = (u) => {
       var v, w;
-      const f = (w = (v = this.hass) == null ? void 0 : v.floors) == null ? void 0 : w[g];
+      const f = (w = (v = this.hass) == null ? void 0 : v.floors) == null ? void 0 : w[u];
       if (f != null && f.icon) return f.icon;
-      const u = (f == null ? void 0 : f.level) ?? 0;
-      return u === -1 ? "mdi:home-floor-negative-1" : u < 0 ? "mdi:home-floor-b" : u === 1 ? "mdi:home-floor-1" : u === 2 ? "mdi:home-floor-2" : u === 3 || u > 3 ? "mdi:home-floor-3" : "mdi:home-floor-0";
+      const g = (f == null ? void 0 : f.level) ?? 0;
+      return g === -1 ? "mdi:home-floor-negative-1" : g < 0 ? "mdi:home-floor-b" : g === 1 ? "mdi:home-floor-1" : g === 2 ? "mdi:home-floor-2" : g === 3 || g > 3 ? "mdi:home-floor-3" : "mdi:home-floor-0";
     };
     return d`
-      ${i.map((g) => {
+      ${i.map((u) => {
       var v, w, O;
-      const f = ((O = (w = (v = this.hass) == null ? void 0 : v.floors) == null ? void 0 : w[g]) == null ? void 0 : O.name) ?? g, u = r.get(g) ?? [];
+      const f = ((O = (w = (v = this.hass) == null ? void 0 : v.floors) == null ? void 0 : w[u]) == null ? void 0 : O.name) ?? u, g = r.get(u) ?? [];
       return d`
           <div class="floor-header">
-            <ha-icon icon=${l(g)}></ha-icon>
+            <ha-icon icon=${l(u)}></ha-icon>
             ${f}
           </div>
-          ${u.map(c)}
+          ${g.map(c)}
         `;
     })}
       ${n.map(c)}
@@ -3177,17 +3176,16 @@ const Ut = class Ut extends S {
   constructor() {
     super(...arguments), this.status = null;
   }
-  /** Build the room choices list from config.rooms + rooms_status. */
+  /** Build the room choices list — only TRV rooms (excludes chaudière/boiler). */
   _getRoomChoices() {
-    var s, r;
-    const t = ((s = this.config) == null ? void 0 : s.rooms) ?? {}, e = ((r = this.status) == null ? void 0 : r.rooms_status) ?? [];
+    var o;
+    const t = (((o = this.status) == null ? void 0 : o.rooms_status) ?? []).filter((s) => s.has_trv !== !1);
     return [.../* @__PURE__ */ new Set([
-      ...Object.keys(t),
-      ...e.map((i) => i.area_id)
-    ])].map((i) => {
-      var h, p, _, b, y, g, f;
-      const n = ((h = e.find((u) => u.area_id === i)) == null ? void 0 : h.name) ?? i.replace(/_/g, " ").replace(/\b\w/g, (u) => u.toUpperCase()), c = ((b = (_ = (p = this.hass) == null ? void 0 : p.areas) == null ? void 0 : _[i]) == null ? void 0 : b.floor_id) ?? null, l = c ? ((f = (g = (y = this.hass) == null ? void 0 : y.floors) == null ? void 0 : g[c]) == null ? void 0 : f.name) ?? void 0 : void 0;
-      return { id: i, name: n, secondary: l };
+      ...t.map((s) => s.area_id)
+    ])].map((s) => {
+      var c, l, h, p, _, b, y;
+      const r = ((c = t.find((u) => u.area_id === s)) == null ? void 0 : c.name) ?? s.replace(/_/g, " ").replace(/\b\w/g, (u) => u.toUpperCase()), i = ((p = (h = (l = this.hass) == null ? void 0 : l.areas) == null ? void 0 : h[s]) == null ? void 0 : p.floor_id) ?? null, n = i ? ((y = (b = (_ = this.hass) == null ? void 0 : _.floors) == null ? void 0 : b[i]) == null ? void 0 : y.name) ?? void 0 : void 0;
+      return { id: s, name: r, secondary: n };
     });
   }
   /** Determine if a person config has any non-default setting (D-15). */

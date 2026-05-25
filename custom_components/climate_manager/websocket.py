@@ -148,6 +148,12 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
                 if area_id in person_config.get("room_ids", []) and person_id in present_set
             )
 
+            # TRV rooms have current_temperature; boiler relays (chaudière) do not
+            room_entry["has_trv"] = any(
+                (s := hass.states.get(eid)) is not None and "current_temperature" in s.attributes
+                for eid in entity_ids
+            )
+
             rooms_status.append(room_entry)
 
         connection.send_result(

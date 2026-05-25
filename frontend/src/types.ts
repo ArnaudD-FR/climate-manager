@@ -57,6 +57,8 @@ export interface RoomStatus {
   humidity?: number | null;
   active_period?: string | null;
   present_person_count: number;
+  /** True when at least one entity reports current_temperature (TRV); false for boiler-only rooms. */
+  has_trv?: boolean;
 }
 
 /** Payload pushed by climate_manager/subscribe_status and returned by get_status. */

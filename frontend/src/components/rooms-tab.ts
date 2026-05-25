@@ -71,10 +71,9 @@ export class RoomsTab extends LitElement {
 
   render() {
     const rooms = this.config?.rooms ?? {};
-    // Also include rooms discovered via rooms_status that aren't in config.rooms yet
-    const statusRooms = this.status?.rooms_status ?? [];
+    // Only TRV rooms (has_trv===true); excludes boiler/chaudière entities
+    const statusRooms = (this.status?.rooms_status ?? []).filter((r) => r.has_trv !== false);
     const allRoomIds = new Set([
-      ...Object.keys(rooms),
       ...statusRooms.map((r) => r.area_id),
     ]);
 

@@ -40,13 +40,12 @@ export class PersonsTab extends LitElement {
     }
   `;
 
-  /** Build the room choices list from config.rooms + rooms_status. */
+  /** Build the room choices list — only TRV rooms (excludes chaudière/boiler). */
   private _getRoomChoices(): RoomChoice[] {
-    const rooms = this.config?.rooms ?? {};
-    const statusRooms = this.status?.rooms_status ?? [];
+    // Only rooms with TRVs (has_trv===true); excludes boiler-only areas
+    const statusRooms = (this.status?.rooms_status ?? []).filter((r) => r.has_trv !== false);
 
     const allRoomIds = new Set([
-      ...Object.keys(rooms),
       ...statusRooms.map((r) => r.area_id),
     ]);
 
