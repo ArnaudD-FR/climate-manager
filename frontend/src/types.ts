@@ -96,8 +96,8 @@ export interface Hass {
 export const PERIOD_COLORS: Record<string, string> = {
   frost_protection: "#1565C0",
   reduced: "#0277BD",
-  normal: "#2E7D32",
-  comfort: "#E65100",
+  normal: "#F57C00",
+  comfort: "#C62828",
 };
 
 /** Colors for 2-mode presence bars. */
