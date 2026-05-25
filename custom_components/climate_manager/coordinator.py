@@ -219,7 +219,7 @@ class ClimateManagerCoordinator:
                     continue
                 room_periods[area_id] = period_mode
 
-            pushes.extend((entity_id, desired_temp) for entity_id in entity_ids)
+            pushes.extend((entity_id, desired_temp) for entity_id in entity_ids if is_trv_entity(self._hass, entity_id))
 
         self._last_room_periods = room_periods
 
@@ -358,7 +358,7 @@ class ClimateManagerCoordinator:
             self._push_safely(entity_id, desired_temps[area_id], "MODE_TIME_PROGRAM_PRESENCES")
             for area_id, entity_ids in rooms.items()
             for entity_id in entity_ids
-            if area_id in desired_temps
+            if area_id in desired_temps and is_trv_entity(self._hass, entity_id)
         ))
 
     def _build_status_payload(self) -> dict:

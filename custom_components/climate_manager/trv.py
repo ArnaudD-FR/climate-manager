@@ -23,9 +23,13 @@ def is_trv_entity(hass: HomeAssistant, entity_id: str) -> bool:
     Distinguishes TRVs (max_temp ~30°C) from boiler/HVAC entities like Viessmann
     vicare (max_temp=60°C). Falls back to True when max_temp is absent so that
     unknown climate entities are included rather than silently dropped.
+
+    Only returns False when the entity state is unknown (None) or max_temp exceeds the
+    TRV threshold. Missing current_temperature is not treated as a disqualifier — a TRV
+    can be present but not yet reporting sensor data.
     """
     state = hass.states.get(entity_id)
-    if state is None or state.attributes.get("current_temperature") is None:
+    if state is None:
         return False
     max_t = state.attributes.get("max_temp")
     return max_t is None or float(max_t) <= _TRV_MAX_TEMP_THRESHOLD
