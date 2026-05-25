@@ -1255,13 +1255,14 @@ Oe.styles = M`
     .week-grid {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px;
     }
 
     .day-row {
       display: flex;
       align-items: center;
-      height: 44px;
+      height: 40px;
+      overflow: hidden;
     }
 
     .day-label {
