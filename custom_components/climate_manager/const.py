@@ -56,7 +56,7 @@ ROOM_MODE_CUSTOM = "custom"
 DEFAULT_GLOBAL_MODE = MODE_TIME_PROGRAM
 
 DEFAULT_PERIOD_TEMPERATURES: dict[str, float] = {
-    PERIOD_FROST_PROTECTION: 7.0,   # GLOBAL-03
+    PERIOD_FROST_PROTECTION: 5.0,   # GLOBAL-03
     PERIOD_REDUCED: 18.0,            # GLOBAL-03
     PERIOD_NORMAL: 20.0,             # GLOBAL-03
     PERIOD_COMFORT: 22.0,            # GLOBAL-03
@@ -133,12 +133,7 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 DEFAULT_CONFIG: dict = {
     "version": STORAGE_VERSION,
     "global_mode": DEFAULT_GLOBAL_MODE,
-    "period_temperatures": {
-        PERIOD_FROST_PROTECTION: 7.0,
-        PERIOD_REDUCED: 18.0,
-        PERIOD_NORMAL: 20.0,
-        PERIOD_COMFORT: 22.0,
-    },
+    "period_temperatures": dict(DEFAULT_PERIOD_TEMPERATURES),
     "global_time_program": copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
     "rooms": {},    # sparse: only rooms with non-default config (SCHED-05, D-11)
     "persons": {},  # sparse: only persons with non-default settings (D-11)
