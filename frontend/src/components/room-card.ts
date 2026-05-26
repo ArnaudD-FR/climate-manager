@@ -1,8 +1,8 @@
 /**
  * Climate Manager Panel — Room Card component (UI-03).
  *
- * Expandable card per room. Header (always visible): room name + program
- * badge + compact 4-item status line (°C / humidity / active period / persons, D-14d).
+ * Expandable card per room. Header (always visible): room name + period badge (D-32)
+ * + mode badge + compact 3-item status line (°C / humidity / persons, D-14d).
  * Expanded: TRV entity IDs, associated persons chips, 3-way mode selector (D-20),
  * inline time-bar (when Custom mode, D-20).
  *
@@ -97,7 +97,7 @@ export class RoomCard extends LitElement {
       color: var(--primary-text-color);
     }
 
-    /* Always-visible 4-item status line in the card header (D-14d) */
+    /* Always-visible 3-item status line in the card header (D-14d, D-32) */
     .card-header-status {
       display: flex;
       gap: 12px;
@@ -432,6 +432,45 @@ export class RoomCard extends LitElement {
   // Render helpers
   // -----------------------------------------------------------------------
 
+  /** D-32: render period badge for row 1 of the card header.
+   *
+   * Returns empty when:
+   *   - resolvedMode is "frost_protection" (mode badge already conveys state)
+   *   - active_period is null/undefined (no active period to display)
+   *
+   * Returns gray "Off" badge when globalMode is "off".
+   * Otherwise returns a colored pill: "${name} · ${temp}°C".
+   */
+  private _renderPeriodBadge() {
+    const resolvedMode = this.config?.room_mode ?? "global";
+    if (resolvedMode === "frost_protection") return html``;
+
+    const globalMode = this.status?.global_mode ?? this.panelConfig?.global_mode ?? "";
+
+    if (globalMode === "off") {
+      return html`
+        <span
+          class="program-badge"
+          style="background: var(--secondary-background-color); color: var(--secondary-text-color);"
+        >Off</span>
+      `;
+    }
+
+    const period = this.roomStatus?.active_period ?? null;
+    if (period == null) return html``;
+
+    const label = PERIOD_DISPLAY_NAMES[period] ?? period;
+    const temp = this.panelConfig?.period_temperatures?.[period];
+    const content = temp != null ? `${label} · ${temp}°C` : label;
+
+    return html`
+      <span
+        class="program-badge"
+        style="background: ${PERIOD_COLORS[period]}; color: white;"
+      >${content}</span>
+    `;
+  }
+
   private _renderHeaderStatus() {
     const s = this.roomStatus;
     const temp = s?.temperature != null ? `${s.temperature}°C` : "—";
@@ -444,22 +483,6 @@ export class RoomCard extends LitElement {
       "time_program_presences": "Time & presence",
     };
     const modeLabel = modeLabels[globalMode] ?? globalMode;
-    // When global mode is off, the schedule period is irrelevant — show "Off" instead.
-    let periodDisplay: string;
-    if (globalMode === "off") {
-      periodDisplay = "Off";
-    } else {
-      const period = s?.active_period ?? null;
-      const periodLabel = period
-        ? (PERIOD_DISPLAY_NAMES[period] ?? period)
-        : "—";
-      const periodTempVal = period != null
-        ? this.panelConfig?.period_temperatures?.[period]
-        : undefined;
-      periodDisplay = periodTempVal != null
-        ? `${periodLabel} · ${periodTempVal}°C`
-        : periodLabel;
-    }
     const assignedIds = this._getAssignedPersonIds();
     const totalPersons = assignedIds.length;
     // D-23: present count comes from backend (rooms_status.present_person_count) — no TS-side intersection.
@@ -478,10 +501,6 @@ export class RoomCard extends LitElement {
         <span class="status-item">
           <ha-icon icon="mdi:water-percent"></ha-icon>
           ${humidity}
-        </span>
-        <span class="status-item" title="${modeLabel}">
-          <ha-icon icon="mdi:clock-outline"></ha-icon>
-          ${periodDisplay}
         </span>
         <span class="status-item" title="${isPresenceMode ? `${presentCount} present / ${totalPersons} assigned` : `${totalPersons} assigned`}">
           <ha-icon icon="mdi:account-group"></ha-icon>
@@ -586,6 +605,7 @@ export class RoomCard extends LitElement {
           <div class="card-header-left">
             <div class="card-header-top">
               <span class="room-name">${this.roomName}</span>
+              ${this._renderPeriodBadge()}
               <span
                 class="program-badge ${badgeClass}"
                 style=${badgeClass === "frost" ? `background: ${PERIOD_COLORS.frost_protection}; color: white;` : ""}
