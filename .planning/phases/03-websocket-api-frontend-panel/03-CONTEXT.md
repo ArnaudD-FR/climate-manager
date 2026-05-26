@@ -1,6 +1,6 @@
 # Phase 3: WebSocket API & Frontend Panel - Context
 
-**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-26)
+**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-26, 2026-05-26)
 **Status:** Ready for planning
 
 <domain>
@@ -43,8 +43,18 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
   2. **Temperatures** — the 4 period temperature inputs (Frost protection, Reduced, Normal, Comfort). Card title is exactly "Temperatures" (not "Default temperatures" or similar).
   3. **Configuration** — mode selector dropdown + global time program editor.
 - **D-14:** Rooms tab: expandable cards per room. Collapsed card shows room name + mode badge. Expanded card shows: associated TRV entity IDs, a 3-option room mode selector, and (when Custom mode is selected) the inline 7-bar editor. Room cards with a custom time program are expanded by default; all others are collapsed by default. See D-20 for the full room mode specification.
-- **D-14c (room card status — updated 2026-05-20):** The status summary (temperature, humidity, active period) is **always visible** on the room card, whether collapsed or expanded. It appears as a compact second line inside the card header area (below the room name + program badge row), using icons matching the existing status-row style (thermometer / water-percent / clock-outline). If temperature or humidity has no data (no sensor, no TRV reading), show "—" as placeholder. The `.status-row` inside the expanded `.card-content` section is **removed** to avoid duplication — the header line is the single source of status.
-- **D-14d (room card person count — added 2026-05-21):** The room status line includes an assigned-persons count as a 4th status item (after temperature, humidity, active period). Uses `mdi:account-group` icon + integer count. Shows "0" when no persons are assigned — the count is always rendered so the 4-item status line is always complete. Data source: `_getAssignedPersonIds().length` (already available from `panelConfig.persons`). This is assignment count, not real-time presence (present persons remain on the Global Settings tab per D-18).
+- **D-14c (room card status — updated 2026-05-26):** The room card header has two rows:
+  - **Row 1 (`card-header-top`):** `[room name]  [period badge]  [room mode badge]` — period badge comes first (global state leads), room mode badge follows. Period badge uses `PERIOD_COLORS[active_period]` as background with white text; content = period name + temperature (e.g., "Normal · 19°C"). Room mode badge unchanged.
+  - **Row 2 (status line):** compact 3-item line — 🌡 temperature · 💧 humidity · 👥 persons. The clock-outline + active period item is **removed** from row 2 (it moved to row 1). If temperature or humidity has no data, show "—".
+
+  **Period badge special cases:**
+  - Room mode `"frost_protection"` → **no period badge** (the mode badge already conveys the state in its deep-blue color).
+  - Global mode `"off"` → gray badge showing "Off" (use `--secondary-background-color` / `--secondary-text-color`); room mode badge still appears after it.
+
+  The `.status-row` inside the expanded `.card-content` section is **removed** to avoid duplication — the header is the single source of status.
+- **D-14d (room card person count — updated 2026-05-26):** Person count is the 3rd item in the status line (row 2), after temperature and humidity. Uses `mdi:account-group` icon + integer count. Shows "0" when no persons are assigned. Data source: `_getAssignedPersonIds().length`. In presence mode, shows `present/total` format. This is assignment count, not real-time presence (present persons remain on the Global Settings tab per D-18).
+- **D-32 (period badge in room card header — added 2026-05-26):** Formalises the period badge decision. Row 1 badge order: period badge first, room mode badge second. Period badge: `PERIOD_COLORS[active_period]` background, white text, content = `${PERIOD_DISPLAY_NAMES[period]} · ${temp}°C`. Exception: no period badge when room mode is `"frost_protection"`. Off mode: gray `"Off"` badge. Status line (row 2) drops the clock-outline period item and becomes 3 items only (temp / humidity / persons).
+
 - **D-14a (ordering — updated 2026-05-20):** Rooms are ordered by floor then room name, matching the HA climate panel. Floor names appear as section headers between floor groups (e.g. "Ground floor", "First floor"). Floors are ordered by their `level` field from `hass.floors` (ascending integer). Within a floor, rooms are sorted alphabetically by name. Rooms with no floor assignment appear after all floored rooms, in alphabetical order, without a section header. This replaces the previous custom-program-first ordering — program type no longer affects sort position.
 - **D-14b (data source — Claude's discretion):** Floor and area data comes from `hass.areas` (each area has a `floor_id` field) and `hass.floors` (each floor has `floor_id`, `name`, `level`). No backend changes needed — all ordering is done in `rooms-tab.ts`. The `Hass` TypeScript interface must be extended with `areas: Record<string, { area_id: string; name: string; floor_id: string | null }>` and `floors: Record<string, { floor_id: string; name: string; level: number }>`.
 - **D-15 (updated 2026-05-21):** Persons tab: expandable cards per person. **All cards are always collapsed by default** — the previous "expanded if non-default" rule is removed.
@@ -203,6 +213,8 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 
 ### Integration Points
 - `_getAssignedPersonIds()` in `room-card.ts` — already computes persons assigned to a room; use `.length` for D-14d person count without new data fetching.
+- `_renderHeaderStatus()` in `room-card.ts` — currently renders 4-item status line including clock-outline + period. D-32 requires: (1) add period badge to row 1 `card-header-top` (before mode badge), (2) remove period item from status line → 3-item line. `periodDisplay` logic already guards for `globalMode === "off"` (returns "Off") and `PERIOD_DISPLAY_NAMES` lookup. Reuse that logic for the badge; add `PERIOD_COLORS[active_period]` as inline background style.
+- `PERIOD_COLORS` / `PERIOD_DISPLAY_NAMES` in `frontend/src/types.ts` — already defined and imported in `room-card.ts`. Period badge uses both constants.
 - Current add-person picker in `room-card.ts` and add-room picker in `person-card.ts` both use a native `<select>` — D-19 replaces both with the shared `search-picker` component.
 - Room card "Override global time program" toggle in `room-card.ts` — D-20 replaces this boolean toggle with a 3-option `<select>` for room mode. The coordinator's `_evaluate_time_program` loop in `coordinator.py` needs a new branch for `room_mode == "frost_protection"` that pushes `period_temperatures[PERIOD_FROST_PROTECTION]` directly without schedule evaluation. `const.py` gains `ROOM_MODE_GLOBAL`, `ROOM_MODE_FROST`, `ROOM_MODE_CUSTOM` constants.
 - `async_setup_entry` in `__init__.py` — Phase 3 adds WebSocket command registration and `async_register_panel` call here.
