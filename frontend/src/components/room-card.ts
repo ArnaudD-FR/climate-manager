@@ -45,13 +45,13 @@ export class RoomCard extends LitElement {
   // any re-render that happens while the WS round-trip is in flight (e.g. a
   // subscribe_status push) passes a new `days` reference to the time-bar,
   // causing its updated() hook to clear _dragPreviewDays and flash.
-  private _lastTimeProgram: DailyProgram | undefined = undefined;
+  private _lastTimeProgram: DailyProgram | null | undefined = undefined;
   private _cachedDays: Period[][] = [];
   private get _days(): Period[][] {
     const program = this.config?.time_program;
     if (program !== this._lastTimeProgram) {
       this._lastTimeProgram = program;
-      this._cachedDays = programToDays(program);
+      this._cachedDays = programToDays(program ?? undefined);
     }
     return this._cachedDays;
   }
@@ -622,9 +622,6 @@ export class RoomCard extends LitElement {
         ${this._expanded
           ? html`
             <div class="card-content">
-              ${this._renderTrvSection()}
-              ${this._renderPersonsSection()}
-
               <!-- 3-way room mode selector (D-20) -->
               <div class="section-label">Mode</div>
               <div class="select-wrapper">
@@ -652,6 +649,11 @@ export class RoomCard extends LitElement {
                   <button class="reset-btn" @click=${() => void this._onResetToGlobal()}>Reset to global configuration</button>
                 `
                 : ""}
+
+              ${this._renderPersonsSection()}
+
+              <div class="section-label">Climate entities</div>
+              ${this._renderTrvSection()}
             </div>
           `
           : ""}

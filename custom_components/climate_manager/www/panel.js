@@ -2193,7 +2193,7 @@ const He = class He extends w {
   get _days() {
     var t;
     const e = (t = this.config) == null ? void 0 : t.time_program;
-    return e !== this._lastTimeProgram && (this._lastTimeProgram = e, this._cachedDays = Me(e)), this._cachedDays;
+    return e !== this._lastTimeProgram && (this._lastTimeProgram = e, this._cachedDays = Me(e ?? void 0)), this._cachedDays;
   }
   connectedCallback() {
     var e;
@@ -2432,9 +2432,6 @@ const He = class He extends w {
 
         ${this._expanded ? d`
             <div class="card-content">
-              ${this._renderTrvSection()}
-              ${this._renderPersonsSection()}
-
               <!-- 3-way room mode selector (D-20) -->
               <div class="section-label">Mode</div>
               <div class="select-wrapper">
@@ -2460,6 +2457,11 @@ const He = class He extends w {
                   </div>
                   <button class="reset-btn" @click=${() => void this._onResetToGlobal()}>Reset to global configuration</button>
                 ` : ""}
+
+              ${this._renderPersonsSection()}
+
+              <div class="section-label">Climate entities</div>
+              ${this._renderTrvSection()}
             </div>
           ` : ""}
       </ha-card>
@@ -2999,6 +3001,19 @@ const X = "scheduled", ve = "ha", ye = "force_present", xe = "force_absent", et 
                 </select>
               </div>
 
+              <!-- Presence schedule (only in Scheduled mode) -->
+              ${s ? d`
+                  <div class="section-label">Presence schedule</div>
+                  <div class="schedule-section">
+                    <climate-manager-time-bar
+                      mode="presence"
+                      .days=${this._days}
+                      @periods-changed=${this._onSchedulePeriodsChanged}
+                    ></climate-manager-time-bar>
+                  </div>
+                  <button class="reset-btn" @click=${() => void this._onResetSchedule()}>Reset to default</button>
+                ` : ""}
+
               <!-- Room associations as chips -->
               <div class="section-label">Room associations</div>
               <div class="chips">
@@ -3033,19 +3048,6 @@ const X = "scheduled", ve = "ha", ye = "force_present", xe = "force_absent", et 
                     ></search-picker>
                   ` : ""}
               </div>
-
-              <!-- Presence schedule (only in Scheduled mode) -->
-              ${s ? d`
-                  <div class="section-label">Presence schedule</div>
-                  <div class="schedule-section">
-                    <climate-manager-time-bar
-                      mode="presence"
-                      .days=${this._days}
-                      @periods-changed=${this._onSchedulePeriodsChanged}
-                    ></climate-manager-time-bar>
-                  </div>
-                  <button class="reset-btn" @click=${() => void this._onResetSchedule()}>Reset to default</button>
-                ` : ""}
             </div>
           ` : ""}
       </ha-card>
