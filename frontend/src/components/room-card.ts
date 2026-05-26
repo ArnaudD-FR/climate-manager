@@ -58,7 +58,7 @@ export class RoomCard extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this._expanded = (this.config?.room_mode === "custom");
+    this._expanded = false;
   }
 
   static styles = css`

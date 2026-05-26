@@ -2196,8 +2196,7 @@ const He = class He extends w {
     return e !== this._lastTimeProgram && (this._lastTimeProgram = e, this._cachedDays = Me(e ?? void 0)), this._cachedDays;
   }
   connectedCallback() {
-    var e;
-    super.connectedCallback(), this._expanded = ((e = this.config) == null ? void 0 : e.room_mode) === "custom";
+    super.connectedCallback(), this._expanded = !1;
   }
   // -----------------------------------------------------------------------
   // Person association handlers
