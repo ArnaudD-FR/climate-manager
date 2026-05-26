@@ -118,13 +118,20 @@ export class ClimateManagerTimeBar extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 4px;
+      /* Prevent Android WebView from consuming touch events as scroll gestures
+         before pointer events fire on child elements (drag handles). */
+      touch-action: none;
     }
 
     .day-row {
       display: flex;
       align-items: center;
       height: 40px;
-      overflow: hidden;
+      /* overflow must be visible so the 44px drag handle (positioned right:-22px
+         on .segment) extends beyond the segment boundary and remains hittable.
+         overflow:hidden clips the protruding half of the handle, making the
+         touch target unreachable on Android WebView. */
+      overflow: visible;
     }
 
     .day-label {
@@ -140,6 +147,7 @@ export class ClimateManagerTimeBar extends LitElement {
 
     .bar-wrap {
       flex: 1;
+      min-width: 0;
       height: 40px;
       position: relative;
       cursor: pointer;
@@ -179,12 +187,13 @@ export class ClimateManagerTimeBar extends LitElement {
 
     .drag-handle {
       position: absolute;
-      right: -3px;
+      right: -22px;
       top: 0;
-      width: 6px;
+      width: 44px;
       height: 100%;
       cursor: ew-resize;
       z-index: 2;
+      touch-action: none;
     }
 
     .empty-hint {
@@ -250,15 +259,21 @@ export class ClimateManagerTimeBar extends LitElement {
     .axis-tick {
       position: absolute;
       transform: translateX(-50%);
-      font-size: 11px;
+      font-size: 10px;
       color: var(--secondary-text-color, #757575);
+      white-space: nowrap;
     }
+    .axis-tick:first-child { transform: translateX(0); }
+    .axis-tick:last-child  { transform: translateX(-100%); }
 
-    .time-axis-inner > .axis-tick:nth-child(1) { left: 0%; }
-    .time-axis-inner > .axis-tick:nth-child(2) { left: 25%; }
-    .time-axis-inner > .axis-tick:nth-child(3) { left: 50%; }
-    .time-axis-inner > .axis-tick:nth-child(4) { left: 75%; }
-    .time-axis-inner > .axis-tick:nth-child(5) { left: 100%; }
+    /* On narrow screens hide 3h-interval ticks (3, 9, 15, 21) */
+    @media (max-width: 479px) {
+      .axis-tick--3h { display: none; }
+    }
+    /* On very narrow screens also hide 6h-interval ticks (6, 18) */
+    @media (max-width: 339px) {
+      .axis-tick--6h { display: none; }
+    }
 
     /* Drag tooltip */
     .drag-tooltip {
@@ -371,6 +386,16 @@ export class ClimateManagerTimeBar extends LitElement {
     return (x / barWidth) * 1440;
   }
 
+  /**
+   * Extra upward offset (px) to apply to the drag tooltip Y position for touch
+   * events. CSS transform already shifts ~23px above `top`; adding 28px on
+   * touch gives ~51px total clearance — just above one row (40px) height.
+   * Mouse/pen events get 0 — the CSS offset alone is sufficient.
+   */
+  private _touchTooltipOffset(e: PointerEvent): number {
+    return e.pointerType === "touch" ? 28 : 0;
+  }
+
   private _minutesToHHMM(minutes: number): string {
     const clamped = Math.max(0, Math.min(1440, minutes));
     const h = Math.floor(clamped / 60);
@@ -442,6 +467,32 @@ export class ClimateManagerTimeBar extends LitElement {
         composed: true,
       }),
     );
+  }
+
+  /**
+   * Returns true if every period in `preview` has identical start + mode/state
+   * to the corresponding period in `days` for the same day index.
+   *
+   * Used by updated() to avoid clearing _dragPreviewDays when the incoming
+   * `days` prop changes by reference but not by content — which happens when
+   * _loadStatus() re-renders GlobalSettingsTab before _loadConfig() completes,
+   * causing programToDays() to produce new array objects with the same values.
+   */
+  private _previewMatchesDays(preview: Period[][], days: Period[][]): boolean {
+    if (preview.length !== days.length) return false;
+    for (let d = 0; d < days.length; d++) {
+      const pDay = preview[d] ?? [];
+      const cDay = days[d] ?? [];
+      if (pDay.length !== cDay.length) return false;
+      for (let i = 0; i < pDay.length; i++) {
+        const p = pDay[i];
+        const c = cDay[i];
+        if (p.start !== c.start || p.mode !== c.mode || p.state !== c.state) {
+          return false;
+        }
+      }
+    }
+    return true;
   }
 
   // -----------------------------------------------------------------------
@@ -660,6 +711,10 @@ export class ClimateManagerTimeBar extends LitElement {
     dayIndex: number,
     segIndex: number,
   ) {
+    // Prevent the browser (Android WebView) from claiming the touch stream as a
+    // scroll or tap gesture. Must be called before setPointerCapture so the
+    // WebView gesture recognizer does not win the touch arbitration.
+    e.preventDefault();
     e.stopPropagation();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     this._dragPreviewDays = null; // clear any stale preview from previous drag
@@ -676,7 +731,7 @@ export class ClimateManagerTimeBar extends LitElement {
     };
     this._dragTooltipMinutes = seg.endMin;
     this._dragTooltipX = e.clientX;
-    this._dragTooltipY = e.clientY;
+    this._dragTooltipY = e.clientY - this._touchTooltipOffset(e);
   }
 
   private _onPointerMove(e: PointerEvent) {
@@ -696,7 +751,7 @@ export class ClimateManagerTimeBar extends LitElement {
     // Update tooltip time and position — do NOT emit (D-09)
     this._dragTooltipMinutes = snapped;
     this._dragTooltipX = e.clientX;
-    this._dragTooltipY = e.clientY;
+    this._dragTooltipY = e.clientY - this._touchTooltipOffset(e);
 
     // --- Live drag preview ---
     // Compute the clamped boundary (same logic as _onPointerUp) and write a
@@ -765,7 +820,7 @@ export class ClimateManagerTimeBar extends LitElement {
 
         // Keep preview at the final drag position to prevent flicker while
         // the parent round-trips through WS → reloadConfig → prop update.
-        // Cleared in updated() when the `days` prop actually changes.
+        // Cleared in updated() when the `days` prop actually changes content.
         const finalPreviewDays = this.days.map((day, i) =>
           i === dayIndex ? newPeriods : day,
         );
@@ -782,6 +837,17 @@ export class ClimateManagerTimeBar extends LitElement {
     this._dragTooltipMinutes = null;
     this._dragPreviewDays = null;
     this._justDragged = true;
+  }
+
+  private _onPointerCancel(_e: PointerEvent) {
+    // Android cancels the pointer stream (e.g. scroll gesture wins) instead of
+    // firing pointerup. Reset drag state so the component is not left stuck.
+    if (!this._drag) return;
+    this._drag = null;
+    this._dragTooltipMinutes = null;
+    this._dragPreviewDays = null;
+    // Do NOT set _justDragged — the drag did not complete, so no synthetic click
+    // needs to be suppressed.
   }
 
   // -----------------------------------------------------------------------
@@ -807,7 +873,38 @@ export class ClimateManagerTimeBar extends LitElement {
 
   protected updated(changedProperties: PropertyValues): void {
     if (changedProperties.has("days") && this._dragPreviewDays) {
-      this._dragPreviewDays = null;
+      // Only clear the preview when the incoming `days` prop has genuinely
+      // different content from the preview. A reference-only change (same
+      // content, new array objects) must NOT clear the preview — this is
+      // exactly the intermediate re-render caused by _loadStatus() completing
+      // before _loadConfig() after a WS save, which would otherwise flash the
+      // bar back to the pre-drag position momentarily.
+      if (!this._previewMatchesDays(this._dragPreviewDays, this.days)) {
+        this._dragPreviewDays = null;
+      }
+    }
+
+    // Clamp popup to viewport so bottom/right buttons are always reachable.
+    // Runs after each render where popup is open; the guard ensures at most
+    // one adjustment cycle (second render will be in-bounds → no change).
+    if (this._popup) {
+      const el = this.shadowRoot?.querySelector<HTMLElement>(".popup");
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const margin = 8;
+        let { x, y } = this._popup;
+        if (rect.bottom > window.innerHeight - margin) {
+          y -= rect.bottom - (window.innerHeight - margin);
+        }
+        if (rect.right > window.innerWidth - margin) {
+          x -= rect.right - (window.innerWidth - margin);
+        }
+        y = Math.max(margin, y);
+        x = Math.max(margin, x);
+        if (x !== this._popup.x || y !== this._popup.y) {
+          this._popup = { ...this._popup, x, y };
+        }
+      }
     }
   }
 
@@ -817,6 +914,7 @@ export class ClimateManagerTimeBar extends LitElement {
         class="week-grid"
         @pointermove=${this._onPointerMove}
         @pointerup=${this._onPointerUp}
+        @pointercancel=${this._onPointerCancel}
       >
         <!-- Time axis above day rows — identical structure to bottom axis -->
         ${this._renderTimeAxis()}
@@ -867,13 +965,19 @@ export class ClimateManagerTimeBar extends LitElement {
    * so ticks align pixel-perfectly with the bar regardless of button size.
    */
   private _renderTimeAxis() {
+    const ticks = [0, 3, 6, 9, 12, 15, 18, 21, 24];
     return html`
       <div class="time-axis">
         <div class="time-axis-label-spacer"></div>
         <div class="time-axis-inner">
-          ${["00:00", "06:00", "12:00", "18:00", "24:00"].map(
-            (t) => html`<span class="axis-tick">${t}</span>`,
-          )}
+          ${ticks.map((h) => {
+            const densityClass =
+              h % 12 === 0 ? "" : h % 6 === 0 ? "axis-tick--6h" : "axis-tick--3h";
+            return html`<span
+              class="axis-tick ${densityClass}"
+              style="left:${(h / 24) * 100}%"
+            >${String(h).padStart(2, "0")}:00</span>`;
+          })}
         </div>
         <div class="time-axis-actions-ghost" aria-hidden="true">
           <ha-icon-button><ha-icon icon="mdi:content-copy"></ha-icon></ha-icon-button>
