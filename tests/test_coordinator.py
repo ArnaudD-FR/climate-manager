@@ -709,6 +709,141 @@ def test_compute_present_persons_mixed_modes(hass):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Tests: MODE_OFF per-TRV dispatch (quick task 260526-ffr)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_mode_off_uses_set_hvac_mode_off_when_supported(hass):
+    """MODE_OFF: TRV advertising hvac_modes=['heat','off'] receives set_hvac_mode=off.
+
+    No set_temperature call must be issued for this entity.
+    """
+    hass.states.async_set(
+        "climate.off_capable_trv",
+        "heat",
+        {"hvac_modes": ["heat", "off"], "temperature": 18.0},
+    )
+
+    hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_runtime_config(global_mode=MODE_OFF)
+    entry.runtime_data.rooms = {"living": ["climate.off_capable_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    entity_hvac = [
+        c for c in hvac_calls if c.data.get("entity_id") == "climate.off_capable_trv"
+    ]
+    entity_temp = [
+        c for c in temp_calls if c.data.get("entity_id") == "climate.off_capable_trv"
+    ]
+
+    assert any(c.data.get("hvac_mode") == "off" for c in entity_hvac), (
+        "Expected at least one set_hvac_mode=off call for off-capable TRV in MODE_OFF"
+    )
+    assert len(entity_temp) == 0, (
+        f"Expected zero set_temperature calls for off-capable TRV; got {len(entity_temp)}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_mode_off_falls_back_to_frost_temp_when_off_not_supported(hass):
+    """MODE_OFF: TRV without 'off' in hvac_modes receives frost-protection setpoint.
+
+    Any set_hvac_mode call for this entity must use hvac_mode='heat' (not 'off').
+    """
+    hass.states.async_set(
+        "climate.heat_only_trv",
+        "heat",
+        {"hvac_modes": ["heat"], "temperature": 18.0},
+    )
+
+    hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_runtime_config(global_mode=MODE_OFF)
+    entry.runtime_data.rooms = {"bedroom": ["climate.heat_only_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    entity_temp = [
+        c for c in temp_calls if c.data.get("entity_id") == "climate.heat_only_trv"
+    ]
+    entity_hvac = [
+        c for c in hvac_calls if c.data.get("entity_id") == "climate.heat_only_trv"
+    ]
+
+    assert len(entity_temp) >= 1, "Expected set_temperature call for heat-only TRV in MODE_OFF"
+    assert entity_temp[-1].data["temperature"] == DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION], (
+        f"Expected frost-protection temp {DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION]}, "
+        f"got {entity_temp[-1].data['temperature']}"
+    )
+    for c in entity_hvac:
+        assert c.data.get("hvac_mode") != "off", (
+            "set_hvac_mode=off must never be issued for heat-only TRV"
+        )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_mode_off_does_not_flap_set_hvac_mode_off_on_repeat_tick(hass):
+    """MODE_OFF: calling async_evaluate twice for an off-capable TRV emits only ONE set_hvac_mode=off.
+
+    Push-on-change parity: the 'off' sentinel in _last_pushed prevents flapping.
+    """
+    hass.states.async_set(
+        "climate.flap_test_trv",
+        "heat",
+        {"hvac_modes": ["heat", "off"], "temperature": 18.0},
+    )
+
+    hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_runtime_config(global_mode=MODE_OFF)
+    entry.runtime_data.rooms = {"hall": ["climate.flap_test_trv"]}
+
+    # First tick
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    # Second tick — same MODE_OFF, same entity
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    off_calls = [
+        c
+        for c in hvac_calls
+        if c.data.get("entity_id") == "climate.flap_test_trv"
+        and c.data.get("hvac_mode") == "off"
+    ]
+    assert len(off_calls) == 1, (
+        f"Expected exactly 1 set_hvac_mode=off call (no flapping); got {len(off_calls)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+
+
 def test_build_status_payload_includes_present_person_count(hass):
     """D-24: _build_status_payload sets present_person_count on every rooms_status entry.
 
