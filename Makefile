@@ -1,3 +1,4 @@
+-include Makefile.local
 HA_USER ?= root
 HA_HOST ?= homeassistant.local
 HA_COMPONENT_DIR = /config/custom_components/climate_manager
