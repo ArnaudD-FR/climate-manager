@@ -474,7 +474,7 @@ export class RoomCard extends LitElement {
 
   private _renderHeaderStatus() {
     const s = this.roomStatus;
-    const temp = s?.temperature != null ? `${s.temperature}°C` : "—";
+    const temp = s?.temperature != null ? `${s.temperature.toFixed(1)}°C` : "—";
     const humidity = s?.humidity != null ? `${s.humidity}%` : "—";
     const globalMode = this.status?.global_mode ?? this.panelConfig?.global_mode ?? "";
     const isPresenceMode = globalMode === "time_program_presences";

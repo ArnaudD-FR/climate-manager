@@ -2327,7 +2327,7 @@ const He = class He extends w {
   }
   _renderHeaderStatus() {
     var f, b, v;
-    const e = this.roomStatus, t = (e == null ? void 0 : e.temperature) != null ? `${e.temperature}°C` : "—", o = (e == null ? void 0 : e.humidity) != null ? `${e.humidity}%` : "—", s = ((f = this.status) == null ? void 0 : f.global_mode) ?? ((b = this.panelConfig) == null ? void 0 : b.global_mode) ?? "", r = s === "time_program_presences", n = {
+    const e = this.roomStatus, t = (e == null ? void 0 : e.temperature) != null ? `${e.temperature.toFixed(1)}°C` : "—", o = (e == null ? void 0 : e.humidity) != null ? `${e.humidity}%` : "—", s = ((f = this.status) == null ? void 0 : f.global_mode) ?? ((b = this.panelConfig) == null ? void 0 : b.global_mode) ?? "", r = s === "time_program_presences", n = {
       off: "Off",
       time_program: "Time program",
       time_program_presences: "Time & presence"
