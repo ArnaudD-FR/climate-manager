@@ -2,11 +2,17 @@
 
 TDD RED phase: written before trv.py exists.
 Verifies all four behaviors from plan 02 Task 3 and INFRA-04.
+
+Additional tests for supports_hvac_off and set_trv_off (quick task 260526-ffr).
 """
 import pytest
 from pytest_homeassistant_custom_component.common import async_mock_service
 
-from custom_components.climate_manager.trv import set_trv_temperature
+from custom_components.climate_manager.trv import (
+    set_trv_off,
+    set_trv_temperature,
+    supports_hvac_off,
+)
 
 CLIMATE_ENTITY = "climate.living_room_trv"
 
@@ -83,6 +89,53 @@ async def test_set_trv_temperature_skips_missing_entity(hass):
 
     # Should not raise
     await set_trv_temperature(hass, "climate.nonexistent_trv", 21.0)
+
+    assert len(hvac_calls) == 0
+    assert len(temp_calls) == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests 5-8: supports_hvac_off and set_trv_off (quick task 260526-ffr)
+# ---------------------------------------------------------------------------
+
+
+def test_supports_hvac_off_true_when_off_in_hvac_modes(hass):
+    """Test 5: supports_hvac_off returns True when "off" is in hvac_modes attribute."""
+    hass.states.async_set(CLIMATE_ENTITY, "heat", {"hvac_modes": ["heat", "off"]})
+    assert supports_hvac_off(hass, CLIMATE_ENTITY) is True
+
+
+def test_supports_hvac_off_false_when_attribute_missing(hass):
+    """Test 6: supports_hvac_off returns False when hvac_modes attribute is absent."""
+    hass.states.async_set(CLIMATE_ENTITY, "heat", {})
+    assert supports_hvac_off(hass, CLIMATE_ENTITY) is False
+
+
+async def test_set_trv_off_issues_single_set_hvac_mode_off_call(hass):
+    """Test 7: set_trv_off issues exactly one set_hvac_mode call with hvac_mode="off"
+    and ZERO set_temperature calls.
+    """
+    hass.states.async_set(CLIMATE_ENTITY, "heat", {"hvac_modes": ["heat", "off"]})
+
+    hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    await set_trv_off(hass, CLIMATE_ENTITY)
+
+    assert len(hvac_calls) == 1
+    assert hvac_calls[0].data["entity_id"] == CLIMATE_ENTITY
+    assert hvac_calls[0].data["hvac_mode"] == "off"
+    assert len(temp_calls) == 0
+
+
+async def test_set_trv_off_skips_unavailable_entity(hass):
+    """Test 8: set_trv_off on an "unavailable" entity issues ZERO service calls (ROOM-03)."""
+    hass.states.async_set(CLIMATE_ENTITY, "unavailable", {})
+
+    hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    await set_trv_off(hass, CLIMATE_ENTITY)
 
     assert len(hvac_calls) == 0
     assert len(temp_calls) == 0
