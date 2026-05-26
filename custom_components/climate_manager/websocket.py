@@ -1,6 +1,6 @@
 """Climate Manager WebSocket command handlers.
 
-Registers 10 WebSocket commands for the panel ↔ backend protocol:
+Registers 11 WebSocket commands for the panel ↔ backend protocol:
 - get_status: returns global_mode, active_period, present_persons, rooms_status
 - get_config: returns full runtime_config
 - set_global_mode: mutates global_mode, persists, re-evaluates
@@ -11,6 +11,7 @@ Registers 10 WebSocket commands for the panel ↔ backend protocol:
 - subscribe_status: registers a push listener in connection.subscriptions
 - reset_period_temperatures: resets period_temperatures to DEFAULT_PERIOD_TEMPERATURES from const.py
 - reset_time_program: resets global_time_program to _DEFAULT_DAILY_PROGRAM from const.py
+- reset_room_to_global_program: deep-copies global_time_program into rooms[room_id].time_program
 
 All handlers access state via the entry closure (never hass.data[DOMAIN]).
 Write handlers follow the write-then-evaluate pattern:
@@ -74,6 +75,7 @@ def async_register_commands(
     websocket_api.async_register_command(hass, _make_ws_subscribe_status(entry))
     websocket_api.async_register_command(hass, _make_ws_reset_period_temperatures(entry))
     websocket_api.async_register_command(hass, _make_ws_reset_time_program(entry))
+    websocket_api.async_register_command(hass, _make_ws_reset_room_to_global_program(entry))
 
 
 # ---------------------------------------------------------------------------
@@ -427,6 +429,41 @@ def _make_ws_reset_time_program(entry: ClimateManagerConfigEntry):
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_reset_time_program
+
+
+def _make_ws_reset_room_to_global_program(entry: ClimateManagerConfigEntry):
+    """Factory: create reset_room_to_global_program handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/reset_room_to_global_program",
+            vol.Required("room_id"): str,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_reset_room_to_global_program(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Deep-copy global_time_program into rooms[room_id].time_program and set room_mode=custom.
+
+        T-03-09: setdefault + direct assignment pattern ensures only the targeted room's
+                 time_program and room_mode keys are modified; other rooms and other top-level
+                 keys (period_temperatures, persons, global_mode, global_time_program) are untouched.
+        T-03-09: copy.deepcopy ensures the room and global program never share list references.
+        """
+        runtime_config = entry.runtime_data.runtime_config
+        room_id = msg["room_id"]
+        global_time_program = runtime_config.get("global_time_program", {})
+        room = runtime_config.setdefault("rooms", {}).setdefault(room_id, {})
+        room["room_mode"] = "custom"
+        room["time_program"] = copy.deepcopy(global_time_program)
+        await entry.runtime_data.store.async_save(runtime_config)
+        connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+    return ws_reset_room_to_global_program
 
 
 # ---------------------------------------------------------------------------

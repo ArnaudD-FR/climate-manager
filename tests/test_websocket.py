@@ -295,3 +295,59 @@ async def test_ws_reset_time_program_writes_defaults(hass, hass_ws_client):
     # Verify deep copy: mutating runtime_config must not affect the constant
     program["mon"][0]["mode"] = "comfort"
     assert _DEFAULT_DAILY_PROGRAM["mon"][0]["mode"] == "reduced"
+
+
+# ---------------------------------------------------------------------------
+# Test 9: reset_room_to_global_program WS command
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_reset_room_to_global_program_copies_global_into_room(hass, hass_ws_client):
+    """reset_room_to_global_program deep-copies global_time_program into the target room.
+
+    Verifies:
+    - result.success is True
+    - target room room_mode becomes "custom"
+    - target room time_program deep-equals global_time_program
+    - mutating target room's time_program does NOT bleed into global_time_program (deep copy)
+    - sibling room is untouched (T-03-09 sparse-merge semantics)
+    """
+    entry = await _setup_entry(hass)
+
+    # Sentinel global time program with one period per day
+    sentinel_program = {
+        day: [{"start": "06:00", "mode": "normal"}]
+        for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+    }
+    entry.runtime_data.runtime_config["global_time_program"] = sentinel_program
+
+    # Seed room-a with stale data and room-b as a sibling that must remain untouched
+    sentinel_room_b = {"room_mode": "global", "time_program": {"mon": [{"start": "08:00", "mode": "reduced"}]}}
+    entry.runtime_data.runtime_config["rooms"] = {
+        "room-a": {"room_mode": "global", "time_program": {}},
+        "room-b": dict(sentinel_room_b),
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/reset_room_to_global_program", "room_id": "room-a"}
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+
+    rooms = entry.runtime_data.runtime_config["rooms"]
+
+    # Target room: mode must be "custom", time_program must equal global_time_program
+    assert rooms["room-a"]["room_mode"] == "custom"
+    assert rooms["room-a"]["time_program"] == sentinel_program
+
+    # Sibling room must be completely untouched
+    assert rooms["room-b"] == sentinel_room_b
+
+    # Deep-copy proof: mutating room-a's time_program must NOT bleed into global_time_program
+    rooms["room-a"]["time_program"]["mon"].append({"start": "22:00", "mode": "reduced"})
+    assert entry.runtime_data.runtime_config["global_time_program"]["mon"] == [
+        {"start": "06:00", "mode": "normal"}
+    ]
