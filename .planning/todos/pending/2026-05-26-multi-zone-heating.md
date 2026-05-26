@@ -2,6 +2,7 @@
 created: 2026-05-26T20:58:08.747Z
 title: Define multiple heating zones with independent modes
 area: general
+resolves_phase: 4
 files: []
 ---
 
