@@ -286,7 +286,7 @@ export class RoomCard extends LitElement {
 
     .reset-btn {
       margin-top: 12px;
-      margin-bottom: 20px;
+      margin-bottom: 12px;
       padding: 8px 16px;
       font-size: 14px;
       font-family: inherit;
