@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
+status: Awaiting next milestone
 stopped_at: context exhaustion at 75% (2026-05-26)
-last_updated: "2026-05-26T16:38:16.939Z"
-last_activity: "2026-05-26 -- room card: Schedule label + reset button margin polish"
+last_updated: "2026-05-26T20:57:46.148Z"
+last_activity: 2026-05-26 — Milestone v1.0 completed and archived
 progress:
   total_phases: 3
   completed_phases: 3
@@ -25,12 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-15)
 
 ## Current Position
 
-Phase: 03 (websocket-api-frontend-panel) — EXECUTING
-Plan: 1 of 9
-Status: Executing Phase 03
-Last activity: 2026-05-26 -- Completed quick task 260526-o28: implement period badge in room card (D-32)
-
-Progress: [░░░░░░░░░░] 0%
+Phase: Milestone v1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-05-26 — Milestone v1.0 completed and archived
 
 ## Performance Metrics
 
@@ -106,17 +104,24 @@ None yet.
 
 ## Deferred Items
 
-Items acknowledged and carried forward from previous milestone close:
+Items acknowledged and deferred at milestone close on 2026-05-26:
 
-| Category | Item | Status | Deferred At |
-|----------|------|--------|-------------|
-| v2 | Holiday / specific period overrides | Deferred | Init |
-| v2 | Calendar-based presence (iCal, Pronote) | Deferred | Init |
-| v2 | GPS / zone-based presence | Deferred | Init |
-| v2 | Predictive pre-heat | Deferred | Init |
+| Category | Item | Status |
+|----------|------|--------|
+| quick_task | 260520-m0t through 260526-plq (28 tasks) | missing status marker — all have PLAN.md + SUMMARY.md, work is done |
+| v2 | Holiday / specific period overrides | Deferred |
+| v2 | Calendar-based presence (iCal, Pronote) | Deferred |
+| v2 | GPS / zone-based presence | Deferred |
+| v2 | Predictive pre-heat | Deferred |
+
+Known deferred items at close: 28 quick tasks with missing status marker (see above)
 
 ## Session Continuity
 
 Last session: 2026-05-26T16:38:16.936Z
 Stopped at: context exhaustion at 75% (2026-05-26)
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
