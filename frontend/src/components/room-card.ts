@@ -286,6 +286,7 @@ export class RoomCard extends LitElement {
 
     .reset-btn {
       margin-top: 12px;
+      margin-bottom: 20px;
       padding: 8px 16px;
       font-size: 14px;
       font-family: inherit;
@@ -639,6 +640,7 @@ export class RoomCard extends LitElement {
               <!-- Inline time-bar (only in Custom mode) -->
               ${resolvedMode === "custom"
                 ? html`
+                  <div class="section-label">Schedule</div>
                   <div class="time-bar-section">
                     <climate-manager-time-bar
                       mode="schedule"
