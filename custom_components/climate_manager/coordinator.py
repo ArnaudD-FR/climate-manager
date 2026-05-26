@@ -53,7 +53,7 @@ from .const import (
     ROOM_MODE_CUSTOM,
 )
 from .schedule import compute_occupied_temp, evaluate_schedule, resolve_presence
-from .trv import is_trv_entity, set_trv_temperature
+from .trv import is_trv_entity, set_trv_off, set_trv_temperature, supports_hvac_off
 
 if TYPE_CHECKING:
     from . import ClimateManagerData
@@ -83,7 +83,8 @@ class ClimateManagerCoordinator:
         self._hass = hass
         self._data = data
         # Empty on construction → D-04: first async_evaluate is always a full push.
-        self._last_pushed: dict[str, float] = {}
+        # Widened to float | str to accommodate the "off" sentinel for off-capable TRVs.
+        self._last_pushed: dict[str, float | str] = {}
         # Wave 2: track last evaluation results for status push and get_status WS command.
         self._last_active_period: str | None = None
         self._last_present_persons: list[str] = []
@@ -108,10 +109,12 @@ class ClimateManagerCoordinator:
         rooms: dict[str, list[str]] = self._data.rooms  # {area_id: [entity_id, ...]}
 
         if global_mode == MODE_OFF:
-            # GLOBAL-02: all TRVs → frost protection temperature
+            # GLOBAL-02: off-capable TRVs → set_hvac_mode=off; others → frost protection
             desired_temp = period_temperatures[PERIOD_FROST_PROTECTION]
             await asyncio.gather(*(
-                self._push_safely(entity_id, desired_temp, "MODE_OFF")
+                self._push_off_safely(entity_id)
+                if supports_hvac_off(self._hass, entity_id)
+                else self._push_safely(entity_id, desired_temp, "MODE_OFF")
                 for entity_ids in rooms.values()
                 for entity_id in entity_ids
             ))
@@ -429,6 +432,28 @@ class ClimateManagerCoordinator:
             await self._push_if_changed(entity_id, desired_temp)
         except Exception:  # noqa: BLE001
             _LOGGER.warning("Failed to push temperature to %s in %s", entity_id, context)
+
+    async def _push_off_safely(self, entity_id: str) -> None:
+        """Issue set_hvac_mode=off for an off-capable TRV in MODE_OFF, with anti-flap guard.
+
+        Mirrors _push_safely/_push_if_changed for the off path:
+        - Guard on unavailable/missing entity (ROOM-03 parity).
+        - If _last_pushed already records "off" for this entity, skip (no flapping).
+        - On success, record the "off" sentinel in _last_pushed so the next tick skips.
+        - Logs and swallows any service-call exception (same pattern as _push_safely).
+        """
+        state = self._hass.states.get(entity_id)
+        if state is None or state.state == "unavailable":
+            return
+
+        if self._last_pushed.get(entity_id) == "off":
+            return  # Anti-flap: already pushed off this evaluation cycle
+
+        try:
+            await set_trv_off(self._hass, entity_id)
+            self._last_pushed[entity_id] = "off"
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("Failed to push OFF to %s in MODE_OFF", entity_id)
 
     async def _push_if_changed(self, entity_id: str, desired_temp: float) -> None:
         """Push temperature to TRV only if it differs from the last pushed value.
