@@ -841,6 +841,57 @@ async def test_mode_off_does_not_flap_set_hvac_mode_off_on_repeat_tick(hass):
     )
 
 
+@pytest.mark.asyncio
+async def test_mode_off_to_time_program_pushes_schedule_temp(hass):
+    """Regression: switching from MODE_OFF to MODE_TIME_PROGRAM must push schedule temp.
+
+    The 'off' sentinel stored in _last_pushed during MODE_OFF is a string.
+    _push_if_changed's D-03 guard compares float(reported) != last; with last=="off"
+    this is always True in Python 3, causing a spurious override hold that silently
+    blocks every subsequent push. Fix: treat string sentinel as None (no prior push).
+    """
+    entity = "climate.bureau_trv"
+    hass.states.async_set(
+        entity,
+        "off",
+        {"hvac_modes": ["heat", "off"], "temperature": 18.0},
+    )
+
+    hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coord = entry.runtime_data.coordinator
+    entry.runtime_data.rooms = {"bureau": [entity]}
+
+    # Tick 1: MODE_OFF — should push set_hvac_mode=off
+    entry.runtime_data.runtime_config = _make_runtime_config(global_mode=MODE_OFF)
+    await coord.async_evaluate()
+    await hass.async_block_till_done()
+
+    off_calls = [c for c in hvac_calls if c.data.get("hvac_mode") == "off"]
+    assert len(off_calls) == 1, "Expected one set_hvac_mode=off call in MODE_OFF"
+    assert coord._last_pushed.get(entity) == "off", "Expected 'off' sentinel in _last_pushed"
+
+    # Tick 2: switch to MODE_TIME_PROGRAM — should push heat + schedule temp
+    entry.runtime_data.runtime_config = _make_runtime_config(global_mode="time_program")
+    await coord.async_evaluate()
+    await hass.async_block_till_done()
+
+    heat_calls = [c for c in hvac_calls if c.data.get("hvac_mode") == "heat"]
+    assert len(heat_calls) >= 1, (
+        "Expected at least one set_hvac_mode=heat call after switching from MODE_OFF "
+        "to time_program — 'off' sentinel must not block the push via D-03 override hold"
+    )
+    assert len(temp_calls) >= 1, (
+        "Expected at least one set_temperature call after switching from MODE_OFF to time_program"
+    )
+
+
 # ---------------------------------------------------------------------------
 
 

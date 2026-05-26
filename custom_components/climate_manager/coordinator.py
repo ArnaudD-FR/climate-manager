@@ -473,6 +473,12 @@ class ClimateManagerCoordinator:
 
         last = self._last_pushed.get(entity_id)
 
+        # Clear stale MODE_OFF sentinel: "off" is a string, not a temperature.
+        # float(reported) != "off" is always True in Python 3, which would cause
+        # the D-03 manual override hold to fire on every tick after MODE_OFF exit.
+        if isinstance(last, str):
+            last = None
+
         # D-02: push-on-change — skip if already at desired temp
         if last is not None and last == desired_temp:
             return
