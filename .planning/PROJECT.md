@@ -8,6 +8,18 @@ A Home Assistant custom integration that manages home climate controls through s
 
 A household's rooms are always at the right temperature at the right time, without manual intervention — driven by schedules and who is actually home.
 
+## Current Milestone: v1.1 Heating Zones
+
+**Goal:** Add named heating zones — groups of rooms that run their own mode and weekly schedule independently from the global configuration.
+
+**Target features:**
+- Zone CRUD (create, rename, delete named zones)
+- Room assignment to zones (rooms not in any zone fall back to global)
+- Zone mode override (Off / Time program / Time program & presences — overrides global)
+- Zone time program (own weekly schedule, same weekday-group + period structure as global)
+- Backend evaluation: zone config evaluated before global
+- UI: Zones section in the Lovelace panel
+
 ## Current State
 
 **Shipped:** v1.0 MVP (2026-05-26)
@@ -34,8 +46,9 @@ A household's rooms are always at the right temperature at the right time, witho
 
 ### Active
 
-- [ ] Save error handling — error toast persists until dismissed (deferred from v1.0 UAT)
-- [ ] Person HA-mode presence (automatic via HA person entities)
+- [ ] Multi-zone heating (named zones with independent mode + schedule) — v1.1
+- [ ] Zone CRUD and room assignment UI — v1.1
+- [ ] Backend zone evaluation (zone overrides global for assigned rooms) — v1.1
 
 ### Out of Scope
 
@@ -73,5 +86,22 @@ A household's rooms are always at the right temperature at the right time, witho
 | Concurrent TRV push (asyncio.gather) | Sequential push ~10s for multi-TRV homes | ✓ Good — latency dropped to <1s |
 | {mon..sun} schema for time programs | Per-day granularity needed for user config | ✓ Good — maps cleanly to UI and weekly patterns |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-05-26 after v1.0 milestone*
+*Last updated: 2026-05-26 — v1.1 Heating Zones milestone started*
