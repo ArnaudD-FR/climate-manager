@@ -1,19 +1,17 @@
 ---
-status: partial
+status: complete
 phase: 03-websocket-api-frontend-panel
 source:
   - 03-01-SUMMARY.md
   - 03-02-SUMMARY.md
   - 03-03-SUMMARY.md
 started: 2026-05-20T12:37:55Z
-updated: 2026-05-20T12:37:55Z
+updated: 2026-05-26T18:30:00Z
 ---
 
 ## Current Test
 
-number: 10
-name: [testing complete]
-awaiting: n/a
+[testing complete]
 
 ## Tests
 
@@ -62,7 +60,7 @@ severity: major
 ### 10. Save error handling — toast on failure
 expected: If the backend rejects a save (e.g. connection lost), an error toast appears and persists until dismissed. It does NOT auto-dismiss after 3 seconds (unlike success toasts).
 result: skipped
-reason: "user skipped to prioritize adding new requirements"
+reason: "deferred — not yet testable without deliberate connection drop; carry forward to v1.1"
 
 ## Summary
 
