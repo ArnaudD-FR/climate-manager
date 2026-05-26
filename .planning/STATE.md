@@ -5,7 +5,7 @@ milestone_name: milestone
 status: executing
 stopped_at: context exhaustion at 75% (2026-05-26)
 last_updated: "2026-05-26T16:38:16.939Z"
-last_activity: "2026-05-27 -- Completed quick task 260526-plq: frost-temp before hvac=off in MODE_OFF + TS null fix + bundle rebuild"
+last_activity: "2026-05-26 -- room card: Schedule label + reset button margin polish"
 progress:
   total_phases: 3
   completed_phases: 3
@@ -96,6 +96,7 @@ None yet.
 | 260526-ffr | Global mode off: dispatch TRV to HVACMode.OFF when supported, frost-protection fallback otherwise; restore HVACMode.HEAT on mode exit | 2026-05-26 | aef5cee | [260526-ffr-when-entering-global-mode-off-if-a-trv-s](.planning/quick/260526-ffr-when-entering-global-mode-off-if-a-trv-s/) |
 | 260526-o28 | implement period badge in room card (D-32) | 2026-05-26 | b7d8d07 | [260526-o28-implement-period-badge-in-room-card-d-32](.planning/quick/260526-o28-implement-period-badge-in-room-card-d-32/) |
 | 260526-plq | push frost-protection temp before hvac=off in MODE_OFF; fix TS null type; card section reorder (already applied) | 2026-05-27 | 4eb0ff6 | [260526-plq-off-mode-push-frost-protection-temp-befo](.planning/quick/260526-plq-off-mode-push-frost-protection-temp-befo/) |
+| 260526-sched | room card: add Schedule section label above time-bar; 12px margin top+bottom on reset button | 2026-05-26 | a0db0fc | — |
 
 ### Blockers/Concerns
 
