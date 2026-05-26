@@ -1,6 +1,6 @@
 # Phase 3: WebSocket API & Frontend Panel - Context
 
-**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21)
+**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-26)
 **Status:** Ready for planning
 
 <domain>
@@ -78,7 +78,7 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
     - `"global"`: use global time program (current default path — no code change for this branch).
     - `"custom"`: use `room_config["time_program"]` (same as existing override behavior).
 
-  **Panel UI:** Replaces the "Override global time program" toggle in the expanded room card with a 3-option mode selector (native `<select>` — ha-select is broken in HA 2026.x). Selecting Custom reveals the inline 7-bar editor. When switching to Custom for the first time, the panel includes the current global program as the initial `time_program` value in the same `set_room_config` WebSocket call.
+  **Panel UI:** Replaces the "Override global time program" toggle in the expanded room card with a 3-option mode selector (native `<select>` — ha-select is broken in HA 2026.x). Selecting Custom reveals the inline 7-bar editor. When switching to Custom, the frontend sends only `{ room_mode: "custom" }` — no `time_program` key. The backend auto-seeds from `global_time_program` if the room has no existing custom program (see D-31).
 
   **Badge text** in collapsed card header:
     - `"frost_protection"` → badge: **"Frost protection"**
@@ -105,13 +105,11 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 
   **Frontend (`person-card.ts`):** `PRESENCE_MODE_PRESENT = "force_present"`, `PRESENCE_MODE_ABSENT = "force_absent"`, add `PRESENCE_MODE_HA = "ha"`. Add 4th option to mode selector dropdown. Badge text: `"force_present"` → "Force Present", `"force_absent"` → "Force Absent", `"ha"` → "HA".
 
-- **D-22 (added 2026-05-21):** Scheduled mode default schedule — applied one-time when a person switches TO `"scheduled"` mode and has no existing schedule (empty or absent `schedule` key). The panel includes the default schedule in the `set_person_config` call as initial values. Not stored in `DEFAULT_CONFIG`.
+- **D-22 (updated 2026-05-26):** Scheduled mode default schedule — owned entirely by the backend (see D-31). Two backend commands handle this:
+  - `set_person_config(mode="scheduled")` — if the person has no existing schedule, the backend auto-seeds the default schedule before saving. Frontend sends only `{ mode: "scheduled" }`.
+  - `reset_person_to_default_schedule` — new WS command called by the "Reset to default" button. Backend applies the canonical default and saves. Frontend sends command + `person_id`, then calls `reloadConfig()` and shows toast.
 
-  Default schedule value:
-  - Mon–Fri: `[{"start": "00:00", "state": "present"}, {"start": "08:00", "state": "absent"}, {"start": "18:00", "state": "present"}]`
-  - Sat–Sun: `[{"start": "00:00", "state": "present"}]`
-
-  Implementation: in `person-card.ts` `_onModeChange()`, when the selected value is `"scheduled"` and `this.config.schedule` is empty/absent, build the default schedule object and include it in the WebSocket save payload. Analogous to room Custom mode copying the global program on first switch (D-20).
+  Default schedule lives in `const.py` (e.g. `DEFAULT_PRESENCE_SCHEDULE`), not in the frontend. `DEFAULT_SCHEDULE` is removed from `person-card.ts`.
 
 ### Assignment Picker
 
@@ -123,9 +121,10 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
   - **ha-select is broken in HA 2026.x** — implementation uses a native `<input type="text">` for search and a custom `<ul>` list, not any `ha-*` select component.
   - Items already assigned are excluded from the picker list (same logic as current `<select>` filtering).
 
-### Frontend/Backend Separation Policy (added 2026-05-21)
+### Frontend/Backend Separation Policy (added 2026-05-21, updated 2026-05-26)
 
 - **D-23 (architectural rule):** "All logic in backend" means: business logic (schedule evaluation, temperature derivation, mode resolution, presence determination) and any display-computed values that require backend data joins (e.g., per-room present-person count). **Acceptable in frontend:** UI state management (filtering picker items, sorting lists for display, array manipulation to build a save payload before sending), simple lookup bindings (`.includes()`, `.find()` to bind a label to an ID), template rendering loops.
+- **D-31 (default value rule — added 2026-05-26):** The frontend never owns data defaults. When data needs to come from somewhere outside the user's direct input (a default value, a copy of another config section, a derived value), a dedicated backend WS command handles it. The frontend: (a) relays user input directly — typed values, user selections; (b) calls dedicated backend commands for seeding/resetting/deriving operations. The frontend must NOT: hardcode data constants (schedules, temperatures, programs), deep-copy config data between sections, derive values that require knowledge of other config. Exception: pure UI-state defaults (which tab is active, which card is expanded) are always frontend-owned.
 - **D-24:** `rooms_status` entries in both `ws_get_status` (`websocket.py`) and `_build_status_payload` (`coordinator.py`) include a `present_person_count: int` field. Computed as: the number of persons assigned to the room (from `runtime_config.persons`, checking `person_config.get("room_ids", [])` contains `area_id`) that also appear in `_last_present_persons`. Frontend binds `status.present_person_count` directly — no array intersection in TS.
 - **D-25:** The list of available climate entities is provided by the backend. `get_config` response (or a new `get_climate_entities` command if `get_config` becomes too heavy) includes a `climate_entities: list[str]` key — all `climate.*` entity IDs discovered in HA. Frontend does NOT filter `hass.states` by domain to build the TRV picker. Backend discovery already reads HA entity registry; exposing the list via WebSocket is a small addition.
 
