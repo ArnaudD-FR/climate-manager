@@ -112,7 +112,7 @@ class ClimateManagerCoordinator:
             # GLOBAL-02: off-capable TRVs → set_hvac_mode=off; others → frost protection
             desired_temp = period_temperatures[PERIOD_FROST_PROTECTION]
             await asyncio.gather(*(
-                self._push_off_safely(entity_id)
+                self._push_off_safely(entity_id, desired_temp)
                 if supports_hvac_off(self._hass, entity_id)
                 else self._push_safely(entity_id, desired_temp, "MODE_OFF")
                 for entity_ids in rooms.values()
@@ -433,14 +433,19 @@ class ClimateManagerCoordinator:
         except Exception:  # noqa: BLE001
             _LOGGER.warning("Failed to push temperature to %s in %s", entity_id, context)
 
-    async def _push_off_safely(self, entity_id: str) -> None:
-        """Issue set_hvac_mode=off for an off-capable TRV in MODE_OFF, with anti-flap guard.
+    async def _push_off_safely(self, entity_id: str, frost_temp: float) -> None:
+        """Pre-set frost setpoint then issue set_hvac_mode=off for an off-capable TRV in MODE_OFF.
 
-        Mirrors _push_safely/_push_if_changed for the off path:
-        - Guard on unavailable/missing entity (ROOM-03 parity).
-        - If _last_pushed already records "off" for this entity, skip (no flapping).
-        - On success, record the "off" sentinel in _last_pushed so the next tick skips.
-        - Logs and swallows any service-call exception (same pattern as _push_safely).
+        Two-step sequence: set_temperature(frost_temp) first, then set_hvac_mode=off.
+        This ensures that when the TRV exits OFF it resumes at the frost setpoint rather
+        than its previous arbitrary setpoint.
+
+        Anti-flap guard: if _last_pushed already records "off" for this entity, skip both
+        calls (same push-on-change parity as _push_if_changed).
+
+        Error handling: if set_temperature raises, log a warning but still attempt
+        set_hvac_mode=off (safety behavior preserved). If set_hvac_mode=off raises,
+        do NOT set the sentinel (so the next tick will retry both calls).
         """
         state = self._hass.states.get(entity_id)
         if state is None or state.state == "unavailable":
@@ -448,6 +453,11 @@ class ClimateManagerCoordinator:
 
         if self._last_pushed.get(entity_id) == "off":
             return  # Anti-flap: already pushed off this evaluation cycle
+
+        try:
+            await set_trv_temperature(self._hass, entity_id, frost_temp)
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("Failed to pre-set frost temp on %s before MODE_OFF", entity_id)
 
         try:
             await set_trv_off(self._hass, entity_id)
