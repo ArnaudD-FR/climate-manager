@@ -39,6 +39,23 @@ export class RoomCard extends LitElement {
   /** Whether the card is expanded. Default: expanded when room_mode is "custom". */
   @state() _expanded = false;
 
+  // Memoize days array — same pattern as global-settings-tab and person-card to
+  // prevent time-bar drag-preview from clearing on status-only re-renders.
+  // programToDays() creates new array references on every call. Without this,
+  // any re-render that happens while the WS round-trip is in flight (e.g. a
+  // subscribe_status push) passes a new `days` reference to the time-bar,
+  // causing its updated() hook to clear _dragPreviewDays and flash.
+  private _lastTimeProgram: DailyProgram | undefined = undefined;
+  private _cachedDays: Period[][] = [];
+  private get _days(): Period[][] {
+    const program = this.config?.time_program;
+    if (program !== this._lastTimeProgram) {
+      this._lastTimeProgram = program;
+      this._cachedDays = programToDays(program);
+    }
+    return this._cachedDays;
+  }
+
   connectedCallback() {
     super.connectedCallback();
     this._expanded = (this.config?.room_mode === "custom");
@@ -266,6 +283,22 @@ export class RoomCard extends LitElement {
     .expand-icon.expanded {
       transform: rotate(180deg);
     }
+
+    .reset-btn {
+      margin-top: 12px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--primary-color, #03a9f4);
+      background: none;
+      border: 1px solid var(--primary-color, #03a9f4);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .reset-btn:hover {
+      background: var(--secondary-background-color);
+    }
   `;
 
   // -----------------------------------------------------------------------
@@ -385,6 +418,16 @@ export class RoomCard extends LitElement {
     e.stopPropagation();
   }
 
+  private async _onResetToGlobal() {
+    try {
+      await this.ws.setRoomConfig(this.roomId, { room_mode: "global" });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
   // -----------------------------------------------------------------------
   // Render helpers
   // -----------------------------------------------------------------------
@@ -393,20 +436,32 @@ export class RoomCard extends LitElement {
     const s = this.roomStatus;
     const temp = s?.temperature != null ? `${s.temperature}°C` : "—";
     const humidity = s?.humidity != null ? `${s.humidity}%` : "—";
-    const period = s?.active_period ?? null;
-    const periodLabel = period
-      ? (PERIOD_DISPLAY_NAMES[period] ?? period)
-      : "—";
-    const periodTempVal = period != null
-      ? this.panelConfig?.period_temperatures?.[period]
-      : undefined;
-    const periodDisplay = periodTempVal != null
-      ? `${periodLabel} · ${periodTempVal}°C`
-      : periodLabel;
-    const assignedIds = this._getAssignedPersonIds();
-    const totalPersons = assignedIds.length;
     const globalMode = this.status?.global_mode ?? this.panelConfig?.global_mode ?? "";
     const isPresenceMode = globalMode === "time_program_presences";
+    const modeLabels: Record<string, string> = {
+      "off": "Off",
+      "time_program": "Time program",
+      "time_program_presences": "Time & presence",
+    };
+    const modeLabel = modeLabels[globalMode] ?? globalMode;
+    // When global mode is off, the schedule period is irrelevant — show "Off" instead.
+    let periodDisplay: string;
+    if (globalMode === "off") {
+      periodDisplay = "Off";
+    } else {
+      const period = s?.active_period ?? null;
+      const periodLabel = period
+        ? (PERIOD_DISPLAY_NAMES[period] ?? period)
+        : "—";
+      const periodTempVal = period != null
+        ? this.panelConfig?.period_temperatures?.[period]
+        : undefined;
+      periodDisplay = periodTempVal != null
+        ? `${periodLabel} · ${periodTempVal}°C`
+        : periodLabel;
+    }
+    const assignedIds = this._getAssignedPersonIds();
+    const totalPersons = assignedIds.length;
     // D-23: present count comes from backend (rooms_status.present_person_count) — no TS-side intersection.
     const presentCount = isPresenceMode
       ? (this.roomStatus?.present_person_count ?? 0)
@@ -414,12 +469,6 @@ export class RoomCard extends LitElement {
     const personDisplay = presentCount != null
       ? `${presentCount}/${totalPersons}`
       : `${totalPersons}`;
-    const modeLabels: Record<string, string> = {
-      "off": "Off",
-      "time_program": "Time program",
-      "time_program_presences": "Time & presence",
-    };
-    const modeLabel = modeLabels[globalMode] ?? globalMode;
     return html`
       <div class="card-header-status">
         <span class="status-item" title="Mode: ${modeLabel}">
@@ -576,10 +625,11 @@ export class RoomCard extends LitElement {
                   <div class="time-bar-section">
                     <climate-manager-time-bar
                       mode="schedule"
-                      .days=${programToDays(this.config.time_program ?? undefined)}
+                      .days=${this._days}
                       @periods-changed=${this._onPeriodsChanged}
                     ></climate-manager-time-bar>
                   </div>
+                  <button class="reset-btn" @click=${() => void this._onResetToGlobal()}>Reset to global configuration</button>
                 `
                 : ""}
             </div>
