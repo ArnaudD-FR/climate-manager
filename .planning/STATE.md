@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: context exhaustion at 76% (2026-05-25)
-last_updated: "2026-05-25T13:52:28.710Z"
-last_activity: 2026-05-21 -- Phase 03 execution started
+stopped_at: context exhaustion at 75% (2026-05-26)
+last_updated: "2026-05-26T16:38:16.939Z"
+last_activity: "2026-05-27 -- Completed quick task 260526-plq: frost-temp before hvac=off in MODE_OFF + TS null fix + bundle rebuild"
 progress:
   total_phases: 3
   completed_phases: 3
@@ -95,6 +95,7 @@ None yet.
 | 260525-1606 | add reset schedule to default button in person presence schedule | 2026-05-25 | 22fdd6d | [260525-1606-person-schedule-reset-to-default](.planning/quick/260525-1606-person-schedule-reset-to-default/) |
 | 260526-ffr | Global mode off: dispatch TRV to HVACMode.OFF when supported, frost-protection fallback otherwise; restore HVACMode.HEAT on mode exit | 2026-05-26 | aef5cee | [260526-ffr-when-entering-global-mode-off-if-a-trv-s](.planning/quick/260526-ffr-when-entering-global-mode-off-if-a-trv-s/) |
 | 260526-o28 | implement period badge in room card (D-32) | 2026-05-26 | b7d8d07 | [260526-o28-implement-period-badge-in-room-card-d-32](.planning/quick/260526-o28-implement-period-badge-in-room-card-d-32/) |
+| 260526-plq | push frost-protection temp before hvac=off in MODE_OFF; fix TS null type; card section reorder (already applied) | 2026-05-27 | 4eb0ff6 | [260526-plq-off-mode-push-frost-protection-temp-befo](.planning/quick/260526-plq-off-mode-push-frost-protection-temp-befo/) |
 
 ### Blockers/Concerns
 
@@ -115,6 +116,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-25T13:52:28.707Z
-Stopped at: context exhaustion at 76% (2026-05-25)
+Last session: 2026-05-26T16:38:16.936Z
+Stopped at: context exhaustion at 75% (2026-05-26)
 Resume file: None
