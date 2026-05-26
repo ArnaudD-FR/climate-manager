@@ -70,12 +70,28 @@ This milestone adds named heating zones to the Climate Manager. A zone is a grou
 
 ## Traceability
 
-_Filled by roadmapper._
-
-| Requirement | Phase |
-|-------------|-------|
-| ZONE-01..04 | — |
-| ZONE-05..09 | — |
-| EVAL-01..05 | — |
-| ASSIGN-01..03 | — |
-| UI-01..06 | — |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| ZONE-01 | Phase 4 | Pending |
+| ZONE-02 | Phase 4 | Pending |
+| ZONE-03 | Phase 4 | Pending |
+| ZONE-04 | Phase 4 | Pending |
+| ZONE-05 | Phase 5 | Pending |
+| ZONE-06 | Phase 5 | Pending |
+| ZONE-07 | Phase 5 | Pending |
+| ZONE-08 | Phase 5 | Pending |
+| ZONE-09 | Phase 5 | Pending |
+| EVAL-01 | Phase 5 | Pending |
+| EVAL-02 | Phase 5 | Pending |
+| EVAL-03 | Phase 5 | Pending |
+| EVAL-04 | Phase 5 | Pending |
+| EVAL-05 | Phase 5 | Pending |
+| ASSIGN-01 | Phase 6 | Pending |
+| ASSIGN-02 | Phase 6 | Pending |
+| ASSIGN-03 | Phase 6 | Pending |
+| UI-01 | Phase 6 | Pending |
+| UI-02 | Phase 6 | Pending |
+| UI-03 | Phase 6 | Pending |
+| UI-04 | Phase 6 | Pending |
+| UI-05 | Phase 6 | Pending |
+| UI-06 | Phase 6 | Pending |
