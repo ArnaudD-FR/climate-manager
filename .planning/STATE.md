@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-15)
 Phase: 03 (websocket-api-frontend-panel) — EXECUTING
 Plan: 1 of 9
 Status: Executing Phase 03
-Last activity: 2026-05-21 -- Phase 03 execution started
+Last activity: 2026-05-26 -- Completed quick task 260526-ffr: Global mode off TRV HVACMode.OFF dispatch
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -93,6 +93,7 @@ None yet.
 | 260525-lmn | update default global time program: weekdays have morning+evening normal blocks, weekends have full-day normal | 2026-05-25 | cc97a0c | [260525-lmn-update-default-global-time-program-weekd](.planning/quick/260525-lmn-update-default-global-time-program-weekd/) |
 | 260525-lqb | weekend default time program: change 07:00 to 06:00 for sat and sun | 2026-05-25 | 84e23a1 | [260525-lqb-weekend-default-time-program-change-07-0](.planning/quick/260525-lqb-weekend-default-time-program-change-07-0/) |
 | 260525-1606 | add reset schedule to default button in person presence schedule | 2026-05-25 | 22fdd6d | [260525-1606-person-schedule-reset-to-default](.planning/quick/260525-1606-person-schedule-reset-to-default/) |
+| 260526-ffr | Global mode off: dispatch TRV to HVACMode.OFF when supported, frost-protection fallback otherwise; restore HVACMode.HEAT on mode exit | 2026-05-26 | aef5cee | [260526-ffr-when-entering-global-mode-off-if-a-trv-s](.planning/quick/260526-ffr-when-entering-global-mode-off-if-a-trv-s/) |
 
 ### Blockers/Concerns
 
