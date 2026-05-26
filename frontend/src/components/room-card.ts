@@ -419,12 +419,8 @@ export class RoomCard extends LitElement {
   }
 
   private async _onResetToGlobal() {
-    const emptyProgram: DailyProgram = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
-    const time_program: DailyProgram = this.panelConfig?.global_time_program
-      ? (JSON.parse(JSON.stringify(this.panelConfig.global_time_program)) as DailyProgram)
-      : emptyProgram;
     try {
-      await this.ws.setRoomConfig(this.roomId, { room_mode: "custom", time_program });
+      await this.ws.resetRoomToGlobalProgram(this.roomId);
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
