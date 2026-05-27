@@ -732,23 +732,25 @@ def _make_ws_set_zone_time_program(entry: ClimateManagerConfigEntry):
     ) -> None:
         """Validate and persist the time program for a custom zone.
 
-        T-05-08 / Pitfall 6: validate_daily_program is called BEFORE any
-        runtime_config mutation — invalid programs are rejected without touching state.
+        Zone existence is checked first so that a non-existent zone_id returns
+        ERR_NOT_FOUND rather than ERR_INVALID_FORMAT when both conditions are true.
+        Program validation still runs BEFORE any mutation (Pitfall 6 / T-05-08).
         """
-        # Validate BEFORE any mutation (Pitfall 6)
-        ok, err = validate_daily_program(msg["program"])
-        if not ok:
-            connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, err)
-            return  # T-05-08: return BEFORE accessing runtime_config
-
         runtime_config = entry.runtime_data.runtime_config
 
+        # Zone existence check first — most specific error condition
         if msg["zone_id"] not in runtime_config.get("zones", {}):
             connection.send_error(
                 msg["id"],
                 websocket_api.ERR_NOT_FOUND,
                 f"Zone {msg['zone_id']!r} not found",
             )
+            return
+
+        # Validate BEFORE any mutation (Pitfall 6 / T-05-08)
+        ok, err = validate_daily_program(msg["program"])
+        if not ok:
+            connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, err)
             return
 
         zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
