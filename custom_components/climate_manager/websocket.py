@@ -1,6 +1,6 @@
 """Climate Manager WebSocket command handlers.
 
-Registers 11 WebSocket commands for the panel ↔ backend protocol:
+Registers 17 WebSocket commands for the panel ↔ backend protocol:
 - get_status: returns global_mode, active_period, present_persons, rooms_status
 - get_config: returns full runtime_config
 - set_global_mode: mutates global_mode, persists, re-evaluates
@@ -12,6 +12,12 @@ Registers 11 WebSocket commands for the panel ↔ backend protocol:
 - reset_period_temperatures: resets period_temperatures to DEFAULT_PERIOD_TEMPERATURES from const.py
 - reset_time_program: resets global_time_program to _DEFAULT_DAILY_PROGRAM from const.py
 - reset_room_to_global_program: deep-copies global_time_program into rooms[room_id].time_program
+- create_zone: creates new heating zone with UUID, persists
+- rename_zone: renames custom zone or Default Zone (zone_id="default")
+- set_zone_mode: sets custom zone mode via vol.In(VALID_MODES)
+- delete_zone: migrates rooms to Default Zone (pop), removes zone, CR-01 snapshot rollback
+- set_zone_time_program: validates program via validate_daily_program before any mutation
+- reset_zone_time_program: restores zone time_program from 'default' or 'global' target
 
 All handlers access state via the entry closure (never hass.data[DOMAIN]).
 Write handlers follow the write-then-evaluate pattern:
@@ -24,6 +30,11 @@ Security:
 - T-03-07: get_status reads only configured sensor entity IDs; every hass.states.get
            result is guarded for None before reading state
 - T-03-09: write handlers mutate only targeted sub-keys; DEFAULT_CONFIG never imported
+- T-05-06: delete_zone pops room zone_ids BEFORE deleting the zone entry (Pitfall 1)
+- T-05-07: delete_zone CR-01 snapshots both zones AND rooms before mutation
+- T-05-08: set_zone_time_program validates BEFORE any runtime_config mutation (Pitfall 6)
+- T-05-09: reset_zone_time_program uses copy.deepcopy for both target branches (Pitfall 2)
+- T-05-11: delete_zone uses pop() never assigns None — sparse D-06 model preserved
 """
 
 from __future__ import annotations
@@ -80,6 +91,9 @@ def async_register_commands(
     websocket_api.async_register_command(hass, _make_ws_create_zone(entry))
     websocket_api.async_register_command(hass, _make_ws_rename_zone(entry))
     websocket_api.async_register_command(hass, _make_ws_set_zone_mode(entry))
+    websocket_api.async_register_command(hass, _make_ws_delete_zone(entry))
+    websocket_api.async_register_command(hass, _make_ws_set_zone_time_program(entry))
+    websocket_api.async_register_command(hass, _make_ws_reset_zone_time_program(entry))
 
 
 # ---------------------------------------------------------------------------
@@ -613,6 +627,159 @@ def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_set_zone_mode
+
+
+def _make_ws_delete_zone(entry: ClimateManagerConfigEntry):
+    """Factory: create delete_zone handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/delete_zone",
+            vol.Required("zone_id"): str,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_delete_zone(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Delete a custom zone; migrate all rooms in it to the Default Zone.
+
+        T-05-06: rooms loop (pop) runs BEFORE del zones[zone_id] (Pitfall 1 ordering).
+        T-05-07: CR-01 snapshot of both zones AND rooms before any mutation; restore both on
+                 ValueError from store.async_save (validate_zone_assignment inside async_save).
+        T-05-11: room_cfg.pop("zone_id", None) — never assigns None (D-06 sparse model).
+        """
+        runtime_config = entry.runtime_data.runtime_config
+        zone_id = msg["zone_id"]
+
+        # Guard: zone must exist
+        if zone_id not in runtime_config.get("zones", {}):
+            connection.send_error(
+                msg["id"],
+                websocket_api.ERR_NOT_FOUND,
+                f"Zone {zone_id!r} not found",
+            )
+            return
+
+        # CR-01: snapshot BOTH zones and rooms before any mutation
+        zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
+        rooms_backup = copy.deepcopy(runtime_config.get("rooms", {}))
+
+        # T-05-06: migrate rooms FIRST (pop zone_id), THEN remove zone entry (Pitfall 1)
+        for room_cfg in runtime_config.get("rooms", {}).values():
+            if room_cfg.get("zone_id") == zone_id:
+                room_cfg.pop("zone_id", None)  # T-05-11: pop, never assign None
+
+        del runtime_config["zones"][zone_id]
+
+        try:
+            await entry.runtime_data.store.async_save(runtime_config)
+        except ValueError as exc:
+            # CR-01: restore BOTH snapshots on failure
+            runtime_config["zones"] = zones_backup
+            runtime_config["rooms"] = rooms_backup
+            connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, str(exc))
+            return
+
+        connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+    return ws_delete_zone
+
+
+def _make_ws_set_zone_time_program(entry: ClimateManagerConfigEntry):
+    """Factory: create set_zone_time_program handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/set_zone_time_program",
+            vol.Required("zone_id"): str,
+            vol.Required("program"): dict,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_set_zone_time_program(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Validate and persist the time program for a custom zone.
+
+        T-05-08 / Pitfall 6: validate_daily_program is called BEFORE any
+        runtime_config mutation — invalid programs are rejected without touching state.
+        """
+        # Validate BEFORE any mutation (Pitfall 6)
+        ok, err = validate_daily_program(msg["program"])
+        if not ok:
+            connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, err)
+            return  # T-05-08: return BEFORE accessing runtime_config
+
+        runtime_config = entry.runtime_data.runtime_config
+
+        if msg["zone_id"] not in runtime_config.get("zones", {}):
+            connection.send_error(
+                msg["id"],
+                websocket_api.ERR_NOT_FOUND,
+                f"Zone {msg['zone_id']!r} not found",
+            )
+            return
+
+        runtime_config["zones"][msg["zone_id"]]["time_program"] = msg["program"]
+        await entry.runtime_data.store.async_save(runtime_config)
+        connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+    return ws_set_zone_time_program
+
+
+def _make_ws_reset_zone_time_program(entry: ClimateManagerConfigEntry):
+    """Factory: create reset_zone_time_program handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/reset_zone_time_program",
+            vol.Required("zone_id"): str,
+            vol.Required("target"): vol.In(["default", "global"]),
+        }
+    )
+    @websocket_api.async_response
+    async def ws_reset_zone_time_program(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Reset a zone's time_program from 'default' or 'global' target.
+
+        T-05-09 / Pitfall 2: copy.deepcopy enforced for both branches so the zone's
+        program never shares list references with the source (module constant or
+        runtime global_time_program).
+        """
+        runtime_config = entry.runtime_data.runtime_config
+
+        if msg["zone_id"] not in runtime_config.get("zones", {}):
+            connection.send_error(
+                msg["id"],
+                websocket_api.ERR_NOT_FOUND,
+                f"Zone {msg['zone_id']!r} not found",
+            )
+            return
+
+        if msg["target"] == "default":
+            # Pitfall 5: deepcopy the module constant, never assign directly
+            runtime_config["zones"][msg["zone_id"]]["time_program"] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM)
+        else:
+            # target == "global": deepcopy from current runtime global_time_program (Pitfall 2)
+            runtime_config["zones"][msg["zone_id"]]["time_program"] = copy.deepcopy(
+                runtime_config["global_time_program"]
+            )
+
+        await entry.runtime_data.store.async_save(runtime_config)
+        connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+    return ws_reset_zone_time_program
 
 
 # ---------------------------------------------------------------------------
