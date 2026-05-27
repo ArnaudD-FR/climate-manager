@@ -52,9 +52,9 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full phase details.
   4. When global mode=time_program_presences, presence heating applies to rooms in all zones regardless of each zone's own mode
   5. A room with a custom schedule override is unaffected by its zone's mode or schedule
 **Plans**: 3 plans
-- [ ] 05-01-PLAN.md — WS: create_zone + rename_zone + set_zone_mode handlers and 5 tests (Wave 1; ZONE-05/06/08)
+- [x] 05-01-PLAN.md — WS: create_zone + rename_zone + set_zone_mode handlers and 5 tests (Wave 1; ZONE-05/06/08)
 - [ ] 05-02-PLAN.md — WS: delete_zone + set_zone_time_program + reset_zone_time_program handlers and 5 tests (Wave 2; depends on 05-01 — same files; ZONE-07/09)
-- [ ] 05-03-PLAN.md — Coordinator: per-room zone-aware dispatch refactor + _resolve_zone_config helper + 5 EVAL-01..05 tests (Wave 1; parallel with 05-01; EVAL-01..05)
+- [x] 05-03-PLAN.md — Coordinator: per-room zone-aware dispatch refactor + _resolve_zone_config helper + 5 EVAL-01..05 tests (Wave 1; parallel with 05-01; EVAL-01..05)
 
 ### Phase 6: Zone & Room Assignment UI
 **Goal**: The panel exposes full zone management — zone tabs appear and disappear as zones are created or deleted, each zone is fully configurable inline, and every room card shows its zone membership and allows reassignment.
@@ -77,5 +77,5 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full phase details.
 | 2. Backend Engines & Coordinator | v1.0 | 2/2 | Complete | 2026-05-17 |
 | 3. WebSocket API & Frontend Panel | v1.0 | 9/9 | Complete | 2026-05-21 |
 | 4. Zone Data Model & Storage | v1.1 | 2/2 | Complete   | 2026-05-27 |
-| 5. Zone CRUD & Evaluation Engine | v1.1 | 0/3 | Planned | - |
+| 5. Zone CRUD & Evaluation Engine | v1.1 | 2/3 | In Progress|  |
 | 6. Zone & Room Assignment UI | v1.1 | 0/? | Not started | - |

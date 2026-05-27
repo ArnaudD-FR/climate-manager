@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Heating Zones
 status: executing
 stopped_at: Phase 5 context gathered
-last_updated: "2026-05-27T13:25:59.205Z"
-last_activity: 2026-05-27 -- Phase 05 planning complete
+last_updated: "2026-05-27T15:35:15.152Z"
+last_activity: 2026-05-27 -- Phase 05 execution started
 progress:
   total_phases: 3
   completed_phases: 1
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-26)
 
 **Core value:** A household's rooms are always at the right temperature at the right time, without manual intervention — driven by schedules and who is actually home.
-**Current focus:** Phase 5 — zone crud & evaluation engine
+**Current focus:** Phase 05 — zone-crud-evaluation-engine
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-27 -- Phase 05 planning complete
+Phase: 05 (zone-crud-evaluation-engine) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 05
+Last activity: 2026-05-27 -- Phase 05 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
