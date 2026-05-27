@@ -29,6 +29,11 @@ export interface RoomConfig {
    */
   room_mode?: "global" | "frost_protection" | "custom";
   time_program?: DailyProgram | null;
+  /**
+   * Absent = Default Zone member (D-06); UUID string when room is in a custom zone (D-07).
+   * Sparse model — never written as null.
+   */
+  zone_id?: string;
 }
 
 /** Per-person configuration stored in ClimateConfig.persons. */
@@ -38,11 +43,25 @@ export interface PersonConfig {
   schedule?: DailyProgram;
 }
 
+/** Custom zone configuration stored in ClimateConfig.zones. */
+export interface ZoneConfig {
+  /** Display name for the zone (user-editable). */
+  name: string;
+  /** Same enum as global_mode: "off" | "time_program" | "time_program_presences" */
+  mode: string;
+  /** Same structure as global_time_program (7-day weekly schedule). */
+  time_program: DailyProgram;
+}
+
 /** Full integration configuration returned by climate_manager/get_config. */
 export interface ClimateConfig {
   global_mode: string;
   period_temperatures: Record<string, number>;
   global_time_program: DailyProgram;
+  /** D-03: Default Zone display name. Backend falls back to "Home" for v1.0 installs, so this is always present in get_config payloads. */
+  default_zone_name: string;
+  /** ZONE-01: custom zones keyed by UUID string. Empty object = no custom zones; all rooms belong to Default Zone (D-01). */
+  zones: Record<string, ZoneConfig>;
   rooms: Record<string, RoomConfig>;
   persons: Record<string, PersonConfig>;
   climate_entities: string[];
