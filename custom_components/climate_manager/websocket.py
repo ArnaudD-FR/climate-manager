@@ -29,6 +29,7 @@ Security:
 from __future__ import annotations
 
 import copy
+import uuid
 from typing import TYPE_CHECKING
 
 from homeassistant.components import websocket_api
@@ -76,6 +77,9 @@ def async_register_commands(
     websocket_api.async_register_command(hass, _make_ws_reset_period_temperatures(entry))
     websocket_api.async_register_command(hass, _make_ws_reset_time_program(entry))
     websocket_api.async_register_command(hass, _make_ws_reset_room_to_global_program(entry))
+    websocket_api.async_register_command(hass, _make_ws_create_zone(entry))
+    websocket_api.async_register_command(hass, _make_ws_rename_zone(entry))
+    websocket_api.async_register_command(hass, _make_ws_set_zone_mode(entry))
 
 
 # ---------------------------------------------------------------------------
@@ -480,6 +484,135 @@ def _make_ws_reset_room_to_global_program(entry: ClimateManagerConfigEntry):
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_reset_room_to_global_program
+
+
+# ---------------------------------------------------------------------------
+# Zone CRUD commands (Plan 05-01)
+# ---------------------------------------------------------------------------
+
+
+def _make_ws_create_zone(entry: ClimateManagerConfigEntry):
+    """Factory: create create_zone handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/create_zone",
+            vol.Required("name"): str,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_create_zone(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Create a new heating zone, persist, and re-evaluate.
+
+        D-01: new zone mode defaults to MODE_TIME_PROGRAM.
+        D-02: time_program is a deepcopy of the current global_time_program.
+        D-03: returns full zone config {zone_id, name, mode, time_program}.
+        D-06: write-then-evaluate pattern.
+        """
+        runtime_config = entry.runtime_data.runtime_config
+        zone_id = str(uuid.uuid4())
+        new_zone = {
+            "name": msg["name"],
+            "mode": MODE_TIME_PROGRAM,
+            "time_program": copy.deepcopy(runtime_config["global_time_program"]),
+        }
+        runtime_config.setdefault("zones", {})[zone_id] = new_zone
+        await entry.runtime_data.store.async_save(runtime_config)
+        connection.send_result(
+            msg["id"],
+            {
+                "zone_id": zone_id,
+                "name": new_zone["name"],
+                "mode": new_zone["mode"],
+                "time_program": new_zone["time_program"],
+            },
+        )
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+    return ws_create_zone
+
+
+def _make_ws_rename_zone(entry: ClimateManagerConfigEntry):
+    """Factory: create rename_zone handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/rename_zone",
+            vol.Required("zone_id"): str,
+            vol.Required("name"): str,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_rename_zone(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Rename a zone (custom or Default Zone), persist, and re-evaluate.
+
+        D-05: zone_id="default" routes to runtime_config["default_zone_name"].
+        T-05-01: the "default" sentinel is handled BEFORE zones dict access so
+                 the Default Zone never appears as a key in zones{}.
+        """
+        runtime_config = entry.runtime_data.runtime_config
+        if msg["zone_id"] == "default":
+            runtime_config["default_zone_name"] = msg["name"]
+        else:
+            if msg["zone_id"] not in runtime_config.get("zones", {}):
+                connection.send_error(
+                    msg["id"],
+                    websocket_api.ERR_NOT_FOUND,
+                    f"Zone {msg['zone_id']!r} not found",
+                )
+                return
+            runtime_config["zones"][msg["zone_id"]]["name"] = msg["name"]
+        await entry.runtime_data.store.async_save(runtime_config)
+        connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+    return ws_rename_zone
+
+
+def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
+    """Factory: create set_zone_mode handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/set_zone_mode",
+            vol.Required("zone_id"): str,
+            vol.Required("mode"): vol.In(VALID_MODES),
+        }
+    )
+    @websocket_api.async_response
+    async def ws_set_zone_mode(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Set a custom zone's mode, persist, and re-evaluate.
+
+        T-05-02: vol.In(VALID_MODES) schema gate rejects invalid modes before handler runs.
+        Note: global_mode (Default Zone) is mutated via set_global_mode; zone_id="default"
+              is not supported here and routes to ERR_NOT_FOUND.
+        """
+        runtime_config = entry.runtime_data.runtime_config
+        if msg["zone_id"] not in runtime_config.get("zones", {}):
+            connection.send_error(
+                msg["id"],
+                websocket_api.ERR_NOT_FOUND,
+                f"Zone {msg['zone_id']!r} not found",
+            )
+            return
+        runtime_config["zones"][msg["zone_id"]]["mode"] = msg["mode"]
+        await entry.runtime_data.store.async_save(runtime_config)
+        connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+    return ws_set_zone_mode
 
 
 # ---------------------------------------------------------------------------
