@@ -117,6 +117,14 @@ class ClimateManagerStore:
             if not periods:
                 time_program[day] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM[day])
 
+        # WR-02: apply the same post-merge fill to each zone's time_program so that
+        # zone programs are pre-populated consistently with global_time_program.
+        for zone_cfg in result.get("zones", {}).values():
+            zone_tp = zone_cfg.get("time_program", {})
+            for day, periods in zone_tp.items():
+                if not periods and day in _DEFAULT_DAILY_PROGRAM:
+                    zone_tp[day] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM[day])
+
         # Migration: rename person presence modes to current wire values.
         for person_cfg in result.get("persons", {}).values():
             # Pre-D-21: "automatic" → "scheduled"
