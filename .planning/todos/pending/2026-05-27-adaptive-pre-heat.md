@@ -62,16 +62,15 @@ This requires Climate Manager to detect and read the boiler entity from HA.
    - A warning is surfaced in the panel (e.g. "Room X could not reach target in time")
      so the user knows the cap was hit and can raise it or investigate the root cause.
 
-7. **Mode incompatibility**:
-   - Pre-heat is incompatible with any global mode that depends on live person presence
-     (e.g. `time_program_presences` / HA presence mode), because in those modes the
-     heating decision is made at the moment people are detected home — there is no
-     fixed period start time to pre-heat toward.
-   - When global mode is presence-based, the pre-heat option is automatically disabled
-     for all rooms and a notice is shown in the UI.
-   - Per-room pre-heat config is preserved but silently inactive while in a presence
-     mode, so it reactivates automatically when the user switches back to a schedule
-     mode.
+7. **Mode compatibility**:
+   - Pre-heat works with `time_program_presences`: the presence schedule is known in
+     advance (persons have fixed weekly or even/odd schedules), so the system can
+     compute the next "person becomes present" transition and pre-heat toward it —
+     identical logic to pre-heating toward a comfort/normal period start.
+   - The only truly incompatible case is live/reactive presence detection (e.g. HA
+     device tracker firing when someone actually arrives home with no schedule) — in
+     that case there is no future transition time to target. If such a source is
+     configured, pre-heat is silently disabled for that person's rooms with a UI notice.
 
 8. **Other edge cases**:
    - Room already at target: no pre-heat needed
@@ -81,6 +80,24 @@ This requires Climate Manager to detect and read the boiler entity from HA.
 **Standard abacus reference**: ISO 13790 / EN 12831 simplified thermal model is the
 industry standard for residential heating lead-time estimation. The `inertia_factor`
 above is an empirical simplification of the time constant `τ = C/UA` from that model.
+
+**UI — pre-heat status display:**
+- When a room is actively pre-heating, its period status label in the time-bar and
+  room card shows **"Pre-heating (→ XX.X°C)"** instead of the current mode label,
+  so the user can see at a glance that early heating is in progress and what the
+  target is.
+- This requires the coordinator to expose a `preheat_active: bool` and
+  `preheat_target: float` field in the per-room status payload (WebSocket
+  `get_status` / `subscribe_status`).
+
+**UI — pre-heat disabled warning:**
+- When `preheat_enabled` is false for a room, the room config section in the panel
+  shows a subtle inline notice: **"Pre-heat is off — room may not reach temperature
+  on time."** This is opt-in nagging: shown only when the room has at least one
+  normal or comfort period in its schedule (i.e. there is a period worth pre-heating
+  toward), prompting the user to consider enabling it.
+- The warning is suppressed if the global mode makes pre-heat irrelevant (e.g.
+  live presence mode with no schedule).
 
 **Boiler detection (prerequisite):**
 - Climate Manager needs a new optional `boiler_entity` config field pointing to a
