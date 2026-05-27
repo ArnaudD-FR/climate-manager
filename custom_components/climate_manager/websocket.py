@@ -534,8 +534,14 @@ def _make_ws_create_zone(entry: ClimateManagerConfigEntry):
             "mode": MODE_TIME_PROGRAM,
             "time_program": copy.deepcopy(runtime_config["global_time_program"]),
         }
+        zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
         runtime_config.setdefault("zones", {})[zone_id] = new_zone
-        await entry.runtime_data.store.async_save(runtime_config)
+        try:
+            await entry.runtime_data.store.async_save(runtime_config)
+        except Exception as exc:  # noqa: BLE001
+            runtime_config["zones"] = zones_backup
+            connection.send_error(msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc))
+            return
         connection.send_result(
             msg["id"],
             {
@@ -574,7 +580,14 @@ def _make_ws_rename_zone(entry: ClimateManagerConfigEntry):
         """
         runtime_config = entry.runtime_data.runtime_config
         if msg["zone_id"] == "default":
+            name_backup = runtime_config.get("default_zone_name")
             runtime_config["default_zone_name"] = msg["name"]
+            try:
+                await entry.runtime_data.store.async_save(runtime_config)
+            except Exception as exc:  # noqa: BLE001
+                runtime_config["default_zone_name"] = name_backup
+                connection.send_error(msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc))
+                return
         else:
             if msg["zone_id"] not in runtime_config.get("zones", {}):
                 connection.send_error(
@@ -583,8 +596,14 @@ def _make_ws_rename_zone(entry: ClimateManagerConfigEntry):
                     f"Zone {msg['zone_id']!r} not found",
                 )
                 return
+            zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
             runtime_config["zones"][msg["zone_id"]]["name"] = msg["name"]
-        await entry.runtime_data.store.async_save(runtime_config)
+            try:
+                await entry.runtime_data.store.async_save(runtime_config)
+            except Exception as exc:  # noqa: BLE001
+                runtime_config["zones"] = zones_backup
+                connection.send_error(msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc))
+                return
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
@@ -621,8 +640,14 @@ def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
                 f"Zone {msg['zone_id']!r} not found",
             )
             return
+        zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
         runtime_config["zones"][msg["zone_id"]]["mode"] = msg["mode"]
-        await entry.runtime_data.store.async_save(runtime_config)
+        try:
+            await entry.runtime_data.store.async_save(runtime_config)
+        except Exception as exc:  # noqa: BLE001
+            runtime_config["zones"] = zones_backup
+            connection.send_error(msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc))
+            return
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
@@ -726,8 +751,14 @@ def _make_ws_set_zone_time_program(entry: ClimateManagerConfigEntry):
             )
             return
 
+        zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
         runtime_config["zones"][msg["zone_id"]]["time_program"] = msg["program"]
-        await entry.runtime_data.store.async_save(runtime_config)
+        try:
+            await entry.runtime_data.store.async_save(runtime_config)
+        except Exception as exc:  # noqa: BLE001
+            runtime_config["zones"] = zones_backup
+            connection.send_error(msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc))
+            return
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
@@ -766,6 +797,7 @@ def _make_ws_reset_zone_time_program(entry: ClimateManagerConfigEntry):
             )
             return
 
+        zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
         if msg["target"] == "default":
             # Pitfall 5: deepcopy the module constant, never assign directly
             runtime_config["zones"][msg["zone_id"]]["time_program"] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM)
@@ -775,7 +807,12 @@ def _make_ws_reset_zone_time_program(entry: ClimateManagerConfigEntry):
                 runtime_config["global_time_program"]
             )
 
-        await entry.runtime_data.store.async_save(runtime_config)
+        try:
+            await entry.runtime_data.store.async_save(runtime_config)
+        except Exception as exc:  # noqa: BLE001
+            runtime_config["zones"] = zones_backup
+            connection.send_error(msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc))
+            return
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
