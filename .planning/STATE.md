@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Heating Zones
-status: executing
-stopped_at: Phase 4 context gathered
-last_updated: "2026-05-27T07:59:21.332Z"
+status: ready_to_plan
+stopped_at: Phase 04 complete (2/2) — ready to discuss Phase 5
+last_updated: 2026-05-27T08:37:27.786Z
 last_activity: 2026-05-27 -- Phase 04 execution started
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 2
-  completed_plans: 0
+  completed_plans: 2
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-26)
 
 **Core value:** A household's rooms are always at the right temperature at the right time, without manual intervention — driven by schedules and who is actually home.
-**Current focus:** Phase 04 — zone-data-model-storage
+**Current focus:** Phase 5 — zone crud & evaluation engine
 
 ## Current Position
 
-Phase: 04 (zone-data-model-storage) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 04
-Last activity: 2026-05-27 -- Phase 04 execution started
+Phase: 5
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-27
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -36,7 +36,7 @@ Progress: [░░░░░░░░░░] 0%
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 2
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -44,7 +44,7 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 04 | TBD | - | - |
+| 04 | 2 | - | - |
 | 05 | TBD | - | - |
 | 06 | TBD | - | - |
 
