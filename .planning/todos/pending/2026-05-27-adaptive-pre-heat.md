@@ -69,8 +69,9 @@ This requires Climate Manager to detect and read the boiler entity from HA.
      identical logic to pre-heating toward a comfort/normal period start.
    - The only truly incompatible case is live/reactive presence detection (e.g. HA
      device tracker firing when someone actually arrives home with no schedule) — in
-     that case there is no future transition time to target. If such a source is
-     configured, pre-heat is silently disabled for that person's rooms with a UI notice.
+     that case there is no future transition time to target. For rooms whose heating
+     depends on such a source, `preheat_enabled` is ignored and the room shows the
+     "Pre-heat disabled — presence cannot be scheduled." warning.
 
 8. **Other edge cases**:
    - Room already at target: no pre-heat needed
