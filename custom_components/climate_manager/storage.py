@@ -19,6 +19,9 @@ from homeassistant.helpers.storage import Store
 from .const import DEFAULT_CONFIG, STORAGE_KEY, STORAGE_VERSION, _DEFAULT_DAILY_PROGRAM
 
 
+_SENTINEL = object()  # sentinel for distinguishing absent key from explicit None (WR-01)
+
+
 def validate_zone_assignment(config: dict) -> None:
     """Raise ValueError if zone assignment invariants are violated (ZONE-04).
 
@@ -26,6 +29,7 @@ def validate_zone_assignment(config: dict) -> None:
     1. Every zone_id on a room entry references an existing zone in config["zones"].
     2. No zone_id value appears on more than one room entry (belt-and-suspenders;
        structural dict keying already prevents a single room from appearing twice).
+    3. Explicit zone_id: null is rejected — sparse model prohibits it (D-06/WR-01).
 
     Returns None silently when configuration is valid OR when every room lacks a
     zone_id key (Default Zone membership per D-06).
@@ -38,9 +42,13 @@ def validate_zone_assignment(config: dict) -> None:
     zones = config.get("zones", {})
     seen_zone_ids: set[str] = set()
     for area_id, room_cfg in config.get("rooms", {}).items():
-        zone_id = room_cfg.get("zone_id")
-        if zone_id is None:
+        zone_id = room_cfg.get("zone_id", _SENTINEL)
+        if zone_id is _SENTINEL:
             continue  # D-06: absent zone_id = Default Zone member — valid
+        if zone_id is None:
+            raise ValueError(
+                f"Room '{area_id}' has zone_id: null — sparse model prohibits explicit null (D-06)"
+            )
         if zone_id not in zones:
             raise ValueError(
                 f"Room '{area_id}' references unknown zone_id '{zone_id}'"
