@@ -514,3 +514,171 @@ async def test_ws_set_zone_mode(hass, hass_ws_client):
     assert msg2["success"] is False
     # Zone mode must be unchanged — schema rejection means no mutation
     assert entry.runtime_data.runtime_config["zones"][zone_id]["mode"] == MODE_OFF
+
+
+# ---------------------------------------------------------------------------
+# Tests 15-19: Zone delete/set_time_program/reset_time_program WS commands (Plan 05-02)
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_delete_zone_migrates_rooms(hass, hass_ws_client):
+    """delete_zone migrates rooms with zone_id to Default Zone (key removal, not None).
+
+    Verifies ZONE-07:
+    - zone is removed from runtime_config["zones"]
+    - rooms that had zone_id=that_zone are migrated (zone_id key removed via pop)
+    - rooms without zone_id are untouched
+    """
+    entry = await _setup_entry(hass)
+
+    zone_id = "test-zone-1"
+    entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
+        "name": "Test",
+        "mode": MODE_TIME_PROGRAM,
+        "time_program": copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
+    }
+    # Seed two rooms: one assigned to zone, one unassigned
+    entry.runtime_data.runtime_config["rooms"] = {
+        "area_a": {"zone_id": zone_id},
+        "area_b": {},
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/delete_zone", "zone_id": zone_id})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+
+    # Zone must be removed
+    assert zone_id not in entry.runtime_data.runtime_config["zones"]
+
+    # Migrated room must no longer have zone_id key (pop, not None)
+    assert "zone_id" not in entry.runtime_data.runtime_config["rooms"]["area_a"]
+
+    # Unaffected room must be untouched
+    assert entry.runtime_data.runtime_config["rooms"]["area_b"] == {}
+
+
+async def test_ws_delete_zone_not_found(hass, hass_ws_client):
+    """delete_zone with unknown zone_id returns error and does not mutate runtime_config.
+
+    Verifies ZONE-07 error path: ERR_NOT_FOUND when zone_id absent.
+    """
+    entry = await _setup_entry(hass)
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/delete_zone", "zone_id": "ghost"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is False
+    # zones must be unchanged (empty after fresh setup)
+    assert entry.runtime_data.runtime_config.get("zones", {}) == {}
+
+
+async def test_ws_set_zone_time_program_rejects_partial(hass, hass_ws_client):
+    """set_zone_time_program with partial program returns error and does NOT mutate zone.
+
+    Verifies ZONE-09 / T-03-05 (Pitfall 6): validate_daily_program is called BEFORE
+    any mutation — original time_program is unchanged after a failed call.
+    """
+    entry = await _setup_entry(hass)
+
+    zone_id = "test-zone-1"
+    entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
+        "name": "Test",
+        "mode": MODE_TIME_PROGRAM,
+        "time_program": copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
+    }
+    # Capture original program BEFORE the send (Pitfall 6 — must be deep copy reference)
+    original = copy.deepcopy(entry.runtime_data.runtime_config["zones"][zone_id]["time_program"])
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_zone_time_program",
+            "zone_id": zone_id,
+            "program": {"mon": []},  # missing 6 day keys
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is False
+    # No mutation must have occurred (validate-before-mutate gate)
+    assert entry.runtime_data.runtime_config["zones"][zone_id]["time_program"] == original
+
+
+async def test_ws_reset_zone_time_program_default(hass, hass_ws_client):
+    """reset_zone_time_program target='default' restores _DEFAULT_DAILY_PROGRAM via deepcopy.
+
+    Verifies ZONE-09 / Pitfall 2: the returned program is a deepcopy — mutating it
+    does NOT affect the _DEFAULT_DAILY_PROGRAM module constant.
+    """
+    entry = await _setup_entry(hass)
+
+    zone_id = "test-zone-1"
+    entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
+        "name": "Test",
+        "mode": MODE_TIME_PROGRAM,
+        "time_program": {d: [{"start": "00:00", "mode": "comfort"}] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]},
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/reset_zone_time_program", "zone_id": zone_id, "target": "default"}
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+
+    # Zone time_program must deep-equal _DEFAULT_DAILY_PROGRAM
+    assert entry.runtime_data.runtime_config["zones"][zone_id]["time_program"] == _DEFAULT_DAILY_PROGRAM
+
+    # Deepcopy isolation: mutating the assigned program must NOT affect the constant
+    entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]["mon"].append(
+        {"start": "12:00", "mode": "reduced"}
+    )
+    # Default weekday program has 5 periods
+    assert len(_DEFAULT_DAILY_PROGRAM["mon"]) == 5
+
+
+async def test_ws_reset_zone_time_program_global(hass, hass_ws_client):
+    """reset_zone_time_program target='global' copies from runtime global_time_program via deepcopy.
+
+    Verifies ZONE-09 / Pitfall 2: the copy is independent — mutating the zone's
+    program does NOT mutate runtime_config["global_time_program"].
+    """
+    entry = await _setup_entry(hass)
+
+    zone_id = "test-zone-1"
+    entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
+        "name": "Test",
+        "mode": MODE_TIME_PROGRAM,
+        "time_program": {d: [{"start": "00:00", "mode": "normal"}] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]},
+    }
+
+    # Mutate global_time_program["wed"] to a sentinel BEFORE the WS call
+    entry.runtime_data.runtime_config["global_time_program"]["wed"] = [{"start": "00:00", "mode": "comfort"}]
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/reset_zone_time_program", "zone_id": zone_id, "target": "global"}
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+
+    # Zone's wed must match the sentinel we set on global
+    assert entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]["wed"] == [
+        {"start": "00:00", "mode": "comfort"}
+    ]
+
+    # Deepcopy isolation: mutating the zone's program must NOT affect global_time_program
+    entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]["wed"].append(
+        {"start": "06:00", "mode": "normal"}
+    )
+    assert entry.runtime_data.runtime_config["global_time_program"]["wed"] == [
+        {"start": "00:00", "mode": "comfort"}
+    ]
