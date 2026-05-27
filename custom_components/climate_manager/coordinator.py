@@ -327,7 +327,10 @@ class ClimateManagerCoordinator:
             if temp_sensor:
                 sensor_state = self._hass.states.get(temp_sensor)
                 if sensor_state is not None and sensor_state.state not in ("unavailable", "unknown"):
-                    room_entry["temperature"] = sensor_state.state
+                    try:
+                        room_entry["temperature"] = float(sensor_state.state)
+                    except (ValueError, TypeError):
+                        pass  # leave temperature absent rather than emitting an invalid value
             elif entity_ids:
                 trv_state = self._hass.states.get(entity_ids[0])
                 if trv_state is not None:
@@ -338,7 +341,10 @@ class ClimateManagerCoordinator:
             if humidity_sensor:
                 hum_state = self._hass.states.get(humidity_sensor)
                 if hum_state is not None and hum_state.state not in ("unavailable", "unknown"):
-                    room_entry["humidity"] = hum_state.state
+                    try:
+                        room_entry["humidity"] = float(hum_state.state)
+                    except (ValueError, TypeError):
+                        pass  # leave humidity absent rather than emitting an invalid value
 
             room_entry["has_trv"] = any(is_trv_entity(self._hass, eid) for eid in entity_ids)
 
