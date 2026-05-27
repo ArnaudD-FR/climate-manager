@@ -1,8 +1,8 @@
 """Climate Manager coordinator — the integration's control loop.
 
-Evaluates all managed rooms every minute and on HA startup, deriving the
-desired temperature from the current global mode and time program, then
-pushing to TRVs only when the target changes.
+Evaluates each managed room independently against its zone (Default Zone or
+custom zone) every minute and on HA startup, then pushes to TRVs only when
+the target temperature changes.
 
 Design decisions from CONTEXT.md / RESEARCH.md:
 - D-01: Poll every minute via async_track_time_interval (caller registers this)
@@ -10,14 +10,18 @@ Design decisions from CONTEXT.md / RESEARCH.md:
 - D-03: Manual override hold — if TRV reports a temp different from last pushed,
          skip this entity this tick; hold lifts automatically at next period transition
 - D-04: On HA restart _last_pushed is empty → startup push always fires (INFRA-03)
-- D-07/D-08: Persons with no room_ids are skipped silently
-- D-09: Pure backend — no HA entities, no entity registration here
+- D-07/D-08: global_mode is the Default Zone's mode — not a system-wide override.
+         Rooms in custom zones follow their own zone's mode/schedule independently.
+- D-09: Per-room algorithm: resolve zone → branch on zone.mode
+- D-11: Presence evaluation for time_program_presences zones uses all configured
+         persons (not scoped to zone members)
 
 Requirements addressed:
-- GLOBAL-01: branches on global mode (Off / Time program / Time program & presences)
-- GLOBAL-02: MODE_OFF → frost protection temperature for all rooms
+- GLOBAL-01: Default Zone branches on global_mode (Off / Time program / Presences)
+- GLOBAL-02: Default Zone MODE_OFF → frost protection; custom zones unaffected (D-08)
 - GLOBAL-03: period_temperatures dict provides configurable temps per period mode
-- SCHED-05: per-room time program override; falls back to global program if absent
+- SCHED-05: per-room time program override (room_mode=custom) wins over zone schedule
+- EVAL-01..05: per-zone independent evaluation via _resolve_zone_config
 - PERSON-06: persons have associated room_ids
 - PERSON-07: present person → heat from first Normal/Comfort period to end of last
 - PERSON-08: sandwiched Reduced/Frost in occupied window → hold preceding N/C temp
@@ -94,6 +98,9 @@ class ClimateManagerCoordinator:
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
 
+        Each room is evaluated independently via _resolve_zone_config — there is no
+        top-level global_mode branch. global_mode is the Default Zone's mode only (D-07/D-08).
+
         Called immediately after registration (INFRA-03 startup push) and then
         every minute by async_track_time_interval.
 
@@ -101,48 +108,159 @@ class ClimateManagerCoordinator:
         deliberately ignored — it carries UTC time (Pitfall 2). Local wall-clock
         time is always derived from dt_util.now() (INFRA-05 / DST-safe).
         """
-        # Single authoritative time source — DST-safe (Pitfall 2, INFRA-05)
         now = dt_util.now()
-        config = self._data.runtime_config  # shared reference — never copy (Anti-pattern)
-        global_mode = config["global_mode"]
+        config = self._data.runtime_config
         period_temperatures: dict[str, float] = config["period_temperatures"]
-        rooms: dict[str, list[str]] = self._data.rooms  # {area_id: [entity_id, ...]}
+        rooms: dict[str, list[str]] = self._data.rooms
 
-        if global_mode == MODE_OFF:
-            # GLOBAL-02: off-capable TRVs → set_hvac_mode=off; others → frost protection
-            desired_temp = period_temperatures[PERIOD_FROST_PROTECTION]
-            await asyncio.gather(*(
-                self._push_off_safely(entity_id, desired_temp)
+        # Presence list computed once — used for PASS 2 and status reporting.
+        self._last_present_persons = self._compute_present_persons(config, now)
+
+        desired_temps: dict[str, float] = {}
+        room_periods: dict[str, str] = {}
+        present_locked_rooms: set[str] = set()
+        frost_locked_rooms: set[str] = set()
+        mode_off_rooms: set[str] = set()
+
+        # PASS 1: baseline temperature per room via zone resolution + room_mode short-circuit.
+        for area_id in rooms:
+            room_config = config.get("rooms", {}).get(area_id, {})
+            room_mode = room_config.get("room_mode", "global")
+
+            if room_mode == ROOM_MODE_FROST:
+                # EVAL-05 / D-20: frost_protection room_mode wins unconditionally
+                desired_temps[area_id] = period_temperatures[PERIOD_FROST_PROTECTION]
+                room_periods[area_id] = PERIOD_FROST_PROTECTION
+                frost_locked_rooms.add(area_id)
+                continue
+
+            if room_mode == ROOM_MODE_CUSTOM:
+                # EVAL-05 / D-20: custom room schedule wins over zone resolution
+                room_program = room_config.get("time_program") or config["global_time_program"]
+                period_mode = evaluate_schedule(room_program, now)
+                temp = period_temperatures.get(period_mode)
+                if temp is None:
+                    _LOGGER.warning("Unknown period mode %r for area %s — skipping", period_mode, area_id)
+                    continue
+                desired_temps[area_id] = temp
+                room_periods[area_id] = period_mode
+                continue
+
+            # Room follows its zone (D-09)
+            zone_mode, zone_time_program = self._resolve_zone_config(area_id, config)
+
+            if zone_mode == MODE_OFF:
+                # EVAL-01: zone off → frost protection
+                desired_temps[area_id] = period_temperatures[PERIOD_FROST_PROTECTION]
+                room_periods[area_id] = PERIOD_FROST_PROTECTION
+                frost_locked_rooms.add(area_id)
+                mode_off_rooms.add(area_id)
+
+            elif zone_mode in (MODE_TIME_PROGRAM, MODE_TIME_PROGRAM_PRESENCES):
+                # EVAL-02 baseline (or EVAL-03 baseline before PASS 2 presence override)
+                period_mode = evaluate_schedule(zone_time_program, now)
+                temp = period_temperatures.get(period_mode)
+                if temp is None:
+                    _LOGGER.warning("Unknown period mode %r for area %s — skipping", period_mode, area_id)
+                    continue
+                desired_temps[area_id] = temp
+                room_periods[area_id] = period_mode
+
+            else:
+                _LOGGER.warning("Unknown zone_mode %r for area %s — skipping", zone_mode, area_id)
+
+        # PASS 2: presence override for zones with mode=time_program_presences (EVAL-03).
+        # All configured persons considered — not scoped to zone members (D-11).
+        for person_id, person_config in config.get("persons", {}).items():
+            room_ids: list[str] = person_config.get("room_ids", [])
+            if not room_ids:
+                continue
+
+            is_present = resolve_presence(person_config, now)
+
+            for area_id in room_ids:
+                if area_id not in rooms:
+                    continue
+                if area_id in frost_locked_rooms:
+                    # frost / zone.mode=off — presence cannot raise
+                    continue
+
+                room_config = config.get("rooms", {}).get(area_id, {})
+                if room_config.get("room_mode", "global") == ROOM_MODE_CUSTOM:
+                    # Custom room schedule wins; preserved v1.0 behavior
+                    continue
+
+                # Presence override applies only when zone mode is time_program_presences
+                zone_mode_for_room, zone_program_for_room = self._resolve_zone_config(area_id, config)
+                if zone_mode_for_room != MODE_TIME_PROGRAM_PRESENCES:
+                    continue
+
+                occupied_temp, occupied_period = compute_occupied_temp(
+                    zone_program_for_room, now, is_present, period_temperatures
+                )
+
+                if is_present:
+                    if area_id in present_locked_rooms:
+                        if occupied_temp > desired_temps.get(area_id, 0):
+                            desired_temps[area_id] = occupied_temp
+                            room_periods[area_id] = occupied_period
+                    else:
+                        desired_temps[area_id] = occupied_temp
+                        room_periods[area_id] = occupied_period
+                        present_locked_rooms.add(area_id)
+                else:
+                    if area_id not in present_locked_rooms:
+                        desired_temps[area_id] = occupied_temp
+                        room_periods[area_id] = occupied_period
+
+        self._last_room_periods = room_periods
+
+        # Pitfall 7: _last_active_period reflects Default Zone for backward-compat with status payload.
+        global_mode = config["global_mode"]
+        self._last_active_period = (
+            evaluate_schedule(config["global_time_program"], now)
+            if global_mode != MODE_OFF
+            else None
+        )
+
+        # Push pass — off-capable TRVs in mode_off_rooms use _push_off_safely.
+        await asyncio.gather(*(
+            (
+                self._push_off_safely(entity_id, desired_temps[area_id])
                 if supports_hvac_off(self._hass, entity_id)
-                else self._push_safely(entity_id, desired_temp, "MODE_OFF")
-                for entity_ids in rooms.values()
-                for entity_id in entity_ids
-            ))
-            # Wave 2: reset status tracking for MODE_OFF.
-            # Active period is None (no schedule evaluated), but presence is still
-            # computed for status display — mode only affects TRV control, not reporting.
-            self._last_active_period = None
-            self._last_present_persons = self._compute_present_persons(config, now)
-
-        elif global_mode == MODE_TIME_PROGRAM:
-            # SCHED-05: per-room override if defined, else global program
-            await self._evaluate_time_program(now, config, period_temperatures, rooms)
-
-        elif global_mode == MODE_TIME_PROGRAM_PRESENCES:
-            # Open Question 1 recommendation: evaluate all rooms via their time program
-            # first (unassociated rooms behave like MODE_TIME_PROGRAM), then apply
-            # presence overrides for person-associated rooms.
-            await self._evaluate_time_program_presences(
-                now, config, period_temperatures, rooms
+                else self._push_safely(entity_id, desired_temps[area_id], "ZONE_EVAL_OFF")
             )
-        else:
-            _LOGGER.warning("Unknown global_mode %r — no TRV commands issued", global_mode)
+            if area_id in mode_off_rooms
+            else self._push_safely(entity_id, desired_temps[area_id], "ZONE_EVAL")
+            for area_id, entity_ids in rooms.items()
+            for entity_id in entity_ids
+            if area_id in desired_temps and is_trv_entity(self._hass, entity_id)
+        ))
 
-        # Wave 2: push updated status to all subscribed panel instances after every evaluation
         self._hass.bus.async_fire(
             f"{DOMAIN}_status_update",
             self._build_status_payload(),
         )
+
+    def _resolve_zone_config(self, area_id: str, config: dict) -> tuple[str, dict]:
+        """Return (mode, time_program) for a room based on its zone assignment.
+
+        Rooms without a zone_id belong to the Default Zone (global_mode / global_time_program).
+        Rooms with a dangling zone_id (zone deleted but room not updated) fall back to
+        the Default Zone with a warning — defense in depth alongside validate_zone_assignment.
+        """
+        zone_id = config.get("rooms", {}).get(area_id, {}).get("zone_id")
+        if zone_id is None:
+            return (config["global_mode"], config["global_time_program"])
+        zone = config.get("zones", {}).get(zone_id)
+        if zone is None:
+            _LOGGER.warning(
+                "Room %s references unknown zone_id %r — falling back to Default Zone",
+                area_id,
+                zone_id,
+            )
+            return (config["global_mode"], config["global_time_program"])
+        return (zone["mode"], zone["time_program"])
 
     def _compute_present_persons(self, config: dict, now: datetime) -> list[str]:
         """Return the list of person IDs currently present, regardless of global mode.
@@ -170,199 +288,6 @@ class ClimateManagerCoordinator:
                 if resolve_presence(person_config, now):
                     present.append(person_id)
         return present
-
-    async def _evaluate_time_program(
-        self,
-        now: datetime,
-        config: dict,
-        period_temperatures: dict[str, float],
-        rooms: dict[str, list[str]],
-    ) -> None:
-        """Push scheduled temperatures for all rooms (MODE_TIME_PROGRAM).
-
-        Per-room override takes precedence over the global time program (SCHED-05).
-        Global time program IS the per-day dict directly (D-01).
-        """
-        global_daily_program: dict = config["global_time_program"]
-        room_configs: dict = config.get("rooms", {})
-
-        # Wave 2: track global active period for status push.
-        # Present persons are computed for status display even though presence does
-        # not influence TRV temperatures in this mode.
-        global_period_mode = evaluate_schedule(global_daily_program, now)
-        self._last_active_period = global_period_mode
-        self._last_present_persons = self._compute_present_persons(config, now)
-
-        pushes: list[tuple[str, float]] = []
-        room_periods: dict[str, str] = {}
-        for area_id, entity_ids in rooms.items():
-            room_config = room_configs.get(area_id, {})
-            room_mode = room_config.get("room_mode", "global")
-
-            # D-20: branch on room_mode before schedule evaluation
-            if room_mode == ROOM_MODE_FROST:
-                # Frost protection: push frost temp directly, skip schedule evaluation
-                desired_temp = period_temperatures[PERIOD_FROST_PROTECTION]
-                room_periods[area_id] = PERIOD_FROST_PROTECTION
-            else:
-                # Resolve daily_program: custom room program else global (per-day dict, D-01)
-                if room_mode == ROOM_MODE_CUSTOM:
-                    room_daily_program = room_config.get("time_program")
-                    daily_program = room_daily_program if room_daily_program else global_daily_program
-                else:
-                    # ROOM_MODE_GLOBAL or unknown → use global (default path, no behavior change)
-                    daily_program = global_daily_program
-
-                period_mode = evaluate_schedule(daily_program, now)
-                desired_temp = period_temperatures.get(period_mode)
-                if desired_temp is None:
-                    _LOGGER.warning(
-                        "Unknown period mode %r for area %s — skipping", period_mode, area_id
-                    )
-                    continue
-                room_periods[area_id] = period_mode
-
-            pushes.extend((entity_id, desired_temp) for entity_id in entity_ids if is_trv_entity(self._hass, entity_id))
-
-        self._last_room_periods = room_periods
-
-        await asyncio.gather(*(
-            self._push_safely(eid, temp, "MODE_TIME_PROGRAM")
-            for eid, temp in pushes
-        ))
-
-    async def _evaluate_time_program_presences(
-        self,
-        now: datetime,
-        config: dict,
-        period_temperatures: dict[str, float],
-        rooms: dict[str, list[str]],
-    ) -> None:
-        """Push temperatures for all rooms, applying presence overrides (MODE_TIME_PROGRAM_PRESENCES).
-
-        Algorithm (Open Question 1 recommendation, D-07):
-        1. Compute time-program desired_temp for every managed room (baseline).
-        2. For each person, resolve presence; for their room_ids, override the
-           desired_temp via compute_occupied_temp (PERSON-06/07/08/09).
-        3. Present-person-wins rule: once a present person sets a room's temp,
-           that room is locked — an absent person cannot lower it within this tick.
-           Uses a separate set to track present-locked rooms, ensuring the rule is
-           order-independent regardless of person iteration order.
-        4. Push each room's final desired_temp to its TRVs.
-
-        Global time program IS the per-day dict directly (D-01).
-        """
-        global_daily_program: dict = config["global_time_program"]
-        room_configs: dict = config.get("rooms", {})
-        persons_config: dict = config.get("persons", {})
-
-        # Step 1: baseline — time-program temp for every managed room
-        desired_temps: dict[str, float] = {}
-        room_periods: dict[str, str] = {}
-        # Rooms with room_mode=frost_protection are locked at frost temp and skipped
-        # during presence override (Step 2) — track them separately.
-        frost_locked_rooms: set[str] = set()
-        for area_id in rooms:
-            room_config = room_configs.get(area_id, {})
-            room_mode = room_config.get("room_mode", "global")
-
-            # D-20: branch on room_mode before schedule evaluation
-            if room_mode == ROOM_MODE_FROST:
-                # Frost protection: hold at frost temp, skip schedule evaluation and presence
-                desired_temps[area_id] = period_temperatures[PERIOD_FROST_PROTECTION]
-                room_periods[area_id] = PERIOD_FROST_PROTECTION
-                frost_locked_rooms.add(area_id)
-            else:
-                if room_mode == ROOM_MODE_CUSTOM:
-                    room_daily_program = room_config.get("time_program")
-                    daily_program = room_daily_program if room_daily_program else global_daily_program
-                else:
-                    daily_program = global_daily_program
-
-                period_mode = evaluate_schedule(daily_program, now)
-                desired_temp_baseline = period_temperatures.get(period_mode)
-                if desired_temp_baseline is None:
-                    _LOGGER.warning(
-                        "Unknown period mode %r for area %s — skipping", period_mode, area_id
-                    )
-                    continue
-                desired_temps[area_id] = desired_temp_baseline
-                room_periods[area_id] = period_mode
-
-        # Wave 2: track global active period for status push
-        global_period_mode = evaluate_schedule(global_daily_program, now)
-        self._last_active_period = global_period_mode
-        # present_persons list is built during person iteration below
-        present_persons_this_tick: list[str] = []
-
-        # Step 3 tracking: rooms locked by a present person — absent persons cannot
-        # lower the temperature for these rooms within this tick.
-        present_locked_rooms: set[str] = set()
-
-        # Step 2: apply presence overrides per person
-        for _person_id, person_config in persons_config.items():
-            room_ids: list[str] = person_config.get("room_ids", [])
-            if not room_ids:
-                # D-07/D-08: no room associations → skip silently
-                continue
-
-            is_present = resolve_presence(person_config, now)
-            if is_present:
-                present_persons_this_tick.append(_person_id)
-
-            for area_id in room_ids:
-                if area_id not in rooms:
-                    # Person references an area not managed by this integration
-                    continue
-
-                # D-20: skip frost-locked rooms — room_mode overrides presence
-                if area_id in frost_locked_rooms:
-                    continue
-
-                # Resolve daily_program for this room respecting room_mode (per-day dict, D-01)
-                room_config = room_configs.get(area_id, {})
-                room_mode = room_config.get("room_mode", "global")
-                if room_mode == ROOM_MODE_CUSTOM:
-                    room_daily_program = room_config.get("time_program")
-                    daily_program = room_daily_program if room_daily_program else global_daily_program
-                else:
-                    daily_program = global_daily_program
-
-                occupied_temp, occupied_period = compute_occupied_temp(
-                    daily_program, now, is_present, period_temperatures
-                )
-
-                # Step 3: present-person-wins rule — order-independent.
-                if is_present:
-                    # Present person: set the occupied-window temp and lock the room.
-                    # If another present person previously set a higher temp, keep that.
-                    if area_id in present_locked_rooms:
-                        # Room already locked by a prior present person — take the max
-                        if occupied_temp > desired_temps[area_id]:
-                            desired_temps[area_id] = occupied_temp
-                            room_periods[area_id] = occupied_period
-                    else:
-                        desired_temps[area_id] = occupied_temp
-                        room_periods[area_id] = occupied_period
-                        present_locked_rooms.add(area_id)
-                else:
-                    # Absent person: only lower the temperature if no present person
-                    # has already locked this room in this tick.
-                    if area_id not in present_locked_rooms:
-                        desired_temps[area_id] = occupied_temp
-                        room_periods[area_id] = occupied_period
-
-        # Wave 2: store resolved present persons list and per-room periods for status push
-        self._last_present_persons = present_persons_this_tick
-        self._last_room_periods = room_periods
-
-        # Step 4: push each room's resolved temperature to its TRVs (parallel)
-        await asyncio.gather(*(
-            self._push_safely(entity_id, desired_temps[area_id], "MODE_TIME_PROGRAM_PRESENCES")
-            for area_id, entity_ids in rooms.items()
-            for entity_id in entity_ids
-            if area_id in desired_temps and is_trv_entity(self._hass, entity_id)
-        ))
 
     def _build_status_payload(self) -> dict:
         """Build the status dict pushed to subscribed panel connections after each evaluation.
