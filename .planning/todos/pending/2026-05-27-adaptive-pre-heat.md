@@ -98,16 +98,13 @@ above is an empirical simplification of the time constant `τ = C/UA` from that 
 - This tells the user why their pre-heat setting has no effect, and implicitly
   nudges them to switch to a scheduled presence source if they want pre-heat to work..
 
-**Boiler detection (prerequisite):**
-- Climate Manager needs a new optional `boiler_entity` config field pointing to a
-  HA `climate` or `sensor` entity that exposes the boiler's supply (flow) temperature
-- If `boiler_entity` is set, the integration reads `current_temperature` (flow temp)
-  from it at each schedule evaluation; if unset, pre-heat falls back to a
-  user-configured fixed flow temperature assumption
-- Outdoor temperature: read from a configurable `outdoor_temp_entity` (sensor) — used
-  both for heat curve estimation and for grouping inertia samples by weather conditions
-- This boiler/outdoor detection is a standalone sub-feature that benefits other parts
-  of the system beyond pre-heat (e.g. could inform boiler efficiency metrics later)
+**Boiler detection (prerequisite — see boiler-declaration-per-zone todo):**
+- `boiler_entity` is declared per zone (not globally) — a zone's boiler is read
+  for all pre-heat calculations for rooms in that zone
+- If a zone has no `boiler_entity`, pre-heat uses a configurable fixed flow
+  temperature assumption (`preheat_flow_temp_ref`) defined at zone level
+- Outdoor temperature: single global `outdoor_temp_entity` (sensor) — one sensor
+  for the whole home, used for heat curve estimation and sample grouping
 
 **Data to persist per room:**
 - `preheat_enabled: bool`
@@ -115,9 +112,11 @@ above is an empirical simplification of the time constant `τ = C/UA` from that 
 - `inertia_factor: float | null` (null = not yet learned; normalised to T_flow_ref)
 - `inertia_samples: list[{delta_t_room, flow_temp, outdoor_temp, lead_time, actual_time, did_not_converge, timestamp}]` (last N samples)
 
-**Global config additions:**
+**Zone config additions (via boiler-declaration-per-zone todo):**
 - `boiler_entity: str | null`
-- `outdoor_temp_entity: str | null`
 - `preheat_flow_temp_ref: float` (default 60.0 °C — normalisation reference)
+
+**Global config additions:**
+- `outdoor_temp_entity: str | null`
 
 **Minor version bump** — additive feature, no breaking changes to existing config.
