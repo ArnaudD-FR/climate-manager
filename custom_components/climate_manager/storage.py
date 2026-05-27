@@ -11,11 +11,45 @@ Design decisions (from RESEARCH.md):
   (was added in later HA core; use default Store constructor for compatibility)
 """
 import copy
+import uuid  # D-07: UUID generation for zone IDs (used by Phase 5 CRUD; documented here)
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import DEFAULT_CONFIG, STORAGE_KEY, STORAGE_VERSION, _DEFAULT_DAILY_PROGRAM
+
+
+def validate_zone_assignment(config: dict) -> None:
+    """Raise ValueError if zone assignment invariants are violated (ZONE-04).
+
+    Checks:
+    1. Every zone_id on a room entry references an existing zone in config["zones"].
+    2. No zone_id value appears on more than one room entry (belt-and-suspenders;
+       structural dict keying already prevents a single room from appearing twice).
+
+    Returns None silently when configuration is valid OR when every room lacks a
+    zone_id key (Default Zone membership per D-06).
+
+    Tolerates absent 'zones' and 'rooms' keys by treating them as empty dicts.
+
+    Called by async_save() before persisting. Phase 5 WebSocket handlers may also
+    import and call this directly before triggering save.
+    """
+    zones = config.get("zones", {})
+    seen_zone_ids: set[str] = set()
+    for area_id, room_cfg in config.get("rooms", {}).items():
+        zone_id = room_cfg.get("zone_id")
+        if zone_id is None:
+            continue  # D-06: absent zone_id = Default Zone member — valid
+        if zone_id not in zones:
+            raise ValueError(
+                f"Room '{area_id}' references unknown zone_id '{zone_id}'"
+            )
+        if zone_id in seen_zone_ids:
+            raise ValueError(
+                f"zone_id '{zone_id}' assigned to multiple rooms — ZONE-04 violated"
+            )
+        seen_zone_ids.add(zone_id)
 
 
 class ClimateManagerStore:
@@ -87,6 +121,8 @@ class ClimateManagerStore:
     async def async_save(self, config: dict) -> None:
         """Persist the configuration via the Store helper.
 
+        Validates zone assignment invariants (ZONE-04) before writing.
         Never uses open(), json.load, or json.dump (Pitfall 2).
         """
+        validate_zone_assignment(config)
         await self._store.async_save(config)
