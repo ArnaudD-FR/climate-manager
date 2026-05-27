@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Heating Zones
 status: executing
 stopped_at: Phase 4 context gathered
-last_updated: "2026-05-27T07:57:49.196Z"
-last_activity: 2026-05-27 -- Phase 04 planning complete
+last_updated: "2026-05-27T07:59:21.332Z"
+last_activity: 2026-05-27 -- Phase 04 execution started
 progress:
   total_phases: 3
   completed_phases: 0
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-26)
 
 **Core value:** A household's rooms are always at the right temperature at the right time, without manual intervention — driven by schedules and who is actually home.
-**Current focus:** Phase 4 — Zone Data Model & Storage
+**Current focus:** Phase 04 — zone-data-model-storage
 
 ## Current Position
 
-Phase: 4 of 6 (Zone Data Model & Storage)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-05-27 -- Phase 04 planning complete
+Phase: 04 (zone-data-model-storage) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 04
+Last activity: 2026-05-27 -- Phase 04 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
