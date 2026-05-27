@@ -5,11 +5,16 @@ Tests:
 - set_global_mode mode=off succeeds and persists to runtime_config
 - set_time_program with a partial program (missing day keys) returns a WS error
   and does NOT mutate runtime_config["global_time_program"]
+- create_zone returns zone config and persists to runtime_config
+- rename_zone updates custom zone name and default_zone_name
+- set_zone_mode updates zone mode and rejects invalid modes
 
 All tests use MockConfigEntry + hass_ws_client following the scaffold from test_coordinator.py.
 The hass_ws_client fixture provides an authenticated WebSocket client via
 pytest-homeassistant-custom-component.
 """
+
+import copy
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -351,3 +356,161 @@ async def test_ws_reset_room_to_global_program_copies_global_into_room(hass, has
     assert entry.runtime_data.runtime_config["global_time_program"]["mon"] == [
         {"start": "06:00", "mode": "normal"}
     ]
+
+
+# ---------------------------------------------------------------------------
+# Tests 10-14: Zone CRUD WS commands (Plan 05-01)
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_create_zone_returns_zone_config(hass, hass_ws_client):
+    """create_zone returns {zone_id, name, mode, time_program} and persists to runtime_config.
+
+    Verifies D-01 (mode=time_program), D-02 (time_program copied from global),
+    D-03 (full zone object returned), and D-06 (write-then-evaluate pattern).
+    """
+    entry = await _setup_entry(hass)
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/create_zone", "name": "Living"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    result = msg["result"]
+
+    # Must return all required keys
+    assert "zone_id" in result
+    assert isinstance(result["zone_id"], str)
+    assert result["name"] == "Living"
+    assert result["mode"] == MODE_TIME_PROGRAM
+    assert "time_program" in result
+    assert isinstance(result["time_program"], dict)
+    # time_program must have all 7 day keys
+    for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun"):
+        assert day in result["time_program"], f"time_program missing day key: {day}"
+
+    # Must persist to runtime_config
+    zone_id = result["zone_id"]
+    zones = entry.runtime_data.runtime_config.get("zones", {})
+    assert zone_id in zones
+    persisted = zones[zone_id]
+    assert persisted["name"] == "Living"
+    assert persisted["mode"] == MODE_TIME_PROGRAM
+    assert persisted["time_program"] == result["time_program"]
+
+
+async def test_ws_create_zone_copies_global_program(hass, hass_ws_client):
+    """create_zone deep-copies from the current global_time_program (D-02).
+
+    Mutates global_time_program before sending — asserts the returned zone
+    time_program reflects the mutation (copy of current state, not DEFAULT).
+    Then mutates the returned program and asserts the source is unaffected (deepcopy).
+    """
+    entry = await _setup_entry(hass)
+
+    # Mutate global_time_program to a known sentinel before sending
+    sentinel_period = [{"start": "00:00", "mode": "comfort"}]
+    entry.runtime_data.runtime_config["global_time_program"]["mon"] = sentinel_period
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/create_zone", "name": "TestZone"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    result = msg["result"]
+
+    # Returned time_program["mon"] must equal the sentinel (copied from current global)
+    assert result["time_program"]["mon"] == sentinel_period
+
+    # Deep-copy proof: mutating the returned program must NOT mutate global_time_program
+    result["time_program"]["mon"].append({"start": "12:00", "mode": "reduced"})
+    assert entry.runtime_data.runtime_config["global_time_program"]["mon"] == sentinel_period
+
+
+async def test_ws_rename_zone_custom(hass, hass_ws_client):
+    """rename_zone updates the name of an existing custom zone.
+
+    Verifies that rename_zone {zone_id, name: "New"} updates
+    runtime_config["zones"][zone_id]["name"] and returns success.
+    """
+    entry = await _setup_entry(hass)
+
+    # Seed a custom zone
+    zone_id = "test-zone-uuid-1234"
+    entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
+        "name": "Old",
+        "mode": MODE_TIME_PROGRAM,
+        "time_program": copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/rename_zone", "zone_id": zone_id, "name": "New"}
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+    assert entry.runtime_data.runtime_config["zones"][zone_id]["name"] == "New"
+
+
+async def test_ws_rename_zone_default(hass, hass_ws_client):
+    """rename_zone with zone_id="default" updates default_zone_name (D-05).
+
+    Verifies the Default Zone sentinel branch: "default" routes to
+    runtime_config["default_zone_name"] and never creates a "default" key in zones{}.
+    """
+    entry = await _setup_entry(hass)
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/rename_zone", "zone_id": "default", "name": "Maison"}
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+    # Default Zone name must be updated
+    assert entry.runtime_data.runtime_config["default_zone_name"] == "Maison"
+    # Pitfall 3: "default" must NOT appear as a key in zones dict
+    assert "default" not in entry.runtime_data.runtime_config.get("zones", {})
+
+
+async def test_ws_set_zone_mode(hass, hass_ws_client):
+    """set_zone_mode updates zone mode and rejects modes outside VALID_MODES (ZONE-08).
+
+    Two sends on same client:
+    1. Valid mode (MODE_OFF) — assert success and zones[zone_id]["mode"] == MODE_OFF
+    2. Invalid mode ("bogus") — assert failure and zone mode is still MODE_OFF
+    """
+    entry = await _setup_entry(hass)
+
+    # Seed a custom zone
+    zone_id = "test-zone-uuid-1234"
+    entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
+        "name": "TestZone",
+        "mode": MODE_TIME_PROGRAM,
+        "time_program": copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
+    }
+
+    client = await hass_ws_client()
+
+    # Send 1: valid mode change
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/set_zone_mode", "zone_id": zone_id, "mode": MODE_OFF}
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+    assert entry.runtime_data.runtime_config["zones"][zone_id]["mode"] == MODE_OFF
+
+    # Send 2: invalid mode — vol schema must reject before handler runs
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/set_zone_mode", "zone_id": zone_id, "mode": "bogus"}
+    )
+    msg2 = await client.receive_json()
+
+    assert msg2["success"] is False
+    # Zone mode must be unchanged — schema rejection means no mutation
+    assert entry.runtime_data.runtime_config["zones"][zone_id]["mode"] == MODE_OFF
