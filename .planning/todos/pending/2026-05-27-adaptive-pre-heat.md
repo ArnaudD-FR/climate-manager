@@ -53,11 +53,30 @@ This requires Climate Manager to detect and read the boiler entity from HA.
 5. **Convergence**: once inertia_factor stabilises (< 10% change between consecutive
    cycles), treat it as learned and reduce the safety margin toward 1.0.
 
-6. **Edge cases**:
+6. **Pre-heat cap** (`preheat_max_duration`, default 120 min, configurable per room):
+   - The computed `lead_time` is clamped to `preheat_max_duration` before use.
+   - If the room never reaches the target within the pre-heat window (e.g. poorly
+     insulated room, very cold day, undersized radiator), the observation is marked
+     as `did_not_converge = true` and excluded from inertia learning — the sample
+     must not corrupt the model by implying an infinite inertia.
+   - A warning is surfaced in the panel (e.g. "Room X could not reach target in time")
+     so the user knows the cap was hit and can raise it or investigate the root cause.
+
+7. **Mode incompatibility**:
+   - Pre-heat is incompatible with any global mode that depends on live person presence
+     (e.g. `time_program_presences` / HA presence mode), because in those modes the
+     heating decision is made at the moment people are detected home — there is no
+     fixed period start time to pre-heat toward.
+   - When global mode is presence-based, the pre-heat option is automatically disabled
+     for all rooms and a notice is shown in the UI.
+   - Per-room pre-heat config is preserved but silently inactive while in a presence
+     mode, so it reactivates automatically when the user switches back to a schedule
+     mode.
+
+8. **Other edge cases**:
    - Room already at target: no pre-heat needed
-   - Inertia not yet learned: use conservative default (60 min)
+   - Inertia not yet learned: use conservative default (60 min), capped by `preheat_max_duration`
    - Pre-heat window extends into a frost/reduced period: start from the boundary
-   - Per-room opt-in: pre-heat is disabled by default, enabled per room in config
 
 **Standard abacus reference**: ISO 13790 / EN 12831 simplified thermal model is the
 industry standard for residential heating lead-time estimation. The `inertia_factor`
@@ -76,8 +95,9 @@ above is an empirical simplification of the time constant `τ = C/UA` from that 
 
 **Data to persist per room:**
 - `preheat_enabled: bool`
+- `preheat_max_duration: int` (minutes, default 120)
 - `inertia_factor: float | null` (null = not yet learned; normalised to T_flow_ref)
-- `inertia_samples: list[{delta_t_room, flow_temp, outdoor_temp, lead_time, actual_time, timestamp}]` (last N samples)
+- `inertia_samples: list[{delta_t_room, flow_temp, outdoor_temp, lead_time, actual_time, did_not_converge, timestamp}]` (last N samples)
 
 **Global config additions:**
 - `boiler_entity: str | null`
