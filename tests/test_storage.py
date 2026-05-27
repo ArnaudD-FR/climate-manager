@@ -205,8 +205,8 @@ def test_validate_zone_assignment_default_zone_rooms_pass():
     validate_zone_assignment(config)  # must not raise
 
 
-def test_validate_zone_assignment_duplicate_zone_id_raises():
-    """validate_zone_assignment raises ValueError when two rooms share the same zone_id (ZONE-04)."""
+def test_validate_zone_assignment_multiple_rooms_same_zone_accepted():
+    """validate_zone_assignment accepts multiple rooms sharing the same zone_id (ZONE-04: rooms belong to at most one zone, zones can contain many rooms)."""
     config = {
         "zones": {"uuid-1": {"name": "Zone A", "mode": "time_program", "time_program": {}}},
         "rooms": {
@@ -214,8 +214,7 @@ def test_validate_zone_assignment_duplicate_zone_id_raises():
             "bedroom": {"zone_id": "uuid-1"},
         },
     }
-    with pytest.raises(ValueError, match="multiple rooms"):
-        validate_zone_assignment(config)
+    validate_zone_assignment(config)  # must not raise
 
 
 async def test_save_rejects_unknown_zone_id(hass):
