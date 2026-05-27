@@ -221,9 +221,9 @@ def _make_ws_get_config(entry: ClimateManagerConfigEntry):
         """
         entity_reg = er.async_get(hass)
         climate_entities = sorted(
-            entry.entity_id
-            for entry in entity_reg.entities.values()
-            if entry.entity_id.split(".")[0] == "climate"
+            reg_entry.entity_id
+            for reg_entry in entity_reg.entities.values()
+            if reg_entry.entity_id.split(".")[0] == "climate"
         )
         payload = {**entry.runtime_data.runtime_config, "climate_entities": climate_entities}
         connection.send_result(msg["id"], payload)
