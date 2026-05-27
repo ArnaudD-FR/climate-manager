@@ -91,13 +91,11 @@ above is an empirical simplification of the time constant `τ = C/UA` from that 
   `get_status` / `subscribe_status`).
 
 **UI — pre-heat disabled warning:**
-- When `preheat_enabled` is false for a room, the room config section in the panel
-  shows a subtle inline notice: **"Pre-heat is off — room may not reach temperature
-  on time."** This is opt-in nagging: shown only when the room has at least one
-  normal or comfort period in its schedule (i.e. there is a period worth pre-heating
-  toward), prompting the user to consider enabling it.
-- The warning is suppressed if the global mode makes pre-heat irrelevant (e.g.
-  live presence mode with no schedule).
+- When `preheat_enabled` is true for a room but pre-heat is automatically inactive
+  because the presence source is live/reactive (no fixed schedule to target), the
+  room card shows: **"Pre-heat disabled — presence cannot be scheduled."**
+- This tells the user why their pre-heat setting has no effect, and implicitly
+  nudges them to switch to a scheduled presence source if they want pre-heat to work..
 
 **Boiler detection (prerequisite):**
 - Climate Manager needs a new optional `boiler_entity` config field pointing to a
