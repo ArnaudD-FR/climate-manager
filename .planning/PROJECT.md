@@ -32,6 +32,7 @@ A household's rooms are always at the right temperature at the right time, witho
 **In Progress:** v1.1 Heating Zones (milestone active)
 
 - Phase 4 complete (2026-05-27): zone storage data model — `zones`/`default_zone_name` in DEFAULT_CONFIG, `validate_zone_assignment` helper, TypeScript ZoneConfig type stubs; STORAGE_VERSION unchanged at 2
+- Phase 5 complete (2026-05-27): zone CRUD WebSocket API (6 commands, 17 total) + coordinator refactored to per-room zone-aware dispatch; 117 tests passing
 
 ## Requirements
 
@@ -108,4 +109,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-26 — v1.1 Heating Zones milestone started*
+*Last updated: 2026-05-27 — Phase 5 complete*
