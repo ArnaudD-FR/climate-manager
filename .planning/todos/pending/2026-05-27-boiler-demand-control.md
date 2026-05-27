@@ -22,7 +22,8 @@ exposed differently per brand/integration:
 | Source | Attribute/Entity | Notes |
 |--------|-----------------|-------|
 | Zigbee2mqtt TRVs | `sensor.*_pi_heating_demand` (0–100%) | ZigBee cluster 0x0201 attr 0x0008 — most reliable |
-| Tado | `sensor.*_heating_power` | Separate sensor entity |
+| Tado X (Matter) | not exposed | `PIHeatingDemand` is optional in Matter spec; Tado X does not implement it — `hvac_action` is the only available signal |
+| Tado (non-Matter) | `sensor.*_heating_power` | Separate sensor entity (older Tado API integration) |
 | Z-Wave | non-standard attribute on climate entity | varies by device |
 | Generic climate | `hvac_action` (`"heating"` / `"idle"`) | Binary only — no percentage |
 
