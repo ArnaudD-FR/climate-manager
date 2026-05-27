@@ -117,7 +117,10 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 #         "sun": [...]
 #       },
 #       "temperature_sensor": "<entity_id>",   # optional (D-16) — string entity ID
-#       "humidity_sensor": "<entity_id>"        # optional (D-16) — string entity ID
+#       "humidity_sensor": "<entity_id>",       # optional (D-16) — string entity ID
+#       "zone_id": "<uuid>"                     # optional string UUID — absent = belongs to Default Zone (D-05, D-06)
+#                                               # Only present if room is assigned to a custom zone.
+#                                               # Writing zone_id: null is prohibited (D-06 sparse model).
 #     }
 #   }
 #   Empty dict = all rooms inherit the global time program.
@@ -145,6 +148,27 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 # Note: area.name and person friendly_name are NOT cached here —
 #       they are read fresh from HA registries at display time to avoid staleness
 #       if the user renames an area or person in HA (RESEARCH Open Questions 1 & 2).
+#
+# Zones sub-schema (keyed by UUID string — D-07):
+#   {
+#     "<uuid>": {
+#       "name": "<string>",          # display name (user-editable)
+#       "mode": "<global_mode>",     # same enum as global_mode:
+#                                    #   off | time_program | time_program_presences
+#       "time_program": {            # same structure as global_time_program
+#         "mon": [{"start": "HH:MM", "mode": "<period_mode>"}, ...],
+#         "tue": [...],
+#         "wed": [...],
+#         "thu": [...],
+#         "fri": [...],
+#         "sat": [...],
+#         "sun": [...]
+#       }
+#     }
+#   }
+#   Empty dict = no custom zones exist (all rooms belong to Default Zone).
+#   Default Zone is NOT stored here — it is a virtual zone backed by
+#   global_mode + global_time_program + default_zone_name (D-01, D-02, D-03).
 # ---------------------------------------------------------------------------
 
 DEFAULT_CONFIG: dict = {
@@ -154,4 +178,10 @@ DEFAULT_CONFIG: dict = {
     "global_time_program": copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
     "rooms": {},    # sparse: only rooms with non-default config (SCHED-05, D-11)
     "persons": {},  # sparse: only persons with non-default settings (D-11)
+    "default_zone_name": "Home",  # D-03: Default Zone display name (user-editable in Phase 5/6)
+    "zones": {},                  # ZONE-01: custom zones, keyed by UUID string (D-07)
+                                  # Empty dict = no custom zones; all rooms belong to Default Zone.
+                                  # DEFAULT_CONFIG["zones"] MUST stay {} — pitfall 2: dict.update()
+                                  # would resurrect deleted zones if DEFAULT_CONFIG["zones"] were
+                                  # non-empty.
 }
