@@ -329,14 +329,24 @@ def _make_ws_set_room_config(entry: ClimateManagerConfigEntry):
 
         T-03-09: setdefault + update pattern ensures only the targeted room's keys are
                  modified; other rooms and DEFAULT_CONFIG keys are preserved.
+        CR-01: snapshot rooms before mutation so we can roll back if async_save raises
+               (validate_zone_assignment inside async_save may raise ValueError on
+               invalid zone_id assignments — ZONE-04).
         """
+        rooms_backup = copy.deepcopy(entry.runtime_data.runtime_config.get("rooms", {}))
         (
             entry.runtime_data.runtime_config
             .setdefault("rooms", {})
             .setdefault(msg["room_id"], {})
             .update(msg["config"])
         )
-        await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
+        try:
+            await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
+        except ValueError as exc:
+            # Roll back in-memory mutation so runtime_config stays consistent
+            entry.runtime_data.runtime_config["rooms"] = rooms_backup
+            connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, str(exc))
+            return
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
