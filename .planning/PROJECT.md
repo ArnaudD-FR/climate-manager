@@ -29,6 +29,10 @@ A household's rooms are always at the right temperature at the right time, witho
 - Deployed to production HA instance via SSH/rsync Makefile target
 - Android touch support confirmed working on time-bar drag interface
 
+**In Progress:** v1.1 Heating Zones (milestone active)
+
+- Phase 4 complete (2026-05-27): zone storage data model — `zones`/`default_zone_name` in DEFAULT_CONFIG, `validate_zone_assignment` helper, TypeScript ZoneConfig type stubs; STORAGE_VERSION unchanged at 2
+
 ## Requirements
 
 ### Validated
