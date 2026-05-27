@@ -5,15 +5,15 @@
  * and the HA `hass` connection object.
  */
 
-/** A single period entry in a daily program. */
-export interface Period {
-  /** "HH:MM" start time */
-  start: string;
-  /** Period mode (schedule bar): frost_protection | reduced | normal | comfort */
-  mode?: string;
-  /** Presence state (presence bar): present | absent */
-  state?: string;
-}
+/**
+ * A single period entry in a daily program.
+ * Discriminated union: exactly one of `mode` (schedule bar) or `state` (presence bar)
+ * must be present. TypeScript will flag access to `period.mode` without checking the
+ * discriminant, preventing silent undefined rendering (WR-03).
+ */
+export type Period =
+  | { start: string; mode: string; state?: never }
+  | { start: string; state: string; mode?: never };
 
 /** Seven-day program map keyed by lowercase day abbreviation. */
 export type DailyProgram = Record<
