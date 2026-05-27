@@ -27,9 +27,7 @@ def validate_zone_assignment(config: dict) -> None:
 
     Checks:
     1. Every zone_id on a room entry references an existing zone in config["zones"].
-    2. No zone_id value appears on more than one room entry (belt-and-suspenders;
-       structural dict keying already prevents a single room from appearing twice).
-    3. Explicit zone_id: null is rejected — sparse model prohibits it (D-06/WR-01).
+    2. Explicit zone_id: null is rejected — sparse model prohibits it (D-06/WR-01).
 
     Returns None silently when configuration is valid OR when every room lacks a
     zone_id key (Default Zone membership per D-06).
@@ -38,9 +36,12 @@ def validate_zone_assignment(config: dict) -> None:
 
     Called by async_save() before persisting. Phase 5 WebSocket handlers may also
     import and call this directly before triggering save.
+
+    Note: ZONE-04 ("a room belongs to at most one zone") is structurally guaranteed
+    by the rooms dict being keyed by area_id — each room appears exactly once.
+    No seen_zone_ids check is needed; multiple rooms may share the same zone_id.
     """
     zones = config.get("zones", {})
-    seen_zone_ids: set[str] = set()
     for area_id, room_cfg in config.get("rooms", {}).items():
         zone_id = room_cfg.get("zone_id", _SENTINEL)
         if zone_id is _SENTINEL:
@@ -53,11 +54,6 @@ def validate_zone_assignment(config: dict) -> None:
             raise ValueError(
                 f"Room '{area_id}' references unknown zone_id '{zone_id}'"
             )
-        if zone_id in seen_zone_ids:
-            raise ValueError(
-                f"zone_id '{zone_id}' assigned to multiple rooms — ZONE-04 violated"
-            )
-        seen_zone_ids.add(zone_id)
 
 
 class ClimateManagerStore:
