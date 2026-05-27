@@ -33,11 +33,13 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full phase details.
 **Depends on**: Phase 3
 **Requirements**: ZONE-01, ZONE-02, ZONE-03, ZONE-04
 **Success Criteria** (what must be TRUE):
-  1. Storage schema version bumps to 3 and existing v1.0 data loads without error or data loss
-  2. All rooms without a zone_id are automatically assigned to the Default Zone on first load after upgrade
-  3. A new install always has a Default Zone present and it cannot be removed from storage
-  4. Attempting to assign a room to two zones simultaneously is rejected at the data layer
-**Plans**: TBD
+  1. Storage schema additions (`zones`, `default_zone_name`) load cleanly from existing v1.0 data with no error or data loss (STORAGE_VERSION stays at 2 — additive-only, per D-04)
+  2. All rooms without a `zone_id` are interpreted as belonging to the Default Zone on first load after upgrade (no migration code needed; absent zone_id = Default Zone member per D-06)
+  3. A new install always has a Default Zone present (virtual concept backed by `global_mode` + `global_time_program` + `default_zone_name` per D-01/D-02/D-03) and it cannot be removed from storage because it has no storage entry to remove
+  4. Attempting to save a room with a `zone_id` referencing a non-existent zone, or two rooms sharing the same `zone_id`, is rejected at the data layer (`validate_zone_assignment` in storage.py, ZONE-04)
+**Plans**: 2 plans
+- [ ] 04-01-PLAN.md — Python backend: const.py DEFAULT_CONFIG additions, storage.py validate_zone_assignment helper + async_save hook, tests
+- [ ] 04-02-PLAN.md — Frontend TypeScript stubs: ZoneConfig interface, RoomConfig.zone_id, ClimateConfig.zones/default_zone_name in types.ts
 
 ### Phase 5: Zone CRUD & Evaluation Engine
 **Goal**: Users can create, rename, configure, and delete zones through the WebSocket API, and the coordinator evaluates zone mode and schedule as the authoritative layer between room-custom and global.
@@ -71,6 +73,6 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full phase details.
 | 1. Foundation | v1.0 | 3/3 | Complete | 2026-05-16 |
 | 2. Backend Engines & Coordinator | v1.0 | 2/2 | Complete | 2026-05-17 |
 | 3. WebSocket API & Frontend Panel | v1.0 | 9/9 | Complete | 2026-05-21 |
-| 4. Zone Data Model & Storage | v1.1 | 0/? | Not started | - |
+| 4. Zone Data Model & Storage | v1.1 | 0/2 | Not started | - |
 | 5. Zone CRUD & Evaluation Engine | v1.1 | 0/? | Not started | - |
 | 6. Zone & Room Assignment UI | v1.1 | 0/? | Not started | - |
