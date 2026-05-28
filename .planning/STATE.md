@@ -70,7 +70,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+- TRV temperature offset auto-calibration from room sensor (`2026-05-28-trv-temperature-offset-auto-calibration.md`)
 
 ### Blockers/Concerns
 
