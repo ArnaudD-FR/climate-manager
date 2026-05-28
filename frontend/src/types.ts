@@ -144,3 +144,36 @@ export const PERIOD_DISPLAY_NAMES: Record<string, string> = {
   present: "Present",
   absent: "Absent",
 };
+
+// ---------------------------------------------------------------------------
+// Zone color palette — 5 distinct colors for zone badges
+// ---------------------------------------------------------------------------
+
+export interface ZoneColor {
+  background: string;
+  color: string;
+  border: string;
+}
+
+/** Index 0 = Default Zone (violet). Indices 1-4 = custom zone palette. */
+export const ZONE_COLORS: ZoneColor[] = [
+  { background: "rgba(124, 58, 237, 0.12)", color: "#7c3aed", border: "rgba(124, 58, 237, 0.25)" }, // violet
+  { background: "rgba(13, 148, 136, 0.12)",  color: "#0d9488", border: "rgba(13, 148, 136, 0.25)"  }, // teal
+  { background: "rgba(217, 119, 6, 0.12)",   color: "#d97706", border: "rgba(217, 119, 6, 0.25)"   }, // amber
+  { background: "rgba(2, 132, 199, 0.12)",   color: "#0284c7", border: "rgba(2, 132, 199, 0.25)"   }, // sky
+  { background: "rgba(190, 18, 60, 0.12)",   color: "#be123c", border: "rgba(190, 18, 60, 0.25)"   }, // rose
+];
+
+/**
+ * Returns a deterministic color for a zone.
+ * Default Zone (no zone_id) → violet (index 0).
+ * Custom zones → indices 1-4 via UUID hash, never overlapping with Default Zone's color.
+ */
+export function getZoneColor(zoneId: string | undefined): ZoneColor {
+  if (!zoneId) return ZONE_COLORS[0];
+  let hash = 0;
+  for (let i = 0; i < zoneId.length; i++) {
+    hash = (hash * 31 + zoneId.charCodeAt(i)) >>> 0;
+  }
+  return ZONE_COLORS[1 + (hash % (ZONE_COLORS.length - 1))];
+}

@@ -14,7 +14,7 @@ import { LitElement, html, css } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import type { RoomConfig, RoomStatus, DailyProgram, Period, ClimateConfig, Hass } from "../types.js";
-import { PERIOD_DISPLAY_NAMES, PERIOD_COLORS } from "../types.js";
+import { PERIOD_DISPLAY_NAMES, PERIOD_COLORS, getZoneColor } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
@@ -144,9 +144,7 @@ export class RoomCard extends LitElement {
       border-radius: 12px;
       font-size: 12px;
       font-weight: 400;
-      background: rgba(124, 58, 237, 0.12);
-      color: #7c3aed;
-      border: 1px solid rgba(124, 58, 237, 0.25);
+      border: 1px solid;
     }
 
     .card-content {
@@ -648,7 +646,7 @@ export class RoomCard extends LitElement {
                 class="program-badge ${badgeClass}"
                 style=${badgeClass === "frost" ? `background: ${PERIOD_COLORS.frost_protection}; color: white;` : ""}
               >${badgeText}</span>
-              <span class="zone-badge">${this._getZoneName()}</span>
+              <span class="zone-badge" style=${(() => { const c = getZoneColor(this.config?.zone_id); return `background:${c.background};color:${c.color};border-color:${c.border}`; })()}>${this._getZoneName()}</span>
             </div>
             ${this._renderHeaderStatus()}
           </div>
