@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Heating Zones
-status: ready_to_plan
-stopped_at: Phase 05 complete (3/3) — ready to discuss Phase 6
-last_updated: 2026-05-27T20:38:04.797Z
-last_activity: 2026-05-27 -- Phase 05 execution started
+status: planning
+stopped_at: Phase 6 context gathered
+last_updated: "2026-05-28T11:11:12.644Z"
+last_activity: 2026-05-27
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
   completed_plans: 5
-  percent: 33
+  percent: 67
 ---
 
 # Project State
@@ -96,6 +96,6 @@ Last activity: 2026-05-28 - Completed quick task 260528-417: checks if ha-tado-x
 
 ## Session Continuity
 
-Last session: 2026-05-27T09:57:37.252Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-zone-crud-evaluation-engine/05-CONTEXT.md
+Last session: 2026-05-28T11:11:12.636Z
+Stopped at: Phase 6 context gathered
+Resume file: .planning/phases/06-zone-room-assignment-ui/06-CONTEXT.md
