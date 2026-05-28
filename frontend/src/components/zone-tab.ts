@@ -107,7 +107,7 @@ export class ZoneTab extends LitElement {
       align-items: center;
       gap: 8px;
       justify-content: flex-end;
-      margin-bottom: 8px;
+      margin-top: 24px;
     }
 
     .delete-btn {
@@ -453,24 +453,7 @@ export class ZoneTab extends LitElement {
     const unassignedRooms = this._getUnassignedRoomItems();
 
     return html`
-      <!-- 1. Delete row (custom zones only, D-05) -->
-      ${!this.isDefault
-        ? html`
-          <div class="delete-row">
-            ${this._confirmingDelete
-              ? html`
-                <span>Delete zone?</span>
-                <button class="cancel-btn" @click=${this._onCancelDelete}>Cancel</button>
-                <button class="danger-btn" @click=${() => void this._onConfirmDelete()}>Confirm</button>
-              `
-              : html`
-                <button class="delete-btn" @click=${this._onDeleteClick}>Delete zone</button>
-              `}
-          </div>
-        `
-        : ""}
-
-      <!-- 2. Mode picker -->
+      <!-- 1. Mode picker -->
       <div class="section-label">Mode</div>
       <div class="select-wrapper">
         <select class="mode-select" @change=${this._onModeChange}>
@@ -512,6 +495,23 @@ export class ZoneTab extends LitElement {
           `
           : ""}
       </div>
+
+      <!-- Delete row (custom zones only, D-05) -->
+      ${!this.isDefault
+        ? html`
+          <div class="delete-row">
+            ${this._confirmingDelete
+              ? html`
+                <span>Delete zone?</span>
+                <button class="cancel-btn" @click=${this._onCancelDelete}>Cancel</button>
+                <button class="danger-btn" @click=${() => void this._onConfirmDelete()}>Confirm</button>
+              `
+              : html`
+                <button class="delete-btn" @click=${this._onDeleteClick}>Delete zone</button>
+              `}
+          </div>
+        `
+        : ""}
     `;
   }
 }

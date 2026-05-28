@@ -3574,20 +3574,7 @@ const Ue = class Ue extends w {
   render() {
     const e = this._getAssignedRoomIds(), t = this._getUnassignedRoomItems();
     return c`
-      <!-- 1. Delete row (custom zones only, D-05) -->
-      ${this.isDefault ? "" : c`
-          <div class="delete-row">
-            ${this._confirmingDelete ? c`
-                <span>Delete zone?</span>
-                <button class="cancel-btn" @click=${this._onCancelDelete}>Cancel</button>
-                <button class="danger-btn" @click=${() => void this._onConfirmDelete()}>Confirm</button>
-              ` : c`
-                <button class="delete-btn" @click=${this._onDeleteClick}>Delete zone</button>
-              `}
-          </div>
-        `}
-
-      <!-- 2. Mode picker -->
+      <!-- 1. Mode picker -->
       <div class="section-label">Mode</div>
       <div class="select-wrapper">
         <select class="mode-select" @change=${this._onModeChange}>
@@ -3625,6 +3612,19 @@ const Ue = class Ue extends w {
             ></search-picker>
           ` : ""}
       </div>
+
+      <!-- Delete row (custom zones only, D-05) -->
+      ${this.isDefault ? "" : c`
+          <div class="delete-row">
+            ${this._confirmingDelete ? c`
+                <span>Delete zone?</span>
+                <button class="cancel-btn" @click=${this._onCancelDelete}>Cancel</button>
+                <button class="danger-btn" @click=${() => void this._onConfirmDelete()}>Confirm</button>
+              ` : c`
+                <button class="delete-btn" @click=${this._onDeleteClick}>Delete zone</button>
+              `}
+          </div>
+        `}
     `;
   }
 };
@@ -3640,7 +3640,7 @@ Ue.styles = E`
       align-items: center;
       gap: 8px;
       justify-content: flex-end;
-      margin-bottom: 8px;
+      margin-top: 24px;
     }
 
     .delete-btn {
