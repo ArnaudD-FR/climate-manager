@@ -22,6 +22,12 @@ Phase 3 additions:
 - async_setup_entry serves www/ directory as a static path (Pitfall 6 — cache_headers=False)
 - async_setup_entry registers sidebar panel via panel_custom.async_register_panel
 - manifest.json declares dependencies ["http", "frontend", "panel_custom"] (Pitfall 7)
+
+Bug fix — entity discovery refresh:
+- async_setup_entry registers listeners on entity_registry_updated and
+  device_registry_updated events to re-run discover_rooms / discover_room_sensors
+  whenever a climate entity is added, removed, or its device's area changes.
+  The cancel callbacks are stored in cancel_registry_listeners and called on unload.
 """
 
 from dataclasses import dataclass, field
@@ -32,7 +38,8 @@ from typing import Callable
 from homeassistant.components import panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er, device_registry as dr
 from homeassistant.helpers.event import async_track_time_interval
 
 from .coordinator import ClimateManagerCoordinator
@@ -65,8 +72,11 @@ class ClimateManagerData:
         runtime_config: Merged configuration (DEFAULT_CONFIG + sparse stored data).
         rooms: Discovered rooms {area_id: [climate_entity_ids]}.
         persons: Discovered persons [person.* entity_ids].
+        room_auto_sensors: Auto-discovered temperature/humidity sensors per area.
         coordinator: The ClimateManagerCoordinator instance (Phase 2).
         cancel_scheduler: Cancel callback returned by async_track_time_interval (Phase 2).
+        cancel_registry_listeners: List of cancel callbacks for entity/device registry
+            listeners. Called on unload to prevent ghost listeners.
     """
 
     store: ClimateManagerStore
@@ -78,6 +88,8 @@ class ClimateManagerData:
     # String annotations used to avoid import cycle (coordinator.py imports ClimateManagerData).
     coordinator: "ClimateManagerCoordinator | None" = field(default=None)
     cancel_scheduler: "Callable[[], None] | None" = field(default=None)
+    # Registry listeners — list of unsub callables, one per registered listener.
+    cancel_registry_listeners: "list[Callable[[], None]]" = field(default_factory=list)
 
 
 # Modern typed ConfigEntry alias (Pattern 2 — entry.runtime_data pattern).
@@ -103,6 +115,7 @@ async def async_setup_entry(
     5. Construct ClimateManagerCoordinator and store on runtime_data.coordinator.
     6. Push correct temperatures immediately (INFRA-03 — restart recovery).
     7. Register minute-polling scheduler; store cancel callback (D-01, Pitfall 1).
+    8. Register entity/device registry listeners for live room re-discovery.
     """
     store = ClimateManagerStore(hass)
     runtime_config = await store.async_load()
@@ -158,7 +171,88 @@ async def async_setup_entry(
         require_admin=False,
     )
 
+    # Bug fix: live entity re-discovery.
+    #
+    # discover_rooms() is called once at startup; newly added integrations (e.g.
+    # Tado X) register their climate entities after async_setup_entry has already
+    # run, so those entities never appear in entry.runtime_data.rooms.
+    #
+    # Fix: listen to entity_registry_updated and device_registry_updated events.
+    # - entity_registry_updated fires when a climate entity is created or removed.
+    # - device_registry_updated fires when a device's area_id changes (i.e. user
+    #   assigns a device with climate entities to an area for the first time, or
+    #   moves it to a different area).
+    # On either event, re-run discover_rooms + discover_room_sensors and update
+    # the live runtime_data so the next get_status / subscribe_status push
+    # reflects the new entity set without requiring an HA restart.
+    #
+    # Implementation note: the listeners are @callback (sync) to satisfy HA's
+    # bus contract. Re-discovery is async so we schedule it as a task via
+    # hass.async_create_task. The coordinator.async_evaluate() call inside the
+    # task fires a subscribe_status push so connected panels refresh immediately.
+
+    @callback
+    def _handle_entity_registry_updated(event: Event) -> None:
+        """Re-discover rooms when a climate entity is added or removed."""
+        action = event.data.get("action")
+        entity_id = event.data.get("entity_id", "")
+        # Only react to create/remove of climate.* entities.
+        if action not in ("create", "remove"):
+            return
+        if not entity_id.startswith("climate."):
+            return
+        hass.async_create_task(
+            _async_refresh_rooms(hass, entry),
+            name="climate_manager_refresh_rooms_entity",
+        )
+
+    @callback
+    def _handle_device_registry_updated(event: Event) -> None:
+        """Re-discover rooms when a device's area assignment changes."""
+        action = event.data.get("action")
+        if action != "update":
+            return
+        changes = event.data.get("changes", {})
+        # Only react when area_id changed — the change that affects room discovery.
+        if "area_id" not in changes:
+            return
+        hass.async_create_task(
+            _async_refresh_rooms(hass, entry),
+            name="climate_manager_refresh_rooms_device",
+        )
+
+    cancel_entity = hass.bus.async_listen(
+        er.EVENT_ENTITY_REGISTRY_UPDATED, _handle_entity_registry_updated
+    )
+    cancel_device = hass.bus.async_listen(
+        dr.EVENT_DEVICE_REGISTRY_UPDATED, _handle_device_registry_updated
+    )
+    entry.runtime_data.cancel_registry_listeners = [cancel_entity, cancel_device]
+
     return True
+
+
+async def _async_refresh_rooms(
+    hass: HomeAssistant,
+    entry: ClimateManagerConfigEntry,
+) -> None:
+    """Re-discover rooms and room sensors, update runtime_data, and push status.
+
+    Runs discover_rooms() + discover_room_sensors() against the current live
+    registries (entity + device + area) and replaces entry.runtime_data.rooms
+    and entry.runtime_data.room_auto_sensors in-place.  Then triggers a
+    coordinator evaluation so the next subscribe_status push reflects the
+    updated room list.
+
+    This function is safe to call concurrently — HA's registry helpers are
+    non-blocking coroutines and runtime_data is only mutated from the event loop.
+    """
+    new_rooms = await discover_rooms(hass)
+    new_sensors = await discover_room_sensors(hass)
+    entry.runtime_data.rooms = new_rooms
+    entry.runtime_data.room_auto_sensors = new_sensors
+    if entry.runtime_data.coordinator is not None:
+        await entry.runtime_data.coordinator.async_evaluate()
 
 
 async def async_unload_entry(
@@ -167,11 +261,16 @@ async def async_unload_entry(
 ) -> bool:
     """Unload a Climate Manager config entry.
 
-    Cancels the scheduler FIRST to prevent ghost listeners (Pitfall 1, T-01-10),
-    then unloads platform entities (PLATFORMS is empty in Phase 2 — D-09).
+    Cancels the scheduler and registry listeners FIRST to prevent ghost listeners
+    (Pitfall 1, T-01-10), then unloads platform entities (PLATFORMS is empty in
+    Phase 2 — D-09).
     """
     # Cancel scheduler before unloading platforms — no ghost listeners (Pitfall 1)
     if entry.runtime_data.cancel_scheduler is not None:
         entry.runtime_data.cancel_scheduler()
+
+    # Cancel entity/device registry listeners (bug fix — live re-discovery).
+    for cancel in entry.runtime_data.cancel_registry_listeners:
+        cancel()
 
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
