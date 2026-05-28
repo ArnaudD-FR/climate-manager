@@ -33,6 +33,7 @@ A household's rooms are always at the right temperature at the right time, witho
 
 - Phase 4 complete (2026-05-27): zone storage data model — `zones`/`default_zone_name` in DEFAULT_CONFIG, `validate_zone_assignment` helper, TypeScript ZoneConfig type stubs; STORAGE_VERSION unchanged at 2
 - Phase 5 complete (2026-05-27): zone CRUD WebSocket API (6 commands, 17 total) + coordinator refactored to per-room zone-aware dispatch; 117 tests passing
+- Phase 6 complete (2026-05-28): zone/room assignment UI — dynamic zone tabs, zone-tab component, room badge + picker, 6 gap-closure wiring fixes, 121 tests passing; human UAT pending
 
 ## Requirements
 
@@ -51,7 +52,7 @@ A household's rooms are always at the right temperature at the right time, witho
 
 ### Active
 
-- [ ] Multi-zone heating (named zones with independent mode + schedule) — v1.1
+- ✓ Multi-zone heating (named zones with independent mode + schedule) — v1.1 (Phase 6 complete, human UAT pending)
 - [ ] Zone CRUD and room assignment UI — v1.1
 - [ ] Backend zone evaluation (zone overrides global for assigned rooms) — v1.1
 
@@ -109,4 +110,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-27 — Phase 5 complete*
+*Last updated: 2026-05-28 — Phase 6 complete*
