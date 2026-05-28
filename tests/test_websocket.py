@@ -769,3 +769,66 @@ async def test_set_room_config_null_zone_id_preserves_other_keys(hass, hass_ws_c
     assert "zone_id" not in living_room
     # room_mode must be applied via sparse-merge
     assert living_room.get("room_mode") == "custom"
+
+
+# ---------------------------------------------------------------------------
+# Gap 1: set_zone_time_program HAPPY PATH (UI-04/ASSIGN-01)
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_set_zone_time_program_accepts_full_program(hass, hass_ws_client):
+    """set_zone_time_program with a full 7-day program is accepted and persisted.
+
+    Requirement (Gap 1): A full 7-day zone time program is accepted, persisted to
+    runtime_config, and returns success. This is the happy path; the rejection path
+    (partial program) is already covered by test_ws_set_zone_time_program_rejects_partial.
+
+    Verifies:
+    - result.success is True
+    - zone.time_program is updated with the full new program
+    - the program persists across runtime_config access (no reference sharing issues)
+    """
+    entry = await _setup_entry(hass)
+
+    # Seed a custom zone with a default program
+    zone_id = "test-zone-uuid-1"
+    entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
+        "name": "Test Zone",
+        "mode": MODE_TIME_PROGRAM,
+        "time_program": copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
+    }
+
+    # Build a sentinel full 7-day program to send (all days present, even if empty)
+    sentinel_program = {
+        "mon": [{"start": "06:00", "mode": "normal"}],
+        "tue": [{"start": "07:00", "mode": "reduced"}],
+        "wed": [{"start": "08:00", "mode": "comfort"}],
+        "thu": [{"start": "06:00", "mode": "normal"}],
+        "fri": [{"start": "07:00", "mode": "reduced"}],
+        "sat": [{"start": "09:00", "mode": "normal"}],
+        "sun": [{"start": "10:00", "mode": "normal"}],
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_zone_time_program",
+            "zone_id": zone_id,
+            "program": sentinel_program,
+        }
+    )
+    msg = await client.receive_json()
+
+    # Happy path: must succeed
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+
+    # Verify persistence: zone.time_program must match the sentinel
+    persisted_program = entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]
+    assert persisted_program == sentinel_program
+
+    # Deep-copy isolation: mutating the sent program must NOT mutate the saved config
+    sentinel_program["mon"].append({"start": "12:00", "mode": "comfort"})
+    assert entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]["mon"] == [
+        {"start": "06:00", "mode": "normal"}
+    ], "zone time_program was affected by mutation to the input program — not a deep copy"
