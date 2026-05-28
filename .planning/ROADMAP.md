@@ -66,7 +66,10 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full phase details.
   3. User can assign rooms to a zone from the zone tab and from each room card — the assignment is reflected in both views
   4. Every room card in the Rooms tab shows a zone badge with the zone name
   5. Custom zone tabs show a delete button with confirmation dialog; the Default Zone tab has no delete button
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 06-01-PLAN.md — WsClient zone methods (createZone/deleteZone/renameZone/setZoneMode/setZoneTimeProgram/resetZoneTimeProgram) + new zone-tab.ts component (name edit, mode picker, time-bar, assigned-rooms chips + search-picker, inline delete confirm)
+- [ ] 06-02-PLAN.md — main.ts dynamic zone tab rendering (Overview | Default Zone | [custom zones] | + | Rooms | Persons), + button create handler, _activeTab broadened to string with stale-UUID fallback
+- [ ] 06-03-PLAN.md — room-card.ts zone badge in collapsed header + zone <select> in expanded content; person-card.ts D-13 label rename "HA" → "HA home tracking"
 **UI hint**: yes
 
 ## Progress
@@ -78,4 +81,4 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full phase details.
 | 3. WebSocket API & Frontend Panel | v1.0 | 9/9 | Complete | 2026-05-21 |
 | 4. Zone Data Model & Storage | v1.1 | 2/2 | Complete   | 2026-05-27 |
 | 5. Zone CRUD & Evaluation Engine | v1.1 | 3/3 | Complete   | 2026-05-27 |
-| 6. Zone & Room Assignment UI | v1.1 | 0/? | Not started | - |
+| 6. Zone & Room Assignment UI | v1.1 | 0/3 | Not started | - |
