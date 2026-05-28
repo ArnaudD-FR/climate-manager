@@ -22,7 +22,7 @@
 import { LitElement, html, css } from "lit";
 import { property, state } from "lit/decorators.js";
 
-import type { ClimateConfig, ZoneConfig, DailyProgram, Period, RoomConfig, Hass } from "../types.js";
+import type { ClimateConfig, ZoneConfig, DailyProgram, Period, RoomConfig, StatusPayload, Hass } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
@@ -64,6 +64,9 @@ export class ZoneTab extends LitElement {
 
   /** HA hass object — used for resolving area names. */
   @property({ attribute: false }) hass!: Hass;
+
+  /** Live status — used to enumerate all TRV rooms, not just configured ones. */
+  @property({ attribute: false }) status: StatusPayload | null = null;
 
   // -------------------------------------------------------------------------
   // Internal state
@@ -394,26 +397,36 @@ export class ZoneTab extends LitElement {
    * Rooms are HA areas; areas[roomId].name is the canonical display name.
    */
   private _getRoomName(roomId: string): string {
-    return this.hass.areas[roomId]?.name ?? roomId;
+    return (
+      this.status?.rooms_status?.find((r) => r.area_id === roomId)?.name ??
+      this.hass.areas[roomId]?.name ??
+      roomId
+    );
+  }
+
+  /** All TRV room IDs from status; falls back to config.rooms keys when status unavailable. */
+  private _allRoomIds(): string[] {
+    const fromStatus = this.status?.rooms_status?.filter((r) => r.has_trv !== false);
+    if (fromStatus?.length) return fromStatus.map((r) => r.area_id);
+    return Object.keys(this.config?.rooms ?? {});
   }
 
   /**
    * Returns IDs of rooms assigned to this zone.
    * For custom zones: rooms whose zone_id === this.zoneId.
    * For Default Zone: rooms whose zone_id is undefined OR points to a non-existent zone (orphan-safe, D-06 phase 4).
+   * Uses all TRV rooms as the universe (not just configured rooms) so unconfigured rooms appear.
    */
   private _getAssignedRoomIds(): string[] {
-    if (!this.config?.rooms) return [];
-    const zoneKeys = Object.keys(this.config.zones ?? {});
-    return Object.entries(this.config.rooms)
-      .filter(([, roomConfig]) => {
-        if (this.isDefault || this.zoneId === "default") {
-          // Default Zone: no zone_id OR zone_id not in config.zones (orphan-safe)
-          return !roomConfig.zone_id || !zoneKeys.includes(roomConfig.zone_id);
-        }
-        return roomConfig.zone_id === this.zoneId;
-      })
-      .map(([roomId]) => roomId);
+    const zoneKeys = Object.keys(this.config?.zones ?? {});
+    return this._allRoomIds().filter((roomId) => {
+      const roomConfig: RoomConfig | undefined = this.config?.rooms?.[roomId];
+      if (this.isDefault || this.zoneId === "default") {
+        // Default Zone: no zone_id OR zone_id not in config.zones (orphan-safe)
+        return !roomConfig?.zone_id || !zoneKeys.includes(roomConfig.zone_id);
+      }
+      return roomConfig?.zone_id === this.zoneId;
+    });
   }
 
   /**
@@ -422,8 +435,7 @@ export class ZoneTab extends LitElement {
    */
   private _getUnassignedRoomItems(): Array<{ id: string; label: string; icon?: string }> {
     const assignedIds = new Set(this._getAssignedRoomIds());
-    if (!this.config?.rooms) return [];
-    return Object.keys(this.config.rooms)
+    return this._allRoomIds()
       .filter((roomId) => !assignedIds.has(roomId))
       .map((roomId) => ({
         id: roomId,
@@ -459,8 +471,8 @@ export class ZoneTab extends LitElement {
         : ""}
 
       <!-- 2. Mode picker -->
+      <div class="section-label">Mode</div>
       <div class="select-wrapper">
-        <label class="select-label">Zone mode</label>
         <select class="mode-select" @change=${this._onModeChange}>
           <option value="off" ?selected=${this.zoneConfig.mode === "off"}>Off</option>
           <option value="time_program" ?selected=${this.zoneConfig.mode === "time_program"}>Time program</option>

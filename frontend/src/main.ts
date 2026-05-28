@@ -387,6 +387,7 @@ export class ClimateManagerPanel extends LitElement {
           time_program: this._config!.global_time_program,
         }}
         .isDefault=${true}
+        .status=${this._status}
         .ws=${this._ws!}
         .panel=${this}
         .hass=${this.hass}
@@ -401,6 +402,7 @@ export class ClimateManagerPanel extends LitElement {
         .zoneId=${zoneId}
         .zoneConfig=${zoneConfig}
         .isDefault=${false}
+        .status=${this._status}
         .ws=${this._ws!}
         .panel=${this}
         .hass=${this.hass}
