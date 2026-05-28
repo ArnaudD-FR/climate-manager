@@ -3128,7 +3128,7 @@ const Z = "scheduled", ve = "ha", ye = "force_present", xe = "force_absent", et 
       case xe:
         return { cls: "force-absent", text: "Force Absent" };
       case ve:
-        return { cls: "ha", text: "HA" };
+        return { cls: "ha", text: "HA home tracking" };
       default:
         return { cls: "scheduled", text: "Scheduled" };
     }
@@ -3163,7 +3163,7 @@ const Z = "scheduled", ve = "ha", ye = "force_present", xe = "force_absent", et 
               <div class="select-wrapper">
                 <select class="mode-select" @change=${this._onModeChange}>
                   <option value=${Z} ?selected=${o === Z}>Scheduled</option>
-                  <option value=${ve} ?selected=${o === ve}>HA</option>
+                  <option value=${ve} ?selected=${o === ve}>HA home tracking</option>
                   <option value=${ye} ?selected=${o === ye}>Force Present</option>
                   <option value=${xe} ?selected=${o === xe}>Force Absent</option>
                 </select>
