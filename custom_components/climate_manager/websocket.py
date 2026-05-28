@@ -358,11 +358,17 @@ def _make_ws_set_room_config(entry: ClimateManagerConfigEntry):
                invalid zone_id assignments — ZONE-04).
         """
         rooms_backup = copy.deepcopy(entry.runtime_data.runtime_config.get("rooms", {}))
+        # zone_id: null from the frontend signals 'move room to Default Zone' — pop the key
+        # per D-06 sparse model (gap CR-03 fix from VERIFICATION 06-04).
+        incoming_config = msg["config"]
+        if "zone_id" in incoming_config and incoming_config["zone_id"] is None:
+            incoming_config.pop("zone_id")
+            entry.runtime_data.runtime_config.setdefault("rooms", {}).setdefault(msg["room_id"], {}).pop("zone_id", None)
         (
             entry.runtime_data.runtime_config
             .setdefault("rooms", {})
             .setdefault(msg["room_id"], {})
-            .update(msg["config"])
+            .update(incoming_config)
         )
         try:
             await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)

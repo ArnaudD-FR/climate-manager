@@ -354,7 +354,11 @@ export class ZoneTab extends LitElement {
     const newMode = (e.target as HTMLSelectElement).value;
     if (!newMode || newMode === this.zoneConfig.mode) return;
     try {
-      await this.ws.setZoneMode(this.zoneId, newMode);
+      if (this.isDefault) {
+        await this.ws.setGlobalMode(newMode);
+      } else {
+        await this.ws.setZoneMode(this.zoneId, newMode);
+      }
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
@@ -362,14 +366,22 @@ export class ZoneTab extends LitElement {
     }
   };
 
-  /** Time-bar periods-changed event — update the zone time program for the changed day. */
+  /**
+   * Time-bar periods-changed event — update the zone time program for the changed day.
+   * When isDefault is true, writes go to the global time program via ws.setTimeProgram
+   * (the Default Zone is backed by global_time_program per Phase 4 D-02).
+   */
   private _onPeriodsChanged = async (e: CustomEvent) => {
     const { dayIndex, periods } = e.detail as { dayIndex: number; periods: Period[] };
     const program: DailyProgram = { ...this.zoneConfig.time_program };
     const key = dayIndexToKey(dayIndex);
     program[key] = periods;
     try {
-      await this.ws.setZoneTimeProgram(this.zoneId, program);
+      if (this.isDefault) {
+        await this.ws.setTimeProgram(program);
+      } else {
+        await this.ws.setZoneTimeProgram(this.zoneId, program);
+      }
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
@@ -380,12 +392,16 @@ export class ZoneTab extends LitElement {
 
   /**
    * Add a room to this zone (D-09).
-   * For Default Zone (zoneId="default"), sends zone_id="default" — backend treats as Default Zone membership.
-   * NOTE: If backend rejects "default" here, flag it rather than silently dropping the assignment.
+   * When isDefault is true, sends zone_id: null — Task 1's backend handler interprets
+   * null as 'pop zone_id' per D-06 sparse model (gap WR-01 fix).
    */
   private async _onAddRoom(roomId: string) {
     try {
-      await this.ws.setRoomConfig(roomId, { zone_id: this.zoneId });
+      if (this.isDefault) {
+        await this.ws.setRoomConfig(roomId, { zone_id: null as unknown as string | undefined });
+      } else {
+        await this.ws.setRoomConfig(roomId, { zone_id: this.zoneId });
+      }
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
@@ -395,12 +411,13 @@ export class ZoneTab extends LitElement {
 
   /**
    * Remove a room from a custom zone (D-08).
-   * Sends setRoomConfig with zone_id: undefined so the sparse model removes the key.
+   * Sends setRoomConfig with zone_id: null — Task 1's backend handler interprets null
+   * as 'pop zone_id' per D-06 sparse model (gap CR-03 fix from VERIFICATION 06-04).
    * Absent zone_id = Default Zone member (D-06 phase 4).
    * Not rendered for Default Zone (rooms can't be removed — no other zone to send them to).
    */
   private async _onRemoveRoom(roomId: string) {
-    const patch: Partial<RoomConfig> = { zone_id: undefined };
+    const patch: Partial<RoomConfig> = { zone_id: null as unknown as string | undefined };
     try {
       await this.ws.setRoomConfig(roomId, patch);
       await this.panel.reloadConfig();

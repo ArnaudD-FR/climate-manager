@@ -455,7 +455,7 @@ export class RoomCard extends LitElement {
 
   private async _onZoneChange(e: Event) {
     const newZoneId = (e.target as HTMLSelectElement).value;
-    const patch: Partial<RoomConfig> = newZoneId ? { zone_id: newZoneId } : { zone_id: undefined };
+    const patch: Partial<RoomConfig> = newZoneId ? { zone_id: newZoneId } : { zone_id: null as unknown as string | undefined };
     try {
       await this.ws.setRoomConfig(this.roomId, patch);
       await this.panel.reloadConfig();

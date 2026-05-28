@@ -682,3 +682,90 @@ async def test_ws_reset_zone_time_program_global(hass, hass_ws_client):
     assert entry.runtime_data.runtime_config["global_time_program"]["wed"] == [
         {"start": "00:00", "mode": "comfort"}
     ]
+
+
+# ---------------------------------------------------------------------------
+# Tests: set_room_config zone_id: null pops the key (CR-03 fix, gap 06-04)
+# ---------------------------------------------------------------------------
+
+
+async def test_set_room_config_pops_zone_id_when_null(hass, hass_ws_client):
+    """set_room_config with {zone_id: null} removes the zone_id key from the live room entry.
+
+    Verifies CR-03 fix: the backend handler pops zone_id from the live room entry
+    before the sparse-merge so the room becomes a Default Zone member (D-06).
+    """
+    entry = await _setup_entry(hass)
+
+    # Seed a zone and assign the room to it
+    zone_id = "some-uuid"
+    entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
+        "name": "Test Zone", "mode": MODE_TIME_PROGRAM,
+        "time_program": {d: [] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]},
+    }
+    entry.runtime_data.runtime_config.setdefault("rooms", {})["living_room"] = {"zone_id": zone_id}
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/set_room_config", "room_id": "living_room", "config": {"zone_id": None}}
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+    # zone_id must be absent — room is back in Default Zone (D-06 sparse model)
+    living_room = entry.runtime_data.runtime_config["rooms"]["living_room"]
+    assert "zone_id" not in living_room
+
+
+async def test_set_room_config_null_zone_id_is_idempotent_when_already_absent(hass, hass_ws_client):
+    """set_room_config with {zone_id: null} on a room with no zone_id is a no-op (idempotent).
+
+    Verifies CR-03 fix: when zone_id is already absent, the pop is a no-op and the
+    handler succeeds without error.
+    """
+    entry = await _setup_entry(hass)
+
+    # Seed a room with no zone_id (already a Default Zone member)
+    entry.runtime_data.runtime_config.setdefault("rooms", {})["living_room"] = {"room_mode": "global"}
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/set_room_config", "room_id": "living_room", "config": {"zone_id": None}}
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+    # Room must still equal its original value (no zone_id key added)
+    living_room = entry.runtime_data.runtime_config["rooms"]["living_room"]
+    assert living_room == {"room_mode": "global"}
+
+
+async def test_set_room_config_null_zone_id_preserves_other_keys(hass, hass_ws_client):
+    """set_room_config with {zone_id: null, room_mode: 'custom'} pops zone_id but keeps other keys.
+
+    Verifies the pop is targeted — other keys in the patch are still applied via
+    the sparse-merge, and zone_id is correctly absent from the resulting room entry.
+    """
+    entry = await _setup_entry(hass)
+
+    entry.runtime_data.runtime_config.setdefault("rooms", {})["living_room"] = {}
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_room_config",
+            "room_id": "living_room",
+            "config": {"zone_id": None, "room_mode": "custom"},
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+    living_room = entry.runtime_data.runtime_config["rooms"]["living_room"]
+    # zone_id must NOT be present
+    assert "zone_id" not in living_room
+    # room_mode must be applied via sparse-merge
+    assert living_room.get("room_mode") == "custom"
