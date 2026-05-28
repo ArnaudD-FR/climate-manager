@@ -633,7 +633,7 @@ export class RoomCard extends LitElement {
       : "global";
     const badgeText = resolvedMode === "frost_protection" ? "Frost protection"
       : resolvedMode === "custom" ? "Custom program"
-      : "Global program";
+      : "Zone program";
 
     return html`
       <ha-card>
@@ -667,7 +667,7 @@ export class RoomCard extends LitElement {
                   .value=${resolvedMode}
                   @change=${this._onRoomModeChange}
                 >
-                  <option value="global" ?selected=${resolvedMode === "global"}>Global program</option>
+                  <option value="global" ?selected=${resolvedMode === "global"}>Zone program</option>
                   <option value="frost_protection" ?selected=${resolvedMode === "frost_protection"}>Frost protection</option>
                   <option value="custom" ?selected=${resolvedMode === "custom"}>Custom program</option>
                 </select>
