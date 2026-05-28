@@ -241,6 +241,12 @@ export class ZoneTab extends LitElement {
       border: 1px solid var(--divider-color, #e0e0e0);
       font-size: 13px;
       color: var(--primary-text-color);
+      cursor: pointer;
+    }
+
+    .chip:hover {
+      background: var(--secondary-background-color, #eeeeee);
+      border-color: var(--primary-color);
     }
 
     .chip ha-icon {
@@ -557,11 +563,11 @@ export class ZoneTab extends LitElement {
     const unassignedRooms = this._getUnassignedRoomItems();
 
     const renderChip = (roomId: string) => html`
-      <span class="chip">
+      <span class="chip" @click=${() => void this.panel.navigateToRoom(roomId)}>
         <ha-icon icon="mdi:home-outline"></ha-icon>
         ${this._getRoomName(roomId)}
         ${!this.isDefault
-          ? html`<button class="chip-remove" @click=${() => void this._onRemoveRoom(roomId)}>×</button>`
+          ? html`<button class="chip-remove" @click=${(e: Event) => { e.stopPropagation(); void this._onRemoveRoom(roomId); }}>×</button>`
           : ""}
       </span>
     `;

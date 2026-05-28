@@ -10,7 +10,7 @@
  * interaction end (D-09). Toast feedback on success/error (D-10).
  */
 
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import type { RoomConfig, RoomStatus, DailyProgram, Period, ClimateConfig, Hass } from "../types.js";
@@ -35,6 +35,8 @@ export class RoomCard extends LitElement {
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
   @property({ attribute: false }) hass!: Hass;
+  /** When true for one render cycle, auto-expands the card and scrolls it into view. */
+  @property({ type: Boolean }) autoExpand = false;
 
   /** Whether the card is expanded. Default: expanded when room_mode is "custom". */
   @state() _expanded = false;
@@ -59,6 +61,13 @@ export class RoomCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this._expanded = false;
+  }
+
+  updated(changedProperties: PropertyValues) {
+    if (changedProperties.has("autoExpand") && this.autoExpand) {
+      this._expanded = true;
+      this.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   }
 
   static styles = css`
@@ -145,6 +154,11 @@ export class RoomCard extends LitElement {
       font-size: 12px;
       font-weight: 400;
       border: 1px solid;
+      cursor: pointer;
+    }
+
+    .zone-badge:hover {
+      opacity: 0.8;
     }
 
     .card-content {
@@ -646,7 +660,11 @@ export class RoomCard extends LitElement {
                 class="program-badge ${badgeClass}"
                 style=${badgeClass === "frost" ? `background: ${PERIOD_COLORS.frost_protection}; color: white;` : ""}
               >${badgeText}</span>
-              <span class="zone-badge" style=${(() => { const c = getZoneColor(this.config?.zone_id); return `background:${c.background};color:${c.color};border-color:${c.border}`; })()}>${this._getZoneName()}</span>
+              <span
+                class="zone-badge"
+                style=${(() => { const c = getZoneColor(this.config?.zone_id); return `background:${c.background};color:${c.color};border-color:${c.border}`; })()}
+                @click=${(e: Event) => { e.stopPropagation(); this.panel.navigateToZone(this.config?.zone_id); }}
+              >${this._getZoneName()}</span>
             </div>
             ${this._renderHeaderStatus()}
           </div>

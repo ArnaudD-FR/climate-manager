@@ -45,6 +45,7 @@ export class ClimateManagerPanel extends LitElement {
   @state() private _wsError = false;
   @state() private _editingTabId: string | null = null;
   @state() private _tabNameInput = "";
+  @state() private _expandRoomId: string | null = null;
 
   @query("climate-manager-toast")
   private _toast?: ClimateManagerToast;
@@ -236,6 +237,19 @@ export class ClimateManagerPanel extends LitElement {
     this._toast?.show(message, isError);
   }
 
+  /** Navigate to a zone tab. Pass undefined/null for the Default Zone. */
+  navigateToZone(zoneId: string | undefined | null): void {
+    this._setTab(zoneId ? "zone_" + zoneId : "zone_default");
+  }
+
+  /** Navigate to the Rooms tab and auto-expand the given room card. */
+  async navigateToRoom(roomId: string): Promise<void> {
+    this._setTab("rooms");
+    this._expandRoomId = roomId;
+    await this.updateComplete;
+    this._expandRoomId = null;
+  }
+
   /** Patch a subset of _config in-place without a WS round-trip. */
   patchConfig(patch: Partial<ClimateConfig>): void {
     if (this._config) this._config = { ...this._config, ...patch };
@@ -425,6 +439,7 @@ export class ClimateManagerPanel extends LitElement {
           .ws=${this._ws!}
           .panel=${this}
           .hass=${this.hass}
+          .expandRoomId=${this._expandRoomId}
         ></climate-manager-rooms-tab>`;
       case "persons":
         return html`<climate-manager-persons-tab

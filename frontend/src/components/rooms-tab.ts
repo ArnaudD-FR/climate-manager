@@ -25,6 +25,7 @@ export class RoomsTab extends LitElement {
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
   @property({ attribute: false }) hass!: Hass;
+  @property({ attribute: false }) expandRoomId: string | null = null;
 
   static styles = css`
     :host {
@@ -132,6 +133,7 @@ export class RoomsTab extends LitElement {
           .ws=${this.ws}
           .panel=${this.panel}
           .hass=${this.hass}
+          .autoExpand=${this.expandRoomId === roomId}
         ></climate-manager-room-card>
       `;
     };
