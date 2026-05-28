@@ -86,6 +86,14 @@ None yet.
 | v2 | Predictive pre-heat | Deferred |
 | v2 | Per-zone temperature setpoints | Deferred |
 
+## Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260528-417 | checks if ha-tado-x is compatible | 2026-05-28 | — | [260528-417-check-ha-tado-x-compatibility](./quick/260528-417-check-ha-tado-x-compatibility/) |
+
+Last activity: 2026-05-28 - Completed quick task 260528-417: checks if ha-tado-x is compatible
+
 ## Session Continuity
 
 Last session: 2026-05-27T09:57:37.252Z
