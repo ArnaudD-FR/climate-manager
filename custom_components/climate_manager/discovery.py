@@ -43,7 +43,11 @@ async def discover_rooms(hass: HomeAssistant) -> dict[str, list[str]]:
 
     # Pass 1: direct entity-level area assignment
     for entry in entity_reg.entities.values():
-        if entry.entity_id.split(".")[0] == "climate" and entry.area_id in known_area_ids:
+        if (
+            entry.entity_id.split(".")[0] == "climate"
+            and entry.area_id in known_area_ids
+            and not entry.disabled_by
+        ):
             rooms[entry.area_id].append(entry.entity_id)  # type: ignore[index]
             seen.add(entry.entity_id)
 
@@ -53,6 +57,7 @@ async def discover_rooms(hass: HomeAssistant) -> dict[str, list[str]]:
         if (
             eid.split(".")[0] == "climate"
             and eid not in seen
+            and not entry.disabled_by
             and entry.area_id is None
             and entry.device_id is not None
         ):

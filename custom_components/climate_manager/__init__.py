@@ -193,13 +193,19 @@ async def async_setup_entry(
 
     @callback
     def _handle_entity_registry_updated(event: Event) -> None:
-        """Re-discover rooms when a climate entity is added or removed."""
+        """Re-discover rooms when a climate entity is added, removed, or disabled/re-enabled."""
         action = event.data.get("action")
         entity_id = event.data.get("entity_id", "")
-        # Only react to create/remove of climate.* entities.
-        if action not in ("create", "remove"):
-            return
         if not entity_id.startswith("climate."):
+            return
+        if action in ("create", "remove"):
+            pass  # always re-discover
+        elif action == "update":
+            # Re-discover only when disability status or area assignment changes.
+            changes = event.data.get("changes", {})
+            if "disabled_by" not in changes and "area_id" not in changes:
+                return
+        else:
             return
         hass.async_create_task(
             _async_refresh_rooms(hass, entry),
