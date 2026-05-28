@@ -205,6 +205,25 @@ export class ZoneTab extends LitElement {
     }
 
     /* Chip association UI — from room-card.ts */
+    .floor-group-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--secondary-text-color);
+      margin: 8px 0 4px;
+    }
+
+    .floor-group-label ha-icon {
+      --mdc-icon-size: 14px;
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
     .chips {
       display: flex;
       flex-wrap: wrap;
@@ -429,6 +448,31 @@ export class ZoneTab extends LitElement {
     });
   }
 
+  /** Assigned rooms grouped by floor, each group sorted alphabetically. Floors ordered descending by level (upper first). */
+  private _getSortedAssignedRoomGroups(): Array<{ floorId: string | null; floorName: string; roomIds: string[] }> {
+    const assignedIds = this._getAssignedRoomIds();
+    const floorGroups = new Map<string | null, string[]>();
+    for (const roomId of assignedIds) {
+      const floorId = this.hass?.areas?.[roomId]?.floor_id ?? null;
+      if (!floorGroups.has(floorId)) floorGroups.set(floorId, []);
+      floorGroups.get(floorId)!.push(roomId);
+    }
+    for (const ids of floorGroups.values()) {
+      ids.sort((a, b) => this._getRoomName(a).localeCompare(this._getRoomName(b)));
+    }
+    const sortedFloorIds = [...floorGroups.keys()]
+      .filter((fid): fid is string => fid !== null)
+      .sort((a, b) => (this.hass?.floors?.[b]?.level ?? 0) - (this.hass?.floors?.[a]?.level ?? 0));
+    const result: Array<{ floorId: string | null; floorName: string; roomIds: string[] }> = sortedFloorIds.map((fid) => ({
+      floorId: fid,
+      floorName: this.hass?.floors?.[fid]?.name ?? fid,
+      roomIds: floorGroups.get(fid)!,
+    }));
+    const floorless = floorGroups.get(null) ?? [];
+    if (floorless.length) result.push({ floorId: null, floorName: "", roomIds: floorless });
+    return result;
+  }
+
   /**
    * Returns rooms NOT assigned to this zone, shaped for the search-picker.
    * Per D-10: includes rooms in other zones (valid reassignment targets).
@@ -448,9 +492,32 @@ export class ZoneTab extends LitElement {
   // Render
   // -------------------------------------------------------------------------
 
+  private _getFloorIcon(fid: string): string {
+    const floor = this.hass?.floors?.[fid];
+    if (floor?.icon) return floor.icon;
+    const level = floor?.level ?? 0;
+    if (level === -1) return "mdi:home-floor-negative-1";
+    if (level < 0) return "mdi:home-floor-b";
+    if (level === 1) return "mdi:home-floor-1";
+    if (level === 2) return "mdi:home-floor-2";
+    if (level === 3) return "mdi:home-floor-3";
+    if (level > 3) return "mdi:home-floor-3";
+    return "mdi:home-floor-0";
+  }
+
   render() {
-    const assignedRoomIds = this._getAssignedRoomIds();
+    const roomGroups = this._getSortedAssignedRoomGroups();
     const unassignedRooms = this._getUnassignedRoomItems();
+
+    const renderChip = (roomId: string) => html`
+      <span class="chip">
+        <ha-icon icon="mdi:home-outline"></ha-icon>
+        ${this._getRoomName(roomId)}
+        ${!this.isDefault
+          ? html`<button class="chip-remove" @click=${() => void this._onRemoveRoom(roomId)}>×</button>`
+          : ""}
+      </span>
+    `;
 
     return html`
       <!-- 1. Mode picker -->
@@ -473,18 +540,17 @@ export class ZoneTab extends LitElement {
       <!-- 5. Assigned Rooms section (D-08 / D-09 / D-10) -->
       <div class="section-divider"></div>
       <div class="section-label">Assigned rooms</div>
-      <div class="chips">
-        ${assignedRoomIds.map((roomId) => html`
-          <span class="chip">
-            <ha-icon icon="mdi:home-outline"></ha-icon>
-            ${this._getRoomName(roomId)}
-            ${!this.isDefault
-              ? html`<button class="chip-remove" @click=${() => void this._onRemoveRoom(roomId)}>×</button>`
-              : ""}
-          </span>
-        `)}
-        ${unassignedRooms.length > 0
-          ? html`
+      ${roomGroups.map((group) => html`
+        ${group.floorId !== null
+          ? html`<div class="floor-group-label"><ha-icon icon=${this._getFloorIcon(group.floorId)}></ha-icon>${group.floorName}</div>`
+          : ""}
+        <div class="chips">
+          ${group.roomIds.map(renderChip)}
+        </div>
+      `)}
+      ${unassignedRooms.length > 0
+        ? html`
+          <div class="chips">
             <search-picker
               .items=${unassignedRooms}
               triggerLabel="Add room"
@@ -492,9 +558,10 @@ export class ZoneTab extends LitElement {
               placeholder="Search rooms…"
               @picked=${this._onRoomPicked}
             ></search-picker>
-          `
-          : ""}
-      </div>
+          </div>
+        `
+        : ""}
+
 
       <!-- Delete row (custom zones only, D-05) -->
       ${!this.isDefault
