@@ -22,7 +22,7 @@ let rt = class {
     return this.cssText;
   }
 };
-const at = (a) => new rt(typeof a == "string" ? a : a + "", void 0, ze), M = (a, ...e) => {
+const at = (a) => new rt(typeof a == "string" ? a : a + "", void 0, ze), A = (a, ...e) => {
   const t = a.length === 1 ? a[0] : e.reduce((o, s, i) => o + ((r) => {
     if (r._$cssResult$ === !0) return r.cssText;
     if (typeof r == "number") return r;
@@ -284,12 +284,12 @@ W.elementStyles = [], W.shadowRootOptions = { mode: "open" }, W[se("elementPrope
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const oe = globalThis, Ye = (a) => a, ge = oe.trustedTypes, Je = ge ? ge.createPolicy("lit-html", { createHTML: (a) => a }) : void 0, nt = "$lit$", O = `lit$${Math.random().toFixed(9).slice(2)}$`, lt = "?" + O, yt = `<${lt}>`, V = document, ie = () => V.createComment(""), re = (a) => a === null || typeof a != "object" && typeof a != "function", Ae = Array.isArray, xt = (a) => Ae(a) || typeof (a == null ? void 0 : a[Symbol.iterator]) == "function", ye = `[ 	
-\f\r]`, ee = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, Ke = /-->/g, Qe = />/g, Z = RegExp(`>|${ye}(?:([^\\s"'>=/]+)(${ye}*=${ye}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), et = /'/g, tt = /"/g, ct = /^(?:script|style|textarea|title)$/i, $t = (a) => (e, ...t) => ({ _$litType$: a, strings: e, values: t }), c = $t(1), G = Symbol.for("lit-noChange"), x = Symbol.for("lit-nothing"), st = /* @__PURE__ */ new WeakMap(), F = V.createTreeWalker(V, 129);
+const oe = globalThis, Ye = (a) => a, ge = oe.trustedTypes, Ke = ge ? ge.createPolicy("lit-html", { createHTML: (a) => a }) : void 0, nt = "$lit$", O = `lit$${Math.random().toFixed(9).slice(2)}$`, lt = "?" + O, yt = `<${lt}>`, V = document, ie = () => V.createComment(""), re = (a) => a === null || typeof a != "object" && typeof a != "function", Ae = Array.isArray, xt = (a) => Ae(a) || typeof (a == null ? void 0 : a[Symbol.iterator]) == "function", ye = `[ 	
+\f\r]`, ee = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, Je = /-->/g, Qe = />/g, Z = RegExp(`>|${ye}(?:([^\\s"'>=/]+)(${ye}*=${ye}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), et = /'/g, tt = /"/g, ct = /^(?:script|style|textarea|title)$/i, $t = (a) => (e, ...t) => ({ _$litType$: a, strings: e, values: t }), c = $t(1), G = Symbol.for("lit-noChange"), x = Symbol.for("lit-nothing"), st = /* @__PURE__ */ new WeakMap(), q = V.createTreeWalker(V, 129);
 function dt(a, e) {
   if (!Ae(a) || !a.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return Je !== void 0 ? Je.createHTML(e) : e;
+  return Ke !== void 0 ? Ke.createHTML(e) : e;
 }
 const wt = (a, e) => {
   const t = a.length - 1, o = [];
@@ -297,7 +297,7 @@ const wt = (a, e) => {
   for (let n = 0; n < t; n++) {
     const l = a[n];
     let d, p, h = -1, _ = 0;
-    for (; _ < l.length && (r.lastIndex = _, p = r.exec(l), p !== null); ) _ = r.lastIndex, r === ee ? p[1] === "!--" ? r = Ke : p[1] !== void 0 ? r = Qe : p[2] !== void 0 ? (ct.test(p[2]) && (s = RegExp("</" + p[2], "g")), r = Z) : p[3] !== void 0 && (r = Z) : r === Z ? p[0] === ">" ? (r = s ?? ee, h = -1) : p[1] === void 0 ? h = -2 : (h = r.lastIndex - p[2].length, d = p[1], r = p[3] === void 0 ? Z : p[3] === '"' ? tt : et) : r === tt || r === et ? r = Z : r === Ke || r === Qe ? r = ee : (r = Z, s = void 0);
+    for (; _ < l.length && (r.lastIndex = _, p = r.exec(l), p !== null); ) _ = r.lastIndex, r === ee ? p[1] === "!--" ? r = Je : p[1] !== void 0 ? r = Qe : p[2] !== void 0 ? (ct.test(p[2]) && (s = RegExp("</" + p[2], "g")), r = Z) : p[3] !== void 0 && (r = Z) : r === Z ? p[0] === ">" ? (r = s ?? ee, h = -1) : p[1] === void 0 ? h = -2 : (h = r.lastIndex - p[2].length, d = p[1], r = p[3] === void 0 ? Z : p[3] === '"' ? tt : et) : r === tt || r === et ? r = Z : r === Je || r === Qe ? r = ee : (r = Z, s = void 0);
     const b = r === Z && a[n + 1].startsWith("/>") ? " " : "";
     i += r === ee ? l + yt : h >= 0 ? (o.push(d), l.slice(0, h) + nt + l.slice(h) + O + b) : l + O + (h === -2 ? n : b);
   }
@@ -309,21 +309,21 @@ class ae {
     this.parts = [];
     let i = 0, r = 0;
     const n = e.length - 1, l = this.parts, [d, p] = wt(e, t);
-    if (this.el = ae.createElement(d, o), F.currentNode = this.el.content, t === 2 || t === 3) {
+    if (this.el = ae.createElement(d, o), q.currentNode = this.el.content, t === 2 || t === 3) {
       const h = this.el.content.firstChild;
       h.replaceWith(...h.childNodes);
     }
-    for (; (s = F.nextNode()) !== null && l.length < n; ) {
+    for (; (s = q.nextNode()) !== null && l.length < n; ) {
       if (s.nodeType === 1) {
         if (s.hasAttributes()) for (const h of s.getAttributeNames()) if (h.endsWith(nt)) {
           const _ = p[r++], b = s.getAttribute(h).split(O), y = /([.?@])?(.*)/.exec(_);
-          l.push({ type: 1, index: i, name: y[2], strings: b, ctor: y[1] === "." ? kt : y[1] === "?" ? St : y[1] === "@" ? Pt : fe }), s.removeAttribute(h);
+          l.push({ type: 1, index: i, name: y[2], strings: b, ctor: y[1] === "." ? Ct : y[1] === "?" ? St : y[1] === "@" ? Pt : fe }), s.removeAttribute(h);
         } else h.startsWith(O) && (l.push({ type: 6, index: i }), s.removeAttribute(h));
         if (ct.test(s.tagName)) {
           const h = s.textContent.split(O), _ = h.length - 1;
           if (_ > 0) {
             s.textContent = ge ? ge.emptyScript : "";
-            for (let b = 0; b < _; b++) s.append(h[b], ie()), F.nextNode(), l.push({ type: 2, index: ++i });
+            for (let b = 0; b < _; b++) s.append(h[b], ie()), q.nextNode(), l.push({ type: 2, index: ++i });
             s.append(h[_], ie());
           }
         }
@@ -347,7 +347,7 @@ function Y(a, e, t = a, o) {
   const i = re(e) ? void 0 : e._$litDirective$;
   return (s == null ? void 0 : s.constructor) !== i && ((n = s == null ? void 0 : s._$AO) == null || n.call(s, !1), i === void 0 ? s = void 0 : (s = new i(a), s._$AT(a, t, o)), o !== void 0 ? (t._$Co ?? (t._$Co = []))[o] = s : t._$Cl = s), s !== void 0 && (e = Y(a, s._$AS(a, e.values), s, o)), e;
 }
-class Ct {
+class kt {
   constructor(e, t) {
     this._$AV = [], this._$AN = void 0, this._$AD = e, this._$AM = t;
   }
@@ -359,16 +359,16 @@ class Ct {
   }
   u(e) {
     const { el: { content: t }, parts: o } = this._$AD, s = ((e == null ? void 0 : e.creationScope) ?? V).importNode(t, !0);
-    F.currentNode = s;
-    let i = F.nextNode(), r = 0, n = 0, l = o[0];
+    q.currentNode = s;
+    let i = q.nextNode(), r = 0, n = 0, l = o[0];
     for (; l !== void 0; ) {
       if (r === l.index) {
         let d;
         l.type === 2 ? d = new ne(i, i.nextSibling, this, e) : l.type === 1 ? d = new l.ctor(i, l.name, l.strings, this, e) : l.type === 6 && (d = new Tt(i, this, e)), this._$AV.push(d), l = o[++n];
       }
-      r !== (l == null ? void 0 : l.index) && (i = F.nextNode(), r++);
+      r !== (l == null ? void 0 : l.index) && (i = q.nextNode(), r++);
     }
-    return F.currentNode = V, s;
+    return q.currentNode = V, s;
   }
   p(e) {
     let t = 0;
@@ -411,7 +411,7 @@ class ne {
     const { values: t, _$litType$: o } = e, s = typeof o == "number" ? this._$AC(e) : (o.el === void 0 && (o.el = ae.createElement(dt(o.h, o.h[0]), this.options)), o);
     if (((i = this._$AH) == null ? void 0 : i._$AD) === s) this._$AH.p(t);
     else {
-      const r = new Ct(s, this), n = r.u(this.options);
+      const r = new kt(s, this), n = r.u(this.options);
       r.p(t), this.T(n), this._$AH = r;
     }
   }
@@ -463,7 +463,7 @@ class fe {
     e === x ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, e ?? "");
   }
 }
-class kt extends fe {
+class Ct extends fe {
   constructor() {
     super(...arguments), this.type = 3;
   }
@@ -520,7 +520,7 @@ const zt = (a, e, t) => {
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const q = globalThis;
+const F = globalThis;
 class w extends W {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
@@ -547,10 +547,10 @@ class w extends W {
   }
 }
 var it;
-w._$litElement$ = !0, w.finalized = !0, (it = q.litElementHydrateSupport) == null || it.call(q, { LitElement: w });
-const $e = q.litElementPolyfillSupport;
+w._$litElement$ = !0, w.finalized = !0, (it = F.litElementHydrateSupport) == null || it.call(F, { LitElement: w });
+const $e = F.litElementPolyfillSupport;
 $e == null || $e({ LitElement: w });
-(q.litElementVersions ?? (q.litElementVersions = [])).push("4.2.2");
+(F.litElementVersions ?? (F.litElementVersions = [])).push("4.2.2");
 /**
  * @license
  * Copyright 2017 Google LLC
@@ -790,7 +790,7 @@ const De = class De extends w {
     `;
   }
 };
-De.styles = M`
+De.styles = A`
     :host {
       position: fixed;
       bottom: 24px;
@@ -835,17 +835,17 @@ De.styles = M`
       color: var(--error-color, #db4437);
     }
   `;
-let J = De;
+let K = De;
 Ee([
   v()
-], J.prototype, "_visible");
+], K.prototype, "_visible");
 Ee([
   v()
-], J.prototype, "_message");
+], K.prototype, "_message");
 Ee([
   v()
-], J.prototype, "_isError");
-customElements.define("climate-manager-toast", J);
+], K.prototype, "_isError");
+customElements.define("climate-manager-toast", K);
 const N = {
   frost_protection: "#1565C0",
   reduced: "#0277BD",
@@ -862,7 +862,7 @@ const N = {
   present: "Present",
   absent: "Absent"
 };
-var It = Object.defineProperty, D = (a, e, t, o) => {
+var It = Object.defineProperty, I = (a, e, t, o) => {
   for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && It(e, t, s), s;
@@ -1360,7 +1360,7 @@ const Nt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Ot = ["frost_prote
     return c``;
   }
 };
-Ie.styles = M`
+Ie.styles = A`
     :host {
       display: block;
       user-select: none;
@@ -1625,35 +1625,35 @@ Ie.styles = M`
       color: var(--error-color, #db4437);
     }
   `;
-let P = Ie;
-D([
+let T = Ie;
+I([
   u({ type: Array })
-], P.prototype, "days");
-D([
+], T.prototype, "days");
+I([
   u({ type: String })
-], P.prototype, "mode");
-D([
+], T.prototype, "mode");
+I([
   v()
-], P.prototype, "_clipboard");
-D([
+], T.prototype, "_clipboard");
+I([
   v()
-], P.prototype, "_drag");
-D([
+], T.prototype, "_drag");
+I([
   v()
-], P.prototype, "_dragTooltipMinutes");
-D([
+], T.prototype, "_dragTooltipMinutes");
+I([
   v()
-], P.prototype, "_dragTooltipX");
-D([
+], T.prototype, "_dragTooltipX");
+I([
   v()
-], P.prototype, "_dragTooltipY");
-D([
+], T.prototype, "_dragTooltipY");
+I([
   v()
-], P.prototype, "_dragPreviewDays");
-D([
+], T.prototype, "_dragPreviewDays");
+I([
   v()
-], P.prototype, "_popup");
-customElements.define("climate-manager-time-bar", P);
+], T.prototype, "_popup");
+customElements.define("climate-manager-time-bar", T);
 var Ut = Object.defineProperty, le = (a, e, t, o) => {
   for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
     (r = a[i]) && (s = r(e, t, s) || s);
@@ -1856,7 +1856,7 @@ const Se = "off", ue = "time_program", Pe = "time_program_presences", jt = {
     `;
   }
 };
-Ne.styles = M`
+Ne.styles = A`
     :host {
       display: block;
       --present-color: ${at(te.present)};
@@ -2035,7 +2035,7 @@ le([
   u({ attribute: !1 })
 ], U.prototype, "hass");
 customElements.define("climate-manager-global-settings-tab", U);
-var Lt = Object.defineProperty, K = (a, e, t, o) => {
+var Lt = Object.defineProperty, J = (a, e, t, o) => {
   for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && Lt(e, t, s), s;
@@ -2149,7 +2149,7 @@ const Oe = class Oe extends w {
     `;
   }
 };
-Oe.styles = M`
+Oe.styles = A`
     :host {
       display: inline-block;
       position: relative;
@@ -2281,27 +2281,27 @@ Oe.styles = M`
       text-align: center;
     }
   `;
-let R = Oe;
-K([
+let D = Oe;
+J([
   u({ type: Array })
-], R.prototype, "items");
-K([
+], D.prototype, "items");
+J([
   u({ type: String })
-], R.prototype, "placeholder");
-K([
+], D.prototype, "placeholder");
+J([
   u({ type: String })
-], R.prototype, "triggerLabel");
-K([
+], D.prototype, "triggerLabel");
+J([
   u({ type: String })
-], R.prototype, "triggerIcon");
-K([
+], D.prototype, "triggerIcon");
+J([
   v()
-], R.prototype, "_open");
-K([
+], D.prototype, "_open");
+J([
   v()
-], R.prototype, "_query");
-customElements.define("search-picker", R);
-var Bt = Object.defineProperty, A = (a, e, t, o) => {
+], D.prototype, "_query");
+customElements.define("search-picker", D);
+var Bt = Object.defineProperty, E = (a, e, t, o) => {
   for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && Bt(e, t, s), s;
@@ -2623,7 +2623,7 @@ const He = class He extends w {
     `;
   }
 };
-He.styles = M`
+He.styles = A`
     :host {
       display: block;
     }
@@ -2876,34 +2876,34 @@ He.styles = M`
     }
   `;
 let C = He;
-A([
+E([
   u({ type: String })
 ], C.prototype, "roomId");
-A([
+E([
   u({ type: String })
 ], C.prototype, "roomName");
-A([
+E([
   u({ attribute: !1 })
 ], C.prototype, "config");
-A([
+E([
   u({ attribute: !1 })
 ], C.prototype, "roomStatus");
-A([
+E([
   u({ attribute: !1 })
 ], C.prototype, "panelConfig");
-A([
+E([
   u({ attribute: !1 })
 ], C.prototype, "status");
-A([
+E([
   u({ attribute: !1 })
 ], C.prototype, "ws");
-A([
+E([
   u({ attribute: !1 })
 ], C.prototype, "panel");
-A([
+E([
   u({ attribute: !1 })
 ], C.prototype, "hass");
-A([
+E([
   v()
 ], C.prototype, "_expanded");
 customElements.define("climate-manager-room-card", C);
@@ -2933,7 +2933,7 @@ const Ue = class Ue extends w {
       `;
     const s = (m) => {
       var f, g, $;
-      return (($ = (g = (f = this.status) == null ? void 0 : f.rooms_status) == null ? void 0 : g.find((S) => S.area_id === m)) == null ? void 0 : $.name) ?? m.replace(/_/g, " ").replace(/\b\w/g, (S) => S.toUpperCase());
+      return (($ = (g = (f = this.status) == null ? void 0 : f.rooms_status) == null ? void 0 : g.find((P) => P.area_id === m)) == null ? void 0 : $.name) ?? m.replace(/_/g, " ").replace(/\b\w/g, (P) => P.toUpperCase());
     }, i = /* @__PURE__ */ new Map();
     for (const m of o) {
       const f = ((y = (b = (_ = this.hass) == null ? void 0 : _.areas) == null ? void 0 : b[m]) == null ? void 0 : y.floor_id) ?? null;
@@ -2943,8 +2943,8 @@ const Ue = class Ue extends w {
       m.sort((f, g) => s(f).localeCompare(s(g)));
     const r = [...i.keys()].filter((m) => m !== null).sort(
       (m, f) => {
-        var g, $, S, Q, Fe, qe;
-        return (((S = ($ = (g = this.hass) == null ? void 0 : g.floors) == null ? void 0 : $[f]) == null ? void 0 : S.level) ?? 0) - (((qe = (Fe = (Q = this.hass) == null ? void 0 : Q.floors) == null ? void 0 : Fe[m]) == null ? void 0 : qe.level) ?? 0);
+        var g, $, P, Q, qe, Fe;
+        return (((P = ($ = (g = this.hass) == null ? void 0 : g.floors) == null ? void 0 : $[f]) == null ? void 0 : P.level) ?? 0) - (((Fe = (qe = (Q = this.hass) == null ? void 0 : Q.floors) == null ? void 0 : qe[m]) == null ? void 0 : Fe.level) ?? 0);
       }
     ), n = i.get(null) ?? [], l = (m) => {
       const f = e[m] ?? {}, g = this._getRoomStatus(m), $ = s(m);
@@ -2962,16 +2962,16 @@ const Ue = class Ue extends w {
         ></climate-manager-room-card>
       `;
     }, d = (m) => {
-      var $, S;
-      const f = (S = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : S[m];
+      var $, P;
+      const f = (P = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : P[m];
       if (f != null && f.icon) return f.icon;
       const g = (f == null ? void 0 : f.level) ?? 0;
       return g === -1 ? "mdi:home-floor-negative-1" : g < 0 ? "mdi:home-floor-b" : g === 1 ? "mdi:home-floor-1" : g === 2 ? "mdi:home-floor-2" : g === 3 || g > 3 ? "mdi:home-floor-3" : "mdi:home-floor-0";
     };
     return c`
       ${r.map((m) => {
-      var $, S, Q;
-      const f = ((Q = (S = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : S[m]) == null ? void 0 : Q.name) ?? m, g = i.get(m) ?? [];
+      var $, P, Q;
+      const f = ((Q = (P = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : P[m]) == null ? void 0 : Q.name) ?? m, g = i.get(m) ?? [];
       return c`
           <div class="floor-header">
             <ha-icon icon=${d(m)}></ha-icon>
@@ -2984,7 +2984,7 @@ const Ue = class Ue extends w {
     `;
   }
 };
-Ue.styles = M`
+Ue.styles = A`
     :host {
       display: block;
     }
@@ -3037,12 +3037,12 @@ ce([
   u({ attribute: !1 })
 ], j.prototype, "hass");
 customElements.define("climate-manager-rooms-tab", j);
-var Ft = Object.defineProperty, B = (a, e, t, o) => {
+var qt = Object.defineProperty, B = (a, e, t, o) => {
   for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
     (r = a[i]) && (s = r(e, t, s) || s);
-  return s && Ft(e, t, s), s;
+  return s && qt(e, t, s), s;
 };
-const X = "scheduled", we = "ha", Ce = "force_present", ke = "force_absent", ot = {
+const X = "scheduled", we = "ha", ke = "force_present", Ce = "force_absent", ot = {
   mon: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
   tue: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
   wed: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
@@ -3123,9 +3123,9 @@ const X = "scheduled", we = "ha", Ce = "force_present", ke = "force_absent", ot 
   _getBadgeInfo() {
     var t;
     switch (((t = this.config) == null ? void 0 : t.mode) ?? X) {
-      case Ce:
-        return { cls: "force-present", text: "Force Present" };
       case ke:
+        return { cls: "force-present", text: "Force Present" };
+      case Ce:
         return { cls: "force-absent", text: "Force Absent" };
       case we:
         return { cls: "ha", text: "HA home tracking" };
@@ -3164,8 +3164,8 @@ const X = "scheduled", we = "ha", Ce = "force_present", ke = "force_absent", ot 
                 <select class="mode-select" @change=${this._onModeChange}>
                   <option value=${X} ?selected=${o === X}>Scheduled</option>
                   <option value=${we} ?selected=${o === we}>HA home tracking</option>
-                  <option value=${Ce} ?selected=${o === Ce}>Force Present</option>
-                  <option value=${ke} ?selected=${o === ke}>Force Absent</option>
+                  <option value=${ke} ?selected=${o === ke}>Force Present</option>
+                  <option value=${Ce} ?selected=${o === Ce}>Force Absent</option>
                 </select>
               </div>
 
@@ -3222,7 +3222,7 @@ const X = "scheduled", we = "ha", Ce = "force_present", ke = "force_absent", ot 
     `;
   }
 };
-je.styles = M`
+je.styles = A`
     :host {
       display: block;
     }
@@ -3453,10 +3453,10 @@ B([
   v()
 ], z.prototype, "_expanded");
 customElements.define("climate-manager-person-card", z);
-var qt = Object.defineProperty, de = (a, e, t, o) => {
+var Ft = Object.defineProperty, de = (a, e, t, o) => {
   for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
     (r = a[i]) && (s = r(e, t, s) || s);
-  return s && qt(e, t, s), s;
+  return s && Ft(e, t, s), s;
 };
 const Le = class Le extends w {
   constructor() {
@@ -3513,7 +3513,7 @@ const Le = class Le extends w {
     `;
   }
 };
-Le.styles = M`
+Le.styles = A`
     :host {
       display: block;
     }
@@ -3543,7 +3543,7 @@ de([
   u({ attribute: !1 })
 ], L.prototype, "hass");
 customElements.define("climate-manager-persons-tab", L);
-var Vt = Object.defineProperty, E = (a, e, t, o) => {
+var Vt = Object.defineProperty, R = (a, e, t, o) => {
   for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && Vt(e, t, s), s;
@@ -3771,7 +3771,7 @@ const Be = class Be extends w {
     `;
   }
 };
-Be.styles = M`
+Be.styles = A`
     :host {
       display: block;
     }
@@ -3980,46 +3980,46 @@ Be.styles = M`
       height: 16px;
     }
   `;
-let k = Be;
-E([
+let S = Be;
+R([
   u({ attribute: !1 })
-], k.prototype, "config");
-E([
+], S.prototype, "config");
+R([
   u({ attribute: !1 })
-], k.prototype, "zoneId");
-E([
+], S.prototype, "zoneId");
+R([
   u({ attribute: !1 })
-], k.prototype, "zoneConfig");
-E([
+], S.prototype, "zoneConfig");
+R([
   u({ type: Boolean })
-], k.prototype, "isDefault");
-E([
+], S.prototype, "isDefault");
+R([
   u({ attribute: !1 })
-], k.prototype, "ws");
-E([
+], S.prototype, "ws");
+R([
   u({ attribute: !1 })
-], k.prototype, "panel");
-E([
+], S.prototype, "panel");
+R([
   u({ attribute: !1 })
-], k.prototype, "hass");
-E([
+], S.prototype, "hass");
+R([
   v()
-], k.prototype, "_editingName");
-E([
+], S.prototype, "_editingName");
+R([
   v()
-], k.prototype, "_nameInputValue");
-E([
+], S.prototype, "_nameInputValue");
+R([
   v()
-], k.prototype, "_confirmingDelete");
-customElements.define("climate-manager-zone-tab", k);
-var Xt = Object.defineProperty, I = (a, e, t, o) => {
+], S.prototype, "_confirmingDelete");
+customElements.define("climate-manager-zone-tab", S);
+var Xt = Object.defineProperty, M = (a, e, t, o) => {
   for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && Xt(e, t, s), s;
 };
 const Ze = class Ze extends w {
   constructor() {
-    super(...arguments), this.narrow = !1, this.panel = null, this._config = null, this._status = null, this._activeTab = localStorage.getItem("climate-manager-tab") ?? "global", this._unsubStatus = null, this._wsError = !1, this._ws = null;
+    super(...arguments), this.narrow = !1, this.panel = null, this._config = null, this._status = null, this._activeTab = localStorage.getItem("climate-manager-tab") ?? "global", this._unsubStatus = null, this._wsError = !1, this._editingTabId = null, this._tabNameInput = "", this._ws = null;
   }
   connectedCallback() {
     super.connectedCallback(), this._ws = new pe(this.hass), this._loadConfig(), this._loadStatus(), this._subscribeStatus();
@@ -4093,6 +4093,27 @@ const Ze = class Ze extends w {
       this.showToast("Create zone failed", !0);
     }
   }
+  async _onTabRename(e, t, o) {
+    var s, i;
+    o.stopPropagation(), this._editingTabId = e, this._tabNameInput = t, await this.updateComplete, (i = (s = this.shadowRoot) == null ? void 0 : s.querySelector(`input[data-zone="${e}"]`)) == null || i.select();
+  }
+  _onTabNameInput(e) {
+    this._tabNameInput = e.target.value;
+  }
+  async _onTabNameBlur(e) {
+    if (this._editingTabId !== e) return;
+    this._editingTabId = null;
+    const t = this._tabNameInput.trim();
+    if (!(!t || !this._ws))
+      try {
+        await this._ws.renameZone(e, t), await this._loadConfig(), this.showToast("Renamed", !1);
+      } catch {
+        this.showToast("Rename failed", !0);
+      }
+  }
+  _onTabNameKeydown(e, t) {
+    t.key === "Enter" ? t.target.blur() : t.key === "Escape" && (this._editingTabId = null);
+  }
   _setTab(e) {
     this._activeTab = e, localStorage.setItem("climate-manager-tab", e);
   }
@@ -4118,12 +4139,14 @@ const Ze = class Ze extends w {
         <button
           class="tab-btn ${this._activeTab === "zone_default" ? "active" : ""}"
           @click=${() => this._setTab("zone_default")}
-        >${this._config.default_zone_name}</button>
+          @dblclick=${(e) => this._onTabRename("default", this._config.default_zone_name, e)}
+        >${this._editingTabId === "default" ? c`<input data-zone="default" class="tab-name-input" .value=${this._tabNameInput} @input=${this._onTabNameInput} @blur=${() => this._onTabNameBlur("default")} @keydown=${(e) => this._onTabNameKeydown("default", e)} @click=${(e) => e.stopPropagation()}>` : this._config.default_zone_name}</button>
         ${Object.entries(this._config.zones).map(([e, t]) => c`
           <button
             class="tab-btn ${this._activeTab === "zone_" + e ? "active" : ""}"
             @click=${() => this._setTab("zone_" + e)}
-          >${t.name}</button>
+            @dblclick=${(o) => this._onTabRename(e, t.name, o)}
+          >${this._editingTabId === e ? c`<input data-zone="${e}" class="tab-name-input" .value=${this._tabNameInput} @input=${this._onTabNameInput} @blur=${() => this._onTabNameBlur(e)} @keydown=${(o) => this._onTabNameKeydown(e, o)} @click=${(o) => o.stopPropagation()}>` : t.name}</button>
         `)}
         <button
           class="tab-btn add-zone-btn"
@@ -4203,7 +4226,7 @@ const Ze = class Ze extends w {
     }
   }
 };
-Ze.styles = M`
+Ze.styles = A`
     :host {
       display: block;
       background: var(--primary-background-color);
@@ -4290,36 +4313,57 @@ Ze.styles = M`
       font-weight: 300;
       padding: 12px 14px;
     }
+
+    .tab-name-input {
+      font-size: 14px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      border: none;
+      border-bottom: 2px solid var(--primary-color);
+      outline: none;
+      background: transparent;
+      color: var(--primary-color);
+      padding: 0;
+      width: 10ch;
+      max-width: 20ch;
+    }
   `;
-let T = Ze;
-I([
+let k = Ze;
+M([
   u({ attribute: !1 })
-], T.prototype, "hass");
-I([
+], k.prototype, "hass");
+M([
   u({ type: Boolean })
-], T.prototype, "narrow");
-I([
+], k.prototype, "narrow");
+M([
   u({ attribute: !1 })
-], T.prototype, "panel");
-I([
+], k.prototype, "panel");
+M([
   v()
-], T.prototype, "_config");
-I([
+], k.prototype, "_config");
+M([
   v()
-], T.prototype, "_status");
-I([
+], k.prototype, "_status");
+M([
   v()
-], T.prototype, "_activeTab");
-I([
+], k.prototype, "_activeTab");
+M([
   v()
-], T.prototype, "_unsubStatus");
-I([
+], k.prototype, "_unsubStatus");
+M([
   v()
-], T.prototype, "_wsError");
-I([
+], k.prototype, "_wsError");
+M([
+  v()
+], k.prototype, "_editingTabId");
+M([
+  v()
+], k.prototype, "_tabNameInput");
+M([
   Rt("climate-manager-toast")
-], T.prototype, "_toast");
-customElements.define("climate-manager-panel", T);
+], k.prototype, "_toast");
+customElements.define("climate-manager-panel", k);
 export {
-  T as ClimateManagerPanel
+  k as ClimateManagerPanel
 };

@@ -43,6 +43,8 @@ export class ClimateManagerPanel extends LitElement {
   @state() private _activeTab: string = localStorage.getItem("climate-manager-tab") ?? "global";
   @state() private _unsubStatus: Promise<() => void> | null = null;
   @state() private _wsError = false;
+  @state() private _editingTabId: string | null = null;
+  @state() private _tabNameInput = "";
 
   @query("climate-manager-toast")
   private _toast?: ClimateManagerToast;
@@ -136,6 +138,21 @@ export class ClimateManagerPanel extends LitElement {
       font-size: 18px;
       font-weight: 300;
       padding: 12px 14px;
+    }
+
+    .tab-name-input {
+      font-size: 14px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      border: none;
+      border-bottom: 2px solid var(--primary-color);
+      outline: none;
+      background: transparent;
+      color: var(--primary-color);
+      padding: 0;
+      width: 10ch;
+      max-width: 20ch;
     }
   `;
 
@@ -255,6 +272,37 @@ export class ClimateManagerPanel extends LitElement {
     }
   }
 
+  private async _onTabRename(zoneId: string, currentName: string, e: Event) {
+    e.stopPropagation();
+    this._editingTabId = zoneId;
+    this._tabNameInput = currentName;
+    await this.updateComplete;
+    this.shadowRoot?.querySelector<HTMLInputElement>(`input[data-zone="${zoneId}"]`)?.select();
+  }
+
+  private _onTabNameInput(e: Event) {
+    this._tabNameInput = (e.target as HTMLInputElement).value;
+  }
+
+  private async _onTabNameBlur(zoneId: string) {
+    if (this._editingTabId !== zoneId) return;
+    this._editingTabId = null;
+    const name = this._tabNameInput.trim();
+    if (!name || !this._ws) return;
+    try {
+      await this._ws.renameZone(zoneId, name);
+      await this._loadConfig();
+      this.showToast("Renamed", false);
+    } catch {
+      this.showToast("Rename failed", true);
+    }
+  }
+
+  private _onTabNameKeydown(zoneId: string, e: KeyboardEvent) {
+    if (e.key === "Enter") (e.target as HTMLElement).blur();
+    else if (e.key === "Escape") { this._editingTabId = null; }
+  }
+
   private _setTab(tab: string) {
     this._activeTab = tab;
     localStorage.setItem("climate-manager-tab", tab);
@@ -297,12 +345,20 @@ export class ClimateManagerPanel extends LitElement {
         <button
           class="tab-btn ${this._activeTab === "zone_default" ? "active" : ""}"
           @click=${() => this._setTab("zone_default")}
-        >${this._config.default_zone_name}</button>
+          @dblclick=${(e: Event) => this._onTabRename("default", this._config!.default_zone_name, e)}
+        >${this._editingTabId === "default"
+          ? html`<input data-zone="default" class="tab-name-input" .value=${this._tabNameInput} @input=${this._onTabNameInput} @blur=${() => this._onTabNameBlur("default")} @keydown=${(e: KeyboardEvent) => this._onTabNameKeydown("default", e)} @click=${(e: Event) => e.stopPropagation()}>`
+          : this._config.default_zone_name
+        }</button>
         ${Object.entries(this._config.zones).map(([zoneId, zone]) => html`
           <button
             class="tab-btn ${this._activeTab === "zone_" + zoneId ? "active" : ""}"
             @click=${() => this._setTab("zone_" + zoneId)}
-          >${zone.name}</button>
+            @dblclick=${(e: Event) => this._onTabRename(zoneId, zone.name, e)}
+          >${this._editingTabId === zoneId
+            ? html`<input data-zone="${zoneId}" class="tab-name-input" .value=${this._tabNameInput} @input=${this._onTabNameInput} @blur=${() => this._onTabNameBlur(zoneId)} @keydown=${(e: KeyboardEvent) => this._onTabNameKeydown(zoneId, e)} @click=${(e: Event) => e.stopPropagation()}>`
+            : zone.name
+          }</button>
         `)}
         <button
           class="tab-btn add-zone-btn"
