@@ -1,0 +1,63 @@
+---
+phase: 06-zone-room-assignment-ui
+audit_date: 2026-05-28
+auditor: gsd-security-auditor (claude-sonnet-4-6)
+asvs_level: 1
+block_on: critical
+threats_total: 10
+threats_closed: 9
+threats_open: 0
+result: SECURED
+---
+
+# Phase 06 Security Audit — zone-room-assignment-ui
+
+## Trust Boundaries
+
+| Boundary | Description | Status |
+|----------|-------------|--------|
+| Panel UI → WebSocket (renameZone) | User-typed zone names enter via Lit `<input>`, trimmed client-side, then sent via `ws.renameZone`. Backend schema is `vol.Required("name"): str` — accepts any string. Backend length guard absent; accepted risk (T-06-01). | Accepted |
+| Panel UI → WebSocket (zone picker) | Zone UUIDs from `<select>` options are server-populated; backend rejects unknown zone_id via ZONE-04 in `validate_zone_assignment`. | Closed |
+| localStorage → `_activeTab` | `_validateActiveTab()` rejects unknown/stale values after every config load. | Closed |
+| async_save → validate_zone_assignment | `validate_zone_assignment` rejects stored `zone_id: null` as defense in depth; handler-side pop ensures null never reaches the validator in the happy path. | Closed |
+
+## Threat Register
+
+| Threat ID | Category | Disposition | Status | Evidence |
+|-----------|----------|-------------|--------|----------|
+| T-06-01 | Tampering | accept | CLOSED | Client-side trim present (zone-tab.ts:332-333). Backend length guard absent but formally accepted: authenticated HA session required; blast radius is cosmetic UX only (blank tab label). See Accepted Risks. |
+| T-06-03 | Tampering | mitigate | CLOSED | `_validateActiveTab()` at main.ts:161-182; called from `_loadConfig()` at main.ts:188 after every config reload. Falls back to `"global"` for: unknown static names, stale `"zone_<uuid>"` IDs whose UUID is no longer in `config.zones`, and any other unexpected value. All entry points verified: startup + post-mutation reload from zone delete. |
+| T-06-SC | Tampering | mitigate | CLOSED | `frontend/package.json` unchanged across all phase 06 commits (last modified by feat(03-03) scaffold commit). Dependencies remain: lit ^3, home-assistant-js-websocket latest, typescript ^5 (dev), vite ^5 (dev). No new npm or pip packages installed. |
+| T-06-02 | Information Disclosure | accept | CLOSED | See Accepted Risks. |
+| T-06-04 | Denial of Service | accept | CLOSED | See Accepted Risks. |
+| T-06-05 | Tampering | accept | CLOSED | See Accepted Risks. |
+| T-06-06 | Information Disclosure | accept | CLOSED | See Accepted Risks. |
+| T-06-07 | Tampering | accept | CLOSED | See Accepted Risks. |
+| T-06-08 | Tampering | accept | CLOSED | See Accepted Risks. |
+| T-06-09 | Denial of Service | accept | CLOSED | See Accepted Risks. |
+
+## Accepted Risks
+
+| Threat ID | Category | Rationale |
+|-----------|----------|-----------|
+| T-06-02 | Information Disclosure | Tab ID stores zone UUIDs already visible in the `get_config` WebSocket response. No additional secret exposure beyond what is already disclosed to the authenticated panel session. |
+| T-06-04 | Denial of Service | Rapid `+` button clicks each generate a new UUID zone (backend is not idempotent per-click by design). Users can delete spurious zones via the inline delete confirm row. Throttling rejected: adds UX complexity without commensurate security benefit at ASVS Level 1. |
+| T-06-05 | Tampering | Race between zone picker change and an in-flight `reloadConfig` — backend `set_room_config` is sparse-merge last-write-wins. This is the desired UX (consistent with the existing room mode picker). No stale-write hazard since the backend always wins on the write the user just issued. |
+| T-06-06 | Information Disclosure | Zone display names appear on every room-card badge. Names are already visible in the zone tab bar and zone tab headers during the same panel session. No privacy delta. |
+| T-06-07 | Tampering | `set_room_config` receives `{zone_id: null}` from the frontend to signal "move room to Default Zone." Requires valid HA WebSocket authentication (T-03-06). Worst-case effect: an authenticated user can move any room to the Default Zone — equivalent to omitting `zone_id` entirely. No privilege escalation. |
+| T-06-08 | Tampering | TypeScript cast `null as unknown as string \| undefined` at `zone-tab.ts:401,420` and `room-card.ts:458` bypasses `RoomConfig.zone_id?: string` type. Scope is exactly two call sites; the WebSocket message body is the trust boundary (validated server-side by the null-pop handler). Type is not widened in `types.ts`. Risk is local and cosmetic (type unsafety within two lines). |
+| T-06-09 | Denial of Service | Rapid clicks on the Default Zone tab trigger `setGlobalMode` calls via `zone-tab.ts _onModeChange`. Identical attack surface to the pre-existing Global Settings tab (`global-settings-tab.ts` calls `setGlobalMode` the same way). No new surface. Backend is idempotent for repeated identical mode writes. |
+| T-06-01 | Tampering | Backend `rename_zone`/`create_zone` handlers accept blank or unbounded zone names (`vol.Required("name"): str`). Client-side trim and empty guard present (`zone-tab.ts:332-333`). HA WebSocket auth (T-03-06) is the outer boundary; only authenticated users can reach the handler. Blast radius: cosmetic UX breakage (blank tab label), no privilege escalation. Accepted at ASVS Level 1 for v1.1 — add `vol.Length(min=1, max=100)` in a future hardening pass if moving toward ASVS Level 2. |
+
+## Unregistered Flags
+
+None. All threat flags surfaced in SUMMARY.md files (06-01, 06-02, 06-03, 06-04) map to existing threat IDs in the register. No new attack surface appeared during implementation without a corresponding threat entry.
+
+## Audit Trail
+
+| Plan | Files Audited | Findings |
+|------|--------------|----------|
+| 06-01 | frontend/src/ws-client.ts, frontend/src/components/zone-tab.ts | T-06-01 client trim CLOSED; T-06-SC CLOSED |
+| 06-02 | frontend/src/main.ts | T-06-03 CLOSED (_validateActiveTab present and wired to _loadConfig) |
+| 06-03 | frontend/src/components/room-card.ts | T-06-SC confirmed; accepted risks T-06-05, T-06-06 documented |
+| 06-04 | custom_components/climate_manager/websocket.py, custom_components/climate_manager/storage.py | T-06-01 backend half OPEN (no name length/non-empty gate); accepted risks T-06-07, T-06-08, T-06-09 documented |
