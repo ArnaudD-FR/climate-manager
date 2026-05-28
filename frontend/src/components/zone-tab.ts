@@ -290,6 +290,29 @@ export class ZoneTab extends LitElement {
       width: 16px;
       height: 16px;
     }
+
+    .reset-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      margin-bottom: 8px;
+      justify-content: flex-end;
+    }
+
+    .reset-btn {
+      background: none;
+      border: 1px solid var(--divider-color, rgba(0,0,0,0.12));
+      color: var(--secondary-text-color);
+      padding: 5px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    .reset-btn:hover {
+      background: var(--secondary-background-color);
+    }
   `;
 
   // -------------------------------------------------------------------------
@@ -310,6 +333,30 @@ export class ZoneTab extends LitElement {
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed", true);
+    }
+  };
+
+  private _onResetToDefault = async () => {
+    try {
+      if (this.isDefault) {
+        await this.ws.resetTimeProgram();
+      } else {
+        await this.ws.resetZoneTimeProgram(this.zoneId, "default");
+      }
+      await this.panel.reloadConfig();
+      this.panel.showToast("Reset to default", false);
+    } catch {
+      this.panel.showToast("Reset failed", true);
+    }
+  };
+
+  private _onResetToGlobal = async () => {
+    try {
+      await this.ws.resetZoneTimeProgram(this.zoneId, "global");
+      await this.panel.reloadConfig();
+      this.panel.showToast(`Reset to ${this.config.default_zone_name}`, false);
+    } catch {
+      this.panel.showToast("Reset failed", true);
     }
   };
 
@@ -536,6 +583,14 @@ export class ZoneTab extends LitElement {
         .days=${this._days}
         @periods-changed=${this._onPeriodsChanged}
       ></climate-manager-time-bar>
+
+      <!-- Reset row: Default Zone gets one button; custom zones get two -->
+      <div class="reset-row">
+        ${!this.isDefault
+          ? html`<button class="reset-btn" @click=${this._onResetToGlobal}>Reset to ${this.config.default_zone_name}</button>`
+          : ""}
+        <button class="reset-btn" @click=${this._onResetToDefault}>Reset to default</button>
+      </div>
 
       <!-- 5. Assigned Rooms section (D-08 / D-09 / D-10) -->
       <div class="section-divider"></div>
