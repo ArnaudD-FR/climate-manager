@@ -69,8 +69,6 @@ export class ZoneTab extends LitElement {
   // Internal state
   // -------------------------------------------------------------------------
 
-  @state() private _editingName = false;
-  @state() private _nameInputValue = "";
   @state() private _confirmingDelete = false;
 
   // -------------------------------------------------------------------------
@@ -97,38 +95,6 @@ export class ZoneTab extends LitElement {
   static styles = css`
     :host {
       display: block;
-    }
-
-    /* Zone name display and edit */
-    .zone-name {
-      font-size: 20px;
-      font-weight: 500;
-      margin: 0 0 16px 0;
-      padding: 4px 8px;
-      border-radius: 4px;
-      cursor: pointer;
-      color: var(--primary-text-color);
-      display: inline-block;
-    }
-
-    .zone-name:hover {
-      background: var(--secondary-background-color);
-    }
-
-    .zone-name-input {
-      font-size: 20px;
-      font-weight: 500;
-      width: 100%;
-      padding: 4px 8px;
-      margin-bottom: 16px;
-      font-family: inherit;
-      color: var(--primary-text-color);
-      background-color: var(--card-background-color, var(--secondary-background-color));
-      border: 1px solid var(--primary-color);
-      border-width: 2px;
-      border-radius: 4px;
-      outline: none;
-      box-sizing: border-box;
     }
 
     /* Delete row (top of zone tab, custom zones only) */
@@ -307,47 +273,6 @@ export class ZoneTab extends LitElement {
   // -------------------------------------------------------------------------
   // Handlers
   // -------------------------------------------------------------------------
-
-  /** Click on zone name — enter edit mode and focus the input. */
-  private _onNameClick() {
-    this._nameInputValue = this.zoneConfig.name;
-    this._editingName = true;
-    void this.updateComplete.then(() => {
-      this.shadowRoot?.querySelector<HTMLInputElement>(".zone-name-input")?.focus();
-    });
-  }
-
-  /** Update internal name value as user types. */
-  private _onNameInput(e: Event) {
-    this._nameInputValue = (e.target as HTMLInputElement).value;
-  }
-
-  /**
-   * Blur on name input — save if changed, cancel otherwise.
-   * zoneId="default" routes to backend default_zone_name rename (D-05/D-07).
-   */
-  private async _onNameBlur() {
-    if (!this._editingName) return;
-    this._editingName = false;
-    const newName = this._nameInputValue.trim();
-    if (!newName || newName === this.zoneConfig.name) return;
-    try {
-      await this.ws.renameZone(this.zoneId, newName);
-      await this.panel.reloadConfig();
-      this.panel.showToast("Saved", false);
-    } catch {
-      this.panel.showToast("Save failed", true);
-    }
-  }
-
-  /** Enter key blurs (triggers save), Escape key cancels. */
-  private _onNameKeydown(e: KeyboardEvent) {
-    if (e.key === "Enter") {
-      (e.target as HTMLElement).blur();
-    } else if (e.key === "Escape") {
-      this._editingName = false;
-    }
-  }
 
   /** Mode select change — auto-save the new zone mode. */
   private _onModeChange = async (e: Event) => {
@@ -533,25 +458,7 @@ export class ZoneTab extends LitElement {
         `
         : ""}
 
-      <!-- 2. Zone name (click-to-edit, D-06 / D-07) -->
-      ${this._editingName
-        ? html`
-          <input
-            class="zone-name-input"
-            type="text"
-            .value=${this._nameInputValue}
-            @input=${this._onNameInput}
-            @blur=${() => void this._onNameBlur()}
-            @keydown=${this._onNameKeydown}
-          />
-        `
-        : html`
-          <h2 class="zone-name" @click=${this._onNameClick} title="Click to rename">
-            ${this.zoneConfig.name}
-          </h2>
-        `}
-
-      <!-- 3. Mode picker -->
+      <!-- 2. Mode picker -->
       <div class="select-wrapper">
         <label class="select-label">Zone mode</label>
         <select class="mode-select" @change=${this._onModeChange}>

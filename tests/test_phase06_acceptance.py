@@ -22,36 +22,13 @@ from pathlib import Path
 # ============================================================================
 
 
-def test_main_tab_global_settings_label():
-    """Verify the first tab button in main.ts is labeled 'Global Settings' (not 'Overview').
-
-    Requirement: The tab bar's first button renders "Global Settings" to match
-    ROADMAP Phase 6 Success Criterion 1 wording.
-    """
+def test_main_tab_overview_label():
+    """Verify the first tab button in main.ts is labeled 'Overview'."""
     main_ts = Path("/home/arnaud/dev/climate_manager/frontend/src/main.ts").read_text()
 
-    # The label must be present exactly once in a tab button context
-    assert ">Global Settings<" in main_ts, (
-        "main.ts tab bar does not have '>Global Settings<' button label"
+    assert ">Overview<" in main_ts, (
+        "main.ts tab bar does not have '>Overview<' button label"
     )
-
-    # Ensure we don't have the old label
-    # Check that any >Overview< occurrence is NOT in a tab-btn context
-    # (there should be none if the replacement was done correctly)
-    if ">Overview<" in main_ts:
-        # Find context around >Overview< to ensure it's not a tab button
-        lines = main_ts.split("\n")
-        for i, line in enumerate(lines):
-            if ">Overview<" in line:
-                # Check the surrounding lines for .tab-btn context
-                context_start = max(0, i - 2)
-                context_end = min(len(lines), i + 3)
-                context = "\n".join(lines[context_start:context_end])
-                # If this occurrence is in a button/tab context, fail
-                if "tab-btn" in context or "button" in context:
-                    raise AssertionError(
-                        f"main.ts still contains '>Overview<' in a tab button context at line {i+1}: {context}"
-                    )
 
 
 # ============================================================================

@@ -24,8 +24,6 @@ import type { Hass, ClimateConfig, StatusPayload, DailyProgram, Period } from ".
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 
-import "./time-bar.js";
-
 // Day key order matching time-bar days[] indices (0=Mon..6=Sun)
 const DAY_KEYS: Array<keyof DailyProgram> = [
   "mon", "tue", "wed", "thu", "fri", "sat", "sun",
@@ -79,21 +77,6 @@ export class GlobalSettingsTab extends LitElement {
   /** HA hass object — used for resolving person entity friendly names. */
   @property({ attribute: false }) hass!: Hass;
 
-  // Memoize the days array by program identity — programToDays() creates new
-  // array references on every call. Without this, any status-only re-render
-  // (which happens before config arrives after a WS save) passes a new days
-  // reference to the time-bar, causing it to clear _dragPreviewDays and flash.
-  private _lastProgram: DailyProgram | undefined = undefined;
-  private _cachedDays: Period[][] = [];
-  private get _days(): Period[][] {
-    const program = this.config?.global_time_program;
-    if (program !== this._lastProgram) {
-      this._lastProgram = program;
-      this._cachedDays = programToDays(program);
-    }
-    return this._cachedDays;
-  }
-
   static styles = css`
     :host {
       display: block;
@@ -143,16 +126,6 @@ export class GlobalSettingsTab extends LitElement {
       background: var(--present-color);
       margin-right: 4px;
       vertical-align: middle;
-    }
-
-    /* ---- Config card ---- */
-    .section-divider {
-      margin: 16px 0 8px;
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      color: var(--secondary-text-color);
     }
 
     /* ---- Temperatures card ---- */
@@ -205,40 +178,6 @@ export class GlobalSettingsTab extends LitElement {
       flex-shrink: 0;
     }
 
-    /* ---- Config card ---- */
-    .time-program-section {
-      margin-top: 16px;
-    }
-
-    .select-wrapper {
-      margin-bottom: 16px;
-    }
-
-    .select-label {
-      display: block;
-      font-size: 12px;
-      color: var(--secondary-text-color);
-      margin-bottom: 4px;
-    }
-
-    .mode-select {
-      width: 100%;
-      padding: 10px 12px;
-      font-size: 16px;
-      font-family: inherit;
-      color: var(--primary-text-color);
-      background-color: var(--card-background-color, var(--secondary-background-color));
-      border: 1px solid var(--divider-color);
-      border-radius: 4px;
-      outline: none;
-      cursor: pointer;
-    }
-
-    .mode-select:focus {
-      border-color: var(--primary-color);
-      border-width: 2px;
-    }
-
     /* Reset button */
     .reset-btn {
       margin-top: 16px;
@@ -263,18 +202,6 @@ export class GlobalSettingsTab extends LitElement {
   // in Lit @event=${} bindings (Lit calls addEventListener(name, fn) which
   // would otherwise set `this` to the DOM element).
   // -----------------------------------------------------------------------
-
-  private _onModeChange = async (e: Event) => {
-    const newMode = (e.target as HTMLSelectElement).value;
-    if (!newMode || newMode === this.config.global_mode) return;
-    try {
-      await this.ws.setGlobalMode(newMode);
-      await this.panel.reloadConfig();
-      this.panel.showToast("Saved", false);
-    } catch {
-      this.panel.showToast("Save failed", true);
-    }
-  };
 
   private _tempSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -313,40 +240,9 @@ export class GlobalSettingsTab extends LitElement {
     void this._saveTemperatures();
   };
 
-  private _onPeriodsChanged = async (e: CustomEvent) => {
-    const { dayIndex, periods } = e.detail as { dayIndex: number; periods: Period[] };
-
-    // Rebuild the full DailyProgram, replacing the changed day
-    const program: DailyProgram = { ...this.config.global_time_program };
-    const key = dayIndexToKey(dayIndex);
-    program[key] = periods;
-
-    try {
-      await this.ws.setTimeProgram(program);
-      await this.panel.reloadConfig();
-      this.panel.showToast("Saved", false);
-    } catch {
-      this.panel.showToast("Save failed — retrying...", true);
-    }
-
-    e.stopPropagation();
-  };
-
   private _onResetTemperatures = async () => {
     try {
       await this.ws.resetPeriodTemperatures();
-      await this.panel.reloadConfig();
-      this.panel.showToast("Reset to defaults", false);
-    } catch {
-      this.panel.showToast("Reset failed — retrying...", true);
-    }
-  };
-
-  private _onResetConfiguration = async () => {
-    try {
-      await this.ws.resetTimeProgram();
-      // Reset global mode to time_program — mirrors DEFAULT_GLOBAL_MODE in const.py
-      await this.ws.setGlobalMode(MODE_TIME_PROGRAM);
       await this.panel.reloadConfig();
       this.panel.showToast("Reset to defaults", false);
     } catch {
@@ -447,42 +343,10 @@ export class GlobalSettingsTab extends LitElement {
     `;
   }
 
-  private _renderConfigCard() {
-    return html`
-      <ha-card>
-        <div class="card-header">Configuration</div>
-        <div class="card-content">
-
-          <div class="select-wrapper">
-            <label class="select-label">Global mode</label>
-            <select class="mode-select" @change=${this._onModeChange}>
-              <option value=${MODE_OFF} ?selected=${this.config.global_mode === MODE_OFF}>Off</option>
-              <option value=${MODE_TIME_PROGRAM} ?selected=${this.config.global_mode === MODE_TIME_PROGRAM}>Time program</option>
-              <option value=${MODE_TIME_PROGRAM_PRESENCES} ?selected=${this.config.global_mode === MODE_TIME_PROGRAM_PRESENCES}>Time program &amp; presences</option>
-            </select>
-          </div>
-
-          <!-- Global time program editor -->
-          <div class="section-divider">Global time program</div>
-          <div class="time-program-section">
-            <climate-manager-time-bar
-              mode="schedule"
-              .days=${this._days}
-              @periods-changed=${this._onPeriodsChanged}
-            ></climate-manager-time-bar>
-          </div>
-
-          <button class="reset-btn" @click=${this._onResetConfiguration}>Reset to default</button>
-        </div>
-      </ha-card>
-    `;
-  }
-
   render() {
     return html`
       ${this._renderStatusCard()}
       ${this._renderTemperaturesCard()}
-      ${this._renderConfigCard()}
     `;
   }
 }

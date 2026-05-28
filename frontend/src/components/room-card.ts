@@ -144,9 +144,9 @@ export class RoomCard extends LitElement {
       border-radius: 12px;
       font-size: 12px;
       font-weight: 400;
-      background: var(--secondary-background-color, #f5f5f5);
-      color: var(--secondary-text-color, #757575);
-      border: 1px solid var(--divider-color, #e0e0e0);
+      background: rgba(124, 58, 237, 0.12);
+      color: #7c3aed;
+      border: 1px solid rgba(124, 58, 237, 0.25);
     }
 
     .card-content {
