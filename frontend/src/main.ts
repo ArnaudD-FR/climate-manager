@@ -287,6 +287,14 @@ export class ClimateManagerPanel extends LitElement {
           @click=${() => this._setTab("global")}
         >Global Settings</button>
         <button
+          class="tab-btn ${this._activeTab === "rooms" ? "active" : ""}"
+          @click=${() => this._setTab("rooms")}
+        >Rooms</button>
+        <button
+          class="tab-btn ${this._activeTab === "persons" ? "active" : ""}"
+          @click=${() => this._setTab("persons")}
+        >Persons</button>
+        <button
           class="tab-btn ${this._activeTab === "zone_default" ? "active" : ""}"
           @click=${() => this._setTab("zone_default")}
         >${this._config.default_zone_name}</button>
@@ -301,14 +309,6 @@ export class ClimateManagerPanel extends LitElement {
           title="Add zone"
           @click=${() => void this._onCreateZone()}
         >+</button>
-        <button
-          class="tab-btn ${this._activeTab === "rooms" ? "active" : ""}"
-          @click=${() => this._setTab("rooms")}
-        >Rooms</button>
-        <button
-          class="tab-btn ${this._activeTab === "persons" ? "active" : ""}"
-          @click=${() => this._setTab("persons")}
-        >Persons</button>
       </div>
 
       <div class="tab-content">
