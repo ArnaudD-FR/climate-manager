@@ -81,4 +81,4 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full phase details.
 | 3. WebSocket API & Frontend Panel | v1.0 | 9/9 | Complete | 2026-05-21 |
 | 4. Zone Data Model & Storage | v1.1 | 2/2 | Complete   | 2026-05-27 |
 | 5. Zone CRUD & Evaluation Engine | v1.1 | 3/3 | Complete   | 2026-05-27 |
-| 6. Zone & Room Assignment UI | v1.1 | 3/3 | Complete   | 2026-05-28 |
+| 6. Zone & Room Assignment UI | v1.1 | 4/4 | Complete   | 2026-05-28 |
