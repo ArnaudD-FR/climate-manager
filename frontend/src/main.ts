@@ -29,6 +29,7 @@ import "./components/time-bar.js";
 import "./components/global-settings-tab.js";
 import "./components/rooms-tab.js";
 import "./components/persons-tab.js";
+import "./components/zone-tab.js";
 
 export class ClimateManagerPanel extends LitElement {
   // HA-injected properties
@@ -39,10 +40,7 @@ export class ClimateManagerPanel extends LitElement {
   // Internal state
   @state() private _config: ClimateConfig | null = null;
   @state() private _status: StatusPayload | null = null;
-  @state() private _activeTab: string = (() => {
-    const t = localStorage.getItem("climate-manager-tab");
-    return ["global", "rooms", "persons"].includes(t ?? "") ? t! : "global";
-  })();
+  @state() private _activeTab: string = localStorage.getItem("climate-manager-tab") ?? "global";
   @state() private _unsubStatus: Promise<() => void> | null = null;
   @state() private _wsError = false;
 
@@ -133,6 +131,12 @@ export class ClimateManagerPanel extends LitElement {
       padding: 24px 0;
       text-align: center;
     }
+
+    .add-zone-btn {
+      font-size: 18px;
+      font-weight: 300;
+      padding: 12px 14px;
+    }
   `;
 
   connectedCallback() {
@@ -154,10 +158,34 @@ export class ClimateManagerPanel extends LitElement {
     }
   }
 
+  private _validateActiveTab(): void {
+    if (!this._config) return;
+    // Static tabs always exist — return immediately.
+    if (
+      this._activeTab === "global" ||
+      this._activeTab === "rooms" ||
+      this._activeTab === "persons" ||
+      this._activeTab === "zone_default"
+    ) return;
+    // Custom zone tab: verify the UUID still exists in config.
+    if (this._activeTab.startsWith("zone_")) {
+      const zoneId = this._activeTab.slice(5); // strip "zone_"
+      if (!this._config.zones[zoneId]) {
+        this._activeTab = "global";
+        localStorage.setItem("climate-manager-tab", "global");
+      }
+      return;
+    }
+    // Unknown/corrupted value — fall back to global.
+    this._activeTab = "global";
+    localStorage.setItem("climate-manager-tab", "global");
+  }
+
   private async _loadConfig() {
     if (!this._ws) this._ws = new WsClient(this.hass);
     try {
       this._config = await this._ws.getConfig();
+      this._validateActiveTab();
     } catch {
       // Config load failure is shown via the error banner on next render.
       this._wsError = true;
@@ -209,6 +237,24 @@ export class ClimateManagerPanel extends LitElement {
     await Promise.all([this._loadConfig(), this._loadStatus()]);
   }
 
+  private async _onCreateZone(): Promise<void> {
+    if (!this._config || !this._ws) return;
+    // D-02: default name computed client-side as "Zone N".
+    const newName = `Zone ${Object.keys(this._config.zones).length + 1}`;
+    try {
+      const result = await this._ws.createZone(newName);
+      await this._loadConfig();
+      this._setTab("zone_" + result.zone_id);
+      // D-03: focus the zone name field so the user can rename without a second click.
+      await this.updateComplete;
+      const zoneTab = this.shadowRoot?.querySelector("climate-manager-zone-tab");
+      (zoneTab?.shadowRoot?.querySelector<HTMLElement>(".zone-name"))?.click();
+      this.showToast("Zone created", false);
+    } catch {
+      this.showToast("Create zone failed", true);
+    }
+  }
+
   private _setTab(tab: string) {
     this._activeTab = tab;
     localStorage.setItem("climate-manager-tab", tab);
@@ -241,6 +287,21 @@ export class ClimateManagerPanel extends LitElement {
           @click=${() => this._setTab("global")}
         >Overview</button>
         <button
+          class="tab-btn ${this._activeTab === "zone_default" ? "active" : ""}"
+          @click=${() => this._setTab("zone_default")}
+        >${this._config.default_zone_name}</button>
+        ${Object.entries(this._config.zones).map(([zoneId, zone]) => html`
+          <button
+            class="tab-btn ${this._activeTab === "zone_" + zoneId ? "active" : ""}"
+            @click=${() => this._setTab("zone_" + zoneId)}
+          >${zone.name}</button>
+        `)}
+        <button
+          class="tab-btn add-zone-btn"
+          title="Add zone"
+          @click=${() => void this._onCreateZone()}
+        >+</button>
+        <button
           class="tab-btn ${this._activeTab === "rooms" ? "active" : ""}"
           @click=${() => this._setTab("rooms")}
         >Rooms</button>
@@ -259,6 +320,37 @@ export class ClimateManagerPanel extends LitElement {
   }
 
   private _renderTabContent() {
+    // Zone tab cases — checked before the switch so "zone_*" keys are intercepted first.
+    if (this._activeTab === "zone_default") {
+      return html`<climate-manager-zone-tab
+        .config=${this._config!}
+        .zoneId=${"default"}
+        .zoneConfig=${{
+          name: this._config!.default_zone_name,
+          mode: this._config!.global_mode,
+          time_program: this._config!.global_time_program,
+        }}
+        .isDefault=${true}
+        .ws=${this._ws!}
+        .panel=${this}
+        .hass=${this.hass}
+      ></climate-manager-zone-tab>`;
+    }
+    if (this._activeTab.startsWith("zone_")) {
+      const zoneId = this._activeTab.slice(5); // strip "zone_"
+      const zoneConfig = this._config!.zones[zoneId];
+      if (!zoneConfig) return html``; // defensive — _validateActiveTab should have caught this
+      return html`<climate-manager-zone-tab
+        .config=${this._config!}
+        .zoneId=${zoneId}
+        .zoneConfig=${zoneConfig}
+        .isDefault=${false}
+        .ws=${this._ws!}
+        .panel=${this}
+        .hass=${this.hass}
+      ></climate-manager-zone-tab>`;
+    }
+
     switch (this._activeTab) {
       case "global":
         return html`<climate-manager-global-settings-tab
