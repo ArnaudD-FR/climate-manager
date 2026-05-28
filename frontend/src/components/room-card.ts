@@ -137,6 +137,18 @@ export class RoomCard extends LitElement {
       color: var(--secondary-text-color, #757575);
     }
 
+    .zone-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 400;
+      background: var(--secondary-background-color, #f5f5f5);
+      color: var(--secondary-text-color, #757575);
+      border: 1px solid var(--divider-color, #e0e0e0);
+    }
+
     .card-content {
       padding: 12px 16px 16px;
       border-top: 1px solid var(--divider-color, #e0e0e0);
@@ -430,6 +442,30 @@ export class RoomCard extends LitElement {
   }
 
   // -----------------------------------------------------------------------
+  // Zone assignment handler (ASSIGN-02)
+  // -----------------------------------------------------------------------
+
+  private _getZoneName(): string {
+    const zoneId = this.config?.zone_id;
+    if (!zoneId) {
+      return this.panelConfig?.default_zone_name ?? "Default Zone";
+    }
+    return this.panelConfig?.zones?.[zoneId]?.name ?? this.panelConfig?.default_zone_name ?? "Default Zone";
+  }
+
+  private async _onZoneChange(e: Event) {
+    const newZoneId = (e.target as HTMLSelectElement).value;
+    const patch: Partial<RoomConfig> = newZoneId ? { zone_id: newZoneId } : { zone_id: undefined };
+    try {
+      await this.ws.setRoomConfig(this.roomId, patch);
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Render helpers
   // -----------------------------------------------------------------------
 
@@ -612,6 +648,7 @@ export class RoomCard extends LitElement {
                 class="program-badge ${badgeClass}"
                 style=${badgeClass === "frost" ? `background: ${PERIOD_COLORS.frost_protection}; color: white;` : ""}
               >${badgeText}</span>
+              <span class="zone-badge">${this._getZoneName()}</span>
             </div>
             ${this._renderHeaderStatus()}
           </div>
@@ -652,6 +689,21 @@ export class RoomCard extends LitElement {
                   <button class="reset-btn" @click=${() => void this._onResetToGlobal()}>Reset to global configuration</button>
                 `
                 : ""}
+
+              <!-- Zone picker (ASSIGN-02, D-12) -->
+              <div class="select-wrapper">
+                <label class="select-label">Zone</label>
+                <select class="mode-select" @change=${this._onZoneChange}>
+                  <option value="" ?selected=${!this.config?.zone_id}>
+                    ${this.panelConfig?.default_zone_name ?? "Default Zone"}
+                  </option>
+                  ${Object.entries(this.panelConfig?.zones ?? {}).map(([zoneId, zone]) => html`
+                    <option value=${zoneId} ?selected=${this.config?.zone_id === zoneId}>
+                      ${zone.name}
+                    </option>
+                  `)}
+                </select>
+              </div>
 
               ${this._renderPersonsSection()}
 

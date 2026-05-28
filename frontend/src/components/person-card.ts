@@ -370,7 +370,7 @@ export class PersonCard extends LitElement {
     switch (mode) {
       case PRESENCE_MODE_FORCE_PRESENT: return { cls: "force-present", text: "Force Present" };
       case PRESENCE_MODE_FORCE_ABSENT: return { cls: "force-absent", text: "Force Absent" };
-      case PRESENCE_MODE_HA: return { cls: "ha", text: "HA" };
+      case PRESENCE_MODE_HA: return { cls: "ha", text: "HA home tracking" };
       default: return { cls: "scheduled", text: "Scheduled" };
     }
   }
@@ -408,7 +408,7 @@ export class PersonCard extends LitElement {
               <div class="select-wrapper">
                 <select class="mode-select" @change=${this._onModeChange}>
                   <option value=${PRESENCE_MODE_SCHEDULED} ?selected=${currentMode === PRESENCE_MODE_SCHEDULED}>Scheduled</option>
-                  <option value=${PRESENCE_MODE_HA} ?selected=${currentMode === PRESENCE_MODE_HA}>HA</option>
+                  <option value=${PRESENCE_MODE_HA} ?selected=${currentMode === PRESENCE_MODE_HA}>HA home tracking</option>
                   <option value=${PRESENCE_MODE_FORCE_PRESENT} ?selected=${currentMode === PRESENCE_MODE_FORCE_PRESENT}>Force Present</option>
                   <option value=${PRESENCE_MODE_FORCE_ABSENT} ?selected=${currentMode === PRESENCE_MODE_FORCE_ABSENT}>Force Absent</option>
                 </select>
