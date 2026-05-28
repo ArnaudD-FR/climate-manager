@@ -236,3 +236,21 @@ async def test_save_accepts_room_without_zone_id(hass):
     loaded = await store.async_load()
     assert "bedroom" in loaded["rooms"]
     assert "zone_id" not in loaded["rooms"]["bedroom"]
+
+
+# ---------------------------------------------------------------------------
+# Test: validate_zone_assignment defense-in-depth — rejects stored null zone_id
+# ---------------------------------------------------------------------------
+
+
+def test_validate_zone_assignment_rejects_explicit_null():
+    """validate_zone_assignment raises ValueError for stored zone_id: null (D-06 defense in depth).
+
+    The storage layer must never accept a room with zone_id: None stored on disk.
+    The ws_set_room_config handler pops the key before save (CR-03 fix), so this
+    validator should never see null in the happy path — but if a future bug bypasses
+    the handler, the validator acts as the last line of defense.
+    """
+    config = {"zones": {}, "rooms": {"living_room": {"zone_id": None}}}
+    with pytest.raises(ValueError, match="sparse model prohibits explicit null"):
+        validate_zone_assignment(config)
