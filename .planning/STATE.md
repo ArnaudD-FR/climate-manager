@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Heating Zones
 status: executing
 stopped_at: Phase 6 context gathered
-last_updated: "2026-05-28T12:29:37.179Z"
-last_activity: 2026-05-28 -- Phase 6 planning complete
+last_updated: "2026-05-28T12:31:17.170Z"
+last_activity: 2026-05-28 -- Phase 06 execution started
 progress:
   total_phases: 3
   completed_phases: 2
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-26)
 
 **Core value:** A household's rooms are always at the right temperature at the right time, without manual intervention — driven by schedules and who is actually home.
-**Current focus:** Phase 6 — zone & room assignment ui
+**Current focus:** Phase 06 — zone-room-assignment-ui
 
 ## Current Position
 
-Phase: 6
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-28 -- Phase 6 planning complete
+Phase: 06 (zone-room-assignment-ui) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 06
+Last activity: 2026-05-28 -- Phase 06 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
