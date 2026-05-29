@@ -132,7 +132,7 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 #     "person.<name>": {
 #       "mode": "<presence_mode>",   # "scheduled" | "force_present" | "force_absent" | "ha"
 #       "room_ids": ["<area_id>", ...],
-#       "schedule": {
+#       "schedule": {                # used when schedule_type == "single" (default)
 #         "mon": [{"start": "HH:MM", "state": "present"|"absent"}, ...],
 #         "tue": [...],
 #         "wed": [...],
@@ -140,7 +140,12 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 #         "fri": [...],
 #         "sat": [...],
 #         "sun": [...]
-#       }
+#       },
+#       "schedule_type": "single" | "even_odd",  # SCHED-01/03; absent = "single"
+#       "schedule_even": { ... },   # SCHED-03; same structure as schedule;
+#                                   # used during even ISO weeks (parity == 0)
+#       "schedule_odd":  { ... },   # SCHED-03; same structure as schedule;
+#                                   # used during odd ISO weeks (parity == 1)
 #     }
 #   }
 #   Empty dict = all persons at default (Automatic mode, no schedule, no rooms).

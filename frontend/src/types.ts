@@ -43,6 +43,10 @@ export interface PersonConfig {
   mode?: string;
   room_ids?: string[];
   schedule?: DailyProgram;
+  // Phase 7: even/odd week scheduling (SCHED-01, SCHED-03)
+  schedule_type?: "single" | "even_odd";
+  schedule_even?: DailyProgram;
+  schedule_odd?: DailyProgram;
 }
 
 /** Custom zone configuration stored in ClimateConfig.zones. */
