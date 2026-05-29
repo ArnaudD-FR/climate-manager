@@ -97,8 +97,15 @@ persons.
 4. Changes made for each week persist after reload and match what the backend
    applies during the corresponding ISO week
 
-**Plans**: TBD
+**Plans**: 3 plans (Wave 1 → 2 → 3)
 **UI hint**: yes
+
+- [ ] 08-01-PLAN.md — TDD getISOWeekNumber/getWeekParity parity helpers
+      (SCHED-04)
+- [ ] 08-02-PLAN.md — Schedule-type select, even/odd switcher, dual memoized
+      schedules, per-week save/reset wiring (SCHED-04)
+- [ ] 08-03-PLAN.md — Build/deploy + manual SCHED-04 behavior verification
+      (SCHED-04)
 
 ### Phase 9: TRV Temperature Offset Auto-Calibration
 
@@ -142,5 +149,5 @@ Phases execute in numeric order: 7 → 8 → 9 (Phase 9 may run in parallel with
 | 5. Zone CRUD & Evaluation Engine     | v1.1      | 3/3            | Complete    | 2026-05-27 |
 | 6. Zone & Room Assignment UI         | v1.1      | 4/4            | Complete    | 2026-05-28 |
 | 7. Even/Odd Week Scheduling — Backend | v1.2     | 2/2 | Complete   | 2026-05-29 |
-| 8. Even/Odd Week Scheduling — Frontend | v1.2    | 0/TBD          | Not started | -          |
+| 8. Even/Odd Week Scheduling — Frontend | v1.2    | 0/3            | Not started | -          |
 | 9. TRV Temperature Offset Auto-Calibration | v1.2 | 0/TBD         | Not started | -          |
