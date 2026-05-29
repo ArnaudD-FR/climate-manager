@@ -146,6 +146,10 @@ export class GlobalSettingsTab extends LitElement {
       vertical-align: middle;
     }
 
+    .person-dot.absent {
+      background: var(--secondary-text-color, #9e9e9e);
+    }
+
     /* ---- Zone status grid ---- */
     .zone-status-grid {
       margin-bottom: 12px;
@@ -343,20 +347,20 @@ export class GlobalSettingsTab extends LitElement {
     const status = this.status;
     const zoneRows = this._getZoneRows();
 
-    // Present persons
-    let personsContent = html`<span class="status-value">No one home</span>`;
-    if (status?.present_persons?.length) {
-      personsContent = html`
-        <span class="status-value">
-          ${status.present_persons.map(
-            (personId, i) => {
+    // All persons with presence status
+    const allPersonIds = Object.keys(this.config?.persons ?? {});
+    const presentSet = new Set(status?.present_persons ?? []);
+    const personsContent = allPersonIds.length === 0
+      ? html`<span class="status-value">No persons configured</span>`
+      : html`
+          <span class="status-value">
+            ${allPersonIds.map((personId, i) => {
               const name = this.hass?.states[personId]?.attributes?.friendly_name ?? personId;
-              return html`<span class="person-dot"></span>${name}${i < (status?.present_persons?.length ?? 1) - 1 ? ", " : ""}`;
-            },
-          )}
-        </span>
-      `;
-    }
+              const isPresent = presentSet.has(personId);
+              return html`<span class="person-dot ${isPresent ? "" : "absent"}"></span>${name}${i < allPersonIds.length - 1 ? ", " : ""}`;
+            })}
+          </span>
+        `;
 
     return html`
       <ha-card>
@@ -388,7 +392,7 @@ export class GlobalSettingsTab extends LitElement {
             })}
           </div>
           <div class="status-row">
-            <span class="status-label">Present persons:</span>
+            <span class="status-label">Persons:</span>
             ${personsContent}
           </div>
         </div>

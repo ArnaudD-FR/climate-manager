@@ -545,7 +545,7 @@ export class RoomCard extends LitElement {
     const badgeClass = resolvedMode === "frost_protection" ? "frost"
       : resolvedMode === "custom" ? "custom"
       : "global";
-    const badgeText = resolvedMode === "frost_protection" ? "Frost protection"
+    const badgeText = resolvedMode === "frost_protection" ? "Off"
       : resolvedMode === "custom" ? "Custom program"
       : "Zone program";
 
@@ -586,7 +586,7 @@ export class RoomCard extends LitElement {
                   @change=${this._onRoomModeChange}
                 >
                   <option value="global" ?selected=${resolvedMode === "global"}>Zone program</option>
-                  <option value="frost_protection" ?selected=${resolvedMode === "frost_protection"}>Frost protection</option>
+                  <option value="frost_protection" ?selected=${resolvedMode === "frost_protection"}>Off</option>
                   <option value="custom" ?selected=${resolvedMode === "custom"}>Custom program</option>
                 </select>
               </div>
