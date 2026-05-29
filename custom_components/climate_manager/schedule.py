@@ -103,7 +103,7 @@ def evaluate_schedule(
     if not periods:
         return PERIOD_FROST_PROTECTION
 
-    sorted_periods = sorted(periods, key=lambda p: p["start"])
+    sorted_periods = sorted(periods, key=lambda p: _parse_time(p["start"]))
     active_mode = None
     for period in sorted_periods:
         period_start = _parse_time(period["start"])
@@ -152,7 +152,7 @@ def resolve_presence(
     current_time = now.time()
 
     # Walk sorted periods to find active presence state
-    sorted_periods = sorted(periods, key=lambda p: p["start"])
+    sorted_periods = sorted(periods, key=lambda p: _parse_time(p["start"]))
     active_state = "absent"  # default before first period
     for period in sorted_periods:
         period_start = _parse_time(period["start"])
@@ -191,7 +191,8 @@ def compute_occupied_temp(
 
     # Find today's periods from the per-day dict (D-01)
     today_periods = sorted(
-        daily_program.get(day_name, []), key=lambda p: p["start"]
+        daily_program.get(day_name, []),
+        key=lambda p: _parse_time(p["start"]),
     )
 
     # Identify Normal/Comfort periods
