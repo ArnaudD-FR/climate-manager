@@ -22,6 +22,7 @@ import { property, state, query } from "lit/decorators.js";
 
 import { WsClient } from "./ws-client.js";
 import type { Hass, ClimateConfig, StatusPayload } from "./types.js";
+import { getZoneColor } from "./types.js";
 import type { ClimateManagerToast } from "./toast.js";
 
 import "./toast.js";
@@ -40,7 +41,8 @@ export class ClimateManagerPanel extends LitElement {
   // Internal state
   @state() private _config: ClimateConfig | null = null;
   @state() private _status: StatusPayload | null = null;
-  @state() private _activeTab: string = localStorage.getItem("climate-manager-tab") ?? "global";
+  @state() private _activeTab: string =
+    localStorage.getItem("climate-manager-tab") ?? "global";
   @state() private _unsubStatus: Promise<() => void> | null = null;
   @state() private _wsError = false;
   @state() private _editingTabId: string | null = null;
@@ -70,8 +72,11 @@ export class ClimateManagerPanel extends LitElement {
       font-size: 20px;
       font-weight: 400;
       color: var(--app-header-text-color, var(--primary-text-color));
-      background: var(--app-header-background-color, var(--primary-background-color));
-      border-bottom: 1px solid var(--divider-color, rgba(0,0,0,0.12));
+      background: var(
+        --app-header-background-color,
+        var(--primary-background-color)
+      );
+      border-bottom: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
     }
 
     .loading {
@@ -91,7 +96,7 @@ export class ClimateManagerPanel extends LitElement {
 
     .tab-bar {
       display: flex;
-      border-bottom: 1px solid var(--divider-color, rgba(0,0,0,0.12));
+      border-bottom: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
       background: var(--primary-background-color);
       padding: 0 8px;
       overflow-x: auto;
@@ -142,6 +147,16 @@ export class ClimateManagerPanel extends LitElement {
       padding: 12px 14px;
     }
 
+    .zone-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      vertical-align: middle;
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+
     .tab-name-input {
       font-size: 14px;
       font-weight: 500;
@@ -170,9 +185,11 @@ export class ClimateManagerPanel extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     if (this._unsubStatus) {
-      this._unsubStatus.then((unsub) => unsub()).catch(() => {
-        // Ignore errors during disconnect — connection may already be closed.
-      });
+      this._unsubStatus
+        .then((unsub) => unsub())
+        .catch(() => {
+          // Ignore errors during disconnect — connection may already be closed.
+        });
       this._unsubStatus = null;
     }
   }
@@ -185,7 +202,8 @@ export class ClimateManagerPanel extends LitElement {
       this._activeTab === "rooms" ||
       this._activeTab === "persons" ||
       this._activeTab === "zone_default"
-    ) return;
+    )
+      return;
     // Custom zone tab: verify the UUID still exists in config.
     if (this._activeTab.startsWith("zone_")) {
       const zoneId = this._activeTab.slice(5); // strip "zone_"
@@ -287,8 +305,10 @@ export class ClimateManagerPanel extends LitElement {
       this._setTab("zone_" + result.zone_id);
       // D-03: focus the zone name field so the user can rename without a second click.
       await this.updateComplete;
-      const zoneTab = this.shadowRoot?.querySelector("climate-manager-zone-tab");
-      (zoneTab?.shadowRoot?.querySelector<HTMLElement>(".zone-name"))?.click();
+      const zoneTab = this.shadowRoot?.querySelector(
+        "climate-manager-zone-tab",
+      );
+      zoneTab?.shadowRoot?.querySelector<HTMLElement>(".zone-name")?.click();
       this.showToast("Zone created", false);
     } catch {
       this.showToast("Create zone failed", true);
@@ -300,7 +320,9 @@ export class ClimateManagerPanel extends LitElement {
     this._editingTabId = zoneId;
     this._tabNameInput = currentName;
     await this.updateComplete;
-    this.shadowRoot?.querySelector<HTMLInputElement>(`input[data-zone="${zoneId}"]`)?.select();
+    this.shadowRoot
+      ?.querySelector<HTMLInputElement>(`input[data-zone="${zoneId}"]`)
+      ?.select();
   }
 
   private _onTabNameInput(e: Event) {
@@ -323,7 +345,9 @@ export class ClimateManagerPanel extends LitElement {
 
   private _onTabNameKeydown(zoneId: string, e: KeyboardEvent) {
     if (e.key === "Enter") (e.target as HTMLElement).blur();
-    else if (e.key === "Escape") { this._editingTabId = null; }
+    else if (e.key === "Escape") {
+      this._editingTabId = null;
+    }
   }
 
   private _setTab(tab: string) {
@@ -356,43 +380,74 @@ export class ClimateManagerPanel extends LitElement {
         <button
           class="tab-btn ${this._activeTab === "global" ? "active" : ""}"
           @click=${() => this._setTab("global")}
-        >Overview</button>
+        >
+          Overview
+        </button>
         <button
           class="tab-btn ${this._activeTab === "rooms" ? "active" : ""}"
           @click=${() => this._setTab("rooms")}
-        >Rooms</button>
+        >
+          Rooms
+        </button>
         <button
           class="tab-btn ${this._activeTab === "persons" ? "active" : ""}"
           @click=${() => this._setTab("persons")}
-        >Persons</button>
+        >
+          Persons
+        </button>
         <button
           class="tab-btn ${this._activeTab === "zone_default" ? "active" : ""}"
           @click=${() => this._setTab("zone_default")}
-          @dblclick=${(e: Event) => this._onTabRename("default", this._config!.default_zone_name, e)}
-        >${this._editingTabId === "default"
-          ? html`<input data-zone="default" class="tab-name-input" .value=${this._tabNameInput} @input=${this._onTabNameInput} @blur=${() => this._onTabNameBlur("default")} @keydown=${(e: KeyboardEvent) => this._onTabNameKeydown("default", e)} @click=${(e: Event) => e.stopPropagation()}>`
-          : this._config.default_zone_name
-        }</button>
-        ${Object.entries(this._config.zones).map(([zoneId, zone]) => html`
-          <button
-            class="tab-btn ${this._activeTab === "zone_" + zoneId ? "active" : ""}"
-            @click=${() => this._setTab("zone_" + zoneId)}
-            @dblclick=${(e: Event) => this._onTabRename(zoneId, zone.name, e)}
-          >${this._editingTabId === zoneId
-            ? html`<input data-zone="${zoneId}" class="tab-name-input" .value=${this._tabNameInput} @input=${this._onTabNameInput} @blur=${() => this._onTabNameBlur(zoneId)} @keydown=${(e: KeyboardEvent) => this._onTabNameKeydown(zoneId, e)} @click=${(e: Event) => e.stopPropagation()}>`
-            : zone.name
-          }</button>
-        `)}
+          @dblclick=${(e: Event) =>
+            this._onTabRename("default", this._config!.default_zone_name, e)}
+        >
+          ${this._editingTabId === "default"
+            ? html`<input
+                data-zone="default"
+                class="tab-name-input"
+                .value=${this._tabNameInput}
+                @input=${this._onTabNameInput}
+                @blur=${() => this._onTabNameBlur("default")}
+                @keydown=${(e: KeyboardEvent) =>
+                  this._onTabNameKeydown("default", e)}
+                @click=${(e: Event) => e.stopPropagation()}
+              />`
+            : html`<span class="zone-dot" style="background:${getZoneColor(undefined).color}"></span>${this._config.default_zone_name}`}
+        </button>
+        ${Object.entries(this._config.zones).map(
+          ([zoneId, zone]) => html`
+            <button
+              class="tab-btn ${this._activeTab === "zone_" + zoneId
+                ? "active"
+                : ""}"
+              @click=${() => this._setTab("zone_" + zoneId)}
+              @dblclick=${(e: Event) => this._onTabRename(zoneId, zone.name, e)}
+            >
+              ${this._editingTabId === zoneId
+                ? html`<input
+                    data-zone="${zoneId}"
+                    class="tab-name-input"
+                    .value=${this._tabNameInput}
+                    @input=${this._onTabNameInput}
+                    @blur=${() => this._onTabNameBlur(zoneId)}
+                    @keydown=${(e: KeyboardEvent) =>
+                      this._onTabNameKeydown(zoneId, e)}
+                    @click=${(e: Event) => e.stopPropagation()}
+                  />`
+                : html`<span class="zone-dot" style="background:${getZoneColor(zoneId).color}"></span>${zone.name}`}
+            </button>
+          `,
+        )}
         <button
           class="tab-btn add-zone-btn"
           title="Add zone"
           @click=${() => void this._onCreateZone()}
-        >+</button>
+        >
+          +
+        </button>
       </div>
 
-      <div class="tab-content">
-        ${this._renderTabContent()}
-      </div>
+      <div class="tab-content">${this._renderTabContent()}</div>
 
       <climate-manager-toast></climate-manager-toast>
     `;

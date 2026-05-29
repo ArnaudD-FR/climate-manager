@@ -3,18 +3,18 @@
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const ge = globalThis, ke = ge.ShadowRoot && (ge.ShadyCSS === void 0 || ge.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, Ce = Symbol(), Ye = /* @__PURE__ */ new WeakMap();
-let lt = class {
+const ge = globalThis, Ce = ge.ShadowRoot && (ge.ShadyCSS === void 0 || ge.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, Te = Symbol(), Ge = /* @__PURE__ */ new WeakMap();
+let ct = class {
   constructor(e, t, o) {
-    if (this._$cssResult$ = !0, o !== Ce) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
+    if (this._$cssResult$ = !0, o !== Te) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
     this.cssText = e, this.t = t;
   }
   get styleSheet() {
     let e = this.o;
     const t = this.t;
-    if (ke && e === void 0) {
+    if (Ce && e === void 0) {
       const o = t !== void 0 && t.length === 1;
-      o && (e = Ye.get(t)), e === void 0 && ((this.o = e = new CSSStyleSheet()).replaceSync(this.cssText), o && Ye.set(t, e));
+      o && (e = Ge.get(t)), e === void 0 && ((this.o = e = new CSSStyleSheet()).replaceSync(this.cssText), o && Ge.set(t, e));
     }
     return e;
   }
@@ -22,30 +22,30 @@ let lt = class {
     return this.cssText;
   }
 };
-const ct = (a) => new lt(typeof a == "string" ? a : a + "", void 0, Ce), k = (a, ...e) => {
+const dt = (a) => new ct(typeof a == "string" ? a : a + "", void 0, Te), k = (a, ...e) => {
   const t = a.length === 1 ? a[0] : e.reduce((o, s, i) => o + ((r) => {
     if (r._$cssResult$ === !0) return r.cssText;
     if (typeof r == "number") return r;
     throw Error("Value passed to 'css' function must be a 'css' function result: " + r + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
   })(s) + a[i + 1], a[0]);
-  return new lt(t, a, Ce);
+  return new ct(t, a, Te);
 }, _t = (a, e) => {
-  if (ke) a.adoptedStyleSheets = e.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
+  if (Ce) a.adoptedStyleSheets = e.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
   else for (const t of e) {
     const o = document.createElement("style"), s = ge.litNonce;
     s !== void 0 && o.setAttribute("nonce", s), o.textContent = t.cssText, a.appendChild(o);
   }
-}, Ge = ke ? (a) => a : (a) => a instanceof CSSStyleSheet ? ((e) => {
+}, Ke = Ce ? (a) => a : (a) => a instanceof CSSStyleSheet ? ((e) => {
   let t = "";
   for (const o of e.cssRules) t += o.cssText;
-  return ct(t);
+  return dt(t);
 })(a) : a;
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const { is: bt, defineProperty: vt, getOwnPropertyDescriptor: yt, getOwnPropertyNames: xt, getOwnPropertySymbols: $t, getPrototypeOf: wt } = Object, L = globalThis, Ke = L.trustedTypes, kt = Ke ? Ke.emptyScript : "", ve = L.reactiveElementPolyfillSupport, ie = (a, e) => a, fe = { toAttribute(a, e) {
+const { is: bt, defineProperty: vt, getOwnPropertyDescriptor: yt, getOwnPropertyNames: xt, getOwnPropertySymbols: $t, getPrototypeOf: wt } = Object, L = globalThis, Je = L.trustedTypes, kt = Je ? Je.emptyScript : "", ye = L.reactiveElementPolyfillSupport, ie = (a, e) => a, fe = { toAttribute(a, e) {
   switch (e) {
     case Boolean:
       a = a ? kt : null;
@@ -73,7 +73,7 @@ const { is: bt, defineProperty: vt, getOwnPropertyDescriptor: yt, getOwnProperty
       }
   }
   return t;
-} }, Te = (a, e) => !bt(a, e), Je = { attribute: !0, type: String, converter: fe, reflect: !1, useDefault: !1, hasChanged: Te };
+} }, Pe = (a, e) => !bt(a, e), Qe = { attribute: !0, type: String, converter: fe, reflect: !1, useDefault: !1, hasChanged: Pe };
 Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), L.litPropertyMetadata ?? (L.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
 let V = class extends HTMLElement {
   static addInitializer(e) {
@@ -82,7 +82,7 @@ let V = class extends HTMLElement {
   static get observedAttributes() {
     return this.finalize(), this._$Eh && [...this._$Eh.keys()];
   }
-  static createProperty(e, t = Je) {
+  static createProperty(e, t = Qe) {
     if (t.state && (t.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(e) && ((t = Object.create(t)).wrapped = !0), this.elementProperties.set(e, t), !t.noAccessor) {
       const o = Symbol(), s = this.getPropertyDescriptor(e, o, t);
       s !== void 0 && vt(this.prototype, e, s);
@@ -100,7 +100,7 @@ let V = class extends HTMLElement {
     }, configurable: !0, enumerable: !0 };
   }
   static getPropertyOptions(e) {
-    return this.elementProperties.get(e) ?? Je;
+    return this.elementProperties.get(e) ?? Qe;
   }
   static _$Ei() {
     if (this.hasOwnProperty(ie("elementProperties"))) return;
@@ -129,8 +129,8 @@ let V = class extends HTMLElement {
     const t = [];
     if (Array.isArray(e)) {
       const o = new Set(e.flat(1 / 0).reverse());
-      for (const s of o) t.unshift(Ge(s));
-    } else e !== void 0 && t.push(Ge(e));
+      for (const s of o) t.unshift(Ke(s));
+    } else e !== void 0 && t.push(Ke(e));
     return t;
   }
   static _$Eu(e, t) {
@@ -202,7 +202,7 @@ let V = class extends HTMLElement {
     var r;
     if (e !== void 0) {
       const n = this.constructor;
-      if (s === !1 && (i = this[e]), o ?? (o = n.getPropertyOptions(e)), !((o.hasChanged ?? Te)(i, t) || o.useDefault && o.reflect && i === ((r = this._$Ej) == null ? void 0 : r.get(e)) && !this.hasAttribute(n._$Eu(e, o)))) return;
+      if (s === !1 && (i = this[e]), o ?? (o = n.getPropertyOptions(e)), !((o.hasChanged ?? Pe)(i, t) || o.useDefault && o.reflect && i === ((r = this._$Ej) == null ? void 0 : r.get(e)) && !this.hasAttribute(n._$Eu(e, o)))) return;
       this.C(e, t, o);
     }
     this.isUpdatePending === !1 && (this._$ES = this._$EP());
@@ -278,18 +278,18 @@ let V = class extends HTMLElement {
   firstUpdated(e) {
   }
 };
-V.elementStyles = [], V.shadowRootOptions = { mode: "open" }, V[ie("elementProperties")] = /* @__PURE__ */ new Map(), V[ie("finalized")] = /* @__PURE__ */ new Map(), ve == null || ve({ ReactiveElement: V }), (L.reactiveElementVersions ?? (L.reactiveElementVersions = [])).push("2.1.2");
+V.elementStyles = [], V.shadowRootOptions = { mode: "open" }, V[ie("elementProperties")] = /* @__PURE__ */ new Map(), V[ie("finalized")] = /* @__PURE__ */ new Map(), ye == null || ye({ ReactiveElement: V }), (L.reactiveElementVersions ?? (L.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const re = globalThis, Qe = (a) => a, _e = re.trustedTypes, et = _e ? _e.createPolicy("lit-html", { createHTML: (a) => a }) : void 0, dt = "$lit$", j = `lit$${Math.random().toFixed(9).slice(2)}$`, pt = "?" + j, Ct = `<${pt}>`, W = document, ne = () => W.createComment(""), ae = (a) => a === null || typeof a != "object" && typeof a != "function", Pe = Array.isArray, Tt = (a) => Pe(a) || typeof (a == null ? void 0 : a[Symbol.iterator]) == "function", ye = `[ 	
-\f\r]`, se = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, tt = /-->/g, st = />/g, B = RegExp(`>|${ye}(?:([^\\s"'>=/]+)(${ye}*=${ye}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), ot = /'/g, it = /"/g, ht = /^(?:script|style|textarea|title)$/i, Pt = (a) => (e, ...t) => ({ _$litType$: a, strings: e, values: t }), d = Pt(1), Y = Symbol.for("lit-noChange"), x = Symbol.for("lit-nothing"), rt = /* @__PURE__ */ new WeakMap(), F = W.createTreeWalker(W, 129);
-function ut(a, e) {
-  if (!Pe(a) || !a.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return et !== void 0 ? et.createHTML(e) : e;
+const re = globalThis, et = (a) => a, _e = re.trustedTypes, tt = _e ? _e.createPolicy("lit-html", { createHTML: (a) => a }) : void 0, pt = "$lit$", j = `lit$${Math.random().toFixed(9).slice(2)}$`, ht = "?" + j, Ct = `<${ht}>`, W = document, ne = () => W.createComment(""), ae = (a) => a === null || typeof a != "object" && typeof a != "function", Se = Array.isArray, Tt = (a) => Se(a) || typeof (a == null ? void 0 : a[Symbol.iterator]) == "function", xe = `[ 	
+\f\r]`, se = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, st = /-->/g, ot = />/g, B = RegExp(`>|${xe}(?:([^\\s"'>=/]+)(${xe}*=${xe}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), it = /'/g, rt = /"/g, ut = /^(?:script|style|textarea|title)$/i, Pt = (a) => (e, ...t) => ({ _$litType$: a, strings: e, values: t }), d = Pt(1), Y = Symbol.for("lit-noChange"), x = Symbol.for("lit-nothing"), nt = /* @__PURE__ */ new WeakMap(), F = W.createTreeWalker(W, 129);
+function mt(a, e) {
+  if (!Se(a) || !a.hasOwnProperty("raw")) throw Error("invalid template strings array");
+  return tt !== void 0 ? tt.createHTML(e) : e;
 }
 const St = (a, e) => {
   const t = a.length - 1, o = [];
@@ -297,11 +297,11 @@ const St = (a, e) => {
   for (let n = 0; n < t; n++) {
     const l = a[n];
     let c, p, h = -1, g = 0;
-    for (; g < l.length && (r.lastIndex = g, p = r.exec(l), p !== null); ) g = r.lastIndex, r === se ? p[1] === "!--" ? r = tt : p[1] !== void 0 ? r = st : p[2] !== void 0 ? (ht.test(p[2]) && (s = RegExp("</" + p[2], "g")), r = B) : p[3] !== void 0 && (r = B) : r === B ? p[0] === ">" ? (r = s ?? se, h = -1) : p[1] === void 0 ? h = -2 : (h = r.lastIndex - p[2].length, c = p[1], r = p[3] === void 0 ? B : p[3] === '"' ? it : ot) : r === it || r === ot ? r = B : r === tt || r === st ? r = se : (r = B, s = void 0);
+    for (; g < l.length && (r.lastIndex = g, p = r.exec(l), p !== null); ) g = r.lastIndex, r === se ? p[1] === "!--" ? r = st : p[1] !== void 0 ? r = ot : p[2] !== void 0 ? (ut.test(p[2]) && (s = RegExp("</" + p[2], "g")), r = B) : p[3] !== void 0 && (r = B) : r === B ? p[0] === ">" ? (r = s ?? se, h = -1) : p[1] === void 0 ? h = -2 : (h = r.lastIndex - p[2].length, c = p[1], r = p[3] === void 0 ? B : p[3] === '"' ? rt : it) : r === rt || r === it ? r = B : r === st || r === ot ? r = se : (r = B, s = void 0);
     const b = r === B && a[n + 1].startsWith("/>") ? " " : "";
-    i += r === se ? l + Ct : h >= 0 ? (o.push(c), l.slice(0, h) + dt + l.slice(h) + j + b) : l + j + (h === -2 ? n : b);
+    i += r === se ? l + Ct : h >= 0 ? (o.push(c), l.slice(0, h) + pt + l.slice(h) + j + b) : l + j + (h === -2 ? n : b);
   }
-  return [ut(a, i + (a[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), o];
+  return [mt(a, i + (a[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), o];
 };
 class le {
   constructor({ strings: e, _$litType$: t }, o) {
@@ -315,11 +315,11 @@ class le {
     }
     for (; (s = F.nextNode()) !== null && l.length < n; ) {
       if (s.nodeType === 1) {
-        if (s.hasAttributes()) for (const h of s.getAttributeNames()) if (h.endsWith(dt)) {
+        if (s.hasAttributes()) for (const h of s.getAttributeNames()) if (h.endsWith(pt)) {
           const g = p[r++], b = s.getAttribute(h).split(j), v = /([.?@])?(.*)/.exec(g);
-          l.push({ type: 1, index: i, name: v[2], strings: b, ctor: v[1] === "." ? Et : v[1] === "?" ? Mt : v[1] === "@" ? At : be }), s.removeAttribute(h);
+          l.push({ type: 1, index: i, name: v[2], strings: b, ctor: v[1] === "." ? Et : v[1] === "?" ? Mt : v[1] === "@" ? At : ve }), s.removeAttribute(h);
         } else h.startsWith(j) && (l.push({ type: 6, index: i }), s.removeAttribute(h));
-        if (ht.test(s.tagName)) {
+        if (ut.test(s.tagName)) {
           const h = s.textContent.split(j), g = h.length - 1;
           if (g > 0) {
             s.textContent = _e ? _e.emptyScript : "";
@@ -327,7 +327,7 @@ class le {
             s.append(h[g], ne());
           }
         }
-      } else if (s.nodeType === 8) if (s.data === pt) l.push({ type: 2, index: i });
+      } else if (s.nodeType === 8) if (s.data === ht) l.push({ type: 2, index: i });
       else {
         let h = -1;
         for (; (h = s.data.indexOf(j, h + 1)) !== -1; ) l.push({ type: 7, index: i }), h += j.length - 1;
@@ -408,7 +408,7 @@ class ce {
   }
   $(e) {
     var i;
-    const { values: t, _$litType$: o } = e, s = typeof o == "number" ? this._$AC(e) : (o.el === void 0 && (o.el = le.createElement(ut(o.h, o.h[0]), this.options)), o);
+    const { values: t, _$litType$: o } = e, s = typeof o == "number" ? this._$AC(e) : (o.el === void 0 && (o.el = le.createElement(mt(o.h, o.h[0]), this.options)), o);
     if (((i = this._$AH) == null ? void 0 : i._$AD) === s) this._$AH.p(t);
     else {
       const r = new zt(s, this), n = r.u(this.options);
@@ -416,11 +416,11 @@ class ce {
     }
   }
   _$AC(e) {
-    let t = rt.get(e.strings);
-    return t === void 0 && rt.set(e.strings, t = new le(e)), t;
+    let t = nt.get(e.strings);
+    return t === void 0 && nt.set(e.strings, t = new le(e)), t;
   }
   k(e) {
-    Pe(this._$AH) || (this._$AH = [], this._$AR());
+    Se(this._$AH) || (this._$AH = [], this._$AR());
     const t = this._$AH;
     let o, s = 0;
     for (const i of e) s === t.length ? t.push(o = new ce(this.O(ne()), this.O(ne()), this, this.options)) : o = t[s], o._$AI(i), s++;
@@ -429,8 +429,8 @@ class ce {
   _$AR(e = this._$AA.nextSibling, t) {
     var o;
     for ((o = this._$AP) == null ? void 0 : o.call(this, !1, !0, t); e !== this._$AB; ) {
-      const s = Qe(e).nextSibling;
-      Qe(e).remove(), e = s;
+      const s = et(e).nextSibling;
+      et(e).remove(), e = s;
     }
   }
   setConnected(e) {
@@ -438,7 +438,7 @@ class ce {
     this._$AM === void 0 && (this._$Cv = e, (t = this._$AP) == null || t.call(this, e));
   }
 }
-class be {
+class ve {
   get tagName() {
     return this.element.tagName;
   }
@@ -463,7 +463,7 @@ class be {
     e === x ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, e ?? "");
   }
 }
-class Et extends be {
+class Et extends ve {
   constructor() {
     super(...arguments), this.type = 3;
   }
@@ -471,7 +471,7 @@ class Et extends be {
     this.element[this.name] = e === x ? void 0 : e;
   }
 }
-class Mt extends be {
+class Mt extends ve {
   constructor() {
     super(...arguments), this.type = 4;
   }
@@ -479,7 +479,7 @@ class Mt extends be {
     this.element.toggleAttribute(this.name, !!e && e !== x);
   }
 }
-class At extends be {
+class At extends ve {
   constructor(e, t, o, s, i) {
     super(e, t, o, s, i), this.type = 5;
   }
@@ -504,8 +504,8 @@ class Rt {
     G(this, e);
   }
 }
-const xe = re.litHtmlPolyfillSupport;
-xe == null || xe(le, ce), (re.litHtmlVersions ?? (re.litHtmlVersions = [])).push("3.3.3");
+const $e = re.litHtmlPolyfillSupport;
+$e == null || $e(le, ce), (re.litHtmlVersions ?? (re.litHtmlVersions = [])).push("3.3.3");
 const It = (a, e, t) => {
   const o = (t == null ? void 0 : t.renderBefore) ?? e;
   let s = o._$litPart$;
@@ -546,17 +546,17 @@ class C extends V {
     return Y;
   }
 }
-var at;
-C._$litElement$ = !0, C.finalized = !0, (at = q.litElementHydrateSupport) == null || at.call(q, { LitElement: C });
-const $e = q.litElementPolyfillSupport;
-$e == null || $e({ LitElement: C });
+var lt;
+C._$litElement$ = !0, C.finalized = !0, (lt = q.litElementHydrateSupport) == null || lt.call(q, { LitElement: C });
+const we = q.litElementPolyfillSupport;
+we == null || we({ LitElement: C });
 (q.litElementVersions ?? (q.litElementVersions = [])).push("4.2.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Dt = { attribute: !0, type: String, converter: fe, reflect: !1, hasChanged: Te }, Nt = (a = Dt, e, t) => {
+const Dt = { attribute: !0, type: String, converter: fe, reflect: !1, hasChanged: Pe }, Nt = (a = Dt, e, t) => {
   const { kind: o, metadata: s } = t;
   let i = globalThis.litPropertyMetadata.get(s);
   if (i === void 0 && globalThis.litPropertyMetadata.set(s, i = /* @__PURE__ */ new Map()), o === "setter" && ((a = Object.create(a)).wrapped = !0), i.set(t.name, a), o === "accessor") {
@@ -753,12 +753,66 @@ class pe {
     });
   }
 }
-var Ut = Object.defineProperty, Se = (a, e, t, o) => {
+const U = {
+  frost_protection: "#1565C0",
+  reduced: "#0277BD",
+  normal: "#F57C00",
+  comfort: "#C62828"
+}, oe = {
+  present: "#2E7D32",
+  absent: "#9E9E9E"
+}, ze = {
+  frost_protection: "Frost protection",
+  reduced: "Reduced",
+  normal: "Normal",
+  comfort: "Comfort",
+  present: "Present",
+  absent: "Absent"
+}, ke = [
+  {
+    background: "rgba(124, 58, 237, 0.12)",
+    color: "#7c3aed",
+    border: "rgba(124, 58, 237, 0.25)"
+  },
+  // violet
+  {
+    background: "rgba(13, 148, 136, 0.12)",
+    color: "#0d9488",
+    border: "rgba(13, 148, 136, 0.25)"
+  },
+  // teal
+  {
+    background: "rgba(217, 119, 6, 0.12)",
+    color: "#d97706",
+    border: "rgba(217, 119, 6, 0.25)"
+  },
+  // amber
+  {
+    background: "rgba(2, 132, 199, 0.12)",
+    color: "#0284c7",
+    border: "rgba(2, 132, 199, 0.25)"
+  },
+  // sky
+  {
+    background: "rgba(190, 18, 60, 0.12)",
+    color: "#be123c",
+    border: "rgba(190, 18, 60, 0.25)"
+  }
+  // rose
+];
+function be(a) {
+  if (!a) return ke[0];
+  let e = 0;
+  for (let t = 0; t < a.length; t++)
+    e = e * 31 + a.charCodeAt(t) >>> 0;
+  return ke[1 + e % (ke.length - 1)];
+}
+var Ut = Object.defineProperty, Ee = (a, e, t, o) => {
   for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && Ut(e, t, s), s;
 };
-const Oe = class Oe extends C {
+const He = class He extends C {
   constructor() {
     super(...arguments), this._visible = !1, this._message = "", this._isError = !1, this._dismissTimer = null;
   }
@@ -781,16 +835,13 @@ const Oe = class Oe extends C {
         aria-live="polite"
         aria-atomic="true"
       >
-        <ha-icon
-          class="icon ${t}"
-          icon="${e}"
-        ></ha-icon>
+        <ha-icon class="icon ${t}" icon="${e}"></ha-icon>
         <span>${this._message}</span>
       </div>
     `;
   }
 };
-Oe.styles = k`
+He.styles = k`
     :host {
       position: fixed;
       bottom: 24px;
@@ -808,7 +859,7 @@ Oe.styles = k`
       padding: 12px 16px;
       border-radius: 4px;
       background: var(--card-background-color, #fff);
-      box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0,0,0,0.2));
+      box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0, 0, 0, 0.2));
       font-size: 14px;
       font-family: inherit;
       color: var(--primary-text-color, #212121);
@@ -835,57 +886,23 @@ Oe.styles = k`
       color: var(--error-color, #db4437);
     }
   `;
-let K = Oe;
-Se([
+let K = He;
+Ee([
   y()
 ], K.prototype, "_visible");
-Se([
+Ee([
   y()
 ], K.prototype, "_message");
-Se([
+Ee([
   y()
 ], K.prototype, "_isError");
 customElements.define("climate-manager-toast", K);
-const U = {
-  frost_protection: "#1565C0",
-  reduced: "#0277BD",
-  normal: "#F57C00",
-  comfort: "#C62828"
-}, oe = {
-  present: "#2E7D32",
-  absent: "#9E9E9E"
-}, ze = {
-  frost_protection: "Frost protection",
-  reduced: "Reduced",
-  normal: "Normal",
-  comfort: "Comfort",
-  present: "Present",
-  absent: "Absent"
-}, we = [
-  { background: "rgba(124, 58, 237, 0.12)", color: "#7c3aed", border: "rgba(124, 58, 237, 0.25)" },
-  // violet
-  { background: "rgba(13, 148, 136, 0.12)", color: "#0d9488", border: "rgba(13, 148, 136, 0.25)" },
-  // teal
-  { background: "rgba(217, 119, 6, 0.12)", color: "#d97706", border: "rgba(217, 119, 6, 0.25)" },
-  // amber
-  { background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", border: "rgba(2, 132, 199, 0.25)" },
-  // sky
-  { background: "rgba(190, 18, 60, 0.12)", color: "#be123c", border: "rgba(190, 18, 60, 0.25)" }
-  // rose
-];
-function mt(a) {
-  if (!a) return we[0];
-  let e = 0;
-  for (let t = 0; t < a.length; t++)
-    e = e * 31 + a.charCodeAt(t) >>> 0;
-  return we[1 + e % (we.length - 1)];
-}
 var jt = Object.defineProperty, N = (a, e, t, o) => {
   for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && jt(e, t, s), s;
 };
-const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Zt = ["frost_protection", "reduced", "normal", "comfort"], Bt = ["present", "absent"], He = class He extends C {
+const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Zt = ["frost_protection", "reduced", "normal", "comfort"], Bt = ["present", "absent"], Ue = class Ue extends C {
   constructor() {
     super(...arguments), this.days = Array.from(
       { length: 7 },
@@ -928,9 +945,7 @@ const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Zt = ["frost_prote
    */
   _toSegments(e) {
     if (e.length === 0) return [];
-    const t = [...e].sort(
-      (n, l) => n.start.localeCompare(l.start)
-    ), o = t[0], i = this._timeToMinutes(o.start) > 0 ? [{ start: "00:00", mode: o.mode, state: o.state }, ...t] : t, r = [];
+    const t = [...e].sort((n, l) => n.start.localeCompare(l.start)), o = t[0], i = this._timeToMinutes(o.start) > 0 ? [{ start: "00:00", mode: o.mode, state: o.state }, ...t] : t, r = [];
     for (let n = 0; n < i.length; n++) {
       const l = this._timeToMinutes(i[n].start), c = n + 1 < i.length ? this._timeToMinutes(i[n + 1].start) : 1440;
       r.push({ period: i[n], startMin: l, endMin: c });
@@ -1126,10 +1141,7 @@ const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Zt = ["frost_prote
         r.width
       ), l = this._snapToMinutes(n), c = this._toSegments(this.days[t] ?? []), p = c[o], h = c[o + 1];
       if (p && h) {
-        const g = p.startMin + 15, b = h.endMin - 15, v = Math.max(
-          g,
-          Math.min(b, l)
-        ), m = (this.days[t] ?? []).map((f) => f.start === h.period.start ? { ...f, start: this._minutesToHHMM(v) } : f), _ = this.days.map(
+        const g = p.startMin + 15, b = h.endMin - 15, v = Math.max(g, Math.min(b, l)), m = (this.days[t] ?? []).map((f) => f.start === h.period.start ? { ...f, start: this._minutesToHHMM(v) } : f), _ = this.days.map(
           (f, $) => $ === t ? m : f
         );
         this._drag = null, this._dragTooltipMinutes = null, this._dragPreviewDays = _, this._justDragged = !0, this._emitChange(t, m);
@@ -1178,7 +1190,6 @@ const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Zt = ["frost_prote
       >
         <!-- Time axis above day rows — identical structure to bottom axis -->
         ${this._renderTimeAxis()}
-
         ${Lt.map(
       (e, t) => this._renderDayRow(e, t)
     )}
@@ -1198,10 +1209,7 @@ const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Zt = ["frost_prote
 
       <!-- Popup overlay + popup -->
       ${this._popup ? d`
-            <div
-              class="popup-overlay"
-              @click=${this._closePopup}
-            ></div>
+            <div class="popup-overlay" @click=${this._closePopup}></div>
             <div
               class="popup"
               style="left:${this._popup.x}px;top:${this._popup.y}px"
@@ -1229,12 +1237,17 @@ const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Zt = ["frost_prote
       return d`<span
               class="axis-tick ${o}"
               style="left:${t / 24 * 100}%"
-            >${String(t).padStart(2, "0")}:00</span>`;
+              >${String(t).padStart(2, "0")}:00</span
+            >`;
     })}
         </div>
         <div class="time-axis-actions-ghost" aria-hidden="true">
-          <ha-icon-button><ha-icon icon="mdi:content-copy"></ha-icon></ha-icon-button>
-          <ha-icon-button><ha-icon icon="mdi:content-paste"></ha-icon></ha-icon-button>
+          <ha-icon-button
+            ><ha-icon icon="mdi:content-copy"></ha-icon
+          ></ha-icon-button>
+          <ha-icon-button
+            ><ha-icon icon="mdi:content-paste"></ha-icon
+          ></ha-icon-button>
         </div>
       </div>
     `;
@@ -1327,9 +1340,7 @@ const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Zt = ["frost_prote
       `;
     }
     if (this._popup.kind === "edit") {
-      const o = this._toSegments(
-        this.days[this._popup.dayIndex] ?? []
-      )[this._popup.segIndex ?? 0];
+      const o = this._toSegments(this.days[this._popup.dayIndex] ?? [])[this._popup.segIndex ?? 0];
       if (!o) return d``;
       const s = `${this._minutesToHHMM(o.startMin)} – ${this._minutesToHHMM(o.endMin)}`, i = this.mode === "presence" ? o.period.state ?? "absent" : ((e = o.period.mode) == null ? void 0 : e.replace(/_/g, " ")) ?? "frost protection", n = o.endMin - o.startMin >= 30;
       return d`
@@ -1366,10 +1377,7 @@ const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Zt = ["frost_prote
           >
             Split period
           </button>
-          <button
-            class="popup-btn danger"
-            @click=${this._onDeleteSegment}
-          >
+          <button class="popup-btn danger" @click=${this._onDeleteSegment}>
             Delete period
           </button>
         </div>
@@ -1378,7 +1386,7 @@ const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], Zt = ["frost_prote
     return d``;
   }
 };
-He.styles = k`
+Ue.styles = k`
     :host {
       display: block;
       user-select: none;
@@ -1533,16 +1541,24 @@ He.styles = k`
       color: var(--secondary-text-color, #757575);
       white-space: nowrap;
     }
-    .axis-tick:first-child { transform: translateX(0); }
-    .axis-tick:last-child  { transform: translateX(-100%); }
+    .axis-tick:first-child {
+      transform: translateX(0);
+    }
+    .axis-tick:last-child {
+      transform: translateX(-100%);
+    }
 
     /* On narrow screens hide 3h-interval ticks (3, 9, 15, 21) */
     @media (max-width: 479px) {
-      .axis-tick--3h { display: none; }
+      .axis-tick--3h {
+        display: none;
+      }
     }
     /* On very narrow screens also hide 6h-interval ticks (6, 18) */
     @media (max-width: 339px) {
-      .axis-tick--6h { display: none; }
+      .axis-tick--6h {
+        display: none;
+      }
     }
 
     /* Drag tooltip */
@@ -1569,7 +1585,7 @@ He.styles = k`
       position: fixed;
       background: var(--card-background-color, #fff);
       border-radius: 4px;
-      box-shadow: var(--ha-card-box-shadow, 0 4px 16px rgba(0,0,0,0.25));
+      box-shadow: var(--ha-card-box-shadow, 0 4px 16px rgba(0, 0, 0, 0.25));
       padding: 12px;
       z-index: 9991;
       min-width: 160px;
@@ -1643,7 +1659,7 @@ He.styles = k`
       color: var(--error-color, #db4437);
     }
   `;
-let z = He;
+let z = Ue;
 N([
   u({ type: Array })
 ], z.prototype, "days");
@@ -1677,7 +1693,7 @@ var Ft = Object.defineProperty, de = (a, e, t, o) => {
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && Ft(e, t, s), s;
 };
-const Ee = [
+const Me = [
   "mon",
   "tue",
   "wed",
@@ -1686,15 +1702,15 @@ const Ee = [
   "sat",
   "sun"
 ];
-function Me(a) {
-  return Ee.map((e) => a != null && a[e] ? [...a[e]] : []);
-}
 function Ae(a) {
-  return Ee[a] ?? "mon";
+  return Me.map((e) => a != null && a[e] ? [...a[e]] : []);
+}
+function Re(a) {
+  return Me[a] ?? "mon";
 }
 function qt(a, e) {
   if (!a) return null;
-  const t = e.getDay(), o = t === 0 ? 6 : t - 1, s = Ee[o], i = a[s] ?? [], r = e.getHours() * 60 + e.getMinutes();
+  const t = e.getDay(), o = t === 0 ? 6 : t - 1, s = Me[o], i = a[s] ?? [], r = e.getHours() * 60 + e.getMinutes();
   let n = null;
   for (const l of i) {
     const [c = 0, p = 0] = l.start.split(":").map(Number);
@@ -1706,7 +1722,7 @@ const gt = "off", Wt = "time_program", Xt = "time_program_presences", Vt = {
   [gt]: "Off",
   [Wt]: "Time program",
   [Xt]: "Time program & presences"
-}, Ue = class Ue extends C {
+}, je = class je extends C {
   constructor() {
     super(...arguments), this.status = null, this._tempSaveTimer = null, this._onTemperatureInput = () => {
       this._tempSaveTimer !== null && clearTimeout(this._tempSaveTimer), this._tempSaveTimer = setTimeout(() => {
@@ -1764,14 +1780,17 @@ const gt = "off", Wt = "time_program", Xt = "time_program_presences", Vt = {
   _renderStatusCard() {
     var r;
     const e = this.status, t = this._getZoneRows(), o = Object.keys(((r = this.config) == null ? void 0 : r.persons) ?? {}), s = new Set((e == null ? void 0 : e.present_persons) ?? []), i = o.length === 0 ? d`<span class="status-value">No persons configured</span>` : d`
-          <span class="status-value">
-            ${o.map((n, l) => {
+            <span class="status-value">
+              ${o.map((n, l) => {
       var h, g, b;
       const c = ((b = (g = (h = this.hass) == null ? void 0 : h.states[n]) == null ? void 0 : g.attributes) == null ? void 0 : b.friendly_name) ?? n, p = s.has(n);
-      return d`<span class="person-dot ${p ? "" : "absent"}"></span>${c}${l < o.length - 1 ? ", " : ""}`;
+      return d`<span
+                    class="person-dot ${p ? "" : "absent"}"
+                  ></span
+                  >${c}${l < o.length - 1 ? ", " : ""}`;
     })}
-          </span>
-        `;
+            </span>
+          `;
     return d`
       <ha-card>
         <div class="card-header">Current Status</div>
@@ -1783,14 +1802,19 @@ const gt = "off", Wt = "time_program", Xt = "time_program_presences", Vt = {
               <span>Active period</span>
             </div>
             ${t.map((n) => {
-      const l = mt(n.id === "default" ? void 0 : n.id), c = Vt[n.mode] ?? n.mode, p = n.activePeriod ? ze[n.activePeriod] ?? n.activePeriod : "—";
+      const l = be(
+        n.id === "default" ? void 0 : n.id
+      ), c = Vt[n.mode] ?? n.mode, p = n.activePeriod ? ze[n.activePeriod] ?? n.activePeriod : "—";
       return d`
                 <div class="zone-status-row">
                   <span
                     class="zone-status-name"
                     style="color: ${l.color}; cursor: pointer;"
-                    @click=${() => this.panel.navigateToZone(n.id === "default" ? void 0 : n.id)}
-                  >${n.name}</span>
+                    @click=${() => this.panel.navigateToZone(
+        n.id === "default" ? void 0 : n.id
+      )}
+                    >${n.name}</span
+                  >
                   <span class="zone-status-value">${c}</span>
                   <span class="zone-status-value">${p}</span>
                 </div>
@@ -1835,26 +1859,26 @@ const gt = "off", Wt = "time_program", Xt = "time_program_presences", Vt = {
         <div class="card-content">
           <div class="temp-fields">
             ${t("frost_protection", "Frost protection")}
-            ${t("reduced", "Reduced")}
-            ${t("normal", "Normal")}
+            ${t("reduced", "Reduced")} ${t("normal", "Normal")}
             ${t("comfort", "Comfort")}
           </div>
-          <button class="reset-btn" @click=${this._onResetTemperatures}>Reset to default</button>
+          <button class="reset-btn" @click=${this._onResetTemperatures}>
+            Reset to default
+          </button>
         </div>
       </ha-card>
     `;
   }
   render() {
     return d`
-      ${this._renderStatusCard()}
-      ${this._renderTemperaturesCard()}
+      ${this._renderStatusCard()} ${this._renderTemperaturesCard()}
     `;
   }
 };
-Ue.styles = k`
+je.styles = k`
     :host {
       display: block;
-      --present-color: ${ct(oe.present)};
+      --present-color: ${dt(oe.present)};
     }
 
     ha-card {
@@ -1983,7 +2007,10 @@ Ue.styles = k`
       font-size: 15px;
       font-family: inherit;
       color: var(--primary-text-color);
-      background-color: var(--card-background-color, var(--secondary-background-color));
+      background-color: var(
+        --card-background-color,
+        var(--secondary-background-color)
+      );
       border: 1px solid var(--divider-color);
       border-radius: 4px;
       outline: none;
@@ -2018,7 +2045,7 @@ Ue.styles = k`
       background: var(--secondary-background-color);
     }
   `;
-let Z = Ue;
+let Z = je;
 de([
   u({ attribute: !1 })
 ], Z.prototype, "config");
@@ -2035,7 +2062,7 @@ de([
   u({ attribute: !1 })
 ], Z.prototype, "hass");
 customElements.define("climate-manager-global-settings-tab", Z);
-const Re = k`
+const Ie = k`
   .chips {
     display: flex;
     flex-wrap: wrap;
@@ -2108,7 +2135,7 @@ const Re = k`
     width: 16px;
     height: 16px;
   }
-`, Ie = k`
+`, De = k`
   .section-label {
     font-size: 12px;
     font-weight: 600;
@@ -2117,14 +2144,17 @@ const Re = k`
     color: var(--secondary-text-color);
     margin-bottom: 8px;
   }
-`, De = k`
+`, Ne = k`
   .mode-select {
     width: 100%;
     padding: 10px 12px;
     font-size: 16px;
     font-family: inherit;
     color: var(--primary-text-color);
-    background-color: var(--card-background-color, var(--secondary-background-color));
+    background-color: var(
+      --card-background-color,
+      var(--secondary-background-color)
+    );
     border: 1px solid var(--divider-color);
     border-radius: 4px;
     outline: none;
@@ -2135,7 +2165,7 @@ const Re = k`
     border-color: var(--primary-color);
     border-width: 2px;
   }
-`, Ne = k`
+`, Oe = k`
   .schedule-hint {
     font-size: 12px;
     color: var(--secondary-text-color);
@@ -2157,7 +2187,7 @@ var Yt = Object.defineProperty, J = (a, e, t, o) => {
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && Yt(e, t, s), s;
 };
-const je = class je extends C {
+const Le = class Le extends C {
   constructor() {
     super(...arguments), this.items = [], this.placeholder = "Search…", this.triggerLabel = "Add", this.triggerIcon = "mdi:plus", this._open = !1, this._query = "", this._docClickHandler = null;
   }
@@ -2229,44 +2259,49 @@ const je = class je extends C {
       </button>
 
       ${this._open ? d`
-          <div class="popup" @click=${(t) => t.stopPropagation()}>
-            <div class="search-row">
-              <input
-                class="search-input"
-                type="text"
-                .value=${this._query}
-                placeholder=${this.placeholder}
-                @input=${this._onSearchInput}
-                @keydown=${this._onKeydown}
-                autocomplete="off"
-                spellcheck="false"
-              />
-            </div>
-            ${e.length > 0 ? d`
-                <ul class="item-list" role="listbox">
-                  ${e.map(
+            <div class="popup" @click=${(t) => t.stopPropagation()}>
+              <div class="search-row">
+                <input
+                  class="search-input"
+                  type="text"
+                  .value=${this._query}
+                  placeholder=${this.placeholder}
+                  @input=${this._onSearchInput}
+                  @keydown=${this._onKeydown}
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </div>
+              ${e.length > 0 ? d`
+                    <ul class="item-list" role="listbox">
+                      ${e.map(
       (t) => d`
-                      <li
-                        class="item-row"
-                        role="option"
-                        @click=${() => this._onItemClick(t)}
-                      >
-                        ${t.icon ? d`<ha-icon class="item-icon" icon=${t.icon}></ha-icon>` : ""}
-                        <div class="item-text">
-                          <span class="item-label">${t.label}</span>
-                          ${t.secondary ? d`<span class="item-secondary">${t.secondary}</span>` : ""}
-                        </div>
-                      </li>
-                    `
+                          <li
+                            class="item-row"
+                            role="option"
+                            @click=${() => this._onItemClick(t)}
+                          >
+                            ${t.icon ? d`<ha-icon
+                                  class="item-icon"
+                                  icon=${t.icon}
+                                ></ha-icon>` : ""}
+                            <div class="item-text">
+                              <span class="item-label">${t.label}</span>
+                              ${t.secondary ? d`<span class="item-secondary"
+                                    >${t.secondary}</span
+                                  >` : ""}
+                            </div>
+                          </li>
+                        `
     )}
-                </ul>
-              ` : d`<div class="empty-message">No results</div>`}
-          </div>
-        ` : ""}
+                    </ul>
+                  ` : d`<div class="empty-message">No results</div>`}
+            </div>
+          ` : ""}
     `;
   }
 };
-je.styles = k`
+Le.styles = k`
     :host {
       display: inline-block;
       position: relative;
@@ -2310,7 +2345,7 @@ je.styles = k`
       background: var(--card-background-color, #fff);
       border: 1px solid var(--divider-color, #e0e0e0);
       border-radius: 8px;
-      box-shadow: var(--ha-card-box-shadow, 0 4px 16px rgba(0,0,0,0.15));
+      box-shadow: var(--ha-card-box-shadow, 0 4px 16px rgba(0, 0, 0, 0.15));
       overflow: hidden;
     }
 
@@ -2398,7 +2433,7 @@ je.styles = k`
       text-align: center;
     }
   `;
-let R = je;
+let R = Le;
 J([
   u({ type: Array })
 ], R.prototype, "items");
@@ -2423,14 +2458,14 @@ var Gt = Object.defineProperty, A = (a, e, t, o) => {
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && Gt(e, t, s), s;
 };
-const Le = class Le extends C {
+const Ze = class Ze extends C {
   constructor() {
     super(...arguments), this.roomStatus = null, this.status = null, this.autoExpand = !1, this._expanded = !1, this._lastTimeProgram = void 0, this._cachedDays = [];
   }
   get _days() {
     var t;
     const e = (t = this.config) == null ? void 0 : t.time_program;
-    return e !== this._lastTimeProgram && (this._lastTimeProgram = e, this._cachedDays = Me(e ?? void 0)), this._cachedDays;
+    return e !== this._lastTimeProgram && (this._lastTimeProgram = e, this._cachedDays = Ae(e ?? void 0)), this._cachedDays;
   }
   connectedCallback() {
     super.connectedCallback(), this._expanded = !1;
@@ -2478,7 +2513,9 @@ const Le = class Le extends C {
   }
   async _onAddPerson(e) {
     var s, i, r;
-    const t = [...((r = (i = (s = this.panelConfig) == null ? void 0 : s.persons) == null ? void 0 : i[e]) == null ? void 0 : r.room_ids) ?? []], o = t.includes(this.roomId) ? t : [...t, this.roomId];
+    const t = [
+      ...((r = (i = (s = this.panelConfig) == null ? void 0 : s.persons) == null ? void 0 : i[e]) == null ? void 0 : r.room_ids) ?? []
+    ], o = t.includes(this.roomId) ? t : [...t, this.roomId];
     try {
       await this.ws.setPersonConfig(e, { room_ids: o }), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
     } catch {
@@ -2487,7 +2524,9 @@ const Le = class Le extends C {
   }
   async _onRemovePerson(e) {
     var s, i, r;
-    const o = [...((r = (i = (s = this.panelConfig) == null ? void 0 : s.persons) == null ? void 0 : i[e]) == null ? void 0 : r.room_ids) ?? []].filter((n) => n !== this.roomId);
+    const o = [
+      ...((r = (i = (s = this.panelConfig) == null ? void 0 : s.persons) == null ? void 0 : i[e]) == null ? void 0 : r.room_ids) ?? []
+    ].filter((n) => n !== this.roomId);
     try {
       await this.ws.setPersonConfig(e, { room_ids: o }), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
     } catch {
@@ -2503,7 +2542,9 @@ const Le = class Le extends C {
     let o;
     t === "custom" && !((s = this.config) != null && s.time_program) ? o = {
       room_mode: "custom",
-      time_program: JSON.parse(JSON.stringify(this.panelConfig.global_time_program))
+      time_program: JSON.parse(
+        JSON.stringify(this.panelConfig.global_time_program)
+      )
     } : o = { room_mode: t };
     try {
       await this.ws.setRoomConfig(this.roomId, o), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
@@ -2523,7 +2564,7 @@ const Le = class Le extends C {
       fri: [],
       sat: [],
       sun: []
-    } }, r = Ae(t);
+    } }, r = Re(t);
     i[r] = o;
     try {
       await this.ws.setRoomConfig(this.roomId, { time_program: i }), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
@@ -2575,7 +2616,8 @@ const Le = class Le extends C {
         <span
           class="program-badge"
           style="background: var(--secondary-background-color); color: var(--secondary-text-color);"
-        >Off</span>
+          >Off</span
+        >
       `;
     const o = ((p = this.roomStatus) == null ? void 0 : p.active_period) ?? null;
     if (o == null) return d``;
@@ -2584,7 +2626,8 @@ const Le = class Le extends C {
       <span
         class="program-badge"
         style="background: ${U[o]}; color: white;"
-      >${r}</span>
+        >${r}</span
+      >
     `;
   }
   _renderHeaderStatus() {
@@ -2604,7 +2647,10 @@ const Le = class Le extends C {
           <ha-icon icon="mdi:water-percent"></ha-icon>
           ${s}
         </span>
-        <span class="status-item" title="${r ? `${h} present / ${p} assigned` : `${p} assigned`}">
+        <span
+          class="status-item"
+          title="${r ? `${h} present / ${p} assigned` : `${p} assigned`}"
+        >
           <ha-icon icon="mdi:account-group"></ha-icon>
           ${g}
         </span>
@@ -2625,10 +2671,16 @@ const Le = class Le extends C {
       var n, l, c;
       const s = (n = this.hass) == null ? void 0 : n.states[o], i = ((l = s == null ? void 0 : s.attributes) == null ? void 0 : l.friendly_name) ?? o, r = ((c = s == null ? void 0 : s.attributes) == null ? void 0 : c.current_temperature) != null ? `${s.attributes.current_temperature}°C` : "—";
       return d`
-            <span class="chip" @click=${() => this._openEntityMoreInfo(o)}>
+            <span
+              class="chip"
+              @click=${() => this._openEntityMoreInfo(o)}
+            >
               <ha-icon icon="mdi:thermometer"></ha-icon>
               ${i}
-              <span style="color:var(--secondary-text-color);margin-left:4px;font-size:12px;">${r}</span>
+              <span
+                style="color:var(--secondary-text-color);margin-left:4px;font-size:12px;"
+                >${r}</span
+              >
             </span>
           `;
     })}
@@ -2645,29 +2697,41 @@ const Le = class Le extends C {
       icon: "mdi:account"
     }));
     return d`
-      <div class="section-label" title="Persons assigned to this room — in Time &amp; presence mode, their presence determines whether the room heats">Associated persons</div>
+      <div
+        class="section-label"
+        title="Persons assigned to this room — in Time &amp; presence mode, their presence determines whether the room heats"
+      >
+        Associated persons
+      </div>
       <div class="chips">
-        ${e.map((i) => d`
-          <span class="chip" @click=${() => void this.panel.navigateToPerson(i)}>
-            <ha-icon icon="mdi:account"></ha-icon>
-            ${this._getPersonName(i)}
-            <button
-              class="chip-remove"
-              @click=${(r) => {
-      r.stopPropagation(), this._onRemovePerson(i);
-    }}
-            >×</button>
-          </span>
-        `)}
+        ${e.map(
+      (i) => d`
+            <span
+              class="chip"
+              @click=${() => void this.panel.navigateToPerson(i)}
+            >
+              <ha-icon icon="mdi:account"></ha-icon>
+              ${this._getPersonName(i)}
+              <button
+                class="chip-remove"
+                @click=${(r) => {
+        r.stopPropagation(), this._onRemovePerson(i);
+      }}
+              >
+                ×
+              </button>
+            </span>
+          `
+    )}
         ${o.length > 0 ? d`
-            <search-picker
-              .items=${s}
-              triggerLabel="Add person"
-              triggerIcon="mdi:plus"
-              placeholder="Search persons…"
-              @picked=${(i) => this._onPersonPicked(i)}
-            ></search-picker>
-          ` : ""}
+              <search-picker
+                .items=${s}
+                triggerLabel="Add person"
+                triggerIcon="mdi:plus"
+                placeholder="Search persons…"
+                @picked=${(i) => this._onPersonPicked(i)}
+              ></search-picker>
+            ` : ""}
       </div>
     `;
   }
@@ -2676,20 +2740,25 @@ const Le = class Le extends C {
     return e === "frost_protection" ? t = "Heating is disabled. The room is kept at frost protection temperature only." : e === "custom" ? t = "This room uses its own custom schedule instead of the zone's. The zone's Off mode still applies." : t = "This room follows the zone's heating schedule.", d`<p class="schedule-hint">${t}</p>`;
   }
   _openEntityMoreInfo(e) {
-    this.dispatchEvent(new CustomEvent("hass-more-info", {
-      bubbles: !0,
-      composed: !0,
-      detail: { entityId: e }
-    }));
+    this.dispatchEvent(
+      new CustomEvent("hass-more-info", {
+        bubbles: !0,
+        composed: !0,
+        detail: { entityId: e }
+      })
+    );
   }
   render() {
     var s, i, r, n;
     const e = ((s = this.config) == null ? void 0 : s.room_mode) ?? "global", t = e === "frost_protection" ? "frost" : e === "custom" ? "custom" : "global", o = e === "frost_protection" ? "Off" : e === "custom" ? "Custom program" : "Zone program";
     return d`
       <ha-card>
-        <div class="card-header-row" @click=${() => {
+        <div
+          class="card-header-row"
+          @click=${() => {
       this._expanded = !this._expanded;
-    }}>
+    }}
+        >
           <div class="card-header-left">
             <div class="card-header-top">
               <span class="room-name">${this.roomName}</span>
@@ -2697,19 +2766,21 @@ const Le = class Le extends C {
               <span
                 class="program-badge ${t}"
                 style=${t === "frost" ? `background: ${U.frost_protection}; color: white;` : ""}
-              >${o}</span>
+                >${o}</span
+              >
               <span
                 class="zone-badge"
                 style=${(() => {
       var c;
-      const l = mt((c = this.config) == null ? void 0 : c.zone_id);
+      const l = be((c = this.config) == null ? void 0 : c.zone_id);
       return `background:${l.background};color:${l.color};border-color:${l.border}`;
     })()}
                 @click=${(l) => {
       var c;
       l.stopPropagation(), this.panel.navigateToZone((c = this.config) == null ? void 0 : c.zone_id);
     }}
-              >${this._getZoneName()}</span>
+                >${this._getZoneName()}</span
+              >
             </div>
             ${this._renderHeaderStatus()}
           </div>
@@ -2720,208 +2791,259 @@ const Le = class Le extends C {
         </div>
 
         ${this._expanded ? d`
-            <div class="card-content">
-              <!-- 3-way room mode selector (D-20) -->
-              <div class="section-label" title="Zone program follows the zone schedule, Custom sets a room-specific schedule, Off keeps the room at frost protection only">Mode</div>
-              <div class="select-wrapper">
-                <select
-                  class="mode-select"
-                  .value=${e}
-                  @change=${this._onRoomModeChange}
+              <div class="card-content">
+                <!-- 3-way room mode selector (D-20) -->
+                <div
+                  class="section-label"
+                  title="Zone program follows the zone schedule, Custom sets a room-specific schedule, Off keeps the room at frost protection only"
                 >
-                  <option value="frost_protection" ?selected=${e === "frost_protection"}>Off</option>
-                  <option value="global" ?selected=${e === "global"}>Zone program</option>
-                  <option value="custom" ?selected=${e === "custom"}>Custom program</option>
-                </select>
-              </div>
-              ${this._renderRoomModeDescription(e)}
-
-              <!-- Zone picker (ASSIGN-02, D-12) -->
-              <div class="section-label" title="The zone this room belongs to — rooms in the same zone share a schedule">Zone</div>
-              <div class="select-wrapper">
-                <select class="mode-select" @change=${this._onZoneChange}>
-                  <option value="" ?selected=${!((i = this.config) != null && i.zone_id)}>
-                    ${((r = this.panelConfig) == null ? void 0 : r.default_zone_name) ?? "Default Zone"}
-                  </option>
-                  ${Object.entries(((n = this.panelConfig) == null ? void 0 : n.zones) ?? {}).map(([l, c]) => {
-      var p;
-      return d`
-                    <option value=${l} ?selected=${((p = this.config) == null ? void 0 : p.zone_id) === l}>
-                      ${c.name}
+                  Mode
+                </div>
+                <div class="select-wrapper">
+                  <select
+                    class="mode-select"
+                    .value=${e}
+                    @change=${this._onRoomModeChange}
+                  >
+                    <option
+                      value="frost_protection"
+                      ?selected=${e === "frost_protection"}
+                    >
+                      Off
                     </option>
-                  `;
-    })}
-                </select>
+                    <option
+                      value="global"
+                      ?selected=${e === "global"}
+                    >
+                      Zone program
+                    </option>
+                    <option
+                      value="custom"
+                      ?selected=${e === "custom"}
+                    >
+                      Custom program
+                    </option>
+                  </select>
+                </div>
+                ${this._renderRoomModeDescription(e)}
+
+                <!-- Zone picker (ASSIGN-02, D-12) -->
+                <div
+                  class="section-label"
+                  title="The zone this room belongs to — rooms in the same zone share a schedule"
+                >
+                  Zone
+                </div>
+                <div class="select-wrapper">
+                  <select class="mode-select" @change=${this._onZoneChange}>
+                    <option value="" ?selected=${!((i = this.config) != null && i.zone_id)}>
+                      ${((r = this.panelConfig) == null ? void 0 : r.default_zone_name) ?? "Default Zone"}
+                    </option>
+                    ${Object.entries(((n = this.panelConfig) == null ? void 0 : n.zones) ?? {}).map(
+      ([l, c]) => {
+        var p;
+        return d`
+                        <option
+                          value=${l}
+                          ?selected=${((p = this.config) == null ? void 0 : p.zone_id) === l}
+                        >
+                          ${c.name}
+                        </option>
+                      `;
+      }
+    )}
+                  </select>
+                </div>
+
+                <!-- Inline time-bar (only in Custom mode) -->
+                ${e === "custom" ? d`
+                      <div
+                        class="section-label"
+                        title="This room's custom heating schedule — overrides the zone program"
+                      >
+                        Schedule
+                      </div>
+                      <div class="time-bar-section">
+                        <climate-manager-time-bar
+                          mode="schedule"
+                          .days=${this._days}
+                          @periods-changed=${this._onPeriodsChanged}
+                        ></climate-manager-time-bar>
+                      </div>
+                      <button
+                        class="reset-btn"
+                        @click=${() => void this._onResetToGlobal()}
+                      >
+                        Reset to global configuration
+                      </button>
+                    ` : ""}
+                ${this._renderPersonsSection()}
+
+                <div
+                  class="section-label"
+                  title="Smart thermostat entities (TRVs) controlled in this room"
+                >
+                  Climate entities
+                </div>
+                ${this._renderTrvSection()}
               </div>
-
-              <!-- Inline time-bar (only in Custom mode) -->
-              ${e === "custom" ? d`
-                  <div class="section-label" title="This room's custom heating schedule — overrides the zone program">Schedule</div>
-                  <div class="time-bar-section">
-                    <climate-manager-time-bar
-                      mode="schedule"
-                      .days=${this._days}
-                      @periods-changed=${this._onPeriodsChanged}
-                    ></climate-manager-time-bar>
-                  </div>
-                  <button class="reset-btn" @click=${() => void this._onResetToGlobal()}>Reset to global configuration</button>
-                ` : ""}
-
-              ${this._renderPersonsSection()}
-
-              <div class="section-label" title="Smart thermostat entities (TRVs) controlled in this room">Climate entities</div>
-              ${this._renderTrvSection()}
-            </div>
-          ` : ""}
+            ` : ""}
       </ha-card>
     `;
   }
 };
-Le.styles = [Re, Ie, De, ft, Ne, k`
-    :host {
-      display: block;
-    }
+Ze.styles = [
+  Ie,
+  De,
+  Ne,
+  ft,
+  Oe,
+  k`
+      :host {
+        display: block;
+      }
 
-    ha-card {
-      margin-bottom: 12px;
-    }
+      ha-card {
+        margin-bottom: 12px;
+      }
 
-    .card-header-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px;
-      cursor: pointer;
-    }
+      .card-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        cursor: pointer;
+      }
 
-    .card-header-left {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 0;
-    }
+      .card-header-left {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+      }
 
-    .card-header-top {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+      .card-header-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
 
-    .room-name {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--primary-text-color);
-    }
+      .room-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--primary-text-color);
+      }
 
-    /* Always-visible 3-item status line in the card header (D-14d, D-32) */
-    .card-header-status {
-      display: flex;
-      gap: 12px;
-      font-size: 13px;
-      color: var(--secondary-text-color);
-    }
+      /* Always-visible 3-item status line in the card header (D-14d, D-32) */
+      .card-header-status {
+        display: flex;
+        gap: 12px;
+        font-size: 13px;
+        color: var(--secondary-text-color);
+      }
 
-    .card-header-status .status-item {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-    }
+      .card-header-status .status-item {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+      }
 
-    .card-header-status .status-item ha-icon {
-      width: 15px;
-      height: 15px;
-      --mdc-icon-size: 15px;
-      flex-shrink: 0;
-    }
+      .card-header-status .status-item ha-icon {
+        width: 15px;
+        height: 15px;
+        --mdc-icon-size: 15px;
+        flex-shrink: 0;
+      }
 
-    .program-badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 400;
-    }
+      .program-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 400;
+      }
 
-    .program-badge.custom {
-      background: var(--primary-color, #03a9f4);
-      color: var(--text-primary-color, #fff);
-    }
+      .program-badge.custom {
+        background: var(--primary-color, #03a9f4);
+        color: var(--text-primary-color, #fff);
+      }
 
-    .program-badge.global {
-      background: var(--secondary-background-color, #f5f5f5);
-      color: var(--secondary-text-color, #757575);
-    }
+      .program-badge.global {
+        background: var(--secondary-background-color, #f5f5f5);
+        color: var(--secondary-text-color, #757575);
+      }
 
-    .zone-badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 400;
-      border: 1px solid;
-      cursor: pointer;
-    }
+      .zone-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 400;
+        border: 1px solid;
+        cursor: pointer;
+      }
 
-    .zone-badge:hover {
-      opacity: 0.8;
-    }
+      .zone-badge:hover {
+        opacity: 0.8;
+      }
 
-    .card-content {
-      padding: 12px 16px 16px;
-      border-top: 1px solid var(--divider-color, #e0e0e0);
-    }
+      .card-content {
+        padding: 12px 16px 16px;
+        border-top: 1px solid var(--divider-color, #e0e0e0);
+      }
 
-    /* No TRV badge */
-    .no-trv-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 4px 8px;
-      border-radius: 4px;
-      background: var(--secondary-background-color);
-      color: var(--warning-color, #e65100);
-      font-size: 12px;
-      margin-bottom: 12px;
-    }
+      /* No TRV badge */
+      .no-trv-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background: var(--secondary-background-color);
+        color: var(--warning-color, #e65100);
+        font-size: 12px;
+        margin-bottom: 12px;
+      }
 
-    /* TRV section */
-    .trv-section {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 8px;
-      margin-bottom: 12px;
-    }
+      /* TRV section */
+      .trv-section {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 8px;
+        margin-bottom: 12px;
+      }
 
-    /* 3-way room mode selector (D-20) */
-    .select-wrapper {
-      margin-bottom: 16px;
-    }
+      /* 3-way room mode selector (D-20) */
+      .select-wrapper {
+        margin-bottom: 16px;
+      }
 
-    /* Inline time bar */
-    .time-bar-section {
-      margin-top: 12px;
-    }
+      /* Inline time bar */
+      .time-bar-section {
+        margin-top: 12px;
+      }
 
-    .reset-btn {
-      margin-top: 12px;
-      margin-bottom: 12px;
-      padding: 8px 16px;
-      font-size: 14px;
-      font-family: inherit;
-      color: var(--primary-color, #03a9f4);
-      background: none;
-      border: 1px solid var(--primary-color, #03a9f4);
-      border-radius: 4px;
-      cursor: pointer;
-    }
+      .reset-btn {
+        margin-top: 12px;
+        margin-bottom: 12px;
+        padding: 8px 16px;
+        font-size: 14px;
+        font-family: inherit;
+        color: var(--primary-color, #03a9f4);
+        background: none;
+        border: 1px solid var(--primary-color, #03a9f4);
+        border-radius: 4px;
+        cursor: pointer;
+      }
 
-    .reset-btn:hover {
-      background: var(--secondary-background-color);
-    }
-  `];
-let T = Le;
+      .reset-btn:hover {
+        background: var(--secondary-background-color);
+      }
+    `
+];
+let T = Ze;
 A([
   u({ type: String })
 ], T.prototype, "roomId");
@@ -2961,7 +3083,7 @@ var Kt = Object.defineProperty, Q = (a, e, t, o) => {
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && Kt(e, t, s), s;
 };
-const Ze = class Ze extends C {
+const Be = class Be extends C {
   constructor() {
     super(...arguments), this.status = null, this.expandRoomId = null;
   }
@@ -2971,13 +3093,14 @@ const Ze = class Ze extends C {
   }
   render() {
     var p, h, g, b, v;
-    const e = ((p = this.config) == null ? void 0 : p.rooms) ?? {}, t = (((h = this.status) == null ? void 0 : h.rooms_status) ?? []).filter((m) => m.has_trv !== !1), o = /* @__PURE__ */ new Set([
-      ...t.map((m) => m.area_id)
-    ]);
+    const e = ((p = this.config) == null ? void 0 : p.rooms) ?? {}, t = (((h = this.status) == null ? void 0 : h.rooms_status) ?? []).filter(
+      (m) => m.has_trv !== !1
+    ), o = /* @__PURE__ */ new Set([...t.map((m) => m.area_id)]);
     if (o.size === 0)
       return d`
         <div class="empty-state">
-          No rooms discovered. Create areas in Home Assistant and assign climate entities.
+          No rooms discovered. Create areas in Home Assistant and assign climate
+          entities.
         </div>
       `;
     const s = (m) => {
@@ -2992,8 +3115,8 @@ const Ze = class Ze extends C {
       m.sort((_, f) => s(_).localeCompare(s(f)));
     const r = [...i.keys()].filter((m) => m !== null).sort(
       (m, _) => {
-        var f, $, S, te, Xe, Ve;
-        return (((S = ($ = (f = this.hass) == null ? void 0 : f.floors) == null ? void 0 : $[_]) == null ? void 0 : S.level) ?? 0) - (((Ve = (Xe = (te = this.hass) == null ? void 0 : te.floors) == null ? void 0 : Xe[m]) == null ? void 0 : Ve.level) ?? 0);
+        var f, $, S, te, Ve, Ye;
+        return (((S = ($ = (f = this.hass) == null ? void 0 : f.floors) == null ? void 0 : $[_]) == null ? void 0 : S.level) ?? 0) - (((Ye = (Ve = (te = this.hass) == null ? void 0 : te.floors) == null ? void 0 : Ve[m]) == null ? void 0 : Ye.level) ?? 0);
       }
     ), n = i.get(null) ?? [], l = (m) => {
       const _ = e[m] ?? {}, f = this._getRoomStatus(m), $ = s(m);
@@ -3034,7 +3157,7 @@ const Ze = class Ze extends C {
     `;
   }
 };
-Ze.styles = k`
+Be.styles = k`
     :host {
       display: block;
     }
@@ -3070,7 +3193,7 @@ Ze.styles = k`
       flex-shrink: 0;
     }
   `;
-let I = Ze;
+let I = Be;
 Q([
   u({ attribute: !1 })
 ], I.prototype, "config");
@@ -3095,22 +3218,42 @@ var Jt = Object.defineProperty, O = (a, e, t, o) => {
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && Jt(e, t, s), s;
 };
-const X = "scheduled", he = "ha", ue = "force_present", me = "force_absent", nt = {
-  mon: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
-  tue: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
-  wed: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
-  thu: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
-  fri: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
+const X = "scheduled", he = "ha", ue = "force_present", me = "force_absent", at = {
+  mon: [
+    { start: "00:00", state: "present" },
+    { start: "08:00", state: "absent" },
+    { start: "18:00", state: "present" }
+  ],
+  tue: [
+    { start: "00:00", state: "present" },
+    { start: "08:00", state: "absent" },
+    { start: "18:00", state: "present" }
+  ],
+  wed: [
+    { start: "00:00", state: "present" },
+    { start: "08:00", state: "absent" },
+    { start: "18:00", state: "present" }
+  ],
+  thu: [
+    { start: "00:00", state: "present" },
+    { start: "08:00", state: "absent" },
+    { start: "18:00", state: "present" }
+  ],
+  fri: [
+    { start: "00:00", state: "present" },
+    { start: "08:00", state: "absent" },
+    { start: "18:00", state: "present" }
+  ],
   sat: [{ start: "00:00", state: "present" }],
   sun: [{ start: "00:00", state: "present" }]
-}, Be = class Be extends C {
+}, Fe = class Fe extends C {
   constructor() {
     super(...arguments), this.roomChoices = [], this.status = null, this._expanded = !1, this.autoExpand = !1, this._lastSchedule = void 0, this._cachedDays = [];
   }
   get _days() {
     var t;
     const e = (t = this.config) == null ? void 0 : t.schedule;
-    return e !== this._lastSchedule && (this._lastSchedule = e, this._cachedDays = Me(e)), this._cachedDays;
+    return e !== this._lastSchedule && (this._lastSchedule = e, this._cachedDays = Ae(e)), this._cachedDays;
   }
   connectedCallback() {
     super.connectedCallback(), this._expanded = !1;
@@ -3133,7 +3276,10 @@ const X = "scheduled", he = "ha", ue = "force_present", me = "force_absent", nt 
     if (t)
       try {
         const s = !!((o = this.config) != null && o.schedule) && Object.values(this.config.schedule).some((i) => i.length > 0);
-        t === X && !s ? await this.ws.setPersonConfig(this.personId, { mode: t, schedule: nt }) : await this.ws.setPersonConfig(this.personId, { mode: t }), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
+        t === X && !s ? await this.ws.setPersonConfig(this.personId, {
+          mode: t,
+          schedule: at
+        }) : await this.ws.setPersonConfig(this.personId, { mode: t }), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
       } catch {
         this.panel.showToast("Save failed — retrying...", !0);
       }
@@ -3149,7 +3295,9 @@ const X = "scheduled", he = "ha", ue = "force_present", me = "force_absent", nt 
   }
   async _onResetSchedule() {
     try {
-      await this.ws.setPersonConfig(this.personId, { schedule: nt }), await this.panel.reloadConfig(), this.panel.showToast("Reset to defaults", !1);
+      await this.ws.setPersonConfig(this.personId, {
+        schedule: at
+      }), await this.panel.reloadConfig(), this.panel.showToast("Reset to defaults", !1);
     } catch {
       this.panel.showToast("Reset failed — retrying...", !0);
     }
@@ -3163,7 +3311,7 @@ const X = "scheduled", he = "ha", ue = "force_present", me = "force_absent", nt 
       fri: [],
       sat: [],
       sun: []
-    } }, r = Ae(t);
+    } }, r = Re(t);
     i[r] = o;
     try {
       await this.ws.setPersonConfig(this.personId, { schedule: i }), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
@@ -3197,17 +3345,23 @@ const X = "scheduled", he = "ha", ue = "force_present", me = "force_absent", nt 
   }
   render() {
     var n, l;
-    const { cls: e, text: t } = this._getBadgeInfo(), o = ((n = this.config) == null ? void 0 : n.mode) ?? X, s = o === X, i = ((l = this.config) == null ? void 0 : l.room_ids) ?? [], r = this.roomChoices.filter((c) => !i.includes(c.id));
+    const { cls: e, text: t } = this._getBadgeInfo(), o = ((n = this.config) == null ? void 0 : n.mode) ?? X, s = o === X, i = ((l = this.config) == null ? void 0 : l.room_ids) ?? [], r = this.roomChoices.filter(
+      (c) => !i.includes(c.id)
+    );
     return d`
       <ha-card>
-        <div class="card-header-row" @click=${() => {
+        <div
+          class="card-header-row"
+          @click=${() => {
       this._expanded = !this._expanded;
-    }}>
+    }}
+        >
           <div class="card-header-left">
             <span
               class="presence-dot ${this._isCurrentlyPresent() ? "present" : "absent"}"
               title="Currently ${this._isCurrentlyPresent() ? "present" : "absent"}"
-            >●</span>
+              >●</span
+            >
             <span class="person-name">${this.personName}</span>
             <span class="mode-badge ${e}">${t}</span>
           </div>
@@ -3218,181 +3372,234 @@ const X = "scheduled", he = "ha", ue = "force_present", me = "force_absent", nt 
         </div>
 
         ${this._expanded ? d`
-            <div class="card-content">
+              <div class="card-content">
+                <!-- Presence mode selector -->
+                <div
+                  class="section-label"
+                  title="How this person's presence is determined"
+                >
+                  Presence mode
+                </div>
+                <div class="select-wrapper">
+                  <select class="mode-select" @change=${this._onModeChange}>
+                    <option
+                      value=${X}
+                      ?selected=${o === X}
+                    >
+                      Scheduled
+                    </option>
+                    <option
+                      value=${he}
+                      ?selected=${o === he}
+                    >
+                      HA home tracking
+                    </option>
+                    <option
+                      value=${ue}
+                      ?selected=${o === ue}
+                    >
+                      Force Present
+                    </option>
+                    <option
+                      value=${me}
+                      ?selected=${o === me}
+                    >
+                      Force Absent
+                    </option>
+                  </select>
+                </div>
+                <p class="schedule-hint">
+                  ${o === ue ? "This person is always considered present, regardless of schedule or location." : o === me ? "This person is always considered absent. Their rooms will not be heated for their presence." : o === he ? "Presence mirrors Home Assistant's home/away tracking for this person." : "Presence follows a weekly schedule. Edit the schedule below."}
+                </p>
 
-              <!-- Presence mode selector -->
-              <div class="section-label" title="How this person's presence is determined">Presence mode</div>
-              <div class="select-wrapper">
-                <select class="mode-select" @change=${this._onModeChange}>
-                  <option value=${X} ?selected=${o === X}>Scheduled</option>
-                  <option value=${he} ?selected=${o === he}>HA home tracking</option>
-                  <option value=${ue} ?selected=${o === ue}>Force Present</option>
-                  <option value=${me} ?selected=${o === me}>Force Absent</option>
-                </select>
-              </div>
-              <p class="schedule-hint">${o === ue ? "This person is always considered present, regardless of schedule or location." : o === me ? "This person is always considered absent. Their rooms will not be heated for their presence." : o === he ? "Presence mirrors Home Assistant's home/away tracking for this person." : "Presence follows a weekly schedule. Edit the schedule below."}</p>
-
-              <!-- Room associations as chips -->
-              <div class="section-label" title="Rooms affected by this person's presence — relevant in Time &amp; presence mode">Room associations</div>
-              <div class="chips">
-                ${i.map((c) => {
+                <!-- Room associations as chips -->
+                <div
+                  class="section-label"
+                  title="Rooms affected by this person's presence — relevant in Time &amp; presence mode"
+                >
+                  Room associations
+                </div>
+                <div class="chips">
+                  ${i.map((c) => {
       const p = this.roomChoices.find((h) => h.id === c);
       return p ? d`
-                    <span class="chip" @click=${() => void this.panel.navigateToRoom(c)}>
-                      <ha-icon icon="mdi:home-outline"></ha-icon>
-                      ${p.name}
-                      <button
-                        class="chip-remove"
-                        @click=${(h) => {
+                      <span
+                        class="chip"
+                        @click=${() => void this.panel.navigateToRoom(c)}
+                      >
+                        <ha-icon icon="mdi:home-outline"></ha-icon>
+                        ${p.name}
+                        <button
+                          class="chip-remove"
+                          @click=${(h) => {
         h.stopPropagation(), this._onRoomToggle(c, !1);
       }}
-                      >×</button>
-                    </span>
-                  ` : "";
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ` : "";
     })}
-                ${r.length > 0 ? d`
-                    <search-picker
-                      .items=${r.map((c) => ({
+                  ${r.length > 0 ? d`
+                        <search-picker
+                          .items=${r.map((c) => ({
       id: c.id,
       label: c.name,
       secondary: c.secondary,
       icon: "mdi:home-outline"
     }))}
-                      triggerLabel="Add room"
-                      triggerIcon="mdi:plus"
-                      placeholder="Search rooms…"
-                      @picked=${(c) => {
+                          triggerLabel="Add room"
+                          triggerIcon="mdi:plus"
+                          placeholder="Search rooms…"
+                          @picked=${(c) => {
       const { id: p } = c.detail;
       this._onRoomToggle(p, !0);
     }}
-                    ></search-picker>
-                  ` : ""}
-              </div>
+                        ></search-picker>
+                      ` : ""}
+                </div>
 
-              <!-- Presence schedule (only in Scheduled mode) -->
-              ${s ? d`
-                  <div class="section-label" title="When this person is considered present — used in Time &amp; presence mode">Presence schedule</div>
-                  <div class="schedule-section">
-                    <climate-manager-time-bar
-                      mode="presence"
-                      .days=${this._days}
-                      @periods-changed=${this._onSchedulePeriodsChanged}
-                    ></climate-manager-time-bar>
-                  </div>
-                  <button class="reset-btn" @click=${() => void this._onResetSchedule()}>Reset to default</button>
-                ` : ""}
-            </div>
-          ` : ""}
+                <!-- Presence schedule (only in Scheduled mode) -->
+                ${s ? d`
+                      <div
+                        class="section-label"
+                        title="When this person is considered present — used in Time &amp; presence mode"
+                      >
+                        Presence schedule
+                      </div>
+                      <div class="schedule-section">
+                        <climate-manager-time-bar
+                          mode="presence"
+                          .days=${this._days}
+                          @periods-changed=${this._onSchedulePeriodsChanged}
+                        ></climate-manager-time-bar>
+                      </div>
+                      <button
+                        class="reset-btn"
+                        @click=${() => void this._onResetSchedule()}
+                      >
+                        Reset to default
+                      </button>
+                    ` : ""}
+              </div>
+            ` : ""}
       </ha-card>
     `;
   }
 };
-Be.styles = [Re, Ie, De, ft, Ne, k`
-    :host {
-      display: block;
-    }
+Fe.styles = [
+  Ie,
+  De,
+  Ne,
+  ft,
+  Oe,
+  k`
+      :host {
+        display: block;
+      }
 
-    ha-card {
-      margin-bottom: 12px;
-    }
+      ha-card {
+        margin-bottom: 12px;
+      }
 
-    .card-header-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px;
-      cursor: pointer;
-    }
+      .card-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        cursor: pointer;
+      }
 
-    .card-header-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+      .card-header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
 
-    .person-name {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--primary-text-color);
-    }
+      .person-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--primary-text-color);
+      }
 
-    .mode-badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 400;
-    }
+      .mode-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 400;
+      }
 
-    .mode-badge.scheduled {
-      background: var(--secondary-background-color, #f5f5f5);
-      color: var(--secondary-text-color, #757575);
-    }
+      .mode-badge.scheduled {
+        background: var(--secondary-background-color, #f5f5f5);
+        color: var(--secondary-text-color, #757575);
+      }
 
-    .mode-badge.force-present {
-      border: 1px solid var(--primary-color, #03a9f4);
-      color: var(--primary-color, #03a9f4);
-    }
+      .mode-badge.force-present {
+        border: 1px solid var(--primary-color, #03a9f4);
+        color: var(--primary-color, #03a9f4);
+      }
 
-    .mode-badge.force-absent {
-      background: var(--secondary-background-color, #f5f5f5);
-      color: var(--secondary-text-color, #757575);
-    }
+      .mode-badge.force-absent {
+        background: var(--secondary-background-color, #f5f5f5);
+        color: var(--secondary-text-color, #757575);
+      }
 
-    .mode-badge.ha {
-      background: var(--secondary-background-color, #f5f5f5);
-      color: var(--secondary-text-color, #757575);
-    }
+      .mode-badge.ha {
+        background: var(--secondary-background-color, #f5f5f5);
+        color: var(--secondary-text-color, #757575);
+      }
 
-    .presence-dot {
-      font-size: 12px;
-      line-height: 1;
-    }
+      .presence-dot {
+        font-size: 12px;
+        line-height: 1;
+      }
 
-    .presence-dot.present {
-      color: var(--success-color, #4caf50);
-    }
+      .presence-dot.present {
+        color: var(--success-color, #4caf50);
+      }
 
-    .presence-dot.absent {
-      color: var(--secondary-text-color, #9e9e9e);
-    }
+      .presence-dot.absent {
+        color: var(--secondary-text-color, #9e9e9e);
+      }
 
-    .card-content {
-      padding: 0 16px 16px;
-      border-top: 1px solid var(--divider-color, #e0e0e0);
-    }
+      .card-content {
+        padding: 0 16px 16px;
+        border-top: 1px solid var(--divider-color, #e0e0e0);
+      }
 
-    .section-label {
-      margin-top: 12px;
-    }
+      .section-label {
+        margin-top: 12px;
+      }
 
-    .select-wrapper {
-      margin-bottom: 4px;
-    }
+      .select-wrapper {
+        margin-bottom: 4px;
+      }
 
-    /* Presence schedule */
-    .schedule-section {
-      margin-top: 12px;
-    }
+      /* Presence schedule */
+      .schedule-section {
+        margin-top: 12px;
+      }
 
-    .reset-btn {
-      margin-top: 12px;
-      padding: 8px 16px;
-      font-size: 14px;
-      font-family: inherit;
-      color: var(--primary-color, #03a9f4);
-      background: none;
-      border: 1px solid var(--primary-color, #03a9f4);
-      border-radius: 4px;
-      cursor: pointer;
-    }
+      .reset-btn {
+        margin-top: 12px;
+        padding: 8px 16px;
+        font-size: 14px;
+        font-family: inherit;
+        color: var(--primary-color, #03a9f4);
+        background: none;
+        border: 1px solid var(--primary-color, #03a9f4);
+        border-radius: 4px;
+        cursor: pointer;
+      }
 
-    .reset-btn:hover {
-      background: var(--secondary-background-color);
-    }
-  `];
-let E = Be;
+      .reset-btn:hover {
+        background: var(--secondary-background-color);
+      }
+    `
+];
+let E = Fe;
 O([
   u({ type: String })
 ], E.prototype, "personId");
@@ -3426,17 +3633,17 @@ var Qt = Object.defineProperty, ee = (a, e, t, o) => {
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && Qt(e, t, s), s;
 };
-const Fe = class Fe extends C {
+const qe = class qe extends C {
   constructor() {
     super(...arguments), this.status = null, this.expandPersonId = null;
   }
   /** Build the room choices list — only TRV rooms (excludes chaudière/boiler). */
   _getRoomChoices() {
     var o;
-    const e = (((o = this.status) == null ? void 0 : o.rooms_status) ?? []).filter((s) => s.has_trv !== !1);
-    return [.../* @__PURE__ */ new Set([
-      ...e.map((s) => s.area_id)
-    ])].map((s) => {
+    const e = (((o = this.status) == null ? void 0 : o.rooms_status) ?? []).filter(
+      (s) => s.has_trv !== !1
+    );
+    return [.../* @__PURE__ */ new Set([...e.map((s) => s.area_id)])].map((s) => {
       var l, c, p, h, g, b, v;
       const i = ((l = e.find((m) => m.area_id === s)) == null ? void 0 : l.name) ?? s.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase()), r = ((h = (p = (c = this.hass) == null ? void 0 : c.areas) == null ? void 0 : p[s]) == null ? void 0 : h.floor_id) ?? null, n = r ? ((v = (b = (g = this.hass) == null ? void 0 : g.floors) == null ? void 0 : b[r]) == null ? void 0 : v.name) ?? void 0 : void 0;
       return { id: s, name: i, secondary: n };
@@ -3482,7 +3689,7 @@ const Fe = class Fe extends C {
     `;
   }
 };
-Fe.styles = k`
+qe.styles = k`
     :host {
       display: block;
     }
@@ -3495,7 +3702,7 @@ Fe.styles = k`
       line-height: 1.5;
     }
   `;
-let D = Fe;
+let D = qe;
 ee([
   u({ attribute: !1 })
 ], D.prototype, "config");
@@ -3520,7 +3727,7 @@ var es = Object.defineProperty, H = (a, e, t, o) => {
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && es(e, t, s), s;
 };
-const qe = class qe extends C {
+const We = class We extends C {
   constructor() {
     super(...arguments), this.isDefault = !1, this.status = null, this._confirmingDelete = !1, this._lastProgram = void 0, this._cachedDays = [], this._onModeChange = async (e) => {
       const t = e.target.value;
@@ -3543,7 +3750,7 @@ const qe = class qe extends C {
         this.panel.showToast("Reset failed", !0);
       }
     }, this._onPeriodsChanged = async (e) => {
-      const { dayIndex: t, periods: o } = e.detail, s = { ...this.zoneConfig.time_program }, i = Ae(t);
+      const { dayIndex: t, periods: o } = e.detail, s = { ...this.zoneConfig.time_program }, i = Re(t);
       s[i] = o;
       try {
         this.isDefault ? await this.ws.setTimeProgram(s) : await this.ws.setZoneTimeProgram(this.zoneId, s), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
@@ -3556,7 +3763,7 @@ const qe = class qe extends C {
   get _days() {
     var t;
     const e = (t = this.zoneConfig) == null ? void 0 : t.time_program;
-    return e !== this._lastProgram && (this._lastProgram = e, this._cachedDays = Me(e)), this._cachedDays;
+    return e !== this._lastProgram && (this._lastProgram = e, this._cachedDays = Ae(e)), this._cachedDays;
   }
   /**
    * Add a room to this zone (D-09).
@@ -3565,7 +3772,9 @@ const qe = class qe extends C {
    */
   async _onAddRoom(e) {
     try {
-      this.isDefault ? await this.ws.setRoomConfig(e, { zone_id: null }) : await this.ws.setRoomConfig(e, { zone_id: this.zoneId }), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
+      this.isDefault ? await this.ws.setRoomConfig(e, {
+        zone_id: null
+      }) : await this.ws.setRoomConfig(e, { zone_id: this.zoneId }), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
     } catch {
       this.panel.showToast("Save failed — retrying...", !0);
     }
@@ -3578,7 +3787,9 @@ const qe = class qe extends C {
    * Not rendered for Default Zone (rooms can't be removed — no other zone to send them to).
    */
   async _onRemoveRoom(e) {
-    const t = { zone_id: null };
+    const t = {
+      zone_id: null
+    };
     try {
       await this.ws.setRoomConfig(e, t), await this.panel.reloadConfig(), this.panel.showToast("Saved", !1);
     } catch {
@@ -3625,7 +3836,9 @@ const qe = class qe extends C {
   /** All TRV room IDs from status; falls back to config.rooms keys when status unavailable. */
   _allRoomIds() {
     var t, o, s;
-    const e = (o = (t = this.status) == null ? void 0 : t.rooms_status) == null ? void 0 : o.filter((i) => i.has_trv !== !1);
+    const e = (o = (t = this.status) == null ? void 0 : t.rooms_status) == null ? void 0 : o.filter(
+      (i) => i.has_trv !== !1
+    );
     return e != null && e.length ? e.map((i) => i.area_id) : Object.keys(((s = this.config) == null ? void 0 : s.rooms) ?? {});
   }
   /**
@@ -3652,11 +3865,15 @@ const qe = class qe extends C {
       t.has(p) || t.set(p, []), t.get(p).push(c);
     }
     for (const c of t.values())
-      c.sort((p, h) => this._getRoomName(p).localeCompare(this._getRoomName(h)));
-    const s = [...t.keys()].filter((c) => c !== null).sort((c, p) => {
-      var h, g, b, v, m, _;
-      return (((b = (g = (h = this.hass) == null ? void 0 : h.floors) == null ? void 0 : g[p]) == null ? void 0 : b.level) ?? 0) - (((_ = (m = (v = this.hass) == null ? void 0 : v.floors) == null ? void 0 : m[c]) == null ? void 0 : _.level) ?? 0);
-    }).map((c) => {
+      c.sort(
+        (p, h) => this._getRoomName(p).localeCompare(this._getRoomName(h))
+      );
+    const s = [...t.keys()].filter((c) => c !== null).sort(
+      (c, p) => {
+        var h, g, b, v, m, _;
+        return (((b = (g = (h = this.hass) == null ? void 0 : h.floors) == null ? void 0 : g[p]) == null ? void 0 : b.level) ?? 0) - (((_ = (m = (v = this.hass) == null ? void 0 : v.floors) == null ? void 0 : m[c]) == null ? void 0 : _.level) ?? 0);
+      }
+    ).map((c) => {
       var p, h, g;
       return {
         floorId: c,
@@ -3684,10 +3901,28 @@ const qe = class qe extends C {
   _renderModeDescription() {
     var t;
     const e = (t = this.zoneConfig) == null ? void 0 : t.mode;
-    return e === "off" ? d`<p class="schedule-hint">Zone is off. All assigned rooms are kept at frost protection temperature only.</p>` : e === "time_program_presences" ? d`
-        <p class="schedule-hint">Rooms heat according to the schedule when an assigned person is present. While present, the room stays heated from the first Normal/Comfort period to the last — Reduced or Frost gaps in between are held at the preceding Normal/Comfort temperature. When everyone is absent, the room stays at Reduced temperature regardless of the schedule.</p>
-        <p class="schedule-hint"><em>Example:</em> schedule Normal 06:00, Reduced 09:00, Normal 17:00, Frost 22:00 — if present, the room heats 06:00–22:00 and holds Normal temperature during the 09:00–17:00 gap. If absent, the room stays at Reduced all day.</p>
-      ` : d`<p class="schedule-hint">Rooms follow the weekly schedule. Each period sets the target temperature for all assigned rooms.</p>`;
+    return e === "off" ? d`<p class="schedule-hint">
+        Zone is off. All assigned rooms are kept at frost protection temperature
+        only.
+      </p>` : e === "time_program_presences" ? d`
+        <p class="schedule-hint">
+          Rooms heat according to the schedule when an assigned person is
+          present. While present, the room stays heated from the first
+          Normal/Comfort period to the last — Reduced or Frost gaps in between
+          are held at the preceding Normal/Comfort temperature. When everyone is
+          absent, the room stays at Reduced temperature regardless of the
+          schedule.
+        </p>
+        <p class="schedule-hint">
+          <em>Example:</em> schedule Normal 06:00, Reduced 09:00, Normal 17:00,
+          Frost 22:00 — if present, the room heats 06:00–22:00 and holds Normal
+          temperature during the 09:00–17:00 gap. If absent, the room stays at
+          Reduced all day.
+        </p>
+      ` : d`<p class="schedule-hint">
+      Rooms follow the weekly schedule. Each period sets the target temperature
+      for all assigned rooms.
+    </p>`;
   }
   _getFloorIcon(e) {
     var s, i;
@@ -3701,19 +3936,41 @@ const qe = class qe extends C {
       <span class="chip" @click=${() => void this.panel.navigateToRoom(s)}>
         <ha-icon icon="mdi:home-outline"></ha-icon>
         ${this._getRoomName(s)}
-        ${this.isDefault ? "" : d`<button class="chip-remove" @click=${(i) => {
+        ${this.isDefault ? "" : d`<button
+              class="chip-remove"
+              @click=${(i) => {
       i.stopPropagation(), this._onRemoveRoom(s);
-    }}>×</button>`}
+    }}
+            >
+              ×
+            </button>`}
       </span>
     `;
     return d`
       <!-- 1. Mode picker -->
-      <div class="section-label" title="Controls how rooms in this zone are heated">Mode</div>
+      <div
+        class="section-label"
+        title="Controls how rooms in this zone are heated"
+      >
+        Mode
+      </div>
       <div class="select-wrapper">
         <select class="mode-select" @change=${this._onModeChange}>
-          <option value="off" ?selected=${this.zoneConfig.mode === "off"}>Off</option>
-          <option value="time_program" ?selected=${this.zoneConfig.mode === "time_program"}>Time program</option>
-          <option value="time_program_presences" ?selected=${this.zoneConfig.mode === "time_program_presences"}>Time program &amp; presences</option>
+          <option value="off" ?selected=${this.zoneConfig.mode === "off"}>
+            Off
+          </option>
+          <option
+            value="time_program"
+            ?selected=${this.zoneConfig.mode === "time_program"}
+          >
+            Time program
+          </option>
+          <option
+            value="time_program_presences"
+            ?selected=${this.zoneConfig.mode === "time_program_presences"}
+          >
+            Time program &amp; presences
+          </option>
         </select>
       </div>
       ${this._renderModeDescription()}
@@ -3727,158 +3984,181 @@ const qe = class qe extends C {
 
       <!-- Reset row: Default Zone gets one button; custom zones get two -->
       <div class="reset-row">
-        ${this.isDefault ? "" : d`<button class="reset-btn" @click=${this._onResetToGlobal}>Reset to ${this.config.default_zone_name}</button>`}
-        <button class="reset-btn" @click=${this._onResetToDefault}>Reset to default</button>
+        ${this.isDefault ? "" : d`<button class="reset-btn" @click=${this._onResetToGlobal}>
+              Reset to ${this.config.default_zone_name}
+            </button>`}
+        <button class="reset-btn" @click=${this._onResetToDefault}>
+          Reset to default
+        </button>
       </div>
 
       <!-- 5. Assigned Rooms section (D-08 / D-09 / D-10) -->
       <div class="section-divider"></div>
-      <div class="section-label" title="Rooms that follow this zone's schedule">Assigned rooms</div>
-      ${e.map((s) => d`
-        ${s.floorId !== null ? d`<div class="floor-group-label"><ha-icon icon=${this._getFloorIcon(s.floorId)}></ha-icon>${s.floorName}</div>` : ""}
-        <div class="chips">
-          ${s.roomIds.map(o)}
-        </div>
-      `)}
+      <div class="section-label" title="Rooms that follow this zone's schedule">
+        Assigned rooms
+      </div>
+      ${e.map(
+      (s) => d`
+          ${s.floorId !== null ? d`<div class="floor-group-label">
+                <ha-icon icon=${this._getFloorIcon(s.floorId)}></ha-icon
+                >${s.floorName}
+              </div>` : ""}
+          <div class="chips">${s.roomIds.map(o)}</div>
+        `
+    )}
       ${t.length > 0 ? d`
-          <div class="chips">
-            <search-picker
-              .items=${t}
-              triggerLabel="Add room"
-              triggerIcon="mdi:plus"
-              placeholder="Search rooms…"
-              @picked=${this._onRoomPicked}
-            ></search-picker>
-          </div>
-        ` : ""}
-
+            <div class="chips">
+              <search-picker
+                .items=${t}
+                triggerLabel="Add room"
+                triggerIcon="mdi:plus"
+                placeholder="Search rooms…"
+                @picked=${this._onRoomPicked}
+              ></search-picker>
+            </div>
+          ` : ""}
 
       <!-- Delete row (custom zones only, D-05) -->
       ${this.isDefault ? "" : d`
-          <div class="delete-row">
-            ${this._confirmingDelete ? d`
-                <span>Delete zone?</span>
-                <button class="cancel-btn" @click=${this._onCancelDelete}>Cancel</button>
-                <button class="danger-btn" @click=${() => void this._onConfirmDelete()}>Confirm</button>
-              ` : d`
-                <button class="delete-btn" @click=${this._onDeleteClick}>Delete zone</button>
-              `}
-          </div>
-        `}
+            <div class="delete-row">
+              ${this._confirmingDelete ? d`
+                    <span>Delete zone?</span>
+                    <button class="cancel-btn" @click=${this._onCancelDelete}>
+                      Cancel
+                    </button>
+                    <button
+                      class="danger-btn"
+                      @click=${() => void this._onConfirmDelete()}
+                    >
+                      Confirm
+                    </button>
+                  ` : d`
+                    <button class="delete-btn" @click=${this._onDeleteClick}>
+                      Delete zone
+                    </button>
+                  `}
+            </div>
+          `}
     `;
   }
 };
-qe.styles = [Re, Ie, De, Ne, k`
-    :host {
-      display: block;
-    }
+We.styles = [
+  Ie,
+  De,
+  Ne,
+  Oe,
+  k`
+      :host {
+        display: block;
+      }
 
-    /* Delete row (top of zone tab, custom zones only) */
-    .delete-row {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 8px;
-      justify-content: flex-end;
-      margin-top: 24px;
-    }
+      /* Delete row (top of zone tab, custom zones only) */
+      .delete-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 24px;
+      }
 
-    .delete-btn {
-      background: none;
-      border: 1px solid var(--divider-color, rgba(0,0,0,0.12));
-      color: var(--secondary-text-color);
-      padding: 6px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      font-family: inherit;
-    }
+      .delete-btn {
+        background: none;
+        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+        color: var(--secondary-text-color);
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-family: inherit;
+      }
 
-    .delete-btn:hover {
-      background: var(--secondary-background-color);
-    }
+      .delete-btn:hover {
+        background: var(--secondary-background-color);
+      }
 
-    .cancel-btn {
-      background: none;
-      border: 1px solid var(--divider-color, rgba(0,0,0,0.12));
-      color: var(--secondary-text-color);
-      padding: 6px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      font-family: inherit;
-    }
+      .cancel-btn {
+        background: none;
+        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+        color: var(--secondary-text-color);
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-family: inherit;
+      }
 
-    .cancel-btn:hover {
-      background: var(--secondary-background-color);
-    }
+      .cancel-btn:hover {
+        background: var(--secondary-background-color);
+      }
 
-    .danger-btn {
-      background: var(--error-color, #db4437);
-      color: white;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      font-family: inherit;
-    }
+      .danger-btn {
+        background: var(--error-color, #db4437);
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-family: inherit;
+      }
 
-    .danger-btn:hover {
-      opacity: 0.9;
-    }
+      .danger-btn:hover {
+        opacity: 0.9;
+      }
 
-    .select-wrapper {
-      margin-bottom: 16px;
-    }
+      .select-wrapper {
+        margin-bottom: 16px;
+      }
 
-    .section-divider {
-      margin: 16px 0 8px;
-    }
+      .section-divider {
+        margin: 16px 0 8px;
+      }
 
-    .floor-group-label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      color: var(--secondary-text-color);
-      margin: 8px 0 4px;
-    }
+      .floor-group-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--secondary-text-color);
+        margin: 8px 0 4px;
+      }
 
-    .floor-group-label ha-icon {
-      --mdc-icon-size: 14px;
-      width: 14px;
-      height: 14px;
-      flex-shrink: 0;
-    }
+      .floor-group-label ha-icon {
+        --mdc-icon-size: 14px;
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+      }
 
-    .reset-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-      margin-bottom: 8px;
-      justify-content: flex-end;
-    }
+      .reset-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+        justify-content: flex-end;
+      }
 
-    .reset-btn {
-      background: none;
-      border: 1px solid var(--divider-color, rgba(0,0,0,0.12));
-      color: var(--secondary-text-color);
-      padding: 5px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 13px;
-      font-family: inherit;
-    }
+      .reset-btn {
+        background: none;
+        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+        color: var(--secondary-text-color);
+        padding: 5px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
+      }
 
-    .reset-btn:hover {
-      background: var(--secondary-background-color);
-    }
-  `];
-let M = qe;
+      .reset-btn:hover {
+        background: var(--secondary-background-color);
+      }
+    `
+];
+let M = We;
 H([
   u({ attribute: !1 })
 ], M.prototype, "config");
@@ -3912,7 +4192,7 @@ var ts = Object.defineProperty, P = (a, e, t, o) => {
     (r = a[i]) && (s = r(e, t, s) || s);
   return s && ts(e, t, s), s;
 };
-const We = class We extends C {
+const Xe = class Xe extends C {
   constructor() {
     super(...arguments), this.narrow = !1, this.panel = null, this._config = null, this._status = null, this._activeTab = localStorage.getItem("climate-manager-tab") ?? "global", this._unsubStatus = null, this._wsError = !1, this._editingTabId = null, this._tabNameInput = "", this._expandRoomId = null, this._expandPersonId = null, this._ws = null;
   }
@@ -3994,7 +4274,9 @@ const We = class We extends C {
     try {
       const i = await this._ws.createZone(e);
       await this._loadConfig(), this._setTab("zone_" + i.zone_id), await this.updateComplete;
-      const r = (t = this.shadowRoot) == null ? void 0 : t.querySelector("climate-manager-zone-tab");
+      const r = (t = this.shadowRoot) == null ? void 0 : t.querySelector(
+        "climate-manager-zone-tab"
+      );
       (s = (o = r == null ? void 0 : r.shadowRoot) == null ? void 0 : o.querySelector(".zone-name")) == null || s.click(), this.showToast("Zone created", !1);
     } catch {
       this.showToast("Create zone failed", !0);
@@ -4034,37 +4316,65 @@ const We = class We extends C {
         <button
           class="tab-btn ${this._activeTab === "global" ? "active" : ""}"
           @click=${() => this._setTab("global")}
-        >Overview</button>
+        >
+          Overview
+        </button>
         <button
           class="tab-btn ${this._activeTab === "rooms" ? "active" : ""}"
           @click=${() => this._setTab("rooms")}
-        >Rooms</button>
+        >
+          Rooms
+        </button>
         <button
           class="tab-btn ${this._activeTab === "persons" ? "active" : ""}"
           @click=${() => this._setTab("persons")}
-        >Persons</button>
+        >
+          Persons
+        </button>
         <button
           class="tab-btn ${this._activeTab === "zone_default" ? "active" : ""}"
           @click=${() => this._setTab("zone_default")}
           @dblclick=${(e) => this._onTabRename("default", this._config.default_zone_name, e)}
-        >${this._editingTabId === "default" ? d`<input data-zone="default" class="tab-name-input" .value=${this._tabNameInput} @input=${this._onTabNameInput} @blur=${() => this._onTabNameBlur("default")} @keydown=${(e) => this._onTabNameKeydown("default", e)} @click=${(e) => e.stopPropagation()}>` : this._config.default_zone_name}</button>
-        ${Object.entries(this._config.zones).map(([e, t]) => d`
-          <button
-            class="tab-btn ${this._activeTab === "zone_" + e ? "active" : ""}"
-            @click=${() => this._setTab("zone_" + e)}
-            @dblclick=${(o) => this._onTabRename(e, t.name, o)}
-          >${this._editingTabId === e ? d`<input data-zone="${e}" class="tab-name-input" .value=${this._tabNameInput} @input=${this._onTabNameInput} @blur=${() => this._onTabNameBlur(e)} @keydown=${(o) => this._onTabNameKeydown(e, o)} @click=${(o) => o.stopPropagation()}>` : t.name}</button>
-        `)}
+        >
+          ${this._editingTabId === "default" ? d`<input
+                data-zone="default"
+                class="tab-name-input"
+                .value=${this._tabNameInput}
+                @input=${this._onTabNameInput}
+                @blur=${() => this._onTabNameBlur("default")}
+                @keydown=${(e) => this._onTabNameKeydown("default", e)}
+                @click=${(e) => e.stopPropagation()}
+              />` : d`<span class="zone-dot" style="background:${be(void 0).color}"></span>${this._config.default_zone_name}`}
+        </button>
+        ${Object.entries(this._config.zones).map(
+      ([e, t]) => d`
+            <button
+              class="tab-btn ${this._activeTab === "zone_" + e ? "active" : ""}"
+              @click=${() => this._setTab("zone_" + e)}
+              @dblclick=${(o) => this._onTabRename(e, t.name, o)}
+            >
+              ${this._editingTabId === e ? d`<input
+                    data-zone="${e}"
+                    class="tab-name-input"
+                    .value=${this._tabNameInput}
+                    @input=${this._onTabNameInput}
+                    @blur=${() => this._onTabNameBlur(e)}
+                    @keydown=${(o) => this._onTabNameKeydown(e, o)}
+                    @click=${(o) => o.stopPropagation()}
+                  />` : d`<span class="zone-dot" style="background:${be(e).color}"></span>${t.name}`}
+            </button>
+          `
+    )}
         <button
           class="tab-btn add-zone-btn"
           title="Add zone"
           @click=${() => void this._onCreateZone()}
-        >+</button>
+        >
+          +
+        </button>
       </div>
 
-      <div class="tab-content">
-        ${this._renderTabContent()}
-      </div>
+      <div class="tab-content">${this._renderTabContent()}</div>
 
       <climate-manager-toast></climate-manager-toast>
     ` : d`
@@ -4137,7 +4447,7 @@ const We = class We extends C {
     }
   }
 };
-We.styles = k`
+Xe.styles = k`
     :host {
       display: block;
       background: var(--primary-background-color);
@@ -4153,8 +4463,11 @@ We.styles = k`
       font-size: 20px;
       font-weight: 400;
       color: var(--app-header-text-color, var(--primary-text-color));
-      background: var(--app-header-background-color, var(--primary-background-color));
-      border-bottom: 1px solid var(--divider-color, rgba(0,0,0,0.12));
+      background: var(
+        --app-header-background-color,
+        var(--primary-background-color)
+      );
+      border-bottom: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
     }
 
     .loading {
@@ -4174,7 +4487,7 @@ We.styles = k`
 
     .tab-bar {
       display: flex;
-      border-bottom: 1px solid var(--divider-color, rgba(0,0,0,0.12));
+      border-bottom: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
       background: var(--primary-background-color);
       padding: 0 8px;
       overflow-x: auto;
@@ -4225,6 +4538,16 @@ We.styles = k`
       padding: 12px 14px;
     }
 
+    .zone-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      vertical-align: middle;
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+
     .tab-name-input {
       font-size: 14px;
       font-weight: 500;
@@ -4240,7 +4563,7 @@ We.styles = k`
       max-width: 20ch;
     }
   `;
-let w = We;
+let w = Xe;
 P([
   u({ attribute: !1 })
 ], w.prototype, "hass");
