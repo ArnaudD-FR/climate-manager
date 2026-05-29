@@ -4,7 +4,7 @@ HA_HOST ?= homeassistant.local
 HA_COMPONENT_DIR = /config/custom_components/climate_manager
 SRC_DIR = custom_components/climate_manager
 
-.PHONY: build deploy test logs screenshots
+.PHONY: build deploy test lint logs screenshots
 
 build:
 	cd frontend && npm install --no-audit --no-fund && npm run build
@@ -16,6 +16,9 @@ deploy: build
 
 test:
 	.venv/bin/python -m pytest tests/ -v
+
+lint:
+	pre-commit run --all-files
 
 logs:
 	ssh $(HA_USER)@$(HA_HOST) "ha core logs -f"

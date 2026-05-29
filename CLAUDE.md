@@ -92,7 +92,25 @@ A Home Assistant custom integration that manages home climate controls through s
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 
-Conventions not yet established. Will populate as patterns emerge during development.
+### Release
+
+Before completing a milestone or creating a release git tag, always run
+`make screenshots` first to capture up-to-date panel screenshots.
+
+### Code Style
+
+All generated code **must** comply with `.editorconfig`. Key rules:
+
+- **Line endings**: LF (`\n`) on all files
+- **Final newline**: every file must end with a newline
+- **Trailing whitespace**: never (exception: Markdown files)
+- **Python** (`.py`): 4-space indent, max 80 characters per line
+- **TypeScript / JavaScript** (`.ts`, `.js`): 2-space indent, max 80 characters per line
+- **JSON / YAML** (`.json`, `.yaml`, `.yml`): 2-space indent
+- **Markdown** (`.md`): 2-space indent, max 80 characters per line
+- **Makefile**: tab indent (not spaces)
+
+Run `make lint` to validate all files against editorconfig before committing.
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
