@@ -1,6 +1,6 @@
 ---
 slug: drag-flicker-after-release
-status: root_cause_found
+status: resolved
 trigger: "popup is now fixed but flickering persist"
 created: 2026-05-21
 updated: 2026-05-21
