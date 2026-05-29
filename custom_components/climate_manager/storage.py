@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Climate Manager storage layer.
 
 Provides ClimateManagerStore: a thin wrapper around HA's Store helper

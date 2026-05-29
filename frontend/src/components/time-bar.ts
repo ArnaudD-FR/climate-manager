@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /**
  * Climate Manager Panel — shared 7-day time-bar component.
  *

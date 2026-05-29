@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Climate Manager — Home Assistant custom integration.
 
 Manages home climate controls through smart radiator thermostats.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Climate Manager constants and default configuration schema.
 
 This module is the single source of truth for all domain constants

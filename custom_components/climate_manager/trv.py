@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Climate Manager TRV control helper.
 
 Implements the two-call TRV service sequence required by INFRA-04:

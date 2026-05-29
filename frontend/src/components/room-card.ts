@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /**
  * Climate Manager Panel — Room Card component (UI-03).
  *

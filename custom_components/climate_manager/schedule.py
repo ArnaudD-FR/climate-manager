@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Climate Manager schedule and presence evaluation engine.
 
 Pure Python — no Home Assistant imports.

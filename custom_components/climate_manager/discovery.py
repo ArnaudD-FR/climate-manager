@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Climate Manager auto-discovery helpers.
 
 Provides discover_rooms and discover_persons using HA area and entity

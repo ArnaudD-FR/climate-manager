@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Climate Manager config flow.
 
 Provides ClimateManagerFlowHandler: a single-step config flow that creates

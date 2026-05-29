@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /**
  * Climate Manager Panel — Search Picker component (D-19).
  *

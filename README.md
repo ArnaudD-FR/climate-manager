@@ -178,4 +178,4 @@ Frontend stack: Lit 3.x · TypeScript 5.x · Vite 5.x
 
 ## License
 
-MIT
+[MIT](LICENSE)

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /**
  * Shared Lit CSS fragments reused across card components.
  * Import exports and compose via `static styles = [sharedStyle, css`...`]`.

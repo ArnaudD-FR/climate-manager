@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Climate Manager WebSocket command handlers.
 
 Registers 17 WebSocket commands for the panel ↔ backend protocol:

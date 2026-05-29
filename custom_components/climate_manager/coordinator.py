@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Climate Manager coordinator — the integration's control loop.
 
 Evaluates each managed room independently against its zone (Default Zone or
