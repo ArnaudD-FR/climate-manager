@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Presence & Calibration
-status: roadmapped
-last_updated: "2026-05-29T14:25:53.687Z"
-last_activity: 2026-05-29
+status: planning
+last_updated: "2026-05-29T15:29:38.705Z"
+last_activity: 2026-05-29 — Roadmap created for v1.2 (Phases 7-9)
 progress:
   total_phases: 3
   completed_phases: 0
@@ -66,15 +66,20 @@ affecting current work:
 
 - v1.2 arch: person `schedule_type`/`schedule_even`/`schedule_odd` are additive
   — absent fields default to `single`, no storage migration needed
+
 - v1.2 arch: even/odd week selected by ISO week parity
   (`date.isocalendar().week % 2`) at evaluation time
+
 - v1.2 arch: single→even_odd seeds both week schedules from `schedule`;
   even_odd→single preserves `schedule` unchanged
+
 - v1.2 arch: TRV calibration guarded by `temperature_offset` attribute /
   `tado_x.set_temperature_offset` service detection — incompatible or
   sensor-less rooms silently skipped
+
 - v1.2 arch: calibration gated by configurable delta threshold (default 0.5°C)
   to prevent jitter
+
 - Phase 9 (calibration) is independent of Phases 7-8 (scheduling) — can be
   planned/executed in parallel
 
@@ -110,5 +115,5 @@ mapped (SCHED-01..06, CALIB-01..05)
 
 ## Session Continuity
 
-Last session: 2026-05-29T14:25:53.687Z Stopped at: roadmap creation complete
-Resume file: None
+Last session: 2026-05-29T15:29:38.697Z
+Resume file: .planning/phases/07-even-odd-week-scheduling-backend/07-CONTEXT.md
