@@ -5,6 +5,7 @@ Tests:
 - evaluate_schedule: finds active period for current time (SCHED-01..04)
 - validate_daily_program: rejects missing/unknown day keys (D-01)
 - resolve_presence: PERSON-01 through PERSON-05 modes
+- resolve_presence: even/odd week selection (SCHED-02, SCHED-03)
 - compute_occupied_temp: PERSON-07/08/09 occupied window and gap-fill
 """
 
@@ -109,6 +110,16 @@ PERSON_SCHEDULE: dict = {
     ],
     "sat": [{"start": "00:00", "state": "absent"}],
     "sun": [{"start": "00:00", "state": "absent"}],
+}
+
+# All-days-present schedule for even_odd tests (SCHED-02)
+ALWAYS_PRESENT_SCHEDULE: dict = {
+    day: [{"start": "00:00", "state": "present"}] for day in ALL_DAYS
+}
+
+# All-days-absent schedule for even_odd tests (SCHED-02)
+ALWAYS_ABSENT_SCHEDULE: dict = {
+    day: [{"start": "00:00", "state": "absent"}] for day in ALL_DAYS
 }
 
 # Default period temperatures (from const.py DEFAULT_PERIOD_TEMPERATURES)
@@ -329,6 +340,66 @@ def test_resolve_presence_automatic_missing_day_in_schedule_returns_false():
     now = datetime.datetime(
         2026, 1, 6, 10, 0, tzinfo=datetime.timezone.utc
     )  # Tuesday
+    assert resolve_presence(config, now) is False
+
+
+# ---------------------------------------------------------------------------
+# resolve_presence tests — even/odd week selection (SCHED-02, SCHED-03)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_presence_even_odd_even_week_uses_schedule_even():
+    """SCHED-02: ISO week 2 (2026-01-05, Mon) parity 0 → even → schedule_even."""
+    # 2026-01-05 = ISO week 2, parity 0 (even)
+    now = datetime.datetime(2026, 1, 5, 10, 0, tzinfo=datetime.timezone.utc)
+    assert now.date().isocalendar().week % 2 == 0  # Sanity: even week
+    config = {
+        "mode": PRESENCE_AUTOMATIC,
+        "schedule_type": "even_odd",
+        "schedule_even": ALWAYS_PRESENT_SCHEDULE,
+        "schedule_odd": ALWAYS_ABSENT_SCHEDULE,
+    }
+    assert resolve_presence(config, now) is True  # even week → present
+
+
+def test_resolve_presence_even_odd_odd_week_uses_schedule_odd():
+    """SCHED-02: ISO week 3 (2026-01-12, Mon) parity 1 → odd → schedule_odd."""
+    # 2026-01-12 = ISO week 3, parity 1 (odd)
+    now = datetime.datetime(2026, 1, 12, 10, 0, tzinfo=datetime.timezone.utc)
+    assert now.date().isocalendar().week % 2 == 1  # Sanity: odd week
+    config = {
+        "mode": PRESENCE_AUTOMATIC,
+        "schedule_type": "even_odd",
+        "schedule_even": ALWAYS_PRESENT_SCHEDULE,
+        "schedule_odd": ALWAYS_ABSENT_SCHEDULE,
+    }
+    assert resolve_presence(config, now) is False  # odd week → absent
+
+
+def test_resolve_presence_no_schedule_type_uses_schedule():
+    """SCHED-03: absent schedule_type defaults to single — uses schedule key."""
+    config = {"mode": PRESENCE_AUTOMATIC, "schedule": PERSON_SCHEDULE}
+    now = datetime.datetime(2026, 1, 5, 10, 0, tzinfo=datetime.timezone.utc)
+    assert resolve_presence(config, now) is True
+
+
+def test_resolve_presence_explicit_single_uses_schedule():
+    """SCHED-02: explicit schedule_type='single' selects schedule key."""
+    config = {
+        "mode": PRESENCE_AUTOMATIC,
+        "schedule_type": "single",
+        "schedule": PERSON_SCHEDULE,
+    }
+    now = datetime.datetime(2026, 1, 5, 10, 0, tzinfo=datetime.timezone.utc)
+    assert resolve_presence(config, now) is True
+
+
+def test_resolve_presence_even_odd_missing_week_schedule_returns_false():
+    """PERSON-05 + SCHED-02: even_odd with no schedule_even key → {} → absent."""
+    # ISO week 2 → even → looks for schedule_even → not found → {} → absent
+    now = datetime.datetime(2026, 1, 5, 10, 0, tzinfo=datetime.timezone.utc)
+    config = {"mode": PRESENCE_AUTOMATIC, "schedule_type": "even_odd"}
+    # No schedule_even key at all → .get("schedule_even", {}) → no periods
     assert resolve_presence(config, now) is False
 
 
