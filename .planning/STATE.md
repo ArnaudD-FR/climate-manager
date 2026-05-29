@@ -93,8 +93,9 @@ None yet.
 | 260528-417 | checks if ha-tado-x is compatible | 2026-05-28 | — | [260528-417-check-ha-tado-x-compatibility](./quick/260528-417-check-ha-tado-x-compatibility/) |
 | 260529-h5i | add generated screenshots and amend readme commit | 2026-05-29 | f220dc7 | [260529-h5i-add-screenshots-amend-readme](./quick/260529-h5i-add-screenshots-amend-readme/) |
 | 260528-tvl | zone color palette — dots on tabs, dynamic badge colors | 2026-05-29 | fe2e2c5 | [260528-tvl-zone-color-palette](./quick/260528-tvl-zone-color-palette/) |
+| 260529-g8p | add editorconfig with 80 line length, reformat sources | 2026-05-29 | e0eea90 | [260529-g8p-add-editorconfig-80-line-length](./quick/260529-g8p-add-editorconfig-80-line-length/) |
 
-Last activity: 2026-05-29 - Completed quick task 260528-tvl: zone color palette
+Last activity: 2026-05-29 - Completed quick task 260529-g8p: add EditorConfig and reformat all source files to 80-char line width
 
 ## Session Continuity
 
