@@ -284,11 +284,11 @@ V.elementStyles = [], V.shadowRootOptions = { mode: "open" }, V[re("elementPrope
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const ie = globalThis, Ve = (a) => a, me = ie.trustedTypes, Ye = me ? me.createPolicy("lit-html", { createHTML: (a) => a }) : void 0, it = "$lit$", j = `lit$${Math.random().toFixed(9).slice(2)}$`, at = "?" + j, bt = `<${at}>`, X = document, ae = () => X.createComment(""), ne = (a) => a === null || typeof a != "object" && typeof a != "function", Se = Array.isArray, vt = (a) => Se(a) || typeof (a == null ? void 0 : a[Symbol.iterator]) == "function", _e = `[ 	
+const ie = globalThis, Ve = (a) => a, me = ie.trustedTypes, Ye = me ? me.createPolicy("lit-html", { createHTML: (a) => a }) : void 0, it = "$lit$", j = `lit$${Math.random().toFixed(9).slice(2)}$`, at = "?" + j, bt = `<${at}>`, X = document, ae = () => X.createComment(""), ne = (a) => a === null || typeof a != "object" && typeof a != "function", Te = Array.isArray, vt = (a) => Te(a) || typeof (a == null ? void 0 : a[Symbol.iterator]) == "function", _e = `[ 	
 \f\r]`, oe = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, Ge = /-->/g, Je = />/g, Z = RegExp(`>|${_e}(?:([^\\s"'>=/]+)(${_e}*=${_e}*(?:[^ 	
 \f\r"'\`<>=]|("|')|))|$)`, "g"), Ke = /'/g, Qe = /"/g, nt = /^(?:script|style|textarea|title)$/i, yt = (a) => (e, ...t) => ({ _$litType$: a, strings: e, values: t }), d = yt(1), Y = Symbol.for("lit-noChange"), x = Symbol.for("lit-nothing"), et = /* @__PURE__ */ new WeakMap(), F = X.createTreeWalker(X, 129);
 function lt(a, e) {
-  if (!Se(a) || !a.hasOwnProperty("raw")) throw Error("invalid template strings array");
+  if (!Te(a) || !a.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return Ye !== void 0 ? Ye.createHTML(e) : e;
 }
 const xt = (a, e) => {
@@ -420,7 +420,7 @@ class ce {
     return t === void 0 && et.set(e.strings, t = new le(e)), t;
   }
   k(e) {
-    Se(this._$AH) || (this._$AH = [], this._$AR());
+    Te(this._$AH) || (this._$AH = [], this._$AR());
     const t = this._$AH;
     let s, o = 0;
     for (const r of e) o === t.length ? t.push(s = new ce(this.O(ae()), this.O(ae()), this, this.options)) : s = t[o], s._$AI(r), o++;
@@ -506,7 +506,7 @@ class Pt {
 }
 const be = ie.litHtmlPolyfillSupport;
 be == null || be(le, ce), (ie.litHtmlVersions ?? (ie.litHtmlVersions = [])).push("3.3.3");
-const St = (a, e, t) => {
+const Tt = (a, e, t) => {
   const s = (t == null ? void 0 : t.renderBefore) ?? e;
   let o = s._$litPart$;
   if (o === void 0) {
@@ -532,7 +532,7 @@ class k extends V {
   }
   update(e) {
     const t = this.render();
-    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(e), this._$Do = St(t, this.renderRoot, this.renderOptions);
+    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(e), this._$Do = Tt(t, this.renderRoot, this.renderOptions);
   }
   connectedCallback() {
     var e;
@@ -556,7 +556,7 @@ ve == null || ve({ LitElement: k });
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Tt = { attribute: !0, type: String, converter: ue, reflect: !1, hasChanged: Pe }, Et = (a = Tt, e, t) => {
+const St = { attribute: !0, type: String, converter: ue, reflect: !1, hasChanged: Pe }, Et = (a = St, e, t) => {
   const { kind: s, metadata: o } = t;
   let r = globalThis.litPropertyMetadata.get(o);
   if (r === void 0 && globalThis.litPropertyMetadata.set(o, r = /* @__PURE__ */ new Map()), s === "setter" && ((a = Object.create(a)).wrapped = !0), r.set(t.name, a), s === "accessor") {
@@ -753,7 +753,7 @@ class pe {
     });
   }
 }
-var At = Object.defineProperty, Te = (a, e, t, s) => {
+var At = Object.defineProperty, Se = (a, e, t, s) => {
   for (var o = void 0, r = a.length - 1, i; r >= 0; r--)
     (i = a[r]) && (o = i(e, t, o) || o);
   return o && At(e, t, o), o;
@@ -836,13 +836,13 @@ Ae.styles = A`
     }
   `;
 let J = Ae;
-Te([
+Se([
   y()
 ], J.prototype, "_visible");
-Te([
+Se([
   y()
 ], J.prototype, "_message");
-Te([
+Se([
   y()
 ], J.prototype, "_isError");
 customElements.define("climate-manager-toast", J);
@@ -1643,35 +1643,35 @@ Re.styles = A`
       color: var(--error-color, #db4437);
     }
   `;
-let T = Re;
+let S = Re;
 N([
   u({ type: Array })
-], T.prototype, "days");
+], S.prototype, "days");
 N([
   u({ type: String })
-], T.prototype, "mode");
+], S.prototype, "mode");
 N([
   y()
-], T.prototype, "_clipboard");
+], S.prototype, "_clipboard");
 N([
   y()
-], T.prototype, "_drag");
+], S.prototype, "_drag");
 N([
   y()
-], T.prototype, "_dragTooltipMinutes");
+], S.prototype, "_dragTooltipMinutes");
 N([
   y()
-], T.prototype, "_dragTooltipX");
+], S.prototype, "_dragTooltipX");
 N([
   y()
-], T.prototype, "_dragTooltipY");
+], S.prototype, "_dragTooltipY");
 N([
   y()
-], T.prototype, "_dragPreviewDays");
+], S.prototype, "_dragPreviewDays");
 N([
   y()
-], T.prototype, "_popup");
-customElements.define("climate-manager-time-bar", T);
+], S.prototype, "_popup");
+customElements.define("climate-manager-time-bar", S);
 var Ht = Object.defineProperty, de = (a, e, t, s) => {
   for (var o = void 0, r = a.length - 1, i; r >= 0; r--)
     (i = a[r]) && (o = i(e, t, o) || o);
@@ -2234,13 +2234,13 @@ const Ne = class Ne extends k {
     super.connectedCallback(), this._expanded = !1;
   }
   updated(e) {
-    e.has("autoExpand") && this.autoExpand && (this._expanded = !0, this.updateComplete.then(() => {
+    e.has("autoExpand") && this.autoExpand && (this._expanded = !0, setTimeout(() => {
       const t = this.getBoundingClientRect();
       this.scrollIntoView({
         behavior: "smooth",
         block: t.height <= window.innerHeight ? "nearest" : "start"
       });
-    }));
+    }, 0));
   }
   // -----------------------------------------------------------------------
   // Person association handlers
@@ -2882,7 +2882,7 @@ const Oe = class Oe extends k {
       `;
     const o = (m) => {
       var _, f, $;
-      return (($ = (f = (_ = this.status) == null ? void 0 : _.rooms_status) == null ? void 0 : f.find((S) => S.area_id === m)) == null ? void 0 : $.name) ?? m.replace(/_/g, " ").replace(/\b\w/g, (S) => S.toUpperCase());
+      return (($ = (f = (_ = this.status) == null ? void 0 : _.rooms_status) == null ? void 0 : f.find((T) => T.area_id === m)) == null ? void 0 : $.name) ?? m.replace(/_/g, " ").replace(/\b\w/g, (T) => T.toUpperCase());
     }, r = /* @__PURE__ */ new Map();
     for (const m of s) {
       const _ = ((v = (b = (g = this.hass) == null ? void 0 : g.areas) == null ? void 0 : b[m]) == null ? void 0 : v.floor_id) ?? null;
@@ -2892,8 +2892,8 @@ const Oe = class Oe extends k {
       m.sort((_, f) => o(_).localeCompare(o(f)));
     const i = [...r.keys()].filter((m) => m !== null).sort(
       (m, _) => {
-        var f, $, S, te, Be, Ze;
-        return (((S = ($ = (f = this.hass) == null ? void 0 : f.floors) == null ? void 0 : $[_]) == null ? void 0 : S.level) ?? 0) - (((Ze = (Be = (te = this.hass) == null ? void 0 : te.floors) == null ? void 0 : Be[m]) == null ? void 0 : Ze.level) ?? 0);
+        var f, $, T, te, Be, Ze;
+        return (((T = ($ = (f = this.hass) == null ? void 0 : f.floors) == null ? void 0 : $[_]) == null ? void 0 : T.level) ?? 0) - (((Ze = (Be = (te = this.hass) == null ? void 0 : te.floors) == null ? void 0 : Be[m]) == null ? void 0 : Ze.level) ?? 0);
       }
     ), n = r.get(null) ?? [], l = (m) => {
       const _ = e[m] ?? {}, f = this._getRoomStatus(m), $ = o(m);
@@ -2912,16 +2912,16 @@ const Oe = class Oe extends k {
         ></climate-manager-room-card>
       `;
     }, c = (m) => {
-      var $, S;
-      const _ = (S = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : S[m];
+      var $, T;
+      const _ = (T = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : T[m];
       if (_ != null && _.icon) return _.icon;
       const f = (_ == null ? void 0 : _.level) ?? 0;
       return f === -1 ? "mdi:home-floor-negative-1" : f < 0 ? "mdi:home-floor-b" : f === 1 ? "mdi:home-floor-1" : f === 2 ? "mdi:home-floor-2" : f === 3 || f > 3 ? "mdi:home-floor-3" : "mdi:home-floor-0";
     };
     return d`
       ${i.map((m) => {
-      var $, S, te;
-      const _ = ((te = (S = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : S[m]) == null ? void 0 : te.name) ?? m, f = r.get(m) ?? [];
+      var $, T, te;
+      const _ = ((te = (T = ($ = this.hass) == null ? void 0 : $.floors) == null ? void 0 : T[m]) == null ? void 0 : te.name) ?? m, f = r.get(m) ?? [];
       return d`
           <div class="floor-header">
             <ha-icon icon=${c(m)}></ha-icon>
@@ -3016,13 +3016,13 @@ const W = "scheduled", xe = "ha", $e = "force_present", we = "force_absent", tt 
     super.connectedCallback(), this._expanded = !1;
   }
   updated(e) {
-    e.has("autoExpand") && this.autoExpand && (this._expanded = !0, this.updateComplete.then(() => {
+    e.has("autoExpand") && this.autoExpand && (this._expanded = !0, setTimeout(() => {
       const t = this.getBoundingClientRect();
       this.scrollIntoView({
         behavior: "smooth",
         block: t.height <= window.innerHeight ? "nearest" : "start"
       });
-    }));
+    }, 0));
   }
   // -----------------------------------------------------------------------
   // Save handlers
