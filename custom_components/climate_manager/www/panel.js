@@ -3685,7 +3685,7 @@ const qe = class qe extends C {
     var o;
     const e = (o = this.zoneConfig) == null ? void 0 : o.mode;
     let t;
-    return e === "off" ? t = "Zone is off. All assigned rooms are kept at frost protection temperature only." : e === "time_program_presences" ? t = "Rooms heat according to the schedule only when an assigned person is present. When everyone is absent, rooms stay at Reduced temperature." : t = "Rooms follow the weekly schedule. Each period sets the target temperature for all assigned rooms.", d`<p class="schedule-hint">${t}</p>`;
+    return e === "off" ? t = "Zone is off. All assigned rooms are kept at frost protection temperature only." : e === "time_program_presences" ? t = "Rooms heat according to the schedule when an assigned person is present. While present, the room stays heated from the first Normal/Comfort period to the last — Reduced or Frost gaps in between are held at the preceding Normal/Comfort temperature. When everyone is absent, the room stays at Reduced temperature regardless of the schedule." : t = "Rooms follow the weekly schedule. Each period sets the target temperature for all assigned rooms.", d`<p class="schedule-hint">${t}</p>`;
   }
   _getFloorIcon(e) {
     var s, i;

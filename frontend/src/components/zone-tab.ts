@@ -437,7 +437,7 @@ export class ZoneTab extends LitElement {
     if (mode === "off") {
       text = "Zone is off. All assigned rooms are kept at frost protection temperature only.";
     } else if (mode === "time_program_presences") {
-      text = "Rooms heat according to the schedule only when an assigned person is present. When everyone is absent, rooms stay at Reduced temperature.";
+      text = "Rooms heat according to the schedule when an assigned person is present. While present, the room stays heated from the first Normal/Comfort period to the last — Reduced or Frost gaps in between are held at the preceding Normal/Comfort temperature. When everyone is absent, the room stays at Reduced temperature regardless of the schedule.";
     } else {
       text = "Rooms follow the weekly schedule. Each period sets the target temperature for all assigned rooms.";
     }
