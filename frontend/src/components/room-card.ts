@@ -599,8 +599,8 @@ export class RoomCard extends LitElement {
                   @change=${this._onRoomModeChange}
                 >
                   <option value="global" ?selected=${resolvedMode === "global"}>Zone program</option>
-                  <option value="frost_protection" ?selected=${resolvedMode === "frost_protection"}>Off</option>
                   <option value="custom" ?selected=${resolvedMode === "custom"}>Custom program</option>
+                  <option value="frost_protection" ?selected=${resolvedMode === "frost_protection"}>Off</option>
                 </select>
               </div>
 

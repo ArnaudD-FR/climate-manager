@@ -2722,8 +2722,8 @@ const Le = class Le extends k {
                   @change=${this._onRoomModeChange}
                 >
                   <option value="global" ?selected=${e === "global"}>Zone program</option>
-                  <option value="frost_protection" ?selected=${e === "frost_protection"}>Off</option>
                   <option value="custom" ?selected=${e === "custom"}>Custom program</option>
+                  <option value="frost_protection" ?selected=${e === "frost_protection"}>Off</option>
                 </select>
               </div>
 
