@@ -24,6 +24,7 @@ Requirements addressed:
 
 import datetime
 import logging
+import re
 
 from .const import (
     PERIOD_COMFORT,
@@ -53,6 +54,11 @@ DAY_TO_WEEKDAY: dict[str, int] = {
 WEEKDAY_TO_DAY: dict[int, str] = {v: k for k, v in DAY_TO_WEEKDAY.items()}
 
 ALL_DAYS: set[str] = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+
+# Matches zero-padded HH:MM time strings (e.g. "09:30", "22:00").
+# Non-zero-padded strings like "9:30" are intentionally rejected so that
+# the sort-by-parsed-time guarantee (CR-01) is enforced at input time.
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -263,16 +269,46 @@ def validate_daily_program(
 
     D-01: programs must use the per-day schema with all 7 day keys (Mon–Sun).
     Unknown day keys are also rejected.
+
+    Period-level validation (WR-01):
+    - Each period must have a "start" key with a zero-padded "HH:MM" value.
+    - Each period must have a "mode" or "state" key.
+    - No two periods in the same day may share the same start time.
     """
     missing = ALL_DAYS - set(daily_program.keys())
     extra = set(daily_program.keys()) - ALL_DAYS
 
-    if not missing and not extra:
-        return True, ""
-
     parts = []
     if missing:
-        parts.append(f"Missing days: {sorted(missing)}")
+        parts.append(f"Missing days: {', '.join(sorted(missing))}")
     if extra:
-        parts.append(f"Unknown days: {sorted(extra)}")
-    return False, "; ".join(parts)
+        parts.append(f"Unknown days: {', '.join(sorted(extra))}")
+    if parts:
+        return False, "; ".join(parts)
+
+    # Period-level validation for each day
+    for day, periods in daily_program.items():
+        if day not in ALL_DAYS:
+            continue
+        starts_seen: set[str] = set()
+        for i, period in enumerate(periods):
+            if "start" not in period:
+                return False, f"{day}[{i}]: missing 'start' key"
+            if not _TIME_RE.match(period["start"]):
+                return False, (
+                    f"{day}[{i}]: 'start' must be HH:MM (zero-padded),"
+                    f" got {period['start']!r}"
+                )
+            if period["start"] in starts_seen:
+                return (
+                    False,
+                    f"{day}[{i}]: duplicate start time {period['start']!r}",
+                )
+            starts_seen.add(period["start"])
+            if "mode" not in period and "state" not in period:
+                return (
+                    False,
+                    f"{day}[{i}]: period must have 'mode' or 'state'",
+                )
+
+    return True, ""
