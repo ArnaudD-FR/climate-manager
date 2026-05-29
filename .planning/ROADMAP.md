@@ -3,7 +3,8 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 1-3 (shipped 2026-05-26)
-- 🚧 **v1.1 Heating Zones** — Phases 4-6 (in progress)
+- ✅ **v1.1 Heating Zones** — Phases 4-6 (shipped 2026-05-28)
+- 🚧 **v1.2 Presence & Calibration** — Phases 7-9 (in progress)
 
 ## Phases
 
@@ -18,114 +19,123 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full phase details.
 
 </details>
 
-### 🚧 v1.1 Heating Zones (In Progress)
+<details>
+<summary>✅ v1.1 Heating Zones (Phases 4-6) — SHIPPED 2026-05-28</summary>
 
-**Milestone Goal:** Rooms can be grouped into named heating zones, each with its
-own mode and weekly schedule. The backend evaluation hierarchy (room custom →
-zone → global) is enforced automatically, and the panel exposes full zone
-management.
+- [x] Phase 4: Zone Data Model & Storage (2/2 plans) — completed 2026-05-27
+- [x] Phase 5: Zone CRUD & Evaluation Engine (3/3 plans) — completed
+      2026-05-27
+- [x] Phase 6: Zone & Room Assignment UI (4/4 plans) — completed 2026-05-28
 
-- [x] **Phase 4: Zone Data Model & Storage** — Schema for zones, Default Zone
-      invariant, v1.0 migration (completed 2026-05-27)
-- [x] **Phase 5: Zone CRUD & Evaluation Engine** — WebSocket API for zone
-      operations + full evaluation hierarchy (completed 2026-05-27)
-- [x] **Phase 6: Zone & Room Assignment UI** — Panel zones tabs, room zone
-      badges, and assignment controls (completed 2026-05-28)
+</details>
+
+### 🚧 v1.2 Presence & Calibration (In Progress)
+
+**Milestone Goal:** Households with alternate-week custody can give each person
+two independent weekly presence schedules, automatically selected by ISO week
+parity, and the integration can keep TRV readings honest by auto-calibrating
+their temperature offset against the room's reference sensor.
+
+- [ ] **Phase 7: Even/Odd Week Scheduling — Backend** — Person schema gains
+      `schedule_type`/`schedule_even`/`schedule_odd`; evaluator selects by week
+      parity
+- [ ] **Phase 8: Even/Odd Week Scheduling — Frontend** — Week-switcher toggle
+      in the persons time-bar, visible only for even/odd persons
+- [ ] **Phase 9: TRV Temperature Offset Auto-Calibration** — Periodic offset
+      calibration from room sensor, guarded by TRV capability, configurable in
+      Global Settings
 
 ## Phase Details
 
-### Phase 4: Zone Data Model & Storage
+### Phase 7: Even/Odd Week Scheduling — Backend
 
-**Goal**: The storage layer understands zones — every room always belongs to
-exactly one zone, the Default Zone always exists, and v1.0 installs migrate
-transparently on first load. **Depends on**: Phase 3 **Requirements**: ZONE-01,
-ZONE-02, ZONE-03, ZONE-04 **Success Criteria** (what must be TRUE):
+**Goal**: A person can have two independent weekly presence schedules, and the
+backend automatically applies the correct one based on the current ISO week
+parity — without breaking any existing single-schedule person.
+**Depends on**: Phase 6
+**Requirements**: SCHED-01, SCHED-02, SCHED-03, SCHED-05, SCHED-06
+**Success Criteria** (what must be TRUE):
 
-1. Storage schema additions (`zones`, `default_zone_name`) load cleanly from
-   existing v1.0 data with no error or data loss (STORAGE_VERSION stays at 2 —
-   additive-only, per D-04)
-2. All rooms without a `zone_id` are interpreted as belonging to the Default
-   Zone on first load after upgrade (no migration code needed; absent zone_id =
-   Default Zone member per D-06)
-3. A new install always has a Default Zone present (virtual concept backed by
-   `global_mode` + `global_time_program` + `default_zone_name` per
-   D-01/D-02/D-03) and it cannot be removed from storage because it has no
-   storage entry to remove
-4. Attempting to save a room with a `zone_id` referencing a non-existent zone,
-   or two rooms sharing the same `zone_id`, is rejected at the data layer
-   (`validate_zone_assignment` in storage.py, ZONE-04) **Plans**: 2 plans
+1. A person's `schedule_type` can be set to `single` (default) or `even_odd`
+   via the backend, and existing persons loaded from v1.1 storage with no
+   `schedule_type` field behave exactly as before (treated as `single`, no
+   migration, no data loss)
+2. When a person is `even_odd`, the coordinator evaluates presence using
+   `schedule_even` during even ISO weeks and `schedule_odd` during odd ISO
+   weeks (parity from `date.isocalendar().week % 2`)
+3. Switching a person from `single` to `even_odd` seeds both `schedule_even`
+   and `schedule_odd` from the existing `schedule`, so the person's current
+   presence pattern is preserved on both weeks
+4. Switching a person from `even_odd` back to `single` leaves `schedule`
+   unchanged and presence reverts to the single-schedule behaviour
 
-- [x] 04-01-PLAN.md — Python backend: const.py DEFAULT_CONFIG additions,
-      storage.py validate_zone_assignment helper + async_save hook, tests
-- [x] 04-02-PLAN.md — Frontend TypeScript stubs: ZoneConfig interface,
-      RoomConfig.zone_id, ClimateConfig.zones/default_zone_name in types.ts
+**Plans**: TBD
 
-### Phase 5: Zone CRUD & Evaluation Engine
+### Phase 8: Even/Odd Week Scheduling — Frontend
 
-**Goal**: Users can create, rename, configure, and delete zones through the
-WebSocket API, and the coordinator evaluates zone mode and schedule as the
-authoritative layer between room-custom and global. **Depends on**: Phase 4
-**Requirements**: ZONE-05, ZONE-06, ZONE-07, ZONE-08, ZONE-09, EVAL-01, EVAL-02,
-EVAL-03, EVAL-04, EVAL-05 **Success Criteria** (what must be TRUE):
+**Goal**: A user can configure both week schedules for an even/odd person
+directly in the panel, with a clear Even/Odd toggle that scopes time-bar edits
+to one week at a time, and the toggle never appears for single-schedule
+persons.
+**Depends on**: Phase 7
+**Requirements**: SCHED-04
+**Success Criteria** (what must be TRUE):
 
-1. A newly created zone with mode=off causes its assigned rooms to receive
-   frost-protection temperature at the next coordinator evaluation cycle
-2. A zone with mode=time_program runs its own weekly schedule; rooms in it
-   follow zone periods, not the global program
-3. Deleting a custom zone via the API moves all its rooms to the Default Zone —
-   no room is left without a zone
-4. When global mode=time_program_presences, presence heating applies to rooms in
-   all zones regardless of each zone's own mode
-5. A room with a custom schedule override is unaffected by its zone's mode or
-   schedule **Plans**: 3 plans
+1. A person card shows a schedule-type control letting the user pick between a
+   single schedule and even/odd schedules
+2. When a person is set to even/odd, an Even / Odd week-switcher toggle appears
+   above the presence time-bar; for single-schedule persons the toggle is
+   absent
+3. With the toggle on Even, time-bar edits change only `schedule_even`; with it
+   on Odd, edits change only `schedule_odd` — switching the toggle redraws the
+   bar to the selected week without losing the other week's edits
+4. Changes made for each week persist after reload and match what the backend
+   applies during the corresponding ISO week
 
-- [x] 05-01-PLAN.md — WS: create_zone + rename_zone + set_zone_mode handlers and
-      5 tests (Wave 1; ZONE-05/06/08)
-- [x] 05-02-PLAN.md — WS: delete_zone + set_zone_time_program +
-      reset_zone_time_program handlers and 5 tests (Wave 2; depends on 05-01 —
-      same files; ZONE-07/09)
-- [x] 05-03-PLAN.md — Coordinator: per-room zone-aware dispatch refactor +
-      \_resolve_zone_config helper + 5 EVAL-01..05 tests (Wave 1; parallel with
-      05-01; EVAL-01..05)
+**Plans**: TBD
+**UI hint**: yes
 
-### Phase 6: Zone & Room Assignment UI
+### Phase 9: TRV Temperature Offset Auto-Calibration
 
-**Goal**: The panel exposes full zone management — zone tabs appear and
-disappear as zones are created or deleted, each zone is fully configurable
-inline, and every room card shows its zone membership and allows reassignment.
-**Depends on**: Phase 5 **Requirements**: ASSIGN-01, ASSIGN-02, ASSIGN-03,
-UI-01, UI-02, UI-03, UI-04, UI-05, UI-06 **Success Criteria** (what must be
-TRUE):
+**Goal**: When enabled, the integration periodically corrects each compatible
+TRV's temperature offset so its readings track the room's reference sensor,
+while silently leaving incompatible or sensor-less rooms untouched and avoiding
+jittery over-correction.
+**Depends on**: Phase 6 (independent of Phases 7-8)
+**Requirements**: CALIB-01, CALIB-02, CALIB-03, CALIB-04, CALIB-05
+**Success Criteria** (what must be TRUE):
 
-1. Tab bar shows Global Settings | Default Zone | [custom zones] | Rooms |
-   Persons — new zone tabs appear immediately after creation, disappear after
-   deletion
-2. Each zone tab displays zone name (inline editable), mode picker, weekly
-   time-bar, and list of assigned rooms
-3. User can assign rooms to a zone from the zone tab and from each room card —
-   the assignment is reflected in both views
-4. Every room card in the Rooms tab shows a zone badge with the zone name
-5. Custom zone tabs show a delete button with confirmation dialog; the Default
-   Zone tab has no delete button **Plans**: 3 plans
+1. A user can enable or disable TRV offset auto-calibration globally from the
+   Global Settings tab, and the setting persists across restarts
+2. When calibration is enabled and a room has both a reference temperature
+   sensor and a compatible TRV, the coordinator periodically applies an offset
+   so the TRV's reported temperature converges toward the reference sensor
+   reading
+3. Rooms whose TRV does not support offset adjustment (no `temperature_offset`
+   attribute / no `tado_x.set_temperature_offset` service) are skipped with no
+   error or log spam
+4. Rooms without a reference temperature sensor configured are skipped — no
+   offset is ever applied to them
+5. An offset is applied only when the measured delta exceeds the configurable
+   threshold (default 0.5°C), so small fluctuations do not cause repeated
+   offset changes
 
-- [x] 06-01-PLAN.md — WsClient zone methods
-      (createZone/deleteZone/renameZone/setZoneMode/setZoneTimeProgram/resetZoneTimeProgram) +
-      new zone-tab.ts component (name edit, mode picker, time-bar,
-      assigned-rooms chips + search-picker, inline delete confirm)
-- [x] 06-02-PLAN.md — main.ts dynamic zone tab rendering (Overview | Default
-      Zone | [custom zones] | + | Rooms | Persons), + button create handler,
-      \_activeTab broadened to string with stale-UUID fallback
-- [x] 06-03-PLAN.md — room-card.ts zone badge in collapsed header + zone
-      <select> in expanded content; person-card.ts D-13 label rename "HA" → "HA
-      home tracking" **UI hint**: yes
+**Plans**: TBD
 
 ## Progress
 
-| Phase                             | Milestone | Plans Complete | Status   | Completed  |
-| --------------------------------- | --------- | -------------- | -------- | ---------- |
-| 1. Foundation                     | v1.0      | 3/3            | Complete | 2026-05-16 |
-| 2. Backend Engines & Coordinator  | v1.0      | 2/2            | Complete | 2026-05-17 |
-| 3. WebSocket API & Frontend Panel | v1.0      | 9/9            | Complete | 2026-05-21 |
-| 4. Zone Data Model & Storage      | v1.1      | 2/2            | Complete | 2026-05-27 |
-| 5. Zone CRUD & Evaluation Engine  | v1.1      | 3/3            | Complete | 2026-05-27 |
-| 6. Zone & Room Assignment UI      | v1.1      | 4/4            | Complete | 2026-05-28 |
+**Execution Order:**
+Phases execute in numeric order: 7 → 8 → 9 (Phase 9 may run in parallel with
+7-8 — it shares no requirements or files with the scheduling feature).
+
+| Phase                                | Milestone | Plans Complete | Status      | Completed  |
+| ------------------------------------ | --------- | -------------- | ----------- | ---------- |
+| 1. Foundation                        | v1.0      | 3/3            | Complete    | 2026-05-16 |
+| 2. Backend Engines & Coordinator     | v1.0      | 2/2            | Complete    | 2026-05-17 |
+| 3. WebSocket API & Frontend Panel    | v1.0      | 9/9            | Complete    | 2026-05-21 |
+| 4. Zone Data Model & Storage         | v1.1      | 2/2            | Complete    | 2026-05-27 |
+| 5. Zone CRUD & Evaluation Engine     | v1.1      | 3/3            | Complete    | 2026-05-27 |
+| 6. Zone & Room Assignment UI         | v1.1      | 4/4            | Complete    | 2026-05-28 |
+| 7. Even/Odd Week Scheduling — Backend | v1.2     | 0/TBD          | Not started | -          |
+| 8. Even/Odd Week Scheduling — Frontend | v1.2    | 0/TBD          | Not started | -          |
+| 9. TRV Temperature Offset Auto-Calibration | v1.2 | 0/TBD         | Not started | -          |

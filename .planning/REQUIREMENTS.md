@@ -55,16 +55,16 @@
 
 ## Traceability
 
-| REQ-ID   | Phase | Plan |
-| -------- | ----- | ---- |
-| SCHED-01 | —     | —    |
-| SCHED-02 | —     | —    |
-| SCHED-03 | —     | —    |
-| SCHED-04 | —     | —    |
-| SCHED-05 | —     | —    |
-| SCHED-06 | —     | —    |
-| CALIB-01 | —     | —    |
-| CALIB-02 | —     | —    |
-| CALIB-03 | —     | —    |
-| CALIB-04 | —     | —    |
-| CALIB-05 | —     | —    |
+| REQ-ID   | Phase    | Plan |
+| -------- | -------- | ---- |
+| SCHED-01 | Phase 7  | TBD  |
+| SCHED-02 | Phase 7  | TBD  |
+| SCHED-03 | Phase 7  | TBD  |
+| SCHED-04 | Phase 8  | TBD  |
+| SCHED-05 | Phase 7  | TBD  |
+| SCHED-06 | Phase 7  | TBD  |
+| CALIB-01 | Phase 9  | TBD  |
+| CALIB-02 | Phase 9  | TBD  |
+| CALIB-03 | Phase 9  | TBD  |
+| CALIB-04 | Phase 9  | TBD  |
+| CALIB-05 | Phase 9  | TBD  |

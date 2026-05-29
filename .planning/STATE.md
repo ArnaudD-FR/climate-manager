@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Presence & Calibration
-status: planning
+status: roadmapped
 last_updated: "2026-05-29T14:25:53.687Z"
 last_activity: 2026-05-29
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,18 +17,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-26)
+See: .planning/PROJECT.md (updated 2026-05-29)
 
 **Core value:** A household's rooms are always at the right temperature at the
 right time, without manual intervention — driven by schedules and who is
-actually home. **Current focus:** Milestone complete
+actually home. **Current focus:** v1.2 Presence & Calibration — even/odd week
+presence schedules + TRV offset auto-calibration.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Phase 7 — Even/Odd Week Scheduling — Backend (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-29 — Milestone v1.2 started
+Status: Roadmapped (awaiting phase planning)
+Last activity: 2026-05-29 — Roadmap created for v1.2 (Phases 7-9)
 
 ## Performance Metrics
 
@@ -45,6 +46,9 @@ Last activity: 2026-05-29 — Milestone v1.2 started
 | 04    | 2     | -     | -        |
 | 05    | 3     | -     | -        |
 | 06    | 4     | -     | -        |
+| 07    | TBD   | -     | -        |
+| 08    | TBD   | -     | -        |
+| 09    | TBD   | -     | -        |
 
 **Recent Trend:**
 
@@ -60,23 +64,23 @@ _Updated after each plan completion_
 Decisions are logged in PROJECT.md Key Decisions table. Recent decisions
 affecting current work:
 
-- v1.1 arch: zone_id stored on room (not room_ids on zone) — keeps zone deletion
-  self-contained
-
-- v1.1 arch: Default Zone always present, non-deletable, catches all unassigned
-  rooms
-
-- v1.1 arch: evaluation hierarchy — room custom > zone mode/schedule > global
-- v1.1 arch: STORAGE_VERSION 2 → 3; sparse-merge assigns rooms to Default Zone
-  on first load
-
-- v1.1 arch: global mode=time_program_presences governs presence for ALL rooms
-  regardless of zone mode
+- v1.2 arch: person `schedule_type`/`schedule_even`/`schedule_odd` are additive
+  — absent fields default to `single`, no storage migration needed
+- v1.2 arch: even/odd week selected by ISO week parity
+  (`date.isocalendar().week % 2`) at evaluation time
+- v1.2 arch: single→even_odd seeds both week schedules from `schedule`;
+  even_odd→single preserves `schedule` unchanged
+- v1.2 arch: TRV calibration guarded by `temperature_offset` attribute /
+  `tado_x.set_temperature_offset` service detection — incompatible or
+  sensor-less rooms silently skipped
+- v1.2 arch: calibration gated by configurable delta threshold (default 0.5°C)
+  to prevent jitter
+- Phase 9 (calibration) is independent of Phases 7-8 (scheduling) — can be
+  planned/executed in parallel
 
 ### Pending Todos
 
-- TRV temperature offset auto-calibration from room sensor
-  (`2026-05-28-trv-temperature-offset-auto-calibration.md`)
+- (cleared) TRV temperature offset auto-calibration — now scoped as Phase 9
 
 ### Blockers/Concerns
 
@@ -101,10 +105,10 @@ None yet.
 | 260528-tvl | zone color palette — dots on tabs, dynamic badge colors | 2026-05-29 | fe2e2c5 | [260528-tvl-zone-color-palette](./quick/260528-tvl-zone-color-palette/)                           |
 | 260529-g8p | add editorconfig with 80 line length, reformat sources  | 2026-05-29 | e0eea90 | [260529-g8p-add-editorconfig-80-line-length](./quick/260529-g8p-add-editorconfig-80-line-length/) |
 
-Last activity: 2026-05-29 - Completed quick task 260529-g8p: add EditorConfig
-and reformat all source files to 80-char line width
+Last activity: 2026-05-29 - Created v1.2 roadmap (Phases 7-9); 11 requirements
+mapped (SCHED-01..06, CALIB-01..05)
 
 ## Session Continuity
 
-Last session: 2026-05-28T19:24:44.368Z Stopped at: context exhaustion at 75%
-(2026-05-28) Resume file: None
+Last session: 2026-05-29T14:25:53.687Z Stopped at: roadmap creation complete
+Resume file: None
