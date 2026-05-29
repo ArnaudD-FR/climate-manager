@@ -1,6 +1,6 @@
 ---
 slug: live-drag-preview
-status: in_progress
+status: resolved
 trigger: feature_request
 created: 2026-05-18
 ---
