@@ -539,7 +539,7 @@ export class RoomCard extends LitElement {
     if (resolvedMode === "frost_protection") {
       text = "Heating is disabled. The room is kept at frost protection temperature only.";
     } else if (resolvedMode === "custom") {
-      text = "This room uses its own custom schedule, independent of the zone — including when the zone is set to Off.";
+      text = "This room uses its own custom schedule instead of the zone's. The zone's Off mode still applies.";
     } else {
       text = "This room follows the zone's heating schedule.";
     }
