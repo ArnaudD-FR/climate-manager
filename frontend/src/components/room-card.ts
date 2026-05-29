@@ -66,7 +66,7 @@ export class RoomCard extends LitElement {
   updated(changedProperties: PropertyValues) {
     if (changedProperties.has("autoExpand") && this.autoExpand) {
       this._expanded = true;
-      this.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      this.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
 

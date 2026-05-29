@@ -2234,7 +2234,7 @@ const Ne = class Ne extends k {
     super.connectedCallback(), this._expanded = !1;
   }
   updated(e) {
-    e.has("autoExpand") && this.autoExpand && (this._expanded = !0, this.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+    e.has("autoExpand") && this.autoExpand && (this._expanded = !0, this.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
   // -----------------------------------------------------------------------
   // Person association handlers
@@ -3010,7 +3010,7 @@ const W = "scheduled", xe = "ha", $e = "force_present", we = "force_absent", tt 
     super.connectedCallback(), this._expanded = !1;
   }
   updated(e) {
-    e.has("autoExpand") && this.autoExpand && (this._expanded = !0, this.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+    e.has("autoExpand") && this.autoExpand && (this._expanded = !0, this.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
   // -----------------------------------------------------------------------
   // Save handlers
