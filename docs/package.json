@@ -1,0 +1,9 @@
+{
+  "name": "climate-manager-screenshots",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Screenshot generation tooling for Climate Manager panel",
+  "dependencies": {
+    "playwright": "1.49.0"
+  }
+}

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Climate Manager – Test Harness</title>
+  <style>
+    :root {
+      --primary-color: #03a9f4;
+      --primary-background-color: #fafafa;
+      --secondary-background-color: #e8e8e8;
+      --card-background-color: #ffffff;
+      --ha-card-background: #ffffff;
+      --primary-text-color: #212121;
+      --secondary-text-color: #727272;
+      --divider-color: rgba(0,0,0,0.12);
+      --error-color: #db4437;
+      --success-color: #43a047;
+      --app-header-background-color: #03a9f4;
+      --app-header-text-color: #ffffff;
+      --text-primary-color: #ffffff;
+      --state-icon-color: #44739e;
+      --ha-card-border-radius: 12px;
+      --ha-card-box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+      --mdc-typography-body1-font-family: Roboto, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Roboto, "Noto Sans", sans-serif;
+      background: var(--primary-background-color);
+      width: 1280px;
+    }
+    #mount { display: block; width: 100%; }
+  </style>
+</head>
+<body>
+<div id="mount"></div>
+
+<!-- HA web component stubs — defined synchronously before panel.js loads -->
+<script>
+  customElements.define('ha-icon', class extends HTMLElement {
+    static get observedAttributes() { return ['icon']; }
+    connectedCallback() { this._render(); }
+    attributeChangedCallback() { this._render(); }
+    _render() {
+      const icon = (this.getAttribute('icon') || '').split(':')[1] || '';
+      const map = {
+        thermometer: '🌡', alert: '⚠', account: '👤', 'account-check': '👤',
+        'account-off': '👤', home: '🏠', snowflake: '❄', fire: '🔥',
+        pencil: '✏', delete: '🗑', plus: '+', check: '✓', close: '✕',
+        'chevron-down': '▾', 'chevron-up': '▴', refresh: '↺',
+        'weather-sunset-up': '🌅', 'clock-outline': '🕐',
+        'calendar-clock': '📅', 'dots-vertical': '⋮', 'content-save': '💾',
+        'map-marker': '📍',
+      };
+      Object.assign(this.style, {
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: '24px', height: '24px', fontSize: '16px', flexShrink: '0',
+      });
+      this.textContent = map[icon] || '●';
+    }
+  });
+
+  customElements.define('ha-icon-button', class extends HTMLElement {
+    connectedCallback() {
+      Object.assign(this.style, {
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer', padding: '8px', borderRadius: '50%',
+        minWidth: '40px', minHeight: '40px', color: 'var(--secondary-text-color)',
+      });
+    }
+  });
+
+  // ha-card — renders as a styled card container (HA's Material card)
+  customElements.define('ha-card', class extends HTMLElement {
+    connectedCallback() {
+      Object.assign(this.style, {
+        display: 'block',
+        background: 'var(--ha-card-background, #fff)',
+        borderRadius: 'var(--ha-card-border-radius, 12px)',
+        boxShadow: 'var(--ha-card-box-shadow, 0 2px 4px rgba(0,0,0,0.12))',
+        overflow: 'hidden',
+      });
+    }
+  });
+
+  customElements.define('ha-circular-progress', class extends HTMLElement {
+    connectedCallback() {
+      this.textContent = '⟳';
+      Object.assign(this.style, {
+        display: 'inline-block', fontSize: '24px',
+        color: 'var(--primary-color)', animation: 'spin 1s linear infinite',
+      });
+    }
+  });
+</script>
+
+<!-- panel.js is a module; it runs before the sibling inline module below -->
+<script type="module" src="/custom_components/climate_manager/www/panel.js"></script>
+
+<!-- Mock hass — runs after panel.js defines climate-manager-panel -->
+<script type="module">
+  const ZONE_ID = 'zone-upstairs-abc123';
+
+  const weekdayProg = [
+    { start: '00:00', mode: 'frost_protection' },
+    { start: '06:30', mode: 'normal' },
+    { start: '09:00', mode: 'reduced' },
+    { start: '17:00', mode: 'normal' },
+    { start: '22:00', mode: 'frost_protection' },
+  ];
+  const weekendProg = [
+    { start: '00:00', mode: 'frost_protection' },
+    { start: '08:00', mode: 'normal' },
+    { start: '10:00', mode: 'comfort' },
+    { start: '14:00', mode: 'reduced' },
+    { start: '17:00', mode: 'normal' },
+    { start: '23:00', mode: 'frost_protection' },
+  ];
+  const livingRoomWeekdayProg = [
+    { start: '00:00', mode: 'frost_protection' },
+    { start: '07:00', mode: 'normal' },
+    { start: '09:30', mode: 'reduced' },
+    { start: '18:00', mode: 'comfort' },
+    { start: '23:00', mode: 'frost_protection' },
+  ];
+  const livingRoomWeekendProg = [
+    { start: '00:00', mode: 'frost_protection' },
+    { start: '09:00', mode: 'comfort' },
+    { start: '23:00', mode: 'frost_protection' },
+  ];
+
+  function mkProg(wd, we) {
+    return { mon: wd, tue: wd, wed: wd, thu: wd, fri: wd, sat: we, sun: we };
+  }
+
+  const defaultProg  = mkProg(weekdayProg, weekendProg);
+  const livingRoomProg = mkProg(livingRoomWeekdayProg, livingRoomWeekendProg);
+
+  const aliceWD = [
+    { start: '00:00', state: 'absent' }, { start: '07:00', state: 'present' },
+    { start: '09:00', state: 'absent' }, { start: '17:30', state: 'present' },
+    { start: '23:00', state: 'absent' },
+  ];
+  const aliceWE = [
+    { start: '00:00', state: 'absent' }, { start: '08:30', state: 'present' },
+    { start: '23:30', state: 'absent' },
+  ];
+
+  const CONFIG = {
+    global_mode: 'time_program',
+    period_temperatures: { frost_protection: 7, reduced: 16, normal: 20, comfort: 22 },
+    global_time_program: defaultProg,
+    default_zone_name: 'Home',
+    zones: {
+      [ZONE_ID]: { name: 'Upstairs', mode: 'time_program_presences', time_program: defaultProg },
+    },
+    rooms: {
+      bedroom:     { room_mode: 'global', zone_id: ZONE_ID },
+      kitchen:     { room_mode: 'global' },
+      living_room: { room_mode: 'custom', time_program: livingRoomProg },
+    },
+    persons: {
+      'person.alice': { mode: 'scheduled', room_ids: ['bedroom'],               schedule: mkProg(aliceWD, aliceWE) },
+      'person.bob':   { mode: 'ha',        room_ids: ['living_room', 'kitchen'] },
+    },
+    climate_entities: ['climate.bedroom_trv', 'climate.kitchen_trv', 'climate.living_room_trv'],
+  };
+
+  const STATUS = {
+    global_mode: 'time_program',
+    active_period: 'normal',
+    present_persons: ['person.alice'],
+    rooms_status: [
+      { area_id: 'bedroom',     name: 'Bedroom',     entity_ids: ['climate.bedroom_trv'],     temperature: 19.5, humidity: 52, active_period: 'normal',  present_person_count: 1, has_trv: true },
+      { area_id: 'kitchen',     name: 'Kitchen',     entity_ids: ['climate.kitchen_trv'],     temperature: 21.0, humidity: 45, active_period: 'normal',  present_person_count: 0, has_trv: true },
+      { area_id: 'living_room', name: 'Living Room', entity_ids: ['climate.living_room_trv'], temperature: 20.2, humidity: 48, active_period: 'comfort', present_person_count: 1, has_trv: true },
+    ],
+  };
+
+  const mockHass = {
+    connection: {
+      sendMessagePromise(msg) {
+        if (msg.type === 'climate_manager/get_config') return Promise.resolve(JSON.parse(JSON.stringify(CONFIG)));
+        if (msg.type === 'climate_manager/get_status')  return Promise.resolve(JSON.parse(JSON.stringify(STATUS)));
+        return Promise.resolve({ success: true });
+      },
+      subscribeMessage(callback) {
+        // Push status on next tick so the component is fully connected
+        setTimeout(() => callback(JSON.parse(JSON.stringify(STATUS))), 100);
+        return Promise.resolve(() => {});
+      },
+    },
+    states: {
+      'climate.bedroom_trv':    { state: 'heat',     attributes: { friendly_name: 'Bedroom TRV',     current_temperature: 19.5, temperature: 20 } },
+      'climate.kitchen_trv':    { state: 'heat',     attributes: { friendly_name: 'Kitchen TRV',     current_temperature: 21.0, temperature: 20 } },
+      'climate.living_room_trv':{ state: 'heat',     attributes: { friendly_name: 'Living Room TRV', current_temperature: 20.2, temperature: 22 } },
+      'person.alice':           { state: 'home',     attributes: { friendly_name: 'Alice' } },
+      'person.bob':             { state: 'not_home', attributes: { friendly_name: 'Bob'   } },
+    },
+    areas: {
+      bedroom:     { area_id: 'bedroom',     name: 'Bedroom',     floor_id: 'first_floor'  },
+      kitchen:     { area_id: 'kitchen',     name: 'Kitchen',     floor_id: 'ground_floor' },
+      living_room: { area_id: 'living_room', name: 'Living Room', floor_id: 'ground_floor' },
+    },
+    floors: {
+      ground_floor: { floor_id: 'ground_floor', name: 'Ground Floor', level: 0 },
+      first_floor:  { floor_id: 'first_floor',  name: 'First Floor',  level: 1 },
+    },
+    callService() { return Promise.resolve(); },
+  };
+
+  // Create the element with hass already set so connectedCallback has it available
+  const panel = document.createElement('climate-manager-panel');
+  panel.hass   = mockHass;
+  panel.narrow = false;
+  panel.panel  = {};
+  document.getElementById('mount').appendChild(panel);
+
+  window.__panelReady = true;
+  console.log('[harness] panel appended with hass');
+</script>
+</body>
+</html>

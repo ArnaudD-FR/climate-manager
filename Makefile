@@ -4,7 +4,7 @@ HA_HOST ?= homeassistant.local
 HA_COMPONENT_DIR = /config/custom_components/climate_manager
 SRC_DIR = custom_components/climate_manager
 
-.PHONY: build deploy test logs
+.PHONY: build deploy test logs screenshots
 
 build:
 	cd frontend && npm install --no-audit --no-fund && npm run build
@@ -19,3 +19,11 @@ test:
 
 logs:
 	ssh $(HA_USER)@$(HA_HOST) "ha core logs -f"
+
+screenshots: build
+	@mkdir -p docs/screenshots
+	docker run --rm --ipc=host \
+		-v "$$(pwd):/app" \
+		-e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+		mcr.microsoft.com/playwright:v1.49.0-noble \
+		bash -c "cd /app/docs && npm install --no-audit --no-fund 2>/dev/null && node screenshot.js"
