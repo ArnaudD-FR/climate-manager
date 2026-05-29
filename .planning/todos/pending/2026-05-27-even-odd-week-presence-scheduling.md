@@ -2,6 +2,7 @@
 created: 2026-05-27T00:00:00.000Z
 title: Even/odd week presence scheduling for shared custody
 area: general
+resolves_phase: 7
 files: []
 ---
 

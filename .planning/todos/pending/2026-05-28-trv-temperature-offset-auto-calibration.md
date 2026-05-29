@@ -2,6 +2,7 @@
 created: 2026-05-28T18:50:22Z
 title: TRV temperature offset auto-calibration from room sensor
 area: general
+resolves_phase: 9
 files:
   - custom_components/climate_manager/coordinator.py
   - custom_components/climate_manager/discovery.py
