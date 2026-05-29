@@ -3682,10 +3682,12 @@ const qe = class qe extends C {
   // Render
   // -------------------------------------------------------------------------
   _renderModeDescription() {
-    var o;
-    const e = (o = this.zoneConfig) == null ? void 0 : o.mode;
-    let t;
-    return e === "off" ? t = "Zone is off. All assigned rooms are kept at frost protection temperature only." : e === "time_program_presences" ? t = "Rooms heat according to the schedule when an assigned person is present. While present, the room stays heated from the first Normal/Comfort period to the last — Reduced or Frost gaps in between are held at the preceding Normal/Comfort temperature. When everyone is absent, the room stays at Reduced temperature regardless of the schedule." : t = "Rooms follow the weekly schedule. Each period sets the target temperature for all assigned rooms.", d`<p class="schedule-hint">${t}</p>`;
+    var t;
+    const e = (t = this.zoneConfig) == null ? void 0 : t.mode;
+    return e === "off" ? d`<p class="schedule-hint">Zone is off. All assigned rooms are kept at frost protection temperature only.</p>` : e === "time_program_presences" ? d`
+        <p class="schedule-hint">Rooms heat according to the schedule when an assigned person is present. While present, the room stays heated from the first Normal/Comfort period to the last — Reduced or Frost gaps in between are held at the preceding Normal/Comfort temperature. When everyone is absent, the room stays at Reduced temperature regardless of the schedule.</p>
+        <p class="schedule-hint"><em>Example:</em> schedule Normal 06:00, Reduced 09:00, Normal 17:00, Frost 22:00 — if present, the room heats 06:00–22:00 and holds Normal temperature during the 09:00–17:00 gap. If absent, the room stays at Reduced all day.</p>
+      ` : d`<p class="schedule-hint">Rooms follow the weekly schedule. Each period sets the target temperature for all assigned rooms.</p>`;
   }
   _getFloorIcon(e) {
     var s, i;

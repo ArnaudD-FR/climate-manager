@@ -433,15 +433,16 @@ export class ZoneTab extends LitElement {
 
   private _renderModeDescription() {
     const mode = this.zoneConfig?.mode;
-    let text: string;
     if (mode === "off") {
-      text = "Zone is off. All assigned rooms are kept at frost protection temperature only.";
-    } else if (mode === "time_program_presences") {
-      text = "Rooms heat according to the schedule when an assigned person is present. While present, the room stays heated from the first Normal/Comfort period to the last — Reduced or Frost gaps in between are held at the preceding Normal/Comfort temperature. When everyone is absent, the room stays at Reduced temperature regardless of the schedule.";
-    } else {
-      text = "Rooms follow the weekly schedule. Each period sets the target temperature for all assigned rooms.";
+      return html`<p class="schedule-hint">Zone is off. All assigned rooms are kept at frost protection temperature only.</p>`;
     }
-    return html`<p class="schedule-hint">${text}</p>`;
+    if (mode === "time_program_presences") {
+      return html`
+        <p class="schedule-hint">Rooms heat according to the schedule when an assigned person is present. While present, the room stays heated from the first Normal/Comfort period to the last — Reduced or Frost gaps in between are held at the preceding Normal/Comfort temperature. When everyone is absent, the room stays at Reduced temperature regardless of the schedule.</p>
+        <p class="schedule-hint"><em>Example:</em> schedule Normal 06:00, Reduced 09:00, Normal 17:00, Frost 22:00 — if present, the room heats 06:00–22:00 and holds Normal temperature during the 09:00–17:00 gap. If absent, the room stays at Reduced all day.</p>
+      `;
+    }
+    return html`<p class="schedule-hint">Rooms follow the weekly schedule. Each period sets the target temperature for all assigned rooms.</p>`;
   }
 
   private _getFloorIcon(fid: string): string {
