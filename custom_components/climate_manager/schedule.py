@@ -136,7 +136,14 @@ def resolve_presence(
         return False
 
     # Automatic: evaluate periodic schedule (per-day dict, D-01)
-    schedule = person_config.get("schedule", {})
+    # SCHED-02: select the correct week schedule based on ISO week parity
+    schedule_type = person_config.get("schedule_type", "single")
+    if schedule_type == "even_odd":
+        week_parity = now.date().isocalendar().week % 2
+        schedule_key = "schedule_even" if week_parity == 0 else "schedule_odd"
+        schedule = person_config.get(schedule_key, {})
+    else:
+        schedule = person_config.get("schedule", {})
     day_name = WEEKDAY_TO_DAY[now.weekday()]
     periods = schedule.get(day_name, [])
     if not periods:
