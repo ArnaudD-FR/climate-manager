@@ -2673,7 +2673,7 @@ const Le = class Le extends C {
   }
   _renderRoomModeDescription(e) {
     let t;
-    return e === "frost_protection" ? t = "Heating is disabled. The room is kept at frost protection temperature only." : e === "custom" ? t = "This room uses its own custom schedule, independent of the zone." : t = "This room follows the zone's heating schedule.", d`<p class="schedule-hint">${t}</p>`;
+    return e === "frost_protection" ? t = "Heating is disabled. The room is kept at frost protection temperature only." : e === "custom" ? t = "This room uses its own custom schedule, independent of the zone — including when the zone is set to Off." : t = "This room follows the zone's heating schedule.", d`<p class="schedule-hint">${t}</p>`;
   }
   _openEntityMoreInfo(e) {
     this.dispatchEvent(new CustomEvent("hass-more-info", {
