@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Heating Zones
-status: completed
-stopped_at: context exhaustion at 75% (2026-05-28)
-last_updated: "2026-05-28T19:24:44.372Z"
-last_activity: 2026-05-28
+milestone: v1.2
+milestone_name: Presence & Calibration
+status: planning
+last_updated: "2026-05-29T14:25:53.687Z"
+last_activity: 2026-05-29
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -26,9 +25,10 @@ actually home. **Current focus:** Milestone complete
 
 ## Current Position
 
-Phase: 06 Plan: Not started Status: Milestone complete Last activity: 2026-05-28
-
-Progress: [░░░░░░░░░░] 0%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-29 — Milestone v1.2 started
 
 ## Performance Metrics
 
@@ -62,11 +62,14 @@ affecting current work:
 
 - v1.1 arch: zone_id stored on room (not room_ids on zone) — keeps zone deletion
   self-contained
+
 - v1.1 arch: Default Zone always present, non-deletable, catches all unassigned
   rooms
+
 - v1.1 arch: evaluation hierarchy — room custom > zone mode/schedule > global
 - v1.1 arch: STORAGE_VERSION 2 → 3; sparse-merge assigns rooms to Default Zone
   on first load
+
 - v1.1 arch: global mode=time_program_presences governs presence for ALL rooms
   regardless of zone mode
 

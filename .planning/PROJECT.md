@@ -12,21 +12,20 @@ configurable through a full Lovelace dashboard panel without touching YAML.
 A household's rooms are always at the right temperature at the right time,
 without manual intervention — driven by schedules and who is actually home.
 
-## Current Milestone: v1.1 Heating Zones
+## Current Milestone: v1.2 Presence & Calibration
 
-**Goal:** Add named heating zones — groups of rooms that run their own mode and
-weekly schedule independently from the global configuration.
+**Goal:** Support alternate-week presence schedules for shared-custody households
+and add automatic TRV calibration from room sensors.
 
 **Target features:**
 
-- Zone CRUD (create, rename, delete named zones)
-- Room assignment to zones (rooms not in any zone fall back to global)
-- Zone mode override (Off / Time program / Time program & presences — overrides
-  global)
-- Zone time program (own weekly schedule, same weekday-group + period structure
-  as global)
-- Backend evaluation: zone config evaluated before global
-- UI: Zones section in the Lovelace panel
+- Even/odd week presence scheduling — person gains `schedule_type`
+  ("single"|"even_odd") + `schedule_even`/`schedule_odd`; backend picks
+  schedule by ISO week parity; UI shows a week-switcher toggle in the time-bar
+- TRV temperature offset auto-calibration — global option to periodically adjust
+  TRV offset using the delta between the room sensor and the TRV's reported
+  temperature; Tado X first (`set_temperature_offset`), guarded by
+  service/attribute detection
 
 ## Current State
 
@@ -37,17 +36,16 @@ weekly schedule independently from the global configuration.
 - Deployed to production HA instance via SSH/rsync Makefile target
 - Android touch support confirmed working on time-bar drag interface
 
-**In Progress:** v1.1 Heating Zones (milestone active)
+**Shipped:** v1.1 Heating Zones (2026-05-28)
 
-- Phase 4 complete (2026-05-27): zone storage data model —
-  `zones`/`default_zone_name` in DEFAULT_CONFIG, `validate_zone_assignment`
-  helper, TypeScript ZoneConfig type stubs; STORAGE_VERSION unchanged at 2
-- Phase 5 complete (2026-05-27): zone CRUD WebSocket API (6 commands, 17
-  total) + coordinator refactored to per-room zone-aware dispatch; 117 tests
-  passing
-- Phase 6 complete (2026-05-28): zone/room assignment UI — dynamic zone tabs,
-  zone-tab component, room badge + picker, 6 gap-closure wiring fixes, 121 tests
-  passing; human UAT pending
+- Phase 4: zone storage data model — `zones`/`default_zone_name` in
+  DEFAULT_CONFIG, `validate_zone_assignment`, TypeScript type stubs
+- Phase 5: zone CRUD WebSocket API (6 commands, 23 total) + coordinator
+  refactored to per-room zone-aware dispatch; 117 tests passing
+- Phase 6: zone/room assignment UI — dynamic zone tabs, zone-tab component,
+  room badge + picker, colored zone dots, 121 tests passing
+
+**In Progress:** v1.2 Presence & Calibration (milestone active)
 
 ## Requirements
 
@@ -69,10 +67,9 @@ weekly schedule independently from the global configuration.
 
 ### Active
 
-- ✓ Multi-zone heating (named zones with independent mode + schedule) — v1.1
-  (Phase 6 complete, human UAT pending)
-- [ ] Zone CRUD and room assignment UI — v1.1
-- [ ] Backend zone evaluation (zone overrides global for assigned rooms) — v1.1
+- [ ] Even/odd week presence scheduling (alternate schedules, ISO week parity) —
+  v1.2
+- [ ] TRV temperature offset auto-calibration from room sensor — v1.2
 
 ### Out of Scope
 
@@ -135,4 +132,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-_Last updated: 2026-05-28 — Phase 6 complete_
+_Last updated: 2026-05-29 — Milestone v1.2 started_
