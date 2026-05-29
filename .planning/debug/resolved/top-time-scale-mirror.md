@@ -1,6 +1,6 @@
 ---
 slug: top-time-scale-mirror
-status: in_progress
+status: resolved
 trigger: manual
 goal: find_and_fix
 created: 2026-05-18

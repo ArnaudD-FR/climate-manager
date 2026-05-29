@@ -1,6 +1,6 @@
 ---
 slug: time-scale-ruler
-status: in_progress
+status: resolved
 trigger: feature_request
 created: 2026-05-18
 ---
