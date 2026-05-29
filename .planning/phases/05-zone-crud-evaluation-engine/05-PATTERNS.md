@@ -1,21 +1,21 @@
 # Phase 5: Zone CRUD & Evaluation Engine - Pattern Map
 
-**Mapped:** 2026-05-27
-**Files analyzed:** 4 (websocket.py, coordinator.py, tests/test_websocket.py, tests/test_coordinator.py)
-**Analogs found:** 4 / 4
+**Mapped:** 2026-05-27 **Files analyzed:** 4 (websocket.py, coordinator.py,
+tests/test_websocket.py, tests/test_coordinator.py) **Analogs found:** 4 / 4
 
 ---
 
 ## File Classification
 
-| New/Modified File | Role | Data Flow | Closest Analog | Match Quality |
-|-------------------|------|-----------|----------------|---------------|
-| `custom_components/climate_manager/websocket.py` | service (WS handler layer) | request-response | `websocket.py` itself (existing handlers) | exact — extend in place |
-| `custom_components/climate_manager/coordinator.py` | service (control loop) | event-driven | `coordinator.py` itself (existing `async_evaluate`) | exact — refactor in place |
-| `tests/test_websocket.py` | test | request-response | `tests/test_websocket.py` itself (existing tests) | exact — extend in place |
-| `tests/test_coordinator.py` | test | event-driven | `tests/test_coordinator.py` itself (existing tests) | exact — extend in place |
+| New/Modified File                                  | Role                       | Data Flow        | Closest Analog                                      | Match Quality             |
+| -------------------------------------------------- | -------------------------- | ---------------- | --------------------------------------------------- | ------------------------- |
+| `custom_components/climate_manager/websocket.py`   | service (WS handler layer) | request-response | `websocket.py` itself (existing handlers)           | exact — extend in place   |
+| `custom_components/climate_manager/coordinator.py` | service (control loop)     | event-driven     | `coordinator.py` itself (existing `async_evaluate`) | exact — refactor in place |
+| `tests/test_websocket.py`                          | test                       | request-response | `tests/test_websocket.py` itself (existing tests)   | exact — extend in place   |
+| `tests/test_coordinator.py`                        | test                       | event-driven     | `tests/test_coordinator.py` itself (existing tests) | exact — extend in place   |
 
-All four files are existing files being extended. No new files are created in this phase.
+All four files are existing files being extended. No new files are created in
+this phase.
 
 ---
 
@@ -23,7 +23,8 @@ All four files are existing files being extended. No new files are created in th
 
 ### `websocket.py` — 6 new zone command factories
 
-**Analog:** All 11 existing handlers in `websocket.py`. The zone handlers are mechanical copies of the same factory closure structure.
+**Analog:** All 11 existing handlers in `websocket.py`. The zone handlers are
+mechanical copies of the same factory closure structure.
 
 ---
 
@@ -56,13 +57,18 @@ def _make_ws_set_global_mode(entry: ClimateManagerConfigEntry):
 ```
 
 **Rules derived from this pattern:**
-- Factory function is named `_make_ws_<command_name>(entry: ClimateManagerConfigEntry)`
+
+- Factory function is named
+  `_make_ws_<command_name>(entry: ClimateManagerConfigEntry)`
 - Inner async function is named `ws_<command_name>`
 - Schema dict is passed to `@websocket_api.websocket_command({...})`
 - `@websocket_api.async_response` decorator always follows the command decorator
-- Handler signature: `(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None`
-- Write-then-evaluate order: mutate → save → send_result → async_create_task(evaluate)
-- State accessed via entry closure (`entry.runtime_data.*`), never via `hass.data`
+- Handler signature:
+  `(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None`
+- Write-then-evaluate order: mutate → save → send_result →
+  async_create_task(evaluate)
+- State accessed via entry closure (`entry.runtime_data.*`), never via
+  `hass.data`
 - Factory returns the inner function by name
 
 ---
@@ -90,7 +96,8 @@ connection.send_result(msg["id"], {"success": True})
 hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 ```
 
-**For `delete_zone`:** snapshot BOTH `zones` AND `rooms` before any mutation (the handler mutates both in one operation):
+**For `delete_zone`:** snapshot BOTH `zones` AND `rooms` before any mutation
+(the handler mutates both in one operation):
 
 ```python
 zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
@@ -118,7 +125,8 @@ if not ok:
     return  # T-03-05: return BEFORE save/evaluate
 ```
 
-**Critical:** validation fires BEFORE any mutation of `runtime_config`. Never mutate first.
+**Critical:** validation fires BEFORE any mutation of `runtime_config`. Never
+mutate first.
 
 ---
 
@@ -130,9 +138,11 @@ if not ok:
 entry.runtime_data.runtime_config["global_time_program"] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM)
 ```
 
-For `reset_zone_time_program(target='global')`, mirror `reset_room_to_global_program`:
+For `reset_zone_time_program(target='global')`, mirror
+`reset_room_to_global_program`:
 
-**Source:** `websocket.py` lines 472–477 (`_make_ws_reset_room_to_global_program`)
+**Source:** `websocket.py` lines 472–477
+(`_make_ws_reset_room_to_global_program`)
 
 ```python
 runtime_config = entry.runtime_data.runtime_config
@@ -204,13 +214,16 @@ from .trv import is_trv_entity
 VALID_MODES = [MODE_OFF, MODE_TIME_PROGRAM, MODE_TIME_PROGRAM_PRESENCES]
 ```
 
-**Add to imports:** `import uuid` (stdlib, for `create_zone` UUID generation). Add `VALID_MODES` is already defined at line 57 — no new const import needed for modes. `_DEFAULT_DAILY_PROGRAM` is already imported.
+**Add to imports:** `import uuid` (stdlib, for `create_zone` UUID generation).
+Add `VALID_MODES` is already defined at line 57 — no new const import needed for
+modes. `_DEFAULT_DAILY_PROGRAM` is already imported.
 
 ---
 
 ### `coordinator.py` — evaluation engine refactor
 
-**Analog:** `coordinator.py` itself. The refactor restructures `async_evaluate` and its two private helpers.
+**Analog:** `coordinator.py` itself. The refactor restructures `async_evaluate`
+and its two private helpers.
 
 ---
 
@@ -254,13 +267,16 @@ async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
     )
 ```
 
-**What changes:** The `if global_mode == MODE_OFF / elif / elif` block is replaced by a per-room zone-dispatch loop. The `_evaluate_time_program` and `_evaluate_time_program_presences` methods are removed or become dead code.
+**What changes:** The `if global_mode == MODE_OFF / elif / elif` block is
+replaced by a per-room zone-dispatch loop. The `_evaluate_time_program` and
+`_evaluate_time_program_presences` methods are removed or become dead code.
 
 ---
 
 #### Pattern 8: Per-room room_mode branching (preserve as outer check in new loop)
 
-**Source:** `coordinator.py` lines 198–223 (`_evaluate_time_program`) — the room_mode branch that must remain as the outermost check before zone resolution:
+**Source:** `coordinator.py` lines 198–223 (`_evaluate_time_program`) — the
+room_mode branch that must remain as the outermost check before zone resolution:
 
 ```python
 for area_id, entity_ids in rooms.items():
@@ -290,7 +306,9 @@ for area_id, entity_ids in rooms.items():
     pushes.extend((entity_id, desired_temp) for entity_id in entity_ids if is_trv_entity(self._hass, entity_id))
 ```
 
-**In the refactored loop:** `ROOM_MODE_FROST` and `ROOM_MODE_CUSTOM` continue to `continue` before zone resolution is attempted. Zone resolution only runs when `room_mode` is neither frost nor custom (i.e., the room follows its zone).
+**In the refactored loop:** `ROOM_MODE_FROST` and `ROOM_MODE_CUSTOM` continue to
+`continue` before zone resolution is attempted. Zone resolution only runs when
+`room_mode` is neither frost nor custom (i.e., the room follows its zone).
 
 ---
 
@@ -299,6 +317,7 @@ for area_id, entity_ids in rooms.items():
 **Source:** `coordinator.py` lines 259–365 (`_evaluate_time_program_presences`)
 
 Step 1 — baseline dict (lines 262–290):
+
 ```python
 desired_temps: dict[str, float] = {}
 room_periods: dict[str, str] = {}
@@ -326,6 +345,7 @@ for area_id in rooms:
 ```
 
 Step 2 — present-person-wins rule (lines 298–353):
+
 ```python
 present_locked_rooms: set[str] = set()
 for _person_id, person_config in persons_config.items():
@@ -365,7 +385,10 @@ for _person_id, person_config in persons_config.items():
                 room_periods[area_id] = occupied_period
 ```
 
-**In the refactor:** Step 2 must use `zone_time_program` (resolved per room) as the `daily_program` for the presence pass when the room belongs to a custom zone. For Default Zone rooms the existing `global_daily_program` / `ROOM_MODE_CUSTOM` branch is unchanged.
+**In the refactor:** Step 2 must use `zone_time_program` (resolved per room) as
+the `daily_program` for the presence pass when the room belongs to a custom
+zone. For Default Zone rooms the existing `global_daily_program` /
+`ROOM_MODE_CUSTOM` branch is unchanged.
 
 ---
 
@@ -382,11 +405,12 @@ await asyncio.gather(*(
 ))
 ```
 
-Replace the context string `"MODE_TIME_PROGRAM_PRESENCES"` with `"ZONE_EVAL"` in the refactored loop.
+Replace the context string `"MODE_TIME_PROGRAM_PRESENCES"` with `"ZONE_EVAL"` in
+the refactored loop.
 
 ---
 
-#### Pattern 11: _last_active_period backward-compatibility (preserve for Default Zone)
+#### Pattern 11: \_last_active_period backward-compatibility (preserve for Default Zone)
 
 **Source:** `coordinator.py` lines 192–193 and 293–294
 
@@ -400,11 +424,14 @@ global_period_mode = evaluate_schedule(global_daily_program, now)
 self._last_active_period = global_period_mode
 ```
 
-After the refactor: set `_last_active_period` to the Default Zone's evaluated period (or `None` when `global_mode == MODE_OFF`). This preserves the existing `get_status` and `_build_status_payload` contract which reads `self._last_active_period` as the global indicator.
+After the refactor: set `_last_active_period` to the Default Zone's evaluated
+period (or `None` when `global_mode == MODE_OFF`). This preserves the existing
+`get_status` and `_build_status_payload` contract which reads
+`self._last_active_period` as the global indicator.
 
 ---
 
-#### Pattern 12: _compute_present_persons (reuse as-is for zone presence evaluation)
+#### Pattern 12: \_compute_present_persons (reuse as-is for zone presence evaluation)
 
 **Source:** `coordinator.py` lines 147–172
 
@@ -423,13 +450,15 @@ def _compute_present_persons(self, config: dict, now: datetime) -> list[str]:
     return present
 ```
 
-This method is used unchanged for zone presence evaluation (D-11: all configured persons, not scoped to zone rooms).
+This method is used unchanged for zone presence evaluation (D-11: all configured
+persons, not scoped to zone rooms).
 
 ---
 
 ### `tests/test_websocket.py` — 10 new zone CRUD tests
 
-**Analog:** All 9 existing tests in `tests/test_websocket.py`. New tests are structural copies.
+**Analog:** All 9 existing tests in `tests/test_websocket.py`. New tests are
+structural copies.
 
 ---
 
@@ -461,9 +490,11 @@ async def test_ws_set_global_mode_persists_and_evaluates(hass, hass_ws_client):
 ```
 
 **Rules:**
+
 - Test function signature: `async def test_*(hass, hass_ws_client)`
 - Always call `await _setup_entry(hass)` first to get `entry`
-- Always `await hass_ws_client()` then `send_json_auto_id({...})` then `receive_json()`
+- Always `await hass_ws_client()` then `send_json_auto_id({...})` then
+  `receive_json()`
 - Assert `msg["success"] is True` before asserting result fields
 - Assert in-memory runtime_config after success to verify persistence
 - No `@pytest.mark.asyncio` needed — `asyncio_mode = "auto"` in pyproject.toml
@@ -494,7 +525,8 @@ async def test_ws_set_time_program_rejects_partial(hass, hass_ws_client):
     assert entry.runtime_data.runtime_config["global_time_program"] == original_program
 ```
 
-**For zone tests:** same pattern — capture original value before sending, assert unchanged after rejection.
+**For zone tests:** same pattern — capture original value before sending, assert
+unchanged after rejection.
 
 ---
 
@@ -510,7 +542,9 @@ entry.runtime_data.runtime_config["persons"] = {
 entry.runtime_data.coordinator._last_present_persons = ["person.alice"]
 ```
 
-For zone tests that need an existing zone to operate on (delete, rename, set_mode, etc.):
+For zone tests that need an existing zone to operate on (delete, rename,
+set_mode, etc.):
+
 ```python
 # Seed a custom zone so the handler has something to act on
 zone_id = "test-zone-uuid-1234"
@@ -525,11 +559,12 @@ entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
 
 ### `tests/test_coordinator.py` — 5 new zone evaluation tests
 
-**Analog:** All existing tests in `tests/test_coordinator.py`. New tests are structural copies.
+**Analog:** All existing tests in `tests/test_coordinator.py`. New tests are
+structural copies.
 
 ---
 
-#### Pattern 16: Coordinator test scaffold with _make_runtime_config (copy for all zone eval tests)
+#### Pattern 16: Coordinator test scaffold with \_make_runtime_config (copy for all zone eval tests)
 
 **Source:** `tests/test_coordinator.py` lines 79–93
 
@@ -551,6 +586,7 @@ def _make_runtime_config(
 ```
 
 **For zone eval tests:** add a `zones_config` parameter to this helper:
+
 ```python
 def _make_runtime_config(
     global_mode: str = MODE_TIME_PROGRAM,
@@ -575,7 +611,8 @@ def _make_runtime_config(
 
 #### Pattern 17: Full integration coordinator test (copy for EVAL-01..05 tests)
 
-**Source:** `tests/test_coordinator.py` lines 379–409 (`test_room_mode_frost_protection_pushes_frost_temp`)
+**Source:** `tests/test_coordinator.py` lines 379–409
+(`test_room_mode_frost_protection_pushes_frost_temp`)
 
 ```python
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
@@ -605,18 +642,21 @@ async def test_room_mode_frost_protection_pushes_frost_temp(hass):
 ```
 
 **Template for zone eval tests:**
-1. `@pytest.mark.freeze_time(...)` — pick a time that places the test in a known schedule period
+
+1. `@pytest.mark.freeze_time(...)` — pick a time that places the test in a known
+   schedule period
 2. Seed TRV state with `hass.states.async_set(...)`
 3. `async_mock_service` for both `set_hvac_mode` and `set_temperature`
 4. `MockConfigEntry` + setup + `await hass.async_block_till_done()`
-5. Patch `runtime_config` via `_make_runtime_config(zones_config={...}, rooms_config={...})`
+5. Patch `runtime_config` via
+   `_make_runtime_config(zones_config={...}, rooms_config={...})`
 6. Patch `entry.runtime_data.rooms`
 7. `await coordinator.async_evaluate()` + `await hass.async_block_till_done()`
 8. Filter `temp_calls` by entity_id, assert `calls[-1].data["temperature"]`
 
 ---
 
-#### Pattern 18: _make_simple_coordinator for unit tests (copy for _resolve_zone_config unit tests if written)
+#### Pattern 18: \_make_simple_coordinator for unit tests (copy for \_resolve_zone_config unit tests if written)
 
 **Source:** `tests/test_coordinator.py` lines 595–605
 
@@ -633,7 +673,8 @@ def _make_simple_coordinator(hass) -> ClimateManagerCoordinator:
     return ClimateManagerCoordinator(hass, data)
 ```
 
-Use this pattern for any unit test that calls a coordinator method directly (e.g., `_resolve_zone_config`) without needing TRV push behavior.
+Use this pattern for any unit test that calls a coordinator method directly
+(e.g., `_resolve_zone_config`) without needing TRV push behavior.
 
 ---
 
@@ -649,20 +690,25 @@ connection.send_result(msg["id"], {"success": True})
 hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 ```
 
-Applied to: `create_zone`, `rename_zone`, `set_zone_mode`, `set_zone_time_program`, `reset_zone_time_program`, `delete_zone` (same final three lines; `delete_zone` has the try/except wrapping the save).
+Applied to: `create_zone`, `rename_zone`, `set_zone_mode`,
+`set_zone_time_program`, `reset_zone_time_program`, `delete_zone` (same final
+three lines; `delete_zone` has the try/except wrapping the save).
 
 ### ERR_NOT_FOUND for missing zone_id
 
-**Source:** `websocket_api.ERR_NOT_FOUND` (HA constant, same module as `ERR_INVALID_FORMAT`)
+**Source:** `websocket_api.ERR_NOT_FOUND` (HA constant, same module as
+`ERR_INVALID_FORMAT`)
 
 Pattern (not yet in codebase — first use in Phase 5):
+
 ```python
 if zone_id not in runtime_config.get("zones", {}):
     connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, f"Zone {zone_id!r} not found")
     return
 ```
 
-Applied to: `delete_zone`, `rename_zone` (custom zone path), `set_zone_mode`, `set_zone_time_program`, `reset_zone_time_program`.
+Applied to: `delete_zone`, `rename_zone` (custom zone path), `set_zone_mode`,
+`set_zone_time_program`, `reset_zone_time_program`.
 
 ### Sparse key removal (delete_zone room migration)
 
@@ -673,7 +719,8 @@ Applied to: `delete_zone`, `rename_zone` (custom zone path), `set_zone_mode`, `s
                       # Writing zone_id: null is prohibited (D-06 sparse model).
 ```
 
-Enforced by `storage.py:validate_zone_assignment`. The delete handler must use `room_cfg.pop("zone_id", None)` — never `room_cfg["zone_id"] = None`.
+Enforced by `storage.py:validate_zone_assignment`. The delete handler must use
+`room_cfg.pop("zone_id", None)` — never `room_cfg["zone_id"] = None`.
 
 ### status_update event fire (after every async_evaluate)
 
@@ -692,27 +739,32 @@ This line must remain at the end of the refactored `async_evaluate`, unchanged.
 
 ## No Analog Found
 
-None. All files being modified have existing patterns that cover Phase 5 additions exactly. No genuinely novel patterns are needed — the zone handlers are mechanical copies of the existing 11 WS handlers, and the coordinator evaluation loop refactor reuses existing per-room algorithms.
+None. All files being modified have existing patterns that cover Phase 5
+additions exactly. No genuinely novel patterns are needed — the zone handlers
+are mechanical copies of the existing 11 WS handlers, and the coordinator
+evaluation loop refactor reuses existing per-room algorithms.
 
 ---
 
 ## Key Anti-Patterns to Avoid (derived from source code analysis)
 
-These are wrong patterns that would compile but break behavior — extracted from source code structure:
+These are wrong patterns that would compile but break behavior — extracted from
+source code structure:
 
-| Anti-pattern | Where it would break | Correct approach |
-|---|---|---|
-| Reading `global_mode` as system-wide switch in new eval loop | `coordinator.py` — custom zone rooms would be governed by `global_mode` | Zone resolution via `_resolve_zone_config`; `global_mode` only consulted for Default Zone rooms |
-| Setting `room["zone_id"] = None` in delete_zone | `storage.py:validate_zone_assignment` raises ValueError for explicit null | `room_cfg.pop("zone_id", None)` — removes the key entirely |
-| Deleting `zones[zone_id]` before popping zone_id from rooms | `validate_zone_assignment` sees dangling references and raises | Correct order: pop from rooms → del from zones → then save once |
-| `runtime_config["zones"][zone_id]["time_program"] = runtime_config["global_time_program"]` (no deepcopy) | zone and global programs share list references; mutations bleed across | Always `copy.deepcopy(runtime_config["global_time_program"])` |
-| `runtime_config["zones"]["default"]` in rename_zone | Default Zone has no entry in `zones{}` | Check `zone_id == "default"` sentinel → update `runtime_config["default_zone_name"]` |
-| Mutating runtime_config before `validate_daily_program` in set_zone_time_program | Invalid program written to runtime_config even when error is sent | Validate first, return on error, mutate only if valid |
+| Anti-pattern                                                                                             | Where it would break                                                      | Correct approach                                                                                |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Reading `global_mode` as system-wide switch in new eval loop                                             | `coordinator.py` — custom zone rooms would be governed by `global_mode`   | Zone resolution via `_resolve_zone_config`; `global_mode` only consulted for Default Zone rooms |
+| Setting `room["zone_id"] = None` in delete_zone                                                          | `storage.py:validate_zone_assignment` raises ValueError for explicit null | `room_cfg.pop("zone_id", None)` — removes the key entirely                                      |
+| Deleting `zones[zone_id]` before popping zone_id from rooms                                              | `validate_zone_assignment` sees dangling references and raises            | Correct order: pop from rooms → del from zones → then save once                                 |
+| `runtime_config["zones"][zone_id]["time_program"] = runtime_config["global_time_program"]` (no deepcopy) | zone and global programs share list references; mutations bleed across    | Always `copy.deepcopy(runtime_config["global_time_program"])`                                   |
+| `runtime_config["zones"]["default"]` in rename_zone                                                      | Default Zone has no entry in `zones{}`                                    | Check `zone_id == "default"` sentinel → update `runtime_config["default_zone_name"]`            |
+| Mutating runtime_config before `validate_daily_program` in set_zone_time_program                         | Invalid program written to runtime_config even when error is sent         | Validate first, return on error, mutate only if valid                                           |
 
 ---
 
 ## Metadata
 
-**Analog search scope:** `custom_components/climate_manager/`, `tests/`
-**Files read:** `websocket.py` (526 lines), `coordinator.py` (508 lines), `tests/test_websocket.py` (354 lines), `tests/test_coordinator.py` (979 lines), `const.py` (188 lines)
-**Pattern extraction date:** 2026-05-27
+**Analog search scope:** `custom_components/climate_manager/`, `tests/` **Files
+read:** `websocket.py` (526 lines), `coordinator.py` (508 lines),
+`tests/test_websocket.py` (354 lines), `tests/test_coordinator.py` (979 lines),
+`const.py` (188 lines) **Pattern extraction date:** 2026-05-27

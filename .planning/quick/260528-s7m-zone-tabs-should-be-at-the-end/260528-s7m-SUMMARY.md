@@ -10,6 +10,8 @@ commit: a42ed03
 
 Reordered tab bar buttons in `frontend/src/main.ts`.
 
-**New order:** Global Settings | Rooms | Persons | Default Zone | [custom zones] | +
+**New order:** Global Settings | Rooms | Persons | Default Zone | [custom zones]
+| +
 
-Files changed: `frontend/src/main.ts`, `custom_components/climate_manager/www/panel.js`
+Files changed: `frontend/src/main.ts`,
+`custom_components/climate_manager/www/panel.js`

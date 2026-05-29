@@ -14,27 +14,36 @@ files_modified:
 
 ## One-liner
 
-localStorage tab persistence on refresh + room card header period chip now shows full display name and temperature (e.g. "Normal · 20°C").
+localStorage tab persistence on refresh + room card header period chip now shows
+full display name and temperature (e.g. "Normal · 20°C").
 
 ## What Was Done
 
 ### Task 1: Tab persistence (main.ts)
 
-Replaced the static `@state() private _activeTab = "global"` initializer with an IIFE that reads `localStorage.getItem("climate-manager-tab")` at construction time. Valid tab names (`["global", "rooms", "persons"]`) are accepted; any missing or invalid value falls back to `"global"`.
+Replaced the static `@state() private _activeTab = "global"` initializer with an
+IIFE that reads `localStorage.getItem("climate-manager-tab")` at construction
+time. Valid tab names (`["global", "rooms", "persons"]`) are accepted; any
+missing or invalid value falls back to `"global"`.
 
-`_setTab(tab)` now writes to `localStorage.setItem("climate-manager-tab", tab)` immediately after updating the reactive property, so the active tab survives a page refresh.
+`_setTab(tab)` now writes to `localStorage.setItem("climate-manager-tab", tab)`
+immediately after updating the reactive property, so the active tab survives a
+page refresh.
 
 ### Task 2: Period display name + temperature (room-card.ts)
 
 Added `PERIOD_DISPLAY_NAMES` to the existing import from `../types.js`.
 
 `_renderHeaderStatus()` now resolves:
+
 - `period` — raw `active_period` key (or `null`)
 - `periodLabel` — mapped via `PERIOD_DISPLAY_NAMES`, falling back to the raw key
 - `periodTempVal` — looked up from `panelConfig.period_temperatures[period]`
-- `periodDisplay` — `"${periodLabel} · ${periodTempVal}°C"` when temperature is available, otherwise just the label
+- `periodDisplay` — `"${periodLabel} · ${periodTempVal}°C"` when temperature is
+  available, otherwise just the label
 
-The clock chip in the room card header now reads e.g. "Normal · 20°C" instead of "normal".
+The clock chip in the room card header now reads e.g. "Normal · 20°C" instead of
+"normal".
 
 ## Build
 

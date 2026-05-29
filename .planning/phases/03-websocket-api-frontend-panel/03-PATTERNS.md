@@ -1,26 +1,25 @@
 # Phase 3: WebSocket API & Frontend Panel - Pattern Map
 
-**Mapped:** 2026-05-17
-**Files analyzed:** 11 (3 new, 8 modified)
-**Analogs found:** 9 / 11 (2 files have no codebase analog — new tech for this project)
+**Mapped:** 2026-05-17 **Files analyzed:** 11 (3 new, 8 modified) **Analogs
+found:** 9 / 11 (2 files have no codebase analog — new tech for this project)
 
 ---
 
 ## File Classification
 
-| New/Modified File | Role | Data Flow | Closest Analog | Match Quality |
-|-------------------|------|-----------|----------------|---------------|
-| `custom_components/climate_manager/const.py` | config | transform | `custom_components/climate_manager/const.py` (self) | self-refactor |
-| `custom_components/climate_manager/schedule.py` | service | transform | `custom_components/climate_manager/schedule.py` (self) | self-refactor |
-| `custom_components/climate_manager/coordinator.py` | service | event-driven | `custom_components/climate_manager/coordinator.py` (self) | self-refactor |
-| `custom_components/climate_manager/websocket.py` | controller | request-response | `.venv/…/homeassistant/components/weather/websocket_api.py` | role-match |
-| `custom_components/climate_manager/__init__.py` | config | request-response | `custom_components/climate_manager/__init__.py` (self) | self-extend |
-| `custom_components/climate_manager/www/panel.js` | — | — | none | no analog (build artifact) |
-| `frontend/src/main.ts` | component | request-response | `.venv/…/assist_satellite/websocket_api.py` (pattern only) | no frontend analog |
-| `frontend/src/components/time-bar.ts` | component | event-driven | none | no analog |
-| `tests/test_schedule.py` | test | transform | `tests/test_schedule.py` (self) | self-refactor |
-| `tests/test_coordinator.py` | test | event-driven | `tests/test_coordinator.py` (self) | self-refactor |
-| `tests/test_websocket.py` | test | request-response | `tests/test_coordinator.py` | role-match |
+| New/Modified File                                  | Role       | Data Flow        | Closest Analog                                              | Match Quality              |
+| -------------------------------------------------- | ---------- | ---------------- | ----------------------------------------------------------- | -------------------------- |
+| `custom_components/climate_manager/const.py`       | config     | transform        | `custom_components/climate_manager/const.py` (self)         | self-refactor              |
+| `custom_components/climate_manager/schedule.py`    | service    | transform        | `custom_components/climate_manager/schedule.py` (self)      | self-refactor              |
+| `custom_components/climate_manager/coordinator.py` | service    | event-driven     | `custom_components/climate_manager/coordinator.py` (self)   | self-refactor              |
+| `custom_components/climate_manager/websocket.py`   | controller | request-response | `.venv/…/homeassistant/components/weather/websocket_api.py` | role-match                 |
+| `custom_components/climate_manager/__init__.py`    | config     | request-response | `custom_components/climate_manager/__init__.py` (self)      | self-extend                |
+| `custom_components/climate_manager/www/panel.js`   | —          | —                | none                                                        | no analog (build artifact) |
+| `frontend/src/main.ts`                             | component  | request-response | `.venv/…/assist_satellite/websocket_api.py` (pattern only)  | no frontend analog         |
+| `frontend/src/components/time-bar.ts`              | component  | event-driven     | none                                                        | no analog                  |
+| `tests/test_schedule.py`                           | test       | transform        | `tests/test_schedule.py` (self)                             | self-refactor              |
+| `tests/test_coordinator.py`                        | test       | event-driven     | `tests/test_coordinator.py` (self)                          | self-refactor              |
+| `tests/test_websocket.py`                          | test       | request-response | `tests/test_coordinator.py`                                 | role-match                 |
 
 ---
 
@@ -31,6 +30,7 @@
 **Analog:** self (`custom_components/climate_manager/const.py`)
 
 **Current pattern to replace** (lines 104–116):
+
 ```python
 DEFAULT_CONFIG: dict = {
     "version": STORAGE_VERSION,
@@ -47,7 +47,9 @@ DEFAULT_CONFIG: dict = {
 }
 ```
 
-**Target pattern** (replace `"weekday_groups": []` with per-day structure throughout):
+**Target pattern** (replace `"weekday_groups": []` with per-day structure
+throughout):
+
 ```python
 import copy
 
@@ -71,7 +73,9 @@ DEFAULT_CONFIG: dict = {
 }
 ```
 
-**Module-level docstring comment to update** (lines 57–78): remove all `weekday_groups` references from the sub-schema documentation block; replace with per-day format docs matching the new schema.
+**Module-level docstring comment to update** (lines 57–78): remove all
+`weekday_groups` references from the sub-schema documentation block; replace
+with per-day format docs matching the new schema.
 
 ---
 
@@ -80,6 +84,7 @@ DEFAULT_CONFIG: dict = {
 **Analog:** self (`custom_components/climate_manager/schedule.py`)
 
 **Existing import pattern** (lines 27–35) — unchanged, keep as-is:
+
 ```python
 from .const import (
     PERIOD_COMFORT,
@@ -93,12 +98,16 @@ from .const import (
 ```
 
 **Existing reverse-lookup pattern to add** after `DAY_TO_WEEKDAY` (line 42–49):
+
 ```python
 # Reverse mapping for per-day schema: weekday() int → day name string
 WEEKDAY_TO_DAY: dict[int, str] = {v: k for k, v in DAY_TO_WEEKDAY.items()}
 ```
 
-**`evaluate_schedule` signature change** (lines 75–112): parameter `weekday_groups: list[dict]` → `daily_program: dict[str, list]`. Core lookup changes from a linear group scan to a direct dict access:
+**`evaluate_schedule` signature change** (lines 75–112): parameter
+`weekday_groups: list[dict]` → `daily_program: dict[str, list]`. Core lookup
+changes from a linear group scan to a direct dict access:
+
 ```python
 def evaluate_schedule(
     daily_program: dict[str, list],
@@ -110,7 +119,10 @@ def evaluate_schedule(
     # Return active mode or PERIOD_FROST_PROTECTION if no period started yet
 ```
 
-**`resolve_presence` change** (lines 115–159): `schedule.get("weekday_groups", [])` → `schedule` is now the per-day dict directly. Day access:
+**`resolve_presence` change** (lines 115–159):
+`schedule.get("weekday_groups", [])` → `schedule` is now the per-day dict
+directly. Day access:
+
 ```python
 schedule = person_config.get("schedule", {})
 day_name = WEEKDAY_TO_DAY[now.weekday()]
@@ -120,14 +132,22 @@ if not periods:
 # ... walk periods as before ...
 ```
 
-**`compute_occupied_temp` change** (lines 162–238): same signature change, `weekday_groups: list[dict]` → `daily_program: dict[str, list]`. Finding today's periods becomes:
+**`compute_occupied_temp` change** (lines 162–238): same signature change,
+`weekday_groups: list[dict]` → `daily_program: dict[str, list]`. Finding today's
+periods becomes:
+
 ```python
 day_name = WEEKDAY_TO_DAY[now.weekday()]
 today_periods = sorted(daily_program.get(day_name, []), key=lambda p: p["start"])
 ```
-(Remove the entire `for group in weekday_groups: if today in days: today_periods = ...` loop.)
 
-**`validate_7day_coverage` replacement** (lines 241–273): old signature `validate_7day_coverage(weekday_groups: list[dict])` → new signature `validate_daily_program(daily_program: dict[str, list])`:
+(Remove the entire
+`for group in weekday_groups: if today in days: today_periods = ...` loop.)
+
+**`validate_7day_coverage` replacement** (lines 241–273): old signature
+`validate_7day_coverage(weekday_groups: list[dict])` → new signature
+`validate_daily_program(daily_program: dict[str, list])`:
+
 ```python
 def validate_daily_program(daily_program: dict[str, list]) -> tuple[bool, str]:
     """Validate that all 7 day keys are present in the per-day dict."""
@@ -150,6 +170,7 @@ def validate_daily_program(daily_program: dict[str, list]) -> tuple[bool, str]:
 **Analog:** self (`custom_components/climate_manager/coordinator.py`)
 
 **Import addition** for bus event firing (add to existing imports, lines 44–51):
+
 ```python
 from .const import (
     DOMAIN,           # add this
@@ -163,6 +184,7 @@ from .const import (
 **Per-day access pattern** — replace all three `weekday_groups` access paths:
 
 Current pattern (line 137, 184, 195–196, 228–232):
+
 ```python
 global_weekday_groups = config["global_time_program"]["weekday_groups"]
 # ...
@@ -175,7 +197,9 @@ weekday_groups = room_weekday_groups if room_weekday_groups else global_weekday_
 period_mode = evaluate_schedule(weekday_groups, now)
 ```
 
-New per-day pattern (replace in `_evaluate_time_program` and `_evaluate_time_program_presences`):
+New per-day pattern (replace in `_evaluate_time_program` and
+`_evaluate_time_program_presences`):
+
 ```python
 global_daily_program: dict = config["global_time_program"]  # IS the per-day dict now
 # ...
@@ -187,7 +211,9 @@ daily_program = room_daily_program if room_daily_program else global_daily_progr
 period_mode = evaluate_schedule(daily_program, now)
 ```
 
-**Status push addition** — add at the end of `async_evaluate` (after all TRV pushes, line ~300):
+**Status push addition** — add at the end of `async_evaluate` (after all TRV
+pushes, line ~300):
+
 ```python
 # Wave 2: push status to all subscribed panel instances
 self._hass.bus.async_fire(
@@ -208,9 +234,11 @@ def _build_status_payload(self) -> dict:
 
 ### `custom_components/climate_manager/websocket.py` (controller, request-response) — NEW Wave 2
 
-**Analog:** `.venv/lib/python3.12/site-packages/homeassistant/components/weather/websocket_api.py`
+**Analog:**
+`.venv/lib/python3.12/site-packages/homeassistant/components/weather/websocket_api.py`
 
 **Imports pattern** (weather analog lines 1–14, adapted):
+
 ```python
 """Climate Manager WebSocket command handlers."""
 
@@ -236,7 +264,9 @@ from .schedule import validate_daily_program
 VALID_MODES = [MODE_OFF, MODE_TIME_PROGRAM, MODE_TIME_PROGRAM_PRESENCES]
 ```
 
-**Registration function pattern** (weather analog lines 24–28, assist_satellite lines 29–34):
+**Registration function pattern** (weather analog lines 24–28, assist_satellite
+lines 29–34):
+
 ```python
 def async_register_commands(
     hass: HomeAssistant, entry: ClimateManagerConfigEntry
@@ -252,7 +282,9 @@ def async_register_commands(
     websocket_api.async_register_command(hass, _make_ws_subscribe_status(entry))
 ```
 
-**Request-response command factory pattern** (weather analog lines 46–43 adapted; RESEARCH.md Pattern 1):
+**Request-response command factory pattern** (weather analog lines 46–43
+adapted; RESEARCH.md Pattern 1):
+
 ```python
 def _make_ws_get_config(entry: ClimateManagerConfigEntry):
     @websocket_api.websocket_command({
@@ -269,6 +301,7 @@ def _make_ws_get_config(entry: ClimateManagerConfigEntry):
 ```
 
 **Write command pattern** — mutate + save + evaluate (RESEARCH.md Pattern 1):
+
 ```python
 def _make_ws_set_global_mode(entry: ClimateManagerConfigEntry):
     @websocket_api.websocket_command({
@@ -288,7 +321,9 @@ def _make_ws_set_global_mode(entry: ClimateManagerConfigEntry):
     return ws_set_global_mode
 ```
 
-**Subscription command pattern** (weather analog lines 80–99; RESEARCH.md Pattern 2):
+**Subscription command pattern** (weather analog lines 80–99; RESEARCH.md
+Pattern 2):
+
 ```python
 def _make_ws_subscribe_status(entry: ClimateManagerConfigEntry):
     @websocket_api.websocket_command({
@@ -317,6 +352,7 @@ def _make_ws_subscribe_status(entry: ClimateManagerConfigEntry):
 ```
 
 **Error response pattern** (assist_satellite analog lines 53–56):
+
 ```python
 connection.send_error(
     msg["id"],
@@ -333,6 +369,7 @@ return
 **Analog:** self (`custom_components/climate_manager/__init__.py`)
 
 **New imports to add** (after existing imports, lines 21–31):
+
 ```python
 from pathlib import Path
 
@@ -345,7 +382,9 @@ PANEL_URL = "/climate_manager_panel"
 PANEL_COMPONENT_NAME = "climate-manager-panel"  # must match customElements.define() in panel.js
 ```
 
-**Addition to `async_setup_entry`** — append after the scheduler registration (after line 114):
+**Addition to `async_setup_entry`** — append after the scheduler registration
+(after line 114):
+
 ```python
 # Wave 2: register WebSocket commands (auto-unregister on entry unload)
 cm_ws.async_register_commands(hass, entry)
@@ -367,22 +406,25 @@ await panel_custom.async_register_panel(
 )
 ```
 
-**`async_unload_entry` unchanged** — WebSocket commands auto-unregister with the config entry; no explicit cleanup needed (RESEARCH.md Pattern 3).
+**`async_unload_entry` unchanged** — WebSocket commands auto-unregister with the
+config entry; no explicit cleanup needed (RESEARCH.md Pattern 3).
 
 ---
 
 ### `frontend/src/main.ts` (component, request-response) — NEW Wave 3
 
-**Analog:** RESEARCH.md Pattern 5 (no codebase analog — first frontend file in project)
+**Analog:** RESEARCH.md Pattern 5 (no codebase analog — first frontend file in
+project)
 
 **File structure and Lit component skeleton** (RESEARCH.md Pattern 5):
+
 ```typescript
 import { LitElement, html, css } from "lit";
 import { property, state } from "lit/decorators.js";
 
 // HA passes hass, narrow, panel to any registered custom panel element
 class ClimateManagerPanel extends LitElement {
-  @property({ attribute: false }) hass!: any;  // HomeAssistant from home-assistant-js-websocket
+  @property({ attribute: false }) hass!: any; // HomeAssistant from home-assistant-js-websocket
   @property({ type: Boolean }) narrow = false;
   @property({ attribute: false }) panel: unknown = null;
 
@@ -410,8 +452,10 @@ class ClimateManagerPanel extends LitElement {
 
   private _subscribeStatus() {
     this._unsubStatus = this.hass.connection.subscribeMessage(
-      (msg: unknown) => { this._status = msg as Record<string, unknown>; },
-      { type: "climate_manager/subscribe_status" }
+      (msg: unknown) => {
+        this._status = msg as Record<string, unknown>;
+      },
+      { type: "climate_manager/subscribe_status" },
     );
   }
 }
@@ -420,6 +464,7 @@ customElements.define("climate-manager-panel", ClimateManagerPanel);
 ```
 
 **Auto-save helper pattern** (used for every field-change handler):
+
 ```typescript
 private async _save(type: string, payload: Record<string, unknown>) {
   try {
@@ -432,6 +477,7 @@ private async _save(type: string, payload: Record<string, unknown>) {
 ```
 
 **Vite config** (`frontend/vite.config.ts`, RESEARCH.md Pattern 6):
+
 ```typescript
 import { defineConfig } from "vite";
 import { resolve } from "path";
@@ -448,7 +494,7 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       output: {
-        inlineDynamicImports: true,   // single file — no chunks (Pitfall 8)
+        inlineDynamicImports: true, // single file — no chunks (Pitfall 8)
         entryFileNames: "panel.js",
       },
     },
@@ -461,16 +507,20 @@ export default defineConfig({
 
 ### `frontend/src/components/time-bar.ts` (component, event-driven) — NEW Wave 3
 
-**Analog:** none in codebase. Pattern from RESEARCH.md Time Bar Component Design.
+**Analog:** none in codebase. Pattern from RESEARCH.md Time Bar Component
+Design.
 
 **Lit component interface**:
+
 ```typescript
 import { LitElement, html, css } from "lit";
 import { property, state } from "lit/decorators.js";
 
 // mode "schedule": 4-color period bar; mode "presence": 2-color presence bar
 class ClimateManagerTimeBar extends LitElement {
-  @property({ type: Array }) days: Array<Array<{start: string; mode: string}>> = [];
+  @property({ type: Array }) days: Array<
+    Array<{ start: string; mode: string }>
+  > = [];
   @property({ type: String }) mode: "schedule" | "presence" = "schedule";
   // Fired when a day's periods array changes (parent handles WS save)
   // CustomEvent: detail = { dayIndex: number, periods: Array<Period> }
@@ -480,6 +530,7 @@ customElements.define("climate-manager-time-bar", ClimateManagerTimeBar);
 ```
 
 **15-min snap pattern**:
+
 ```typescript
 private _snapToMinutes(rawMinutes: number): number {
   return Math.round(rawMinutes / 15) * 15;
@@ -491,6 +542,7 @@ private _pixelToMinutes(x: number, barWidth: number): number {
 ```
 
 **Pointer drag pattern** (save fires on `pointerup`, not during drag):
+
 ```typescript
 private _onPointerDown(e: PointerEvent, dayIndex: number, segIndex: number) {
   (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -521,7 +573,9 @@ private _onPointerUp(e: PointerEvent) {
 
 **Analog:** self (`tests/test_schedule.py`)
 
-**Module constant pattern to replace** (lines 39–90) — convert fixtures from `weekday_groups` list-of-dicts to per-day dict format:
+**Module constant pattern to replace** (lines 39–90) — convert fixtures from
+`weekday_groups` list-of-dicts to per-day dict format:
+
 ```python
 # Replace WEEKDAY_PROGRAM list-of-groups with per-day dict
 WEEKDAY_PROGRAM: dict = {
@@ -544,11 +598,17 @@ PERSON_SCHEDULE: dict = {
 }
 ```
 
-**Test call-site changes** (all `evaluate_schedule(WEEKDAY_PROGRAM, now)` calls remain identical in call signature). Only the fixture shape changes.
+**Test call-site changes** (all `evaluate_schedule(WEEKDAY_PROGRAM, now)` calls
+remain identical in call signature). Only the fixture shape changes.
 
-**`validate_7day_coverage` → `validate_daily_program`**: update all 6 `validate_7day_coverage(...)` call sites and import name. The new function accepts a `dict` instead of a `list` — fixture args simplify to passing the per-day dict directly.
+**`validate_7day_coverage` → `validate_daily_program`**: update all 6
+`validate_7day_coverage(...)` call sites and import name. The new function
+accepts a `dict` instead of a `list` — fixture args simplify to passing the
+per-day dict directly.
 
-**Test body pattern preserved** (keep all assertion logic, datetime construction, docstrings unchanged):
+**Test body pattern preserved** (keep all assertion logic, datetime
+construction, docstrings unchanged):
+
 ```python
 def test_evaluate_schedule_returns_normal_at_0830_monday():
     now = datetime.datetime(2026, 1, 5, 8, 30, tzinfo=datetime.timezone.utc)
@@ -563,7 +623,9 @@ def test_evaluate_schedule_returns_normal_at_0830_monday():
 
 **Analog:** self (`tests/test_coordinator.py`)
 
-**`_make_runtime_config` helper change** (lines 60–76) — remove `weekday_groups` parameter, replace with `daily_program`:
+**`_make_runtime_config` helper change** (lines 60–76) — remove `weekday_groups`
+parameter, replace with `daily_program`:
+
 ```python
 def _make_runtime_config(
     global_mode: str = MODE_TIME_PROGRAM,
@@ -582,6 +644,7 @@ def _make_runtime_config(
 ```
 
 **Module-level program fixtures** (lines 37–57) — convert to per-day dict:
+
 ```python
 ALL_DAYS_NORMAL_PROGRAM: dict = {
     day: [{"start": "00:00", "mode": PERIOD_NORMAL}]
@@ -598,7 +661,9 @@ TYPICAL_WEEKDAY_PROGRAM: dict = {
 }
 ```
 
-**Persons config fixture change** (line 286–297) — replace `schedule: {"weekday_groups": []}` with `schedule: {}`:
+**Persons config fixture change** (line 286–297) — replace
+`schedule: {"weekday_groups": []}` with `schedule: {}`:
+
 ```python
 persons_config = {
     "person.alice": {
@@ -620,9 +685,11 @@ persons_config = {
 
 ### `tests/test_websocket.py` (test, request-response) — NEW Wave 2
 
-**Analog:** `tests/test_coordinator.py` (closest existing test — same setup scaffold)
+**Analog:** `tests/test_coordinator.py` (closest existing test — same setup
+scaffold)
 
 **Setup scaffold pattern** (from `test_coordinator.py` lines 84–127):
+
 ```python
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -644,7 +711,9 @@ async def test_ws_set_global_mode_persists_and_evaluates(hass):
     assert entry.runtime_data.runtime_config["global_mode"] == MODE_OFF
 ```
 
-**WebSocket client fixture pattern** — use `hass.test_websocket_client()` (provided by `pytest-homeassistant-custom-component`):
+**WebSocket client fixture pattern** — use `hass.test_websocket_client()`
+(provided by `pytest-homeassistant-custom-component`):
+
 ```python
 async def test_ws_get_config_returns_runtime_config(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={})
@@ -660,7 +729,9 @@ async def test_ws_get_config_returns_runtime_config(hass):
     assert "global_mode" in msg["result"]
 ```
 
-**autouse conftest fixture** (from `tests/conftest.py` lines 8–14) — already in place, inherited automatically by new test file:
+**autouse conftest fixture** (from `tests/conftest.py` lines 8–14) — already in
+place, inherited automatically by new test file:
+
 ```python
 # conftest.py auto_enable_custom_integrations fixture applies to all test files
 # No additional fixture setup needed in test_websocket.py
@@ -671,8 +742,10 @@ async def test_ws_get_config_returns_runtime_config(hass):
 ## Shared Patterns
 
 ### Runtime data access (all WS handlers)
-**Source:** `custom_components/climate_manager/__init__.py` lines 38–68
-**Apply to:** `websocket.py` — all command handlers
+
+**Source:** `custom_components/climate_manager/__init__.py` lines 38–68 **Apply
+to:** `websocket.py` — all command handlers
+
 ```python
 # Access via closure — entry passed at registration time (RESEARCH.md anti-pattern 3)
 # Never use hass.data[DOMAIN]
@@ -684,8 +757,10 @@ entry.runtime_data.persons        # [person entity_ids]
 ```
 
 ### Sparse-safe mutation pattern (all write WS handlers)
-**Source:** `custom_components/climate_manager/storage.py` lines 63–68 + RESEARCH.md Pitfall 5
-**Apply to:** all `ws_set_*` handlers in `websocket.py`
+
+**Source:** `custom_components/climate_manager/storage.py` lines 63–68 +
+RESEARCH.md Pitfall 5 **Apply to:** all `ws_set_*` handlers in `websocket.py`
+
 ```python
 # CORRECT: mutate the sub-key in-place, then save
 entry.runtime_data.runtime_config["global_mode"] = msg["mode"]
@@ -695,8 +770,11 @@ await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
 ```
 
 ### Write-then-evaluate pattern
-**Source:** `custom_components/climate_manager/coordinator.py` line 83 (signature) + RESEARCH.md Pitfall 4
-**Apply to:** all `ws_set_*` handlers in `websocket.py`
+
+**Source:** `custom_components/climate_manager/coordinator.py` line 83
+(signature) + RESEARCH.md Pitfall 4 **Apply to:** all `ws_set_*` handlers in
+`websocket.py`
+
 ```python
 await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
 await entry.runtime_data.coordinator.async_evaluate()  # immediate TRV push — do not omit
@@ -704,8 +782,11 @@ connection.send_result(msg["id"], {"success": True})
 ```
 
 ### Schedule evaluation call pattern (coordinator after schema refactor)
-**Source:** `custom_components/climate_manager/coordinator.py` lines 148–149 (current — will change)
-**Apply to:** `coordinator.py` Wave 1 refactor (both `_evaluate_time_program` and `_evaluate_time_program_presences`)
+
+**Source:** `custom_components/climate_manager/coordinator.py` lines 148–149
+(current — will change) **Apply to:** `coordinator.py` Wave 1 refactor (both
+`_evaluate_time_program` and `_evaluate_time_program_presences`)
+
 ```python
 # Post-refactor: daily_program IS the per-day dict — pass directly
 period_mode = evaluate_schedule(daily_program, now)
@@ -713,8 +794,10 @@ period_mode = evaluate_schedule(daily_program, now)
 ```
 
 ### Test entry setup scaffold
-**Source:** `tests/test_coordinator.py` lines 85–120
-**Apply to:** `tests/test_websocket.py` — every test function
+
+**Source:** `tests/test_coordinator.py` lines 85–120 **Apply to:**
+`tests/test_websocket.py` — every test function
+
 ```python
 entry = MockConfigEntry(domain=DOMAIN, data={})
 entry.add_to_hass(hass)
@@ -727,17 +810,19 @@ await hass.async_block_till_done()
 
 ## No Analog Found
 
-| File | Role | Data Flow | Reason |
-|------|------|-----------|--------|
-| `custom_components/climate_manager/www/panel.js` | build artifact | — | Generated by Vite; not hand-written; no JS/TS files exist in the project yet |
-| `frontend/src/components/time-bar.ts` | component | event-driven | No frontend components exist yet; no drag-interaction pattern in codebase; use RESEARCH.md Time Bar Component Design section |
+| File                                             | Role           | Data Flow    | Reason                                                                                                                       |
+| ------------------------------------------------ | -------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `custom_components/climate_manager/www/panel.js` | build artifact | —            | Generated by Vite; not hand-written; no JS/TS files exist in the project yet                                                 |
+| `frontend/src/components/time-bar.ts`            | component      | event-driven | No frontend components exist yet; no drag-interaction pattern in codebase; use RESEARCH.md Time Bar Component Design section |
 
-For these files, the planner must rely exclusively on RESEARCH.md Patterns 5 and 6 and the Time Bar Component Design section.
+For these files, the planner must rely exclusively on RESEARCH.md Patterns 5 and
+6 and the Time Bar Component Design section.
 
 ---
 
 ## Metadata
 
-**Analog search scope:** `custom_components/climate_manager/`, `tests/`, `.venv/lib/python3.12/site-packages/homeassistant/components/`
-**Files scanned:** 16 source files + 2 HA venv WS API examples
-**Pattern extraction date:** 2026-05-17
+**Analog search scope:** `custom_components/climate_manager/`, `tests/`,
+`.venv/lib/python3.12/site-packages/homeassistant/components/` **Files
+scanned:** 16 source files + 2 HA venv WS API examples **Pattern extraction
+date:** 2026-05-17

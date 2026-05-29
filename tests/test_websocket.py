@@ -16,7 +16,6 @@ pytest-homeassistant-custom-component.
 
 import copy
 
-import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.climate_manager.const import (
@@ -50,7 +49,7 @@ async def test_ws_get_config_returns_runtime_config(hass, hass_ws_client):
 
     Verifies the read path: panel can fetch the full config on startup.
     """
-    entry = await _setup_entry(hass)
+    await _setup_entry(hass)
 
     client = await hass_ws_client()
     await client.send_json_auto_id({"type": f"{DOMAIN}/get_config"})
@@ -100,7 +99,9 @@ async def test_ws_set_time_program_rejects_partial(hass, hass_ws_client):
     entry = await _setup_entry(hass)
 
     # Capture original program (should be the default empty per-day dict)
-    original_program = dict(entry.runtime_data.runtime_config["global_time_program"])
+    original_program = dict(
+        entry.runtime_data.runtime_config["global_time_program"]
+    )
 
     # Send a partial program missing most day keys (only "mon" present)
     client = await hass_ws_client()
@@ -113,10 +114,17 @@ async def test_ws_set_time_program_rejects_partial(hass, hass_ws_client):
     msg = await client.receive_json()
 
     # Must be an error response (success False or error type)
-    assert msg.get("success") is False or msg.get("type") == "result" and msg.get("success") is False
+    assert (
+        msg.get("success") is False
+        or msg.get("type") == "result"
+        and msg.get("success") is False
+    )
 
     # global_time_program must be unchanged — T-03-05 validation gate
-    assert entry.runtime_data.runtime_config["global_time_program"] == original_program
+    assert (
+        entry.runtime_data.runtime_config["global_time_program"]
+        == original_program
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +132,9 @@ async def test_ws_set_time_program_rejects_partial(hass, hass_ws_client):
 # ---------------------------------------------------------------------------
 
 
-async def test_ws_get_status_includes_present_person_count(hass, hass_ws_client):
+async def test_ws_get_status_includes_present_person_count(
+    hass, hass_ws_client
+):
     """D-24: get_status returns rooms_status entries with present_person_count.
 
     Seeded: living_room has alice (present) assigned; kitchen has no present persons.
@@ -133,7 +143,10 @@ async def test_ws_get_status_includes_present_person_count(hass, hass_ws_client)
     entry = await _setup_entry(hass)
 
     # Seed rooms, persons config, and coordinator state
-    entry.runtime_data.rooms = {"living_room": ["climate.x"], "kitchen": ["climate.y"]}
+    entry.runtime_data.rooms = {
+        "living_room": ["climate.x"],
+        "kitchen": ["climate.y"],
+    }
     entry.runtime_data.runtime_config["persons"] = {
         "person.alice": {"room_ids": ["living_room"]},
     }
@@ -153,7 +166,9 @@ async def test_ws_get_status_includes_present_person_count(hass, hass_ws_client)
             f"present_person_count missing from {room_entry['area_id']}"
         )
 
-    living_entry = next(e for e in rooms_status if e["area_id"] == "living_room")
+    living_entry = next(
+        e for e in rooms_status if e["area_id"] == "living_room"
+    )
     kitchen_entry = next(e for e in rooms_status if e["area_id"] == "kitchen")
 
     assert living_entry["present_person_count"] == 1
@@ -193,7 +208,9 @@ async def test_ws_get_config_includes_climate_entities(hass, hass_ws_client):
     climate_entities = msg["result"]["climate_entities"]
     assert isinstance(climate_entities, list)
     for eid in climate_entities:
-        assert eid.startswith("climate."), f"Expected climate. prefix, got: {eid}"
+        assert eid.startswith("climate."), (
+            f"Expected climate. prefix, got: {eid}"
+        )
 
     # The registered fake entity must appear
     assert "climate.test_fake_trv" in climate_entities
@@ -206,7 +223,9 @@ async def test_ws_get_config_includes_climate_entities(hass, hass_ws_client):
     assert "period_temperatures" in msg["result"]
 
 
-async def test_ws_get_config_climate_entities_empty_when_none_registered(hass, hass_ws_client):
+async def test_ws_get_config_climate_entities_empty_when_none_registered(
+    hass, hass_ws_client
+):
     """D-25: get_config returns climate_entities=[] when no climate entities are registered."""
     await _setup_entry(hass)
 
@@ -224,7 +243,9 @@ async def test_ws_get_config_climate_entities_empty_when_none_registered(hass, h
 # ---------------------------------------------------------------------------
 
 
-async def test_ws_reset_period_temperatures_writes_defaults(hass, hass_ws_client):
+async def test_ws_reset_period_temperatures_writes_defaults(
+    hass, hass_ws_client
+):
     """reset_period_temperatures resets period_temperatures to DEFAULT_PERIOD_TEMPERATURES.
 
     Mutates period_temperatures to non-default values first, then sends the reset
@@ -241,17 +262,24 @@ async def test_ws_reset_period_temperatures_writes_defaults(hass, hass_ws_client
     }
 
     client = await hass_ws_client()
-    await client.send_json_auto_id({"type": f"{DOMAIN}/reset_period_temperatures"})
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/reset_period_temperatures"}
+    )
     msg = await client.receive_json()
 
     assert msg["success"] is True
     assert msg["result"]["success"] is True
 
     # Must match the module-level defaults exactly
-    assert entry.runtime_data.runtime_config["period_temperatures"] == DEFAULT_PERIOD_TEMPERATURES
+    assert (
+        entry.runtime_data.runtime_config["period_temperatures"]
+        == DEFAULT_PERIOD_TEMPERATURES
+    )
 
     # Verify no reference sharing: mutating runtime_config must not affect the constant
-    entry.runtime_data.runtime_config["period_temperatures"]["frost_protection"] = 1.0
+    entry.runtime_data.runtime_config["period_temperatures"][
+        "frost_protection"
+    ] = 1.0
     assert DEFAULT_PERIOD_TEMPERATURES["frost_protection"] == 5.0
 
 
@@ -286,13 +314,17 @@ async def test_ws_reset_time_program_writes_defaults(hass, hass_ws_client):
     expected_weekday_starts = ("00:00", "06:00", "08:00", "17:00", "22:00")
     for day in ("mon", "tue", "wed", "thu", "fri"):
         starts = tuple(p["start"] for p in program[day])
-        assert starts == expected_weekday_starts, f"Day {day}: expected starts {expected_weekday_starts}, got {starts}"
+        assert starts == expected_weekday_starts, (
+            f"Day {day}: expected starts {expected_weekday_starts}, got {starts}"
+        )
 
     # Weekends: 3 periods (full-day normal)
     expected_weekend_starts = ("00:00", "06:00", "22:00")
     for day in ("sat", "sun"):
         starts = tuple(p["start"] for p in program[day])
-        assert starts == expected_weekend_starts, f"Day {day}: expected starts {expected_weekend_starts}, got {starts}"
+        assert starts == expected_weekend_starts, (
+            f"Day {day}: expected starts {expected_weekend_starts}, got {starts}"
+        )
 
     # Must equal the module-level default (deep equality check)
     assert program == _DEFAULT_DAILY_PROGRAM
@@ -307,7 +339,9 @@ async def test_ws_reset_time_program_writes_defaults(hass, hass_ws_client):
 # ---------------------------------------------------------------------------
 
 
-async def test_ws_reset_room_to_global_program_copies_global_into_room(hass, hass_ws_client):
+async def test_ws_reset_room_to_global_program_copies_global_into_room(
+    hass, hass_ws_client
+):
     """reset_room_to_global_program deep-copies global_time_program into the target room.
 
     Verifies:
@@ -327,7 +361,10 @@ async def test_ws_reset_room_to_global_program_copies_global_into_room(hass, has
     entry.runtime_data.runtime_config["global_time_program"] = sentinel_program
 
     # Seed room-a with stale data and room-b as a sibling that must remain untouched
-    sentinel_room_b = {"room_mode": "global", "time_program": {"mon": [{"start": "08:00", "mode": "reduced"}]}}
+    sentinel_room_b = {
+        "room_mode": "global",
+        "time_program": {"mon": [{"start": "08:00", "mode": "reduced"}]},
+    }
     entry.runtime_data.runtime_config["rooms"] = {
         "room-a": {"room_mode": "global", "time_program": {}},
         "room-b": dict(sentinel_room_b),
@@ -352,7 +389,9 @@ async def test_ws_reset_room_to_global_program_copies_global_into_room(hass, has
     assert rooms["room-b"] == sentinel_room_b
 
     # Deep-copy proof: mutating room-a's time_program must NOT bleed into global_time_program
-    rooms["room-a"]["time_program"]["mon"].append({"start": "22:00", "mode": "reduced"})
+    rooms["room-a"]["time_program"]["mon"].append(
+        {"start": "22:00", "mode": "reduced"}
+    )
     assert entry.runtime_data.runtime_config["global_time_program"]["mon"] == [
         {"start": "06:00", "mode": "normal"}
     ]
@@ -372,7 +411,9 @@ async def test_ws_create_zone_returns_zone_config(hass, hass_ws_client):
     entry = await _setup_entry(hass)
 
     client = await hass_ws_client()
-    await client.send_json_auto_id({"type": f"{DOMAIN}/create_zone", "name": "Living"})
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/create_zone", "name": "Living"}
+    )
     msg = await client.receive_json()
 
     assert msg["success"] is True
@@ -387,7 +428,9 @@ async def test_ws_create_zone_returns_zone_config(hass, hass_ws_client):
     assert isinstance(result["time_program"], dict)
     # time_program must have all 7 day keys
     for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun"):
-        assert day in result["time_program"], f"time_program missing day key: {day}"
+        assert day in result["time_program"], (
+            f"time_program missing day key: {day}"
+        )
 
     # Must persist to runtime_config
     zone_id = result["zone_id"]
@@ -410,10 +453,14 @@ async def test_ws_create_zone_copies_global_program(hass, hass_ws_client):
 
     # Mutate global_time_program to a known sentinel before sending
     sentinel_period = [{"start": "00:00", "mode": "comfort"}]
-    entry.runtime_data.runtime_config["global_time_program"]["mon"] = sentinel_period
+    entry.runtime_data.runtime_config["global_time_program"]["mon"] = (
+        sentinel_period
+    )
 
     client = await hass_ws_client()
-    await client.send_json_auto_id({"type": f"{DOMAIN}/create_zone", "name": "TestZone"})
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/create_zone", "name": "TestZone"}
+    )
     msg = await client.receive_json()
 
     assert msg["success"] is True
@@ -424,7 +471,10 @@ async def test_ws_create_zone_copies_global_program(hass, hass_ws_client):
 
     # Deep-copy proof: mutating the returned program must NOT mutate global_time_program
     result["time_program"]["mon"].append({"start": "12:00", "mode": "reduced"})
-    assert entry.runtime_data.runtime_config["global_time_program"]["mon"] == sentinel_period
+    assert (
+        entry.runtime_data.runtime_config["global_time_program"]["mon"]
+        == sentinel_period
+    )
 
 
 async def test_ws_rename_zone_custom(hass, hass_ws_client):
@@ -464,7 +514,11 @@ async def test_ws_rename_zone_default(hass, hass_ws_client):
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
-        {"type": f"{DOMAIN}/rename_zone", "zone_id": "default", "name": "Maison"}
+        {
+            "type": f"{DOMAIN}/rename_zone",
+            "zone_id": "default",
+            "name": "Maison",
+        }
     )
     msg = await client.receive_json()
 
@@ -497,13 +551,19 @@ async def test_ws_set_zone_mode(hass, hass_ws_client):
 
     # Send 1: valid mode change
     await client.send_json_auto_id(
-        {"type": f"{DOMAIN}/set_zone_mode", "zone_id": zone_id, "mode": MODE_OFF}
+        {
+            "type": f"{DOMAIN}/set_zone_mode",
+            "zone_id": zone_id,
+            "mode": MODE_OFF,
+        }
     )
     msg = await client.receive_json()
 
     assert msg["success"] is True
     assert msg["result"]["success"] is True
-    assert entry.runtime_data.runtime_config["zones"][zone_id]["mode"] == MODE_OFF
+    assert (
+        entry.runtime_data.runtime_config["zones"][zone_id]["mode"] == MODE_OFF
+    )
 
     # Send 2: invalid mode — vol schema must reject before handler runs
     await client.send_json_auto_id(
@@ -513,7 +573,9 @@ async def test_ws_set_zone_mode(hass, hass_ws_client):
 
     assert msg2["success"] is False
     # Zone mode must be unchanged — schema rejection means no mutation
-    assert entry.runtime_data.runtime_config["zones"][zone_id]["mode"] == MODE_OFF
+    assert (
+        entry.runtime_data.runtime_config["zones"][zone_id]["mode"] == MODE_OFF
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -544,7 +606,9 @@ async def test_ws_delete_zone_migrates_rooms(hass, hass_ws_client):
     }
 
     client = await hass_ws_client()
-    await client.send_json_auto_id({"type": f"{DOMAIN}/delete_zone", "zone_id": zone_id})
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/delete_zone", "zone_id": zone_id}
+    )
     msg = await client.receive_json()
 
     assert msg["success"] is True
@@ -568,7 +632,9 @@ async def test_ws_delete_zone_not_found(hass, hass_ws_client):
     entry = await _setup_entry(hass)
 
     client = await hass_ws_client()
-    await client.send_json_auto_id({"type": f"{DOMAIN}/delete_zone", "zone_id": "ghost"})
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/delete_zone", "zone_id": "ghost"}
+    )
     msg = await client.receive_json()
 
     assert msg["success"] is False
@@ -591,7 +657,9 @@ async def test_ws_set_zone_time_program_rejects_partial(hass, hass_ws_client):
         "time_program": copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
     }
     # Capture original program BEFORE the send (Pitfall 6 — must be deep copy reference)
-    original = copy.deepcopy(entry.runtime_data.runtime_config["zones"][zone_id]["time_program"])
+    original = copy.deepcopy(
+        entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]
+    )
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
@@ -605,7 +673,10 @@ async def test_ws_set_zone_time_program_rejects_partial(hass, hass_ws_client):
 
     assert msg["success"] is False
     # No mutation must have occurred (validate-before-mutate gate)
-    assert entry.runtime_data.runtime_config["zones"][zone_id]["time_program"] == original
+    assert (
+        entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]
+        == original
+    )
 
 
 async def test_ws_reset_zone_time_program_default(hass, hass_ws_client):
@@ -620,12 +691,19 @@ async def test_ws_reset_zone_time_program_default(hass, hass_ws_client):
     entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
         "name": "Test",
         "mode": MODE_TIME_PROGRAM,
-        "time_program": {d: [{"start": "00:00", "mode": "comfort"}] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]},
+        "time_program": {
+            d: [{"start": "00:00", "mode": "comfort"}]
+            for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+        },
     }
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
-        {"type": f"{DOMAIN}/reset_zone_time_program", "zone_id": zone_id, "target": "default"}
+        {
+            "type": f"{DOMAIN}/reset_zone_time_program",
+            "zone_id": zone_id,
+            "target": "default",
+        }
     )
     msg = await client.receive_json()
 
@@ -633,12 +711,15 @@ async def test_ws_reset_zone_time_program_default(hass, hass_ws_client):
     assert msg["result"]["success"] is True
 
     # Zone time_program must deep-equal _DEFAULT_DAILY_PROGRAM
-    assert entry.runtime_data.runtime_config["zones"][zone_id]["time_program"] == _DEFAULT_DAILY_PROGRAM
+    assert (
+        entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]
+        == _DEFAULT_DAILY_PROGRAM
+    )
 
     # Deepcopy isolation: mutating the assigned program must NOT affect the constant
-    entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]["mon"].append(
-        {"start": "12:00", "mode": "reduced"}
-    )
+    entry.runtime_data.runtime_config["zones"][zone_id]["time_program"][
+        "mon"
+    ].append({"start": "12:00", "mode": "reduced"})
     # Default weekday program has 5 periods
     assert len(_DEFAULT_DAILY_PROGRAM["mon"]) == 5
 
@@ -655,15 +736,24 @@ async def test_ws_reset_zone_time_program_global(hass, hass_ws_client):
     entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
         "name": "Test",
         "mode": MODE_TIME_PROGRAM,
-        "time_program": {d: [{"start": "00:00", "mode": "normal"}] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]},
+        "time_program": {
+            d: [{"start": "00:00", "mode": "normal"}]
+            for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+        },
     }
 
     # Mutate global_time_program["wed"] to a sentinel BEFORE the WS call
-    entry.runtime_data.runtime_config["global_time_program"]["wed"] = [{"start": "00:00", "mode": "comfort"}]
+    entry.runtime_data.runtime_config["global_time_program"]["wed"] = [
+        {"start": "00:00", "mode": "comfort"}
+    ]
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
-        {"type": f"{DOMAIN}/reset_zone_time_program", "zone_id": zone_id, "target": "global"}
+        {
+            "type": f"{DOMAIN}/reset_zone_time_program",
+            "zone_id": zone_id,
+            "target": "global",
+        }
     )
     msg = await client.receive_json()
 
@@ -671,14 +761,14 @@ async def test_ws_reset_zone_time_program_global(hass, hass_ws_client):
     assert msg["result"]["success"] is True
 
     # Zone's wed must match the sentinel we set on global
-    assert entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]["wed"] == [
-        {"start": "00:00", "mode": "comfort"}
-    ]
+    assert entry.runtime_data.runtime_config["zones"][zone_id]["time_program"][
+        "wed"
+    ] == [{"start": "00:00", "mode": "comfort"}]
 
     # Deepcopy isolation: mutating the zone's program must NOT affect global_time_program
-    entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]["wed"].append(
-        {"start": "06:00", "mode": "normal"}
-    )
+    entry.runtime_data.runtime_config["zones"][zone_id]["time_program"][
+        "wed"
+    ].append({"start": "06:00", "mode": "normal"})
     assert entry.runtime_data.runtime_config["global_time_program"]["wed"] == [
         {"start": "00:00", "mode": "comfort"}
     ]
@@ -700,14 +790,23 @@ async def test_set_room_config_pops_zone_id_when_null(hass, hass_ws_client):
     # Seed a zone and assign the room to it
     zone_id = "some-uuid"
     entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
-        "name": "Test Zone", "mode": MODE_TIME_PROGRAM,
-        "time_program": {d: [] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]},
+        "name": "Test Zone",
+        "mode": MODE_TIME_PROGRAM,
+        "time_program": {
+            d: [] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+        },
     }
-    entry.runtime_data.runtime_config.setdefault("rooms", {})["living_room"] = {"zone_id": zone_id}
+    entry.runtime_data.runtime_config.setdefault("rooms", {})["living_room"] = {
+        "zone_id": zone_id
+    }
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
-        {"type": f"{DOMAIN}/set_room_config", "room_id": "living_room", "config": {"zone_id": None}}
+        {
+            "type": f"{DOMAIN}/set_room_config",
+            "room_id": "living_room",
+            "config": {"zone_id": None},
+        }
     )
     msg = await client.receive_json()
 
@@ -718,7 +817,9 @@ async def test_set_room_config_pops_zone_id_when_null(hass, hass_ws_client):
     assert "zone_id" not in living_room
 
 
-async def test_set_room_config_null_zone_id_is_idempotent_when_already_absent(hass, hass_ws_client):
+async def test_set_room_config_null_zone_id_is_idempotent_when_already_absent(
+    hass, hass_ws_client
+):
     """set_room_config with {zone_id: null} on a room with no zone_id is a no-op (idempotent).
 
     Verifies CR-03 fix: when zone_id is already absent, the pop is a no-op and the
@@ -727,11 +828,17 @@ async def test_set_room_config_null_zone_id_is_idempotent_when_already_absent(ha
     entry = await _setup_entry(hass)
 
     # Seed a room with no zone_id (already a Default Zone member)
-    entry.runtime_data.runtime_config.setdefault("rooms", {})["living_room"] = {"room_mode": "global"}
+    entry.runtime_data.runtime_config.setdefault("rooms", {})["living_room"] = {
+        "room_mode": "global"
+    }
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
-        {"type": f"{DOMAIN}/set_room_config", "room_id": "living_room", "config": {"zone_id": None}}
+        {
+            "type": f"{DOMAIN}/set_room_config",
+            "room_id": "living_room",
+            "config": {"zone_id": None},
+        }
     )
     msg = await client.receive_json()
 
@@ -742,7 +849,9 @@ async def test_set_room_config_null_zone_id_is_idempotent_when_already_absent(ha
     assert living_room == {"room_mode": "global"}
 
 
-async def test_set_room_config_null_zone_id_preserves_other_keys(hass, hass_ws_client):
+async def test_set_room_config_null_zone_id_preserves_other_keys(
+    hass, hass_ws_client
+):
     """set_room_config with {zone_id: null, room_mode: 'custom'} pops zone_id but keeps other keys.
 
     Verifies the pop is targeted — other keys in the patch are still applied via
@@ -750,7 +859,9 @@ async def test_set_room_config_null_zone_id_preserves_other_keys(hass, hass_ws_c
     """
     entry = await _setup_entry(hass)
 
-    entry.runtime_data.runtime_config.setdefault("rooms", {})["living_room"] = {}
+    entry.runtime_data.runtime_config.setdefault("rooms", {})[
+        "living_room"
+    ] = {}
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
@@ -776,7 +887,9 @@ async def test_set_room_config_null_zone_id_preserves_other_keys(hass, hass_ws_c
 # ---------------------------------------------------------------------------
 
 
-async def test_ws_set_zone_time_program_accepts_full_program(hass, hass_ws_client):
+async def test_ws_set_zone_time_program_accepts_full_program(
+    hass, hass_ws_client
+):
     """set_zone_time_program with a full 7-day program is accepted and persisted.
 
     Requirement (Gap 1): A full 7-day zone time program is accepted, persisted to
@@ -824,11 +937,15 @@ async def test_ws_set_zone_time_program_accepts_full_program(hass, hass_ws_clien
     assert msg["result"]["success"] is True
 
     # Verify persistence: zone.time_program must match the sentinel
-    persisted_program = entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]
+    persisted_program = entry.runtime_data.runtime_config["zones"][zone_id][
+        "time_program"
+    ]
     assert persisted_program == sentinel_program
 
     # Deep-copy isolation: mutating the sent program must NOT mutate the saved config
     sentinel_program["mon"].append({"start": "12:00", "mode": "comfort"})
-    assert entry.runtime_data.runtime_config["zones"][zone_id]["time_program"]["mon"] == [
-        {"start": "06:00", "mode": "normal"}
-    ], "zone time_program was affected by mutation to the input program — not a deep copy"
+    assert entry.runtime_data.runtime_config["zones"][zone_id]["time_program"][
+        "mon"
+    ] == [{"start": "06:00", "mode": "normal"}], (
+        "zone time_program was affected by mutation to the input program — not a deep copy"
+    )

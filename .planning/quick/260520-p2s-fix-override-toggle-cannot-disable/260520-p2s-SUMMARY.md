@@ -10,11 +10,14 @@ files_modified:
   - frontend/src/components/room-card.ts
   - custom_components/climate_manager/www/panel.js
 ---
+
 # Quick Task 260520-p2s: Fix Override Toggle Cannot Disable — Summary
 
-Root cause: `null ?? undefined` evaluates to `undefined`, which JSON serialization drops from
-the config object. Backend received `config: {}`, `.update({})` was a no-op, time_program was
-never cleared.
+Root cause: `null ?? undefined` evaluates to `undefined`, which JSON
+serialization drops from the config object. Backend received `config: {}`,
+`.update({})` was a no-op, time_program was never cleared.
 
-Fixed by removing `?? undefined` in `_onOverrideToggle` so `null` is sent explicitly, and
-widening `RoomConfig.time_program` type to `DailyProgram | null`. Backend's `.update({"time_program": None})` now correctly clears the field. Build succeeded, deployed.
+Fixed by removing `?? undefined` in `_onOverrideToggle` so `null` is sent
+explicitly, and widening `RoomConfig.time_program` type to
+`DailyProgram | null`. Backend's `.update({"time_program": None})` now correctly
+clears the field. Build succeeded, deployed.

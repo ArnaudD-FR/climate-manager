@@ -66,7 +66,7 @@ export class PersonsTab extends LitElement {
         roomId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       const floorId = this.hass?.areas?.[roomId]?.floor_id ?? null;
       const secondary = floorId
-        ? (this.hass?.floors?.[floorId]?.name ?? undefined)
+        ? this.hass?.floors?.[floorId]?.name ?? undefined
         : undefined;
       return { id: roomId, name, secondary };
     });

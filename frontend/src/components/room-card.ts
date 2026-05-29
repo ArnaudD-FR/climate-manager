@@ -498,7 +498,7 @@ export class RoomCard extends LitElement {
     const totalPersons = assignedIds.length;
     // D-23: present count from backend (rooms_status.present_person_count).
     const presentCount = isPresenceMode
-      ? (this.roomStatus?.present_person_count ?? 0)
+      ? this.roomStatus?.present_person_count ?? 0
       : null;
     const personDisplay =
       presentCount != null

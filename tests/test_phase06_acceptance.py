@@ -24,7 +24,9 @@ from pathlib import Path
 
 def test_main_tab_overview_label():
     """Verify the first tab button in main.ts is labeled 'Overview'."""
-    main_ts = Path("/home/arnaud/dev/climate_manager/frontend/src/main.ts").read_text()
+    main_ts = Path(
+        "/home/arnaud/dev/climate_manager/frontend/src/main.ts"
+    ).read_text()
 
     assert ">Overview<" in main_ts, (
         "main.ts tab bar does not have '>Overview<' button label"
@@ -42,7 +44,9 @@ def test_room_card_zone_badge_present():
     Requirement: Every room card header row has a zone badge showing the zone
     display name (ASSIGN-03). The badge uses class="zone-badge" for styling.
     """
-    room_card = Path("/home/arnaud/dev/climate_manager/frontend/src/components/room-card.ts").read_text()
+    room_card = Path(
+        "/home/arnaud/dev/climate_manager/frontend/src/components/room-card.ts"
+    ).read_text()
 
     # Must have the CSS class definition
     assert ".zone-badge" in room_card, (
@@ -71,7 +75,9 @@ def test_zone_tab_isdefault_hides_delete():
     Requirement: Default Zone tab (isDefault=true) does not render a Delete button.
     The render logic must check isDefault and conditionally render the delete row.
     """
-    zone_tab = Path("/home/arnaud/dev/climate_manager/frontend/src/components/zone-tab.ts").read_text()
+    zone_tab = Path(
+        "/home/arnaud/dev/climate_manager/frontend/src/components/zone-tab.ts"
+    ).read_text()
 
     # Must have isDefault property
     assert "@property({ type: Boolean }) isDefault = false" in zone_tab, (
@@ -86,7 +92,7 @@ def test_zone_tab_isdefault_hides_delete():
 
     # Should have the delete row section with isDefault guard
     # Look for the pattern: ${!this.isDefault ? html`...delete...` : ""}
-    assert '${!this.isDefault' in zone_tab and 'delete-row' in zone_tab, (
+    assert "${!this.isDefault" in zone_tab and "delete-row" in zone_tab, (
         "zone-tab.ts does not have !this.isDefault ternary guard for delete row rendering"
     )
 
@@ -104,7 +110,9 @@ def test_zone_tab_isdefault_routes_global_endpoints():
     ws.setZoneTimeProgram). This ensures Default Zone edits persist to the
     global mode/time-program configuration.
     """
-    zone_tab = Path("/home/arnaud/dev/climate_manager/frontend/src/components/zone-tab.ts").read_text()
+    zone_tab = Path(
+        "/home/arnaud/dev/climate_manager/frontend/src/components/zone-tab.ts"
+    ).read_text()
 
     # Must call setGlobalMode for Default Zone
     assert "this.ws.setGlobalMode" in zone_tab, (
@@ -141,8 +149,12 @@ def test_null_zone_id_payload_present():
     _onZoneChange when selecting the Default Zone option. This ensures
     JSON.stringify preserves the key so the backend can interpret null as "pop key".
     """
-    zone_tab = Path("/home/arnaud/dev/climate_manager/frontend/src/components/zone-tab.ts").read_text()
-    room_card = Path("/home/arnaud/dev/climate_manager/frontend/src/components/room-card.ts").read_text()
+    zone_tab = Path(
+        "/home/arnaud/dev/climate_manager/frontend/src/components/zone-tab.ts"
+    ).read_text()
+    room_card = Path(
+        "/home/arnaud/dev/climate_manager/frontend/src/components/room-card.ts"
+    ).read_text()
 
     # zone_tab.ts must use zone_id: null (not undefined)
     # Count occurrences of "zone_id: null" in zone-tab
@@ -160,7 +172,7 @@ def test_null_zone_id_payload_present():
     # room_card.ts must use zone_id: null
     room_card_null_count = room_card.count("zone_id: null")
     assert room_card_null_count >= 1, (
-        f"room-card.ts has no occurrences of 'zone_id: null' in _onZoneChange handler"
+        "room-card.ts has no occurrences of 'zone_id: null' in _onZoneChange handler"
     )
 
     # room_card.ts must NOT use zone_id: undefined (unless it's in a comment)
@@ -169,7 +181,7 @@ def test_null_zone_id_payload_present():
     for i, line in enumerate(lines):
         if "zone_id: undefined" in line and not line.strip().startswith("//"):
             raise AssertionError(
-                f"room-card.ts has 'zone_id: undefined' at line {i+1}, should be 'zone_id: null'"
+                f"room-card.ts has 'zone_id: undefined' at line {i + 1}, should be 'zone_id: null'"
             )
 
 
@@ -206,7 +218,9 @@ def test_frontend_vite_build():
     )
 
     # Verify the output bundle exists (Vite outputs to custom_components/climate_manager/www/panel.js)
-    panel_js = Path("/home/arnaud/dev/climate_manager/custom_components/climate_manager/www/panel.js")
+    panel_js = Path(
+        "/home/arnaud/dev/climate_manager/custom_components/climate_manager/www/panel.js"
+    )
     assert panel_js.exists(), (
         f"Vite build succeeded but panel.js not found at {panel_js}"
     )

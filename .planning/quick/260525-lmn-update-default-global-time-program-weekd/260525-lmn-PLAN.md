@@ -12,19 +12,19 @@ autonomous: true
 <objective>
 Update the default global time program in const.py to differentiate weekdays from weekends.
 
-Weekdays (mon–fri):
-  00:00 reduced → 06:00 normal → 08:00 reduced → 17:00 normal → 22:00 reduced
+Weekdays (mon–fri): 00:00 reduced → 06:00 normal → 08:00 reduced → 17:00 normal
+→ 22:00 reduced
 
-Weekends (sat–sun):
-  00:00 reduced → 07:00 normal → 22:00 reduced
+Weekends (sat–sun): 00:00 reduced → 07:00 normal → 22:00 reduced
 
 The existing single `_DEFAULT_DAY_PERIODS` becomes two separate lists:
 `_DEFAULT_WEEKDAY_PERIODS` and `_DEFAULT_WEEKEND_PERIODS`.
-`_DEFAULT_DAILY_PROGRAM` maps each day key to the appropriate list (deep-copied).
+`_DEFAULT_DAILY_PROGRAM` maps each day key to the appropriate list
+(deep-copied).
 
 The frontend reset button already calls the backend `reset_time_program` command
-(task 260525-l0p) which deep-copies `_DEFAULT_DAILY_PROGRAM` — no frontend changes needed.
-</objective>
+(task 260525-l0p) which deep-copies `_DEFAULT_DAILY_PROGRAM` — no frontend
+changes needed. </objective>
 
 <tasks>
 <task type="auto">
@@ -58,10 +58,7 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 ```
 
 Update the comment block above the section to document the new schedules.
-  </action>
-  <verify>
-    <automated>cd /home/arnaud/dev/climate_manager && uv run pytest tests/ -x -q 2>&1 | tail -5</automated>
-  </verify>
-  <done>Tests pass; const.py has weekday/weekend split; _DEFAULT_DAILY_PROGRAM has correct 5-period weekdays and 3-period weekends.</done>
-</task>
-</tasks>
+</action> <verify> <automated>cd /home/arnaud/dev/climate_manager && uv run
+pytest tests/ -x -q 2>&1 | tail -5</automated> </verify> <done>Tests pass;
+const.py has weekday/weekend split; \_DEFAULT_DAILY_PROGRAM has correct 5-period
+weekdays and 3-period weekends.</done> </task> </tasks>

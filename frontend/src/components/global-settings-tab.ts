@@ -301,7 +301,7 @@ export class GlobalSettingsTab extends LitElement {
       const field = root.querySelector<HTMLInputElement>(`#temp-${id}`);
       return field
         ? parseFloat(field.value)
-        : (this.config.period_temperatures[id] ?? 0);
+        : this.config.period_temperatures[id] ?? 0;
     };
     const temperatures = {
       frost_protection: getValue("frost_protection"),
@@ -423,7 +423,7 @@ export class GlobalSettingsTab extends LitElement {
               );
               const modeLabel = MODE_LABELS[row.mode] ?? row.mode;
               const periodLabel = row.activePeriod
-                ? (PERIOD_DISPLAY_NAMES[row.activePeriod] ?? row.activePeriod)
+                ? PERIOD_DISPLAY_NAMES[row.activePeriod] ?? row.activePeriod
                 : "—";
               return html`
                 <div class="zone-status-row">

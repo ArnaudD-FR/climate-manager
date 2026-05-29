@@ -1,17 +1,28 @@
 # Phase 3: WebSocket API & Frontend Panel - Context
 
-**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-26, 2026-05-26)
-**Status:** Ready for planning
+**Gathered:** 2026-05-17 (updated 2026-05-20, 2026-05-20, 2026-05-20,
+2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-21, 2026-05-26,
+2026-05-26) **Status:** Ready for planning
 
 <domain>
 ## Phase Boundary
 
-A full Lovelace dashboard panel that lets users configure every aspect of the integration — global mode, default temperatures, global and per-room time programs, persons presence mode and schedules, room sensor associations — without touching YAML or HA config files. A Python WebSocket API layer exposes the backend config and coordinator to the Lit/TypeScript panel via `homeassistant.components.websocket_api`.
+A full Lovelace dashboard panel that lets users configure every aspect of the
+integration — global mode, default temperatures, global and per-room time
+programs, persons presence mode and schedules, room sensor associations —
+without touching YAML or HA config files. A Python WebSocket API layer exposes
+the backend config and coordinator to the Lit/TypeScript panel via
+`homeassistant.components.websocket_api`.
 
-Requirements in scope: UI-01, UI-02, UI-03, UI-04, ROOM-01, ROOM-02, ROOM-03, INFRA-01.
+Requirements in scope: UI-01, UI-02, UI-03, UI-04, ROOM-01, ROOM-02, ROOM-03,
+INFRA-01.
 
-**Pre-condition — schema refactor required before Phase 3 begins:**
-The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 requires a per-day schema (`{"mon": [...], "tue": [...], ...}`). A gap-closure plan must refactor `schedule.py`, `const.py`, `DEFAULT_CONFIG`, and all tests before any Phase 3 work begins. The panel UI and WebSocket API are designed against the per-day schema exclusively.
+**Pre-condition — schema refactor required before Phase 3 begins:** The Phase 2
+backend uses a `weekday_groups` schema for time programs. Phase 3 requires a
+per-day schema (`{"mon": [...], "tue": [...], ...}`). A gap-closure plan must
+refactor `schedule.py`, `const.py`, `DEFAULT_CONFIG`, and all tests before any
+Phase 3 work begins. The panel UI and WebSocket API are designed against the
+per-day schema exclusively.
 
 </domain>
 
@@ -20,238 +31,549 @@ The Phase 2 backend uses a `weekday_groups` schema for time programs. Phase 3 re
 
 ### Time Program Editor
 
-- **D-01:** Per-day time program schema — `{"mon": [...], "tue": [...], "wed": [...], "thu": [...], "fri": [...], "sat": [...], "sun": [...]}` — replaces the Phase 2 `weekday_groups` structure. Each day holds an independent list of periods `[{"start": "HH:MM", "mode": "<period_mode>"}, ...]`. Both the global time program and per-room overrides use this format. Applies to person presence schedules too.
-- **D-02:** Visual 24h bar editor — all 7 days stacked vertically, one colored bar per row, full week visible at once without tabs or scrolling.
-- **D-03:** Period colors: Frost protection = deep blue, Reduced = light blue, Normal = orange, Comfort = red. Presence schedule: Present = green, Absent = gray.
-- **D-04:** Click anywhere on the bar → splits the existing period at that time (snaps to nearest 15 min) → small popup appears: "Split at HH:MM" with 4 colored mode choices. User selects the mode for the new segment.
-- **D-05:** Click an existing block → popup shows the period's time range, current mode, [Change mode] and [Delete] buttons. Delete merges the block into the left (preceding) neighbor — preceding period expands to fill.
-- **D-06:** Drag the border between two adjacent blocks to adjust the transition time. A tooltip shows the exact time (HH:MM) during drag. No save fires during drag — save fires on mouse-up.
-- **D-07:** [Copy] and [Paste] buttons on the right of each day row. [Copy] stores that day's schedule in panel-local clipboard state. [Paste] on any other day applies the copied schedule. One-click-per-target — no dropdown.
+- **D-01:** Per-day time program schema —
+  `{"mon": [...], "tue": [...], "wed": [...], "thu": [...], "fri": [...], "sat": [...], "sun": [...]}`
+  — replaces the Phase 2 `weekday_groups` structure. Each day holds an
+  independent list of periods
+  `[{"start": "HH:MM", "mode": "<period_mode>"}, ...]`. Both the global time
+  program and per-room overrides use this format. Applies to person presence
+  schedules too.
+- **D-02:** Visual 24h bar editor — all 7 days stacked vertically, one colored
+  bar per row, full week visible at once without tabs or scrolling.
+- **D-03:** Period colors: Frost protection = deep blue, Reduced = light blue,
+  Normal = orange, Comfort = red. Presence schedule: Present = green, Absent =
+  gray.
+- **D-04:** Click anywhere on the bar → splits the existing period at that time
+  (snaps to nearest 15 min) → small popup appears: "Split at HH:MM" with 4
+  colored mode choices. User selects the mode for the new segment.
+- **D-05:** Click an existing block → popup shows the period's time range,
+  current mode, [Change mode] and [Delete] buttons. Delete merges the block into
+  the left (preceding) neighbor — preceding period expands to fill.
+- **D-06:** Drag the border between two adjacent blocks to adjust the transition
+  time. A tooltip shows the exact time (HH:MM) during drag. No save fires during
+  drag — save fires on mouse-up.
+- **D-07:** [Copy] and [Paste] buttons on the right of each day row. [Copy]
+  stores that day's schedule in panel-local clipboard state. [Paste] on any
+  other day applies the copied schedule. One-click-per-target — no dropdown.
 
 ### Save Model
 
-- **D-08:** Auto-save on every field change — no explicit Save button anywhere in the panel. Every global mode switch, temperature input, presence mode change, room override toggle, and person/room association change fires a WebSocket save command immediately.
-- **D-09:** Time program bar saves on interaction end, not during editing: mouse-up after a drag, popup close after a split/edit/delete, paste button click. This prevents flooding the WebSocket with intermediate states during a drag.
-- **D-10:** Save feedback via toast/snackbar: "✓ Saved" (appears briefly then fades) on success. "✗ Save failed — retrying..." on error. Non-blocking — matches HA's own notification style.
-- **D-11:** No "Applied" confirmation after the coordinator pushes to TRVs. Save confirmation is sufficient — the coordinator re-evaluates within the next poll cycle.
+- **D-08:** Auto-save on every field change — no explicit Save button anywhere
+  in the panel. Every global mode switch, temperature input, presence mode
+  change, room override toggle, and person/room association change fires a
+  WebSocket save command immediately.
+- **D-09:** Time program bar saves on interaction end, not during editing:
+  mouse-up after a drag, popup close after a split/edit/delete, paste button
+  click. This prevents flooding the WebSocket with intermediate states during a
+  drag.
+- **D-10:** Save feedback via toast/snackbar: "✓ Saved" (appears briefly then
+  fades) on success. "✗ Save failed — retrying..." on error. Non-blocking —
+  matches HA's own notification style.
+- **D-11:** No "Applied" confirmation after the coordinator pushes to TRVs. Save
+  confirmation is sufficient — the coordinator re-evaluates within the next poll
+  cycle.
 
 ### Panel Navigation
 
-- **D-12 (updated 2026-05-21):** Top-level navigation: three tabs — `[Overview]` `[Rooms]` `[Persons]`. Tab formerly called "Global Settings" is now "Overview". Standard HA tab pattern.
-- **D-13 (updated 2026-05-21):** Global Settings tab layout — three cards in order:
-  1. **Current Status** (read-only) — current global mode, active period name + end time, present persons with green dots.
-  2. **Temperatures** — the 4 period temperature inputs (Frost protection, Reduced, Normal, Comfort). Card title is exactly "Temperatures" (not "Default temperatures" or similar).
+- **D-12 (updated 2026-05-21):** Top-level navigation: three tabs — `[Overview]`
+  `[Rooms]` `[Persons]`. Tab formerly called "Global Settings" is now
+  "Overview". Standard HA tab pattern.
+- **D-13 (updated 2026-05-21):** Global Settings tab layout — three cards in
+  order:
+  1. **Current Status** (read-only) — current global mode, active period name +
+     end time, present persons with green dots.
+  2. **Temperatures** — the 4 period temperature inputs (Frost protection,
+     Reduced, Normal, Comfort). Card title is exactly "Temperatures" (not
+     "Default temperatures" or similar).
   3. **Configuration** — mode selector dropdown + global time program editor.
-- **D-14:** Rooms tab: expandable cards per room. Collapsed card shows room name + mode badge. Expanded card shows: associated TRV entity IDs, a 3-option room mode selector, and (when Custom mode is selected) the inline 7-bar editor. Room cards with a custom time program are expanded by default; all others are collapsed by default. See D-20 for the full room mode specification.
-- **D-14c (room card status — updated 2026-05-26):** The room card header has two rows:
-  - **Row 1 (`card-header-top`):** `[room name]  [period badge]  [room mode badge]` — period badge comes first (global state leads), room mode badge follows. Period badge uses `PERIOD_COLORS[active_period]` as background with white text; content = period name + temperature (e.g., "Normal · 19°C"). Room mode badge unchanged.
-  - **Row 2 (status line):** compact 3-item line — 🌡 temperature · 💧 humidity · 👥 persons. The clock-outline + active period item is **removed** from row 2 (it moved to row 1). If temperature or humidity has no data, show "—".
+- **D-14:** Rooms tab: expandable cards per room. Collapsed card shows room
+  name + mode badge. Expanded card shows: associated TRV entity IDs, a 3-option
+  room mode selector, and (when Custom mode is selected) the inline 7-bar
+  editor. Room cards with a custom time program are expanded by default; all
+  others are collapsed by default. See D-20 for the full room mode
+  specification.
+- **D-14c (room card status — updated 2026-05-26):** The room card header has
+  two rows:
+
+  - **Row 1 (`card-header-top`):**
+    `[room name]  [period badge]  [room mode badge]` — period badge comes first
+    (global state leads), room mode badge follows. Period badge uses
+    `PERIOD_COLORS[active_period]` as background with white text; content =
+    period name + temperature (e.g., "Normal · 19°C"). Room mode badge
+    unchanged.
+  - **Row 2 (status line):** compact 3-item line — 🌡 temperature · 💧 humidity
+    · 👥 persons. The clock-outline + active period item is **removed** from row
+    2 (it moved to row 1). If temperature or humidity has no data, show "—".
 
   **Period badge special cases:**
-  - Room mode `"frost_protection"` → **no period badge** (the mode badge already conveys the state in its deep-blue color).
-  - Global mode `"off"` → gray badge showing "Off" (use `--secondary-background-color` / `--secondary-text-color`); room mode badge still appears after it.
 
-  The `.status-row` inside the expanded `.card-content` section is **removed** to avoid duplication — the header is the single source of status.
-- **D-14d (room card person count — updated 2026-05-26):** Person count is the 3rd item in the status line (row 2), after temperature and humidity. Uses `mdi:account-group` icon + integer count. Shows "0" when no persons are assigned. Data source: `_getAssignedPersonIds().length`. In presence mode, shows `present/total` format. This is assignment count, not real-time presence (present persons remain on the Global Settings tab per D-18).
-- **D-32 (period badge in room card header — added 2026-05-26):** Formalises the period badge decision. Row 1 badge order: period badge first, room mode badge second. Period badge: `PERIOD_COLORS[active_period]` background, white text, content = `${PERIOD_DISPLAY_NAMES[period]} · ${temp}°C`. Exception: no period badge when room mode is `"frost_protection"`. Off mode: gray `"Off"` badge. Status line (row 2) drops the clock-outline period item and becomes 3 items only (temp / humidity / persons).
+  - Room mode `"frost_protection"` → **no period badge** (the mode badge already
+    conveys the state in its deep-blue color).
+  - Global mode `"off"` → gray badge showing "Off" (use
+    `--secondary-background-color` / `--secondary-text-color`); room mode badge
+    still appears after it.
 
-- **D-14a (ordering — updated 2026-05-20):** Rooms are ordered by floor then room name, matching the HA climate panel. Floor names appear as section headers between floor groups (e.g. "Ground floor", "First floor"). Floors are ordered by their `level` field from `hass.floors` (ascending integer). Within a floor, rooms are sorted alphabetically by name. Rooms with no floor assignment appear after all floored rooms, in alphabetical order, without a section header. This replaces the previous custom-program-first ordering — program type no longer affects sort position.
-- **D-14b (data source — Claude's discretion):** Floor and area data comes from `hass.areas` (each area has a `floor_id` field) and `hass.floors` (each floor has `floor_id`, `name`, `level`). No backend changes needed — all ordering is done in `rooms-tab.ts`. The `Hass` TypeScript interface must be extended with `areas: Record<string, { area_id: string; name: string; floor_id: string | null }>` and `floors: Record<string, { floor_id: string; name: string; level: number }>`.
-- **D-15 (updated 2026-05-21):** Persons tab: expandable cards per person. **All cards are always collapsed by default** — the previous "expanded if non-default" rule is removed.
+  The `.status-row` inside the expanded `.card-content` section is **removed**
+  to avoid duplication — the header is the single source of status.
+
+- **D-14d (room card person count — updated 2026-05-26):** Person count is the
+  3rd item in the status line (row 2), after temperature and humidity. Uses
+  `mdi:account-group` icon + integer count. Shows "0" when no persons are
+  assigned. Data source: `_getAssignedPersonIds().length`. In presence mode,
+  shows `present/total` format. This is assignment count, not real-time presence
+  (present persons remain on the Global Settings tab per D-18).
+- **D-32 (period badge in room card header — added 2026-05-26):** Formalises the
+  period badge decision. Row 1 badge order: period badge first, room mode badge
+  second. Period badge: `PERIOD_COLORS[active_period]` background, white text,
+  content = `${PERIOD_DISPLAY_NAMES[period]} · ${temp}°C`. Exception: no period
+  badge when room mode is `"frost_protection"`. Off mode: gray `"Off"` badge.
+  Status line (row 2) drops the clock-outline period item and becomes 3 items
+  only (temp / humidity / persons).
+
+- **D-14a (ordering — updated 2026-05-20):** Rooms are ordered by floor then
+  room name, matching the HA climate panel. Floor names appear as section
+  headers between floor groups (e.g. "Ground floor", "First floor"). Floors are
+  ordered by their `level` field from `hass.floors` (ascending integer). Within
+  a floor, rooms are sorted alphabetically by name. Rooms with no floor
+  assignment appear after all floored rooms, in alphabetical order, without a
+  section header. This replaces the previous custom-program-first ordering —
+  program type no longer affects sort position.
+- **D-14b (data source — Claude's discretion):** Floor and area data comes from
+  `hass.areas` (each area has a `floor_id` field) and `hass.floors` (each floor
+  has `floor_id`, `name`, `level`). No backend changes needed — all ordering is
+  done in `rooms-tab.ts`. The `Hass` TypeScript interface must be extended with
+  `areas: Record<string, { area_id: string; name: string; floor_id: string | null }>`
+  and
+  `floors: Record<string, { floor_id: string; name: string; level: number }>`.
+- **D-15 (updated 2026-05-21):** Persons tab: expandable cards per person. **All
+  cards are always collapsed by default** — the previous "expanded if
+  non-default" rule is removed.
 
   **Card header (collapsed state)** shows three elements in order:
-  1. Person name
-  2. Mode badge — shows current mode: "Scheduled", "HA", "Force Present", "Force Absent"
-  3. Presence status dot — green (●) if currently present, gray (●) if absent. Derived from `status.present_persons.includes(personId)` (status pushed by subscribe_status). `status: StatusPayload | null` prop added to `person-card`; `persons-tab` passes `.status=${this.status}` to each card.
 
-  **Card expanded state** shows: presence mode selector (4 options), room association chips, and the presence schedule bar editor (same 7-bar format, Present=green and Absent=gray — only visible when mode is "Scheduled").
+  1. Person name
+  2. Mode badge — shows current mode: "Scheduled", "HA", "Force Present", "Force
+     Absent"
+  3. Presence status dot — green (●) if currently present, gray (●) if absent.
+     Derived from `status.present_persons.includes(personId)` (status pushed by
+     subscribe_status). `status: StatusPayload | null` prop added to
+     `person-card`; `persons-tab` passes `.status=${this.status}` to each card.
+
+  **Card expanded state** shows: presence mode selector (4 options), room
+  association chips, and the presence schedule bar editor (same 7-bar format,
+  Present=green and Absent=gray — only visible when mode is "Scheduled").
 
 ### Room Status & Sensor Configuration
 
-- **D-16 (revised 2026-05-20):** The room card does NOT expose sensor configuration fields. Sensor assignment is HA's responsibility, not Climate Manager's. Sensors are designated in HA Settings → Areas → [Room] → Temperature entity / Humidity entity. The `AreaEntry.temperature_entity_id` and `.humidity_entity_id` fields (introduced in HA 2026.5, confirmed present in production at `core.area_registry`) are the authoritative source. The `RoomConfig.temperature_sensor` / `.humidity_sensor` storage fields are removed — no manual sensor override via the panel.
-- **D-17 (revised 2026-05-20):** Backend priority chain for room header temperature and humidity (applied in both `ws_get_status` in `websocket.py` and `_build_status_payload` in `coordinator.py`):
-  1. `AreaEntry.temperature_entity_id` / `.humidity_entity_id` from HA area registry — use `getattr(area, 'temperature_entity_id', None)` to handle older HA dev venv gracefully.
-  2. Fallback: auto-discovered sensor from `room_auto_sensors` (`discover_room_sensors` result).
-  3. Temperature-only last resort: TRV `current_temperature` attribute (no humidity fallback from TRV).
+- **D-16 (revised 2026-05-20):** The room card does NOT expose sensor
+  configuration fields. Sensor assignment is HA's responsibility, not Climate
+  Manager's. Sensors are designated in HA Settings → Areas → [Room] →
+  Temperature entity / Humidity entity. The `AreaEntry.temperature_entity_id`
+  and `.humidity_entity_id` fields (introduced in HA 2026.5, confirmed present
+  in production at `core.area_registry`) are the authoritative source. The
+  `RoomConfig.temperature_sensor` / `.humidity_sensor` storage fields are
+  removed — no manual sensor override via the panel.
+- **D-17 (revised 2026-05-20):** Backend priority chain for room header
+  temperature and humidity (applied in both `ws_get_status` in `websocket.py`
+  and `_build_status_payload` in `coordinator.py`):
+  1. `AreaEntry.temperature_entity_id` / `.humidity_entity_id` from HA area
+     registry — use `getattr(area, 'temperature_entity_id', None)` to handle
+     older HA dev venv gracefully.
+  2. Fallback: auto-discovered sensor from `room_auto_sensors`
+     (`discover_room_sensors` result).
+  3. Temperature-only last resort: TRV `current_temperature` attribute (no
+     humidity fallback from TRV).
   4. No data: return key absent from the room entry → frontend shows "—".
-- **D-18:** Present persons shown only on the Global Settings tab (in the Current Status section). Not duplicated on the Rooms tab.
+- **D-18:** Present persons shown only on the Global Settings tab (in the
+  Current Status section). Not duplicated on the Rooms tab.
 
 ### Per-Room Mode
 
-- **D-20 (added 2026-05-21):** Each room has an independent mode selector with 3 values, stored as `rooms[area_id].room_mode`:
-  - **`"global"` (default)** — Room follows the global mode exactly (current default behavior). Default is sparse — absent key means `"global"`.
-  - **`"frost_protection"`** — Room ignores the global program entirely. The coordinator holds `period_temperatures["frost_protection"]` (from the configurable Temperatures card, not hardcoded) for all TRVs in this room, permanently.
-  - **`"custom"`** — Room has its own independent time program in `rooms[area_id].time_program`. When the user first switches a room to Custom mode (i.e., no `time_program` exists in the room's stored config), the current `global_time_program` is one-time copied into `rooms[area_id].time_program` as initial values. After that, the room program is fully independent — subsequent global program changes have no effect on it.
+- **D-20 (added 2026-05-21):** Each room has an independent mode selector with 3
+  values, stored as `rooms[area_id].room_mode`:
 
-  **Coordinator changes:** For each room, read `room_mode = room_config.get("room_mode", "global")`. Branch:
-    - `"frost_protection"`: push `period_temperatures[PERIOD_FROST_PROTECTION]` directly, no schedule evaluation.
-    - `"global"`: use global time program (current default path — no code change for this branch).
-    - `"custom"`: use `room_config["time_program"]` (same as existing override behavior).
+  - **`"global"` (default)** — Room follows the global mode exactly (current
+    default behavior). Default is sparse — absent key means `"global"`.
+  - **`"frost_protection"`** — Room ignores the global program entirely. The
+    coordinator holds `period_temperatures["frost_protection"]` (from the
+    configurable Temperatures card, not hardcoded) for all TRVs in this room,
+    permanently.
+  - **`"custom"`** — Room has its own independent time program in
+    `rooms[area_id].time_program`. When the user first switches a room to Custom
+    mode (i.e., no `time_program` exists in the room's stored config), the
+    current `global_time_program` is one-time copied into
+    `rooms[area_id].time_program` as initial values. After that, the room
+    program is fully independent — subsequent global program changes have no
+    effect on it.
 
-  **Panel UI:** Replaces the "Override global time program" toggle in the expanded room card with a 3-option mode selector (native `<select>` — ha-select is broken in HA 2026.x). Selecting Custom reveals the inline 7-bar editor. When switching to Custom, the frontend sends only `{ room_mode: "custom" }` — no `time_program` key. The backend auto-seeds from `global_time_program` if the room has no existing custom program (see D-31).
+  **Coordinator changes:** For each room, read
+  `room_mode = room_config.get("room_mode", "global")`. Branch:
+
+  - `"frost_protection"`: push `period_temperatures[PERIOD_FROST_PROTECTION]`
+    directly, no schedule evaluation.
+  - `"global"`: use global time program (current default path — no code change
+    for this branch).
+  - `"custom"`: use `room_config["time_program"]` (same as existing override
+    behavior).
+
+  **Panel UI:** Replaces the "Override global time program" toggle in the
+  expanded room card with a 3-option mode selector (native `<select>` —
+  ha-select is broken in HA 2026.x). Selecting Custom reveals the inline 7-bar
+  editor. When switching to Custom, the frontend sends only
+  `{ room_mode: "custom" }` — no `time_program` key. The backend auto-seeds from
+  `global_time_program` if the room has no existing custom program (see D-31).
 
   **Badge text** in collapsed card header:
-    - `"frost_protection"` → badge: **"Frost protection"**
-    - `"global"` → badge: **"Global program"**
-    - `"custom"` → badge: **"Custom program"**
 
-  **Storage key added to `const.py`:** `ROOM_MODE_GLOBAL = "global"`, `ROOM_MODE_FROST = "frost_protection"`, `ROOM_MODE_CUSTOM = "custom"`.
+  - `"frost_protection"` → badge: **"Frost protection"**
+  - `"global"` → badge: **"Global program"**
+  - `"custom"` → badge: **"Custom program"**
+
+  **Storage key added to `const.py`:** `ROOM_MODE_GLOBAL = "global"`,
+  `ROOM_MODE_FROST = "frost_protection"`, `ROOM_MODE_CUSTOM = "custom"`.
 
 ### Presence Modes — Persons
 
-- **D-21 (added 2026-05-21):** Four person presence modes replace the previous three. Stored as `persons[person_id].mode`:
-  - `"scheduled"` — follow the person's periodic presence schedule (was "automatic", already migrated)
-  - `"force_present"` — always present regardless of time or HA state (was "present")
+- **D-21 (added 2026-05-21):** Four person presence modes replace the previous
+  three. Stored as `persons[person_id].mode`:
+
+  - `"scheduled"` — follow the person's periodic presence schedule (was
+    "automatic", already migrated)
+  - `"force_present"` — always present regardless of time or HA state (was
+    "present")
   - `"force_absent"` — always absent (was "absent")
-  - `"ha"` — presence is driven by HA's internal person entity: present when `hass.states[person_entity_id].state === "home"`, absent for all other states (`"not_home"`, zone names, `"unknown"`, `"unavailable"`).
+  - `"ha"` — presence is driven by HA's internal person entity: present when
+    `hass.states[person_entity_id].state === "home"`, absent for all other
+    states (`"not_home"`, zone names, `"unknown"`, `"unavailable"`).
 
-  **Backend (`const.py`):** `PRESENCE_PRESENT = "force_present"`, `PRESENCE_ABSENT = "force_absent"`, add `PRESENCE_HA = "ha"`. `PRESENCE_AUTOMATIC = "scheduled"` already in place.
+  **Backend (`const.py`):** `PRESENCE_PRESENT = "force_present"`,
+  `PRESENCE_ABSENT = "force_absent"`, add `PRESENCE_HA = "ha"`.
+  `PRESENCE_AUTOMATIC = "scheduled"` already in place.
 
-  **Backend (`schedule.py` `resolve_presence()`):** Update to use `PRESENCE_PRESENT = "force_present"` and `PRESENCE_ABSENT = "force_absent"`. HA mode (`"ha"`) is NOT handled in `resolve_presence()` — it's handled upstream in the coordinator, keeping the function pure (no `hass` param).
+  **Backend (`schedule.py` `resolve_presence()`):** Update to use
+  `PRESENCE_PRESENT = "force_present"` and `PRESENCE_ABSENT = "force_absent"`.
+  HA mode (`"ha"`) is NOT handled in `resolve_presence()` — it's handled
+  upstream in the coordinator, keeping the function pure (no `hass` param).
 
-  **Backend (`coordinator.py` `_compute_present_persons()`):** Add `ha` mode branch: `hass_state = self.hass.states.get(person_id); if hass_state and hass_state.state == "home": present`. Called for all global modes to populate `_last_present_persons` for status display and TRV control.
+  **Backend (`coordinator.py` `_compute_present_persons()`):** Add `ha` mode
+  branch:
+  `hass_state = self.hass.states.get(person_id); if hass_state and hass_state.state == "home": present`.
+  Called for all global modes to populate `_last_present_persons` for status
+  display and TRV control.
 
-  **Storage migration (`storage.py`):** On load, iterate `persons` and rename `"mode": "present"` → `"force_present"`, `"mode": "absent"` → `"force_absent"`. Analogous to the `"automatic"` → `"scheduled"` migration already in place.
+  **Storage migration (`storage.py`):** On load, iterate `persons` and rename
+  `"mode": "present"` → `"force_present"`, `"mode": "absent"` →
+  `"force_absent"`. Analogous to the `"automatic"` → `"scheduled"` migration
+  already in place.
 
-  **Frontend (`person-card.ts`):** `PRESENCE_MODE_PRESENT = "force_present"`, `PRESENCE_MODE_ABSENT = "force_absent"`, add `PRESENCE_MODE_HA = "ha"`. Add 4th option to mode selector dropdown. Badge text: `"force_present"` → "Force Present", `"force_absent"` → "Force Absent", `"ha"` → "HA".
+  **Frontend (`person-card.ts`):** `PRESENCE_MODE_PRESENT = "force_present"`,
+  `PRESENCE_MODE_ABSENT = "force_absent"`, add `PRESENCE_MODE_HA = "ha"`. Add
+  4th option to mode selector dropdown. Badge text: `"force_present"` → "Force
+  Present", `"force_absent"` → "Force Absent", `"ha"` → "HA".
 
-- **D-22 (updated 2026-05-26):** Scheduled mode default schedule — owned entirely by the backend (see D-31). Two backend commands handle this:
-  - `set_person_config(mode="scheduled")` — if the person has no existing schedule, the backend auto-seeds the default schedule before saving. Frontend sends only `{ mode: "scheduled" }`.
-  - `reset_person_to_default_schedule` — new WS command called by the "Reset to default" button. Backend applies the canonical default and saves. Frontend sends command + `person_id`, then calls `reloadConfig()` and shows toast.
+- **D-22 (updated 2026-05-26):** Scheduled mode default schedule — owned
+  entirely by the backend (see D-31). Two backend commands handle this:
 
-  Default schedule lives in `const.py` (e.g. `DEFAULT_PRESENCE_SCHEDULE`), not in the frontend. `DEFAULT_SCHEDULE` is removed from `person-card.ts`.
+  - `set_person_config(mode="scheduled")` — if the person has no existing
+    schedule, the backend auto-seeds the default schedule before saving.
+    Frontend sends only `{ mode: "scheduled" }`.
+  - `reset_person_to_default_schedule` — new WS command called by the "Reset to
+    default" button. Backend applies the canonical default and saves. Frontend
+    sends command + `person_id`, then calls `reloadConfig()` and shows toast.
+
+  Default schedule lives in `const.py` (e.g. `DEFAULT_PRESENCE_SCHEDULE`), not
+  in the frontend. `DEFAULT_SCHEDULE` is removed from `person-card.ts`.
 
 ### Assignment Picker
 
-- **D-19 (added 2026-05-21):** Adding a person to a room (room card) and adding a room to a person (person card) both use a shared search-picker component — a floating popup with a search field + scrollable list, matching HA's native entity picker style. The current `<select>` dropdown is replaced.
-  - **Trigger:** Same "+" chip button as today — clicking it opens the popup overlay.
-  - **Person items** (in room card picker): person name (bold) + presence state as secondary text (e.g. "Home" / "Away" — from `hass.states[personId].state`).
-  - **Room items** (in person card picker): room name (bold) + floor name as secondary text (e.g. "Ground floor" — from `hass.floors[area.floor_id].name`; omit if no floor assigned).
-  - **Shared component:** One Lit component (e.g. `search-picker.ts`) parameterised with `items: Array<{id, label, secondary?, icon?}>`. Reused in both `room-card.ts` and `person-card.ts`.
-  - **ha-select is broken in HA 2026.x** — implementation uses a native `<input type="text">` for search and a custom `<ul>` list, not any `ha-*` select component.
-  - Items already assigned are excluded from the picker list (same logic as current `<select>` filtering).
+- **D-19 (added 2026-05-21):** Adding a person to a room (room card) and adding
+  a room to a person (person card) both use a shared search-picker component — a
+  floating popup with a search field + scrollable list, matching HA's native
+  entity picker style. The current `<select>` dropdown is replaced.
+  - **Trigger:** Same "+" chip button as today — clicking it opens the popup
+    overlay.
+  - **Person items** (in room card picker): person name (bold) + presence state
+    as secondary text (e.g. "Home" / "Away" — from
+    `hass.states[personId].state`).
+  - **Room items** (in person card picker): room name (bold) + floor name as
+    secondary text (e.g. "Ground floor" — from
+    `hass.floors[area.floor_id].name`; omit if no floor assigned).
+  - **Shared component:** One Lit component (e.g. `search-picker.ts`)
+    parameterised with `items: Array<{id, label, secondary?, icon?}>`. Reused in
+    both `room-card.ts` and `person-card.ts`.
+  - **ha-select is broken in HA 2026.x** — implementation uses a native
+    `<input type="text">` for search and a custom `<ul>` list, not any `ha-*`
+    select component.
+  - Items already assigned are excluded from the picker list (same logic as
+    current `<select>` filtering).
 
 ### Frontend/Backend Separation Policy (added 2026-05-21, updated 2026-05-26)
 
-- **D-23 (architectural rule):** "All logic in backend" means: business logic (schedule evaluation, temperature derivation, mode resolution, presence determination) and any display-computed values that require backend data joins (e.g., per-room present-person count). **Acceptable in frontend:** UI state management (filtering picker items, sorting lists for display, array manipulation to build a save payload before sending), simple lookup bindings (`.includes()`, `.find()` to bind a label to an ID), template rendering loops.
-- **D-31 (default value rule — added 2026-05-26):** The frontend never owns data defaults. When data needs to come from somewhere outside the user's direct input (a default value, a copy of another config section, a derived value), a dedicated backend WS command handles it. The frontend: (a) relays user input directly — typed values, user selections; (b) calls dedicated backend commands for seeding/resetting/deriving operations. The frontend must NOT: hardcode data constants (schedules, temperatures, programs), deep-copy config data between sections, derive values that require knowledge of other config. Exception: pure UI-state defaults (which tab is active, which card is expanded) are always frontend-owned.
-- **D-24:** `rooms_status` entries in both `ws_get_status` (`websocket.py`) and `_build_status_payload` (`coordinator.py`) include a `present_person_count: int` field. Computed as: the number of persons assigned to the room (from `runtime_config.persons`, checking `person_config.get("room_ids", [])` contains `area_id`) that also appear in `_last_present_persons`. Frontend binds `status.present_person_count` directly — no array intersection in TS.
-- **D-25:** The list of available climate entities is provided by the backend. `get_config` response (or a new `get_climate_entities` command if `get_config` becomes too heavy) includes a `climate_entities: list[str]` key — all `climate.*` entity IDs discovered in HA. Frontend does NOT filter `hass.states` by domain to build the TRV picker. Backend discovery already reads HA entity registry; exposing the list via WebSocket is a small addition.
+- **D-23 (architectural rule):** "All logic in backend" means: business logic
+  (schedule evaluation, temperature derivation, mode resolution, presence
+  determination) and any display-computed values that require backend data joins
+  (e.g., per-room present-person count). **Acceptable in frontend:** UI state
+  management (filtering picker items, sorting lists for display, array
+  manipulation to build a save payload before sending), simple lookup bindings
+  (`.includes()`, `.find()` to bind a label to an ID), template rendering loops.
+- **D-31 (default value rule — added 2026-05-26):** The frontend never owns data
+  defaults. When data needs to come from somewhere outside the user's direct
+  input (a default value, a copy of another config section, a derived value), a
+  dedicated backend WS command handles it. The frontend: (a) relays user input
+  directly — typed values, user selections; (b) calls dedicated backend commands
+  for seeding/resetting/deriving operations. The frontend must NOT: hardcode
+  data constants (schedules, temperatures, programs), deep-copy config data
+  between sections, derive values that require knowledge of other config.
+  Exception: pure UI-state defaults (which tab is active, which card is
+  expanded) are always frontend-owned.
+- **D-24:** `rooms_status` entries in both `ws_get_status` (`websocket.py`) and
+  `_build_status_payload` (`coordinator.py`) include a
+  `present_person_count: int` field. Computed as: the number of persons assigned
+  to the room (from `runtime_config.persons`, checking
+  `person_config.get("room_ids", [])` contains `area_id`) that also appear in
+  `_last_present_persons`. Frontend binds `status.present_person_count` directly
+  — no array intersection in TS.
+- **D-25:** The list of available climate entities is provided by the backend.
+  `get_config` response (or a new `get_climate_entities` command if `get_config`
+  becomes too heavy) includes a `climate_entities: list[str]` key — all
+  `climate.*` entity IDs discovered in HA. Frontend does NOT filter
+  `hass.states` by domain to build the TRV picker. Backend discovery already
+  reads HA entity registry; exposing the list via WebSocket is a small addition.
 
 ### Styling Policy (added 2026-05-21)
 
-- **D-26:** Period colors and presence schedule colors are defined **once** as exported const objects in `frontend/src/types.ts`:
+- **D-26:** Period colors and presence schedule colors are defined **once** as
+  exported const objects in `frontend/src/types.ts`:
   - `PERIOD_COLORS: Record<string, string> = { frost_protection: '#1565C0', reduced: '#0277BD', normal: '#2E7D32', comfort: '#E65100' }`
   - `PRESENCE_COLORS: Record<string, string> = { present: '#2E7D32', absent: '#9E9E9E' }`
-  Components import these — no inline hex literals elsewhere. These are product-specific semantic colors; HA's `--success-color` / `--warning-color` palette does not map cleanly to period semantics.
-- **D-27:** All non-period-badge styling uses HA CSS custom properties. No other hardcoded color or size values anywhere in the panel. Mandatory variables: `--primary-text-color`, `--secondary-text-color`, `--primary-color`, `--card-background-color`, `--secondary-background-color`, `--ha-card-border-radius`, `--divider-color`. Any new element with a custom color must use an HA CSS variable or draw from `PERIOD_COLORS` / `PRESENCE_COLORS`.
+    Components import these — no inline hex literals elsewhere. These are
+    product-specific semantic colors; HA's `--success-color` / `--warning-color`
+    palette does not map cleanly to period semantics.
+- **D-27:** All non-period-badge styling uses HA CSS custom properties. No other
+  hardcoded color or size values anywhere in the panel. Mandatory variables:
+  `--primary-text-color`, `--secondary-text-color`, `--primary-color`,
+  `--card-background-color`, `--secondary-background-color`,
+  `--ha-card-border-radius`, `--divider-color`. Any new element with a custom
+  color must use an HA CSS variable or draw from `PERIOD_COLORS` /
+  `PRESENCE_COLORS`.
 
 ### HA Component Policy (added 2026-05-21)
 
-- **D-28 (default):** Default to `ha-*` and `hui-*` web components — assume they work until a rendering failure is observed during dev or on-device testing. When a component is confirmed broken, fall back to native HTML + HA CSS variables and add a note to this section.
+- **D-28 (default):** Default to `ha-*` and `hui-*` web components — assume they
+  work until a rendering failure is observed during dev or on-device testing.
+  When a component is confirmed broken, fall back to native HTML + HA CSS
+  variables and add a note to this section.
 - **D-29 (confirmed broken in HA 2026.x):**
-  - `ha-select` — does not render slotted items; `.items` API absent. **Fallback:** native `<select>` element styled with HA CSS variables.
-  - `ha-textfield` — renders nothing. **Fallback:** `<input>` + `<label>` + suffix `<span>`, styled with HA CSS variables.
-  - `ha-tabs` / `paper-tab` — removed. **Fallback:** CSS flexbox button row with `--primary-color` underline on active tab (already implemented in the panel header). Specific replacement patterns at Claude's discretion per plan.
-- **D-30:** For popup overlays (time-bar split/edit popup, search-picker dropdown), try `ha-dialog` first. If it does not serve the use case (e.g., modal semantics too heavy for a small positional popup), fall back to a `position:fixed` div with HA CSS `--card-background-color`, `--ha-card-border-radius`, and box-shadow matching HA card style.
+  - `ha-select` — does not render slotted items; `.items` API absent.
+    **Fallback:** native `<select>` element styled with HA CSS variables.
+  - `ha-textfield` — renders nothing. **Fallback:** `<input>` + `<label>` +
+    suffix `<span>`, styled with HA CSS variables.
+  - `ha-tabs` / `paper-tab` — removed. **Fallback:** CSS flexbox button row with
+    `--primary-color` underline on active tab (already implemented in the panel
+    header). Specific replacement patterns at Claude's discretion per plan.
+- **D-30:** For popup overlays (time-bar split/edit popup, search-picker
+  dropdown), try `ha-dialog` first. If it does not serve the use case (e.g.,
+  modal semantics too heavy for a small positional popup), fall back to a
+  `position:fixed` div with HA CSS `--card-background-color`,
+  `--ha-card-border-radius`, and box-shadow matching HA card style.
 
 ### Claude's Discretion
 
-- WebSocket command granularity: whether to use one command per field (e.g., `climate_manager/set_global_mode`) or section-level saves (e.g., `climate_manager/save_global_settings`) — left to the researcher/planner to design the minimal command set that supports auto-save.
-- Frontend build integration: how Vite build output is placed in `custom_components/climate_manager/www/` and how `make deploy` is extended to include a build step — left to the planner.
-- `async_register_panel` signature: verify against current HA source before implementation (noted in STATE.md blockers).
-- Whether Lit is bundled into `panel.js` or uses HA's Lit instance — bundling is safer (avoids version conflicts), noted as the default approach in CLAUDE.md.
+- WebSocket command granularity: whether to use one command per field (e.g.,
+  `climate_manager/set_global_mode`) or section-level saves (e.g.,
+  `climate_manager/save_global_settings`) — left to the researcher/planner to
+  design the minimal command set that supports auto-save.
+- Frontend build integration: how Vite build output is placed in
+  `custom_components/climate_manager/www/` and how `make deploy` is extended to
+  include a build step — left to the planner.
+- `async_register_panel` signature: verify against current HA source before
+  implementation (noted in STATE.md blockers).
+- Whether Lit is bundled into `panel.js` or uses HA's Lit instance — bundling is
+  safer (avoids version conflicts), noted as the default approach in CLAUDE.md.
 
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Phase Requirements & Decisions
-- `specs.md` — Full feature specification: period modes, time program structure, person presence modes, use cases
-- `.planning/PROJECT.md` — Project context, key decisions (heat mode, sparse storage, v1 presence = periodic schedule, SSH deploy)
-- `.planning/REQUIREMENTS.md` — All v1 requirements; Phase 3 scope: UI-01–04, ROOM-01–03, INFRA-01
-- `.planning/phases/02-backend-engines-coordinator/02-CONTEXT.md` — Phase 2 decisions: coordinator, push-on-change, manual override, presence logic
-- `.planning/phases/01-foundation/01-CONTEXT.md` — Phase 1 decisions: storage schema, discovery model (area_id as room key, person.* as person key), D-17/D-18 ordering rules
+
+- `specs.md` — Full feature specification: period modes, time program structure,
+  person presence modes, use cases
+- `.planning/PROJECT.md` — Project context, key decisions (heat mode, sparse
+  storage, v1 presence = periodic schedule, SSH deploy)
+- `.planning/REQUIREMENTS.md` — All v1 requirements; Phase 3 scope: UI-01–04,
+  ROOM-01–03, INFRA-01
+- `.planning/phases/02-backend-engines-coordinator/02-CONTEXT.md` — Phase 2
+  decisions: coordinator, push-on-change, manual override, presence logic
+- `.planning/phases/01-foundation/01-CONTEXT.md` — Phase 1 decisions: storage
+  schema, discovery model (area_id as room key, person.\* as person key),
+  D-17/D-18 ordering rules
 
 ### Phase 2 Backend (Phase 3 reads and writes via these)
-- `custom_components/climate_manager/__init__.py` — `ClimateManagerData`, `entry.runtime_data` pattern, `async_setup_entry` / `async_unload_entry`
-- `custom_components/climate_manager/const.py` — Full v1 schema, `DEFAULT_CONFIG`, period/mode constants
-- `custom_components/climate_manager/coordinator.py` — `ClimateManagerCoordinator.async_evaluate()` — call after config save to apply immediately
-- `custom_components/climate_manager/storage.py` — `ClimateManagerStore.async_save(config)` — Phase 3 WebSocket handlers write via this
-- `custom_components/climate_manager/discovery.py` — `discover_rooms()` / `discover_persons()` — Phase 3 needs their output for panel data
+
+- `custom_components/climate_manager/__init__.py` — `ClimateManagerData`,
+  `entry.runtime_data` pattern, `async_setup_entry` / `async_unload_entry`
+- `custom_components/climate_manager/const.py` — Full v1 schema,
+  `DEFAULT_CONFIG`, period/mode constants
+- `custom_components/climate_manager/coordinator.py` —
+  `ClimateManagerCoordinator.async_evaluate()` — call after config save to apply
+  immediately
+- `custom_components/climate_manager/storage.py` —
+  `ClimateManagerStore.async_save(config)` — Phase 3 WebSocket handlers write
+  via this
+- `custom_components/climate_manager/discovery.py` — `discover_rooms()` /
+  `discover_persons()` — Phase 3 needs their output for panel data
 
 ### Tech Stack & Architecture
-- `CLAUDE.md` — Technology stack: Lit 3.x + TypeScript + Vite for panel, `homeassistant.components.websocket_api` for API, `frontend.async_register_panel` for panel registration, bundled Lit (not shared HA instance)
+
+- `CLAUDE.md` — Technology stack: Lit 3.x + TypeScript + Vite for panel,
+  `homeassistant.components.websocket_api` for API,
+  `frontend.async_register_panel` for panel registration, bundled Lit (not
+  shared HA instance)
 - `.planning/research/STACK.md` — Full stack rationale (if exists)
-- `.planning/research/PITFALLS.md` — Critical pitfalls including ghost listeners (Pitfall 1), blocking I/O (Pitfall 2)
+- `.planning/research/PITFALLS.md` — Critical pitfalls including ghost listeners
+  (Pitfall 1), blocking I/O (Pitfall 2)
 
 ### HA Developer APIs
-- HA Developer Docs: `homeassistant.components.websocket_api` — custom WebSocket command registration
-- HA Developer Docs: `frontend.async_register_panel` — Lovelace panel registration (`module_url`, sidebar config)
-- HA Developer Docs: `hass.states.get(entity_id)` — reading sensor/person entity states for live status
-- `home-assistant-js-websocket` — panel-side WebSocket client (`hass.connection.subscribeMessage`, `sendMessagePromise`)
+
+- HA Developer Docs: `homeassistant.components.websocket_api` — custom WebSocket
+  command registration
+- HA Developer Docs: `frontend.async_register_panel` — Lovelace panel
+  registration (`module_url`, sidebar config)
+- HA Developer Docs: `hass.states.get(entity_id)` — reading sensor/person entity
+  states for live status
+- `home-assistant-js-websocket` — panel-side WebSocket client
+  (`hass.connection.subscribeMessage`, `sendMessagePromise`)
 
 </canonical_refs>
 
 <code_context>
+
 ## Existing Code Insights
 
 ### Reusable Assets
-- `ClimateManagerStore.async_save(config)` — Phase 3 WebSocket handlers call this after any mutation to persist. Already handles deep-merge and sparse storage.
-- `ClimateManagerCoordinator.async_evaluate()` — Call after saving config to trigger an immediate re-evaluation (rather than waiting for the next minute poll).
-- `entry.runtime_data.runtime_config` — The in-memory merged config dict. WebSocket read handlers return slices of this; write handlers mutate it and call `async_save`.
-- `discover_rooms(hass)` and `discover_persons(hass)` — Already implemented. Phase 3 calls these on panel load to populate the rooms/persons lists.
+
+- `ClimateManagerStore.async_save(config)` — Phase 3 WebSocket handlers call
+  this after any mutation to persist. Already handles deep-merge and sparse
+  storage.
+- `ClimateManagerCoordinator.async_evaluate()` — Call after saving config to
+  trigger an immediate re-evaluation (rather than waiting for the next minute
+  poll).
+- `entry.runtime_data.runtime_config` — The in-memory merged config dict.
+  WebSocket read handlers return slices of this; write handlers mutate it and
+  call `async_save`.
+- `discover_rooms(hass)` and `discover_persons(hass)` — Already implemented.
+  Phase 3 calls these on panel load to populate the rooms/persons lists.
 
 ### Established Patterns
-- **Sparse storage**: Only store non-default values. WebSocket save handlers must preserve this — read current stored data, apply the mutation, write back. Never write full DEFAULT_CONFIG with every save.
-- **`entry.runtime_data` as integration spine**: WebSocket handlers access all state via `entry.runtime_data`. No global `hass.data` dict.
-- **Discovery = source of truth for structure**: Room and person identity comes from HA registries (area_id, person.* entity_id). Storage only holds configuration deltas.
-- **Two-call TRV control**: Already in `trv.set_trv_temperature()`. Phase 3 does not call this directly — it mutates config and lets the coordinator push.
+
+- **Sparse storage**: Only store non-default values. WebSocket save handlers
+  must preserve this — read current stored data, apply the mutation, write back.
+  Never write full DEFAULT_CONFIG with every save.
+- **`entry.runtime_data` as integration spine**: WebSocket handlers access all
+  state via `entry.runtime_data`. No global `hass.data` dict.
+- **Discovery = source of truth for structure**: Room and person identity comes
+  from HA registries (area_id, person.\* entity_id). Storage only holds
+  configuration deltas.
+- **Two-call TRV control**: Already in `trv.set_trv_temperature()`. Phase 3 does
+  not call this directly — it mutates config and lets the coordinator push.
 
 ### Integration Points
-- `_getAssignedPersonIds()` in `room-card.ts` — already computes persons assigned to a room; use `.length` for D-14d person count without new data fetching.
-- `_renderHeaderStatus()` in `room-card.ts` — currently renders 4-item status line including clock-outline + period. D-32 requires: (1) add period badge to row 1 `card-header-top` (before mode badge), (2) remove period item from status line → 3-item line. `periodDisplay` logic already guards for `globalMode === "off"` (returns "Off") and `PERIOD_DISPLAY_NAMES` lookup. Reuse that logic for the badge; add `PERIOD_COLORS[active_period]` as inline background style.
-- `PERIOD_COLORS` / `PERIOD_DISPLAY_NAMES` in `frontend/src/types.ts` — already defined and imported in `room-card.ts`. Period badge uses both constants.
-- Current add-person picker in `room-card.ts` and add-room picker in `person-card.ts` both use a native `<select>` — D-19 replaces both with the shared `search-picker` component.
-- Room card "Override global time program" toggle in `room-card.ts` — D-20 replaces this boolean toggle with a 3-option `<select>` for room mode. The coordinator's `_evaluate_time_program` loop in `coordinator.py` needs a new branch for `room_mode == "frost_protection"` that pushes `period_temperatures[PERIOD_FROST_PROTECTION]` directly without schedule evaluation. `const.py` gains `ROOM_MODE_GLOBAL`, `ROOM_MODE_FROST`, `ROOM_MODE_CUSTOM` constants.
-- `async_setup_entry` in `__init__.py` — Phase 3 adds WebSocket command registration and `async_register_panel` call here.
-- `async_unload_entry` in `__init__.py` — WebSocket commands auto-unregister with the config entry; no explicit cleanup needed.
-- `ClimateManagerData` dataclass — May need a `rooms_meta` field or similar to cache discovered room sensor associations; or discovery can be called inline per WebSocket request.
-- The per-day schema refactor (pre-condition) changes `const.py`'s `DEFAULT_CONFIG` shape and `schedule.py`'s evaluation logic — all Phase 3 code is written against the refactored schema.
-- **`frontend/src/types.ts` `Hass` interface** — Must be extended with `areas` and `floors` registry maps for floor-based room ordering (D-14b). `hass.areas[area_id].floor_id` is null for unassigned areas; guard for this in sort logic.
-- **`frontend/src/types.ts` `PERIOD_COLORS` / `PRESENCE_COLORS`** — Exported const objects (D-26). All components referencing period or presence badge colors import from here; no inline hex literals.
-- **`rooms_status[].present_person_count`** — New int field in status payload (D-24). `coordinator.py` `_build_status_payload` and `websocket.py` `ws_get_status` both compute it. Room card binds this value directly instead of computing an array intersection in TS.
-- **`get_config` response `climate_entities`** — New list field (D-25). Backend exposes all discovered `climate.*` entity IDs. TRV picker in room card reads this instead of filtering `hass.states` by domain.
+
+- `_getAssignedPersonIds()` in `room-card.ts` — already computes persons
+  assigned to a room; use `.length` for D-14d person count without new data
+  fetching.
+- `_renderHeaderStatus()` in `room-card.ts` — currently renders 4-item status
+  line including clock-outline + period. D-32 requires: (1) add period badge to
+  row 1 `card-header-top` (before mode badge), (2) remove period item from
+  status line → 3-item line. `periodDisplay` logic already guards for
+  `globalMode === "off"` (returns "Off") and `PERIOD_DISPLAY_NAMES` lookup.
+  Reuse that logic for the badge; add `PERIOD_COLORS[active_period]` as inline
+  background style.
+- `PERIOD_COLORS` / `PERIOD_DISPLAY_NAMES` in `frontend/src/types.ts` — already
+  defined and imported in `room-card.ts`. Period badge uses both constants.
+- Current add-person picker in `room-card.ts` and add-room picker in
+  `person-card.ts` both use a native `<select>` — D-19 replaces both with the
+  shared `search-picker` component.
+- Room card "Override global time program" toggle in `room-card.ts` — D-20
+  replaces this boolean toggle with a 3-option `<select>` for room mode. The
+  coordinator's `_evaluate_time_program` loop in `coordinator.py` needs a new
+  branch for `room_mode == "frost_protection"` that pushes
+  `period_temperatures[PERIOD_FROST_PROTECTION]` directly without schedule
+  evaluation. `const.py` gains `ROOM_MODE_GLOBAL`, `ROOM_MODE_FROST`,
+  `ROOM_MODE_CUSTOM` constants.
+- `async_setup_entry` in `__init__.py` — Phase 3 adds WebSocket command
+  registration and `async_register_panel` call here.
+- `async_unload_entry` in `__init__.py` — WebSocket commands auto-unregister
+  with the config entry; no explicit cleanup needed.
+- `ClimateManagerData` dataclass — May need a `rooms_meta` field or similar to
+  cache discovered room sensor associations; or discovery can be called inline
+  per WebSocket request.
+- The per-day schema refactor (pre-condition) changes `const.py`'s
+  `DEFAULT_CONFIG` shape and `schedule.py`'s evaluation logic — all Phase 3 code
+  is written against the refactored schema.
+- **`frontend/src/types.ts` `Hass` interface** — Must be extended with `areas`
+  and `floors` registry maps for floor-based room ordering (D-14b).
+  `hass.areas[area_id].floor_id` is null for unassigned areas; guard for this in
+  sort logic.
+- **`frontend/src/types.ts` `PERIOD_COLORS` / `PRESENCE_COLORS`** — Exported
+  const objects (D-26). All components referencing period or presence badge
+  colors import from here; no inline hex literals.
+- **`rooms_status[].present_person_count`** — New int field in status payload
+  (D-24). `coordinator.py` `_build_status_payload` and `websocket.py`
+  `ws_get_status` both compute it. Room card binds this value directly instead
+  of computing an array intersection in TS.
+- **`get_config` response `climate_entities`** — New list field (D-25). Backend
+  exposes all discovered `climate.*` entity IDs. TRV picker in room card reads
+  this instead of filtering `hass.states` by domain.
 
 </code_context>
 
 <specifics>
 ## Specific Ideas
 
-- **Reference UI**: Tado app uses per-day scheduling — same pattern confirmed by user. The 7-bar stacked layout mirrors Tado's week view.
-- **Interaction model**: The time bar is always fully covered (no gaps — the period before the first defined start implicitly extends from 00:00). Clicking splits the bar; the leftmost block always starts at 00:00.
-- **Tooltip during drag**: Shows exact time in `HH:MM` format (e.g., "10:15") while dragging a period boundary.
-- **Mode popup**: Appears on click (both on empty bar for split, and on existing block for edit/delete). Shows colored squares matching D-03 colors next to each mode name.
-- **Global status strip**: Shows "Active period: Normal (until 22:00)" — period name + end time. Derived from coordinator's last evaluation result.
-- **HA area sensor fields**: All rooms already have `temperature_entity_id` and `humidity_entity_id` set in HA area registry (verified on production HA 2026.5.3 — every managed area has sensors designated). Room card displays these read-only values via the backend priority chain (D-17). No manual input in the panel.
-- **Presence schedule bar**: Uses the same 7-bar component as the time program editor, parameterized for 2 modes (Present/Absent) instead of 4. Green = present, gray = absent.
+- **Reference UI**: Tado app uses per-day scheduling — same pattern confirmed by
+  user. The 7-bar stacked layout mirrors Tado's week view.
+- **Interaction model**: The time bar is always fully covered (no gaps — the
+  period before the first defined start implicitly extends from 00:00). Clicking
+  splits the bar; the leftmost block always starts at 00:00.
+- **Tooltip during drag**: Shows exact time in `HH:MM` format (e.g., "10:15")
+  while dragging a period boundary.
+- **Mode popup**: Appears on click (both on empty bar for split, and on existing
+  block for edit/delete). Shows colored squares matching D-03 colors next to
+  each mode name.
+- **Global status strip**: Shows "Active period: Normal (until 22:00)" — period
+  name + end time. Derived from coordinator's last evaluation result.
+- **HA area sensor fields**: All rooms already have `temperature_entity_id` and
+  `humidity_entity_id` set in HA area registry (verified on production HA
+  2026.5.3 — every managed area has sensors designated). Room card displays
+  these read-only values via the backend priority chain (D-17). No manual input
+  in the panel.
+- **Presence schedule bar**: Uses the same 7-bar component as the time program
+  editor, parameterized for 2 modes (Present/Absent) instead of 4. Green =
+  present, gray = absent.
 
 </specifics>
 
 <deferred>
 ## Deferred Ideas
 
-- **TRV availability indicator** (reachable/unreachable dot per TRV entity) — useful but not in requirements. Deferred to v2 — requires subscribing to each TRV entity state.
-- **Entity picker for sensor fields** — a searchable dropdown of `sensor.*` entities rather than a plain text input. v2 UX improvement.
-- **"Applied" confirmation** — showing "✓ Applied to TRVs" after the coordinator pushes. Decided against (D-11) — save toast is sufficient for v1.
-- **Auto-detect sensors (promoted to implemented)** — superseded by D-17's area registry lookup. Implemented as fallback tier 2 in the priority chain.
+- **TRV availability indicator** (reachable/unreachable dot per TRV entity) —
+  useful but not in requirements. Deferred to v2 — requires subscribing to each
+  TRV entity state.
+- **Entity picker for sensor fields** — a searchable dropdown of `sensor.*`
+  entities rather than a plain text input. v2 UX improvement.
+- **"Applied" confirmation** — showing "✓ Applied to TRVs" after the coordinator
+  pushes. Decided against (D-11) — save toast is sufficient for v1.
+- **Auto-detect sensors (promoted to implemented)** — superseded by D-17's area
+  registry lookup. Implemented as fallback tier 2 in the priority chain.
 
 </deferred>
 
 ---
 
-*Phase: 3-WebSocket API & Frontend Panel*
-*Context gathered: 2026-05-17*
+_Phase: 3-WebSocket API & Frontend Panel_ _Context gathered: 2026-05-17_

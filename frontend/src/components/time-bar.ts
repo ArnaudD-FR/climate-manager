@@ -414,8 +414,8 @@ export class ClimateManagerTimeBar extends LitElement {
   private _colorForPeriod(period: Period): string {
     const key =
       this.mode === "presence"
-        ? (period.state ?? "absent")
-        : (period.mode ?? "frost_protection");
+        ? period.state ?? "absent"
+        : period.mode ?? "frost_protection";
     if (this.mode === "presence") {
       return PRESENCE_COLORS[key] ?? PRESENCE_COLORS["absent"];
     }
@@ -425,8 +425,8 @@ export class ClimateManagerTimeBar extends LitElement {
   private _labelForPeriod(period: Period): string {
     const key =
       this.mode === "presence"
-        ? (period.state ?? "absent")
-        : (period.mode ?? "frost_protection");
+        ? period.state ?? "absent"
+        : period.mode ?? "frost_protection";
     return PERIOD_DISPLAY_NAMES[key] ?? key;
   }
 
@@ -677,8 +677,8 @@ export class ClimateManagerTimeBar extends LitElement {
     const cycle = this.mode === "presence" ? PRESENCE_CYCLE : SCHEDULE_CYCLE;
     const currentType =
       this.mode === "presence"
-        ? (seg.period.state ?? "absent")
-        : (seg.period.mode ?? "frost_protection");
+        ? seg.period.state ?? "absent"
+        : seg.period.mode ?? "frost_protection";
     const currentIdx = cycle.indexOf(currentType);
     const nextType = cycle[(currentIdx + 1) % cycle.length];
 
@@ -1067,8 +1067,8 @@ export class ClimateManagerTimeBar extends LitElement {
     const widthPct = ((seg.endMin - seg.startMin) / 1440) * 100;
     const ariaLabel =
       this.mode === "presence"
-        ? (seg.period.state ?? "absent")
-        : (seg.period.mode?.replace(/_/g, " ") ?? "frost protection");
+        ? seg.period.state ?? "absent"
+        : seg.period.mode?.replace(/_/g, " ") ?? "frost protection";
 
     return html`
       <div
@@ -1130,8 +1130,8 @@ export class ClimateManagerTimeBar extends LitElement {
       const timeRange = `${start} – ${end}`;
       const modeLabel =
         this.mode === "presence"
-          ? (seg.period.state ?? "absent")
-          : (seg.period.mode?.replace(/_/g, " ") ?? "frost protection");
+          ? seg.period.state ?? "absent"
+          : seg.period.mode?.replace(/_/g, " ") ?? "frost protection";
       const duration = seg.endMin - seg.startMin;
       const canSplit = duration >= 30;
 

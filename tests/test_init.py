@@ -7,10 +7,14 @@ Tests:
 - hass.data[DOMAIN] is NOT used (state lives on runtime_data)
 - Phase 2: coordinator and cancel_scheduler are wired on setup (D-01, INFRA-03)
 """
+
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.climate_manager.const import DOMAIN
-from custom_components.climate_manager import ClimateManagerData, ClimateManagerCoordinator
+from custom_components.climate_manager import (
+    ClimateManagerData,
+    ClimateManagerCoordinator,
+)
 
 
 async def test_setup_entry_reaches_loaded_state(hass):

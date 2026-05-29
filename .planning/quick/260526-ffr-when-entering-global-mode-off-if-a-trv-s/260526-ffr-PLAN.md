@@ -14,15 +14,27 @@ requirements:
   - GLOBAL-02
 must_haves:
   truths:
-    - "When entering MODE_OFF, TRVs that advertise HVACMode.OFF in their `hvac_modes` attribute are commanded to OFF (no temperature setpoint pushed)"
-    - "When entering MODE_OFF, TRVs that do NOT advertise HVACMode.OFF receive the frost-protection setpoint (current behaviour) via the existing two-call sequence"
-    - "When leaving MODE_OFF (next evaluation tick in any other global mode), TRVs that advertise HVACMode.HEAT are first switched back to HEAT before the new setpoint is applied (the existing two-call sequence already does this)"
-    - "Off-capable TRVs are not flapped: a second evaluation while still in MODE_OFF does not re-issue set_hvac_mode=off to the same entity"
+    - "When entering MODE_OFF, TRVs that advertise HVACMode.OFF in their
+      `hvac_modes` attribute are commanded to OFF (no temperature setpoint
+      pushed)"
+    - "When entering MODE_OFF, TRVs that do NOT advertise HVACMode.OFF receive
+      the frost-protection setpoint (current behaviour) via the existing
+      two-call sequence"
+    - "When leaving MODE_OFF (next evaluation tick in any other global mode),
+      TRVs that advertise HVACMode.HEAT are first switched back to HEAT before
+      the new setpoint is applied (the existing two-call sequence already does
+      this)"
+    - "Off-capable TRVs are not flapped: a second evaluation while still in
+      MODE_OFF does not re-issue set_hvac_mode=off to the same entity"
   artifacts:
     - path: "custom_components/climate_manager/trv.py"
-      provides: "new helper `set_trv_off(hass, entity_id)` that issues climate.set_hvac_mode=off when supported"
+      provides:
+        "new helper `set_trv_off(hass, entity_id)` that issues
+        climate.set_hvac_mode=off when supported"
     - path: "custom_components/climate_manager/coordinator.py"
-      provides: "MODE_OFF branch dispatches per-TRV between set_trv_off (off-capable) and set_trv_temperature (frost-protection fallback)"
+      provides:
+        "MODE_OFF branch dispatches per-TRV between set_trv_off (off-capable)
+        and set_trv_temperature (frost-protection fallback)"
   key_links:
     - from: "coordinator.async_evaluate (MODE_OFF branch)"
       to: "trv.set_trv_off"
@@ -33,9 +45,15 @@ must_haves:
 <objective>
 When the global mode is set to **Off**, the integration should put each TRV into its native OFF state when the device supports it, and only fall back to pushing the frost-protection setpoint when the TRV cannot be turned off. When the global mode leaves Off, TRVs that support HEAT must be returned to HEAT before any setpoint is applied (this already happens via the existing two-call sequence in `set_trv_temperature`, but the new path must not regress it).
 
-Purpose: today the MODE_OFF branch always pushes frost-protection (5°C) via the two-call HEAT + set_temperature sequence. On TRVs that support HVACMode.OFF (most modern Z-Wave / Zigbee / Matter TRVs, including the Tado X which exposes both `heat` and `off`), this leaves the valve actively heating to 5°C instead of being closed. The user wants real "off" when the device supports it, and the existing fallback otherwise.
+Purpose: today the MODE_OFF branch always pushes frost-protection (5°C) via the
+two-call HEAT + set_temperature sequence. On TRVs that support HVACMode.OFF
+(most modern Z-Wave / Zigbee / Matter TRVs, including the Tado X which exposes
+both `heat` and `off`), this leaves the valve actively heating to 5°C instead of
+being closed. The user wants real "off" when the device supports it, and the
+existing fallback otherwise.
 
-Output: an updated `trv.py` with a `set_trv_off` helper + capability check, and a coordinator MODE_OFF branch that dispatches per-TRV between the two paths.
+Output: an updated `trv.py` with a `set_trv_off` helper + capability check, and
+a coordinator MODE_OFF branch that dispatches per-TRV between the two paths.
 </objective>
 
 <execution_context>
@@ -129,11 +147,19 @@ Output: an updated `trv.py` with a `set_trv_off` helper + capability check, and 
 </verification>
 
 <success_criteria>
-- An off-capable TRV (Tado X exposing `hvac_modes=["heat","off"]`) in MODE_OFF receives `climate.set_hvac_mode hvac_mode=off` and no `set_temperature` call.
-- A TRV that does not expose `"off"` in `hvac_modes` continues to receive frost-protection setpoint (5.0°C) via the existing HEAT + set_temperature two-call sequence (no regression on GLOBAL-02).
-- Leaving MODE_OFF: the very next evaluation in MODE_TIME_PROGRAM or MODE_TIME_PROGRAM_PRESENCES causes `set_trv_temperature` to fire, which by construction calls `set_hvac_mode=heat` first and then the new setpoint — restoring HEAT mode on devices that need it.
-- Repeated MODE_OFF ticks do not re-emit `set_hvac_mode=off` for the same entity (push-on-change parity with the existing temperature path).
-</success_criteria>
+
+- An off-capable TRV (Tado X exposing `hvac_modes=["heat","off"]`) in MODE_OFF
+  receives `climate.set_hvac_mode hvac_mode=off` and no `set_temperature` call.
+- A TRV that does not expose `"off"` in `hvac_modes` continues to receive
+  frost-protection setpoint (5.0°C) via the existing HEAT + set_temperature
+  two-call sequence (no regression on GLOBAL-02).
+- Leaving MODE_OFF: the very next evaluation in MODE_TIME_PROGRAM or
+  MODE_TIME_PROGRAM_PRESENCES causes `set_trv_temperature` to fire, which by
+  construction calls `set_hvac_mode=heat` first and then the new setpoint —
+  restoring HEAT mode on devices that need it.
+- Repeated MODE_OFF ticks do not re-emit `set_hvac_mode=off` for the same entity
+  (push-on-change parity with the existing temperature path).
+  </success_criteria>
 
 <output>
 Create `.planning/quick/260526-ffr-when-entering-global-mode-off-if-a-trv-s/260526-ffr-SUMMARY.md` when done.

@@ -2,7 +2,10 @@
 
 ## Overview
 
-This milestone adds named heating zones to the Climate Manager. A zone is a group of rooms that runs its own independent mode and weekly schedule. The system always has a non-deletable Default Zone; all rooms belong to exactly one zone at all times.
+This milestone adds named heating zones to the Climate Manager. A zone is a
+group of rooms that runs its own independent mode and weekly schedule. The
+system always has a non-deletable Default Zone; all rooms belong to exactly one
+zone at all times.
 
 ---
 
@@ -10,47 +13,66 @@ This milestone adds named heating zones to the Climate Manager. A zone is a grou
 
 ### Zone Data Model
 
-- [ ] **ZONE-01**: System stores named zones with id, name, mode, and weekly time program
-- [ ] **ZONE-02**: System always has exactly one non-deletable Default Zone; all rooms belong to a zone at all times
-- [ ] **ZONE-03**: Storage schema loads from v1.0 installs cleanly — rooms without a zone are assigned to the Default Zone on first load (no data loss, no manual migration)
+- [ ] **ZONE-01**: System stores named zones with id, name, mode, and weekly
+      time program
+- [ ] **ZONE-02**: System always has exactly one non-deletable Default Zone; all
+      rooms belong to a zone at all times
+- [ ] **ZONE-03**: Storage schema loads from v1.0 installs cleanly — rooms
+      without a zone are assigned to the Default Zone on first load (no data
+      loss, no manual migration)
 - [ ] **ZONE-04**: A room can belong to at most one zone (enforced at save time)
 
 ### Zone CRUD
 
 - [ ] **ZONE-05**: User can create a new custom zone with a name
 - [ ] **ZONE-06**: User can rename any zone including the Default Zone
-- [ ] **ZONE-07**: User can delete a custom zone — its rooms are moved to the Default Zone automatically; the Default Zone cannot be deleted
-- [ ] **ZONE-08**: User can set any zone's mode (Off / Time program / Time program & presences)
-- [ ] **ZONE-09**: User can edit any zone's weekly time program (same weekday-group + period structure as global)
+- [ ] **ZONE-07**: User can delete a custom zone — its rooms are moved to the
+      Default Zone automatically; the Default Zone cannot be deleted
+- [ ] **ZONE-08**: User can set any zone's mode (Off / Time program / Time
+      program & presences)
+- [ ] **ZONE-09**: User can edit any zone's weekly time program (same
+      weekday-group + period structure as global)
 
 ### Zone Backend Evaluation
 
-- [ ] **EVAL-01**: Zone mode=off → all rooms in the zone receive frost-protection temperature
+- [ ] **EVAL-01**: Zone mode=off → all rooms in the zone receive
+      frost-protection temperature
 - [ ] **EVAL-02**: Zone mode=time_program → rooms run the zone's weekly schedule
-- [ ] **EVAL-03**: Zone mode=time_program_presences → rooms run zone schedule with presence override
-- [ ] **EVAL-04**: Global mode=time_program_presences → presence heating applies to all rooms regardless of zone mode (global presence governs)
-- [ ] **EVAL-05**: Per-room custom schedule overrides zone schedule (room-level has highest priority)
+- [ ] **EVAL-03**: Zone mode=time_program_presences → rooms run zone schedule
+      with presence override
+- [ ] **EVAL-04**: Global mode=time_program_presences → presence heating applies
+      to all rooms regardless of zone mode (global presence governs)
+- [ ] **EVAL-05**: Per-room custom schedule overrides zone schedule (room-level
+      has highest priority)
 
 ### Room Assignment
 
 - [ ] **ASSIGN-01**: User can assign rooms to a zone from within the zone tab
-- [ ] **ASSIGN-02**: User can assign/change a room's zone from within the room card
+- [ ] **ASSIGN-02**: User can assign/change a room's zone from within the room
+      card
 - [ ] **ASSIGN-03**: Room card shows a zone badge (zone name) for every room
 
 ### Panel UI Redesign
 
-- [ ] **UI-01**: Tab bar order: Global Settings | Default Zone | [custom zone tabs] | Rooms | Persons
-- [ ] **UI-02**: Custom zone tabs are added and removed dynamically as zones are created or deleted
+- [ ] **UI-01**: Tab bar order: Global Settings | Default Zone | [custom zone
+      tabs] | Rooms | Persons
+- [ ] **UI-02**: Custom zone tabs are added and removed dynamically as zones are
+      created or deleted
 - [ ] **UI-03**: User can create a new zone from the panel
-- [ ] **UI-04**: Every zone tab shows zone name (inline editable), mode picker, weekly time program (reusing the time-bar component), and list of assigned rooms
-- [ ] **UI-05**: Custom zone tabs have a delete button with confirmation; Default Zone tab does not
-- [ ] **UI-06**: Rooms tab shows all rooms with zone badge and zone picker on each room card (overview for assignment)
+- [ ] **UI-04**: Every zone tab shows zone name (inline editable), mode picker,
+      weekly time program (reusing the time-bar component), and list of assigned
+      rooms
+- [ ] **UI-05**: Custom zone tabs have a delete button with confirmation;
+      Default Zone tab does not
+- [ ] **UI-06**: Rooms tab shows all rooms with zone badge and zone picker on
+      each room card (overview for assignment)
 
 ---
 
 ## Future Requirements
 
-- Per-zone temperature setpoints (zones currently share global period temperatures)
+- Per-zone temperature setpoints (zones currently share global period
+  temperatures)
 - Zone priority ordering for rooms in overlapping contexts
 - Hierarchical zones (parent/child)
 
@@ -58,40 +80,40 @@ This milestone adds named heating zones to the Climate Manager. A zone is a grou
 
 ## Out of Scope
 
-| Item | Reason |
-|------|--------|
+| Item                           | Reason                                                                                        |
+| ------------------------------ | --------------------------------------------------------------------------------------------- |
 | Per-zone temperature setpoints | Adds significant data model complexity; global period temperatures apply to all zones in v1.1 |
-| Zone priority ordering | All zones are independent; no ranking needed |
-| Hierarchical zones | No use case identified; over-engineering for v1.1 |
-| Zone-based presence | Presence detection remains person→room; no zone routing needed |
-| "Copy zone" shortcut | Convenience feature, defer until zones are validated in production |
+| Zone priority ordering         | All zones are independent; no ranking needed                                                  |
+| Hierarchical zones             | No use case identified; over-engineering for v1.1                                             |
+| Zone-based presence            | Presence detection remains person→room; no zone routing needed                                |
+| "Copy zone" shortcut           | Convenience feature, defer until zones are validated in production                            |
 
 ---
 
 ## Traceability
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| ZONE-01 | Phase 4 | Pending |
-| ZONE-02 | Phase 4 | Pending |
-| ZONE-03 | Phase 4 | Pending |
-| ZONE-04 | Phase 4 | Pending |
-| ZONE-05 | Phase 5 | Pending |
-| ZONE-06 | Phase 5 | Pending |
-| ZONE-07 | Phase 5 | Pending |
-| ZONE-08 | Phase 5 | Pending |
-| ZONE-09 | Phase 5 | Pending |
-| EVAL-01 | Phase 5 | Pending |
-| EVAL-02 | Phase 5 | Pending |
-| EVAL-03 | Phase 5 | Pending |
-| EVAL-04 | Phase 5 | Pending |
-| EVAL-05 | Phase 5 | Pending |
-| ASSIGN-01 | Phase 6 | Pending |
-| ASSIGN-02 | Phase 6 | Pending |
-| ASSIGN-03 | Phase 6 | Pending |
-| UI-01 | Phase 6 | Pending |
-| UI-02 | Phase 6 | Pending |
-| UI-03 | Phase 6 | Pending |
-| UI-04 | Phase 6 | Pending |
-| UI-05 | Phase 6 | Pending |
-| UI-06 | Phase 6 | Pending |
+| Requirement | Phase   | Status  |
+| ----------- | ------- | ------- |
+| ZONE-01     | Phase 4 | Pending |
+| ZONE-02     | Phase 4 | Pending |
+| ZONE-03     | Phase 4 | Pending |
+| ZONE-04     | Phase 4 | Pending |
+| ZONE-05     | Phase 5 | Pending |
+| ZONE-06     | Phase 5 | Pending |
+| ZONE-07     | Phase 5 | Pending |
+| ZONE-08     | Phase 5 | Pending |
+| ZONE-09     | Phase 5 | Pending |
+| EVAL-01     | Phase 5 | Pending |
+| EVAL-02     | Phase 5 | Pending |
+| EVAL-03     | Phase 5 | Pending |
+| EVAL-04     | Phase 5 | Pending |
+| EVAL-05     | Phase 5 | Pending |
+| ASSIGN-01   | Phase 6 | Pending |
+| ASSIGN-02   | Phase 6 | Pending |
+| ASSIGN-03   | Phase 6 | Pending |
+| UI-01       | Phase 6 | Pending |
+| UI-02       | Phase 6 | Pending |
+| UI-03       | Phase 6 | Pending |
+| UI-04       | Phase 6 | Pending |
+| UI-05       | Phase 6 | Pending |
+| UI-06       | Phase 6 | Pending |

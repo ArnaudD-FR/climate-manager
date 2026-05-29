@@ -27,6 +27,6 @@ then ran both formatters on the full codebase.
 
 ## Residual violations (7, unavoidable)
 
-All in Lit HTML template literals — `style="..."` and `<span style="...">${}` 
+All in Lit HTML template literals — `style="..."` and `<span style="...">${}`
 attribute expressions that cannot be broken without extracting to CSS classes.
 These are a known Lit limitation without `prettier-plugin-lit`.

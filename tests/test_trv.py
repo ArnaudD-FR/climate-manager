@@ -5,7 +5,7 @@ Verifies all four behaviors from plan 02 Task 3 and INFRA-04.
 
 Additional tests for supports_hvac_off and set_trv_off (quick task 260526-ffr).
 """
-import pytest
+
 from pytest_homeassistant_custom_component.common import async_mock_service
 
 from custom_components.climate_manager.trv import (
@@ -101,7 +101,9 @@ async def test_set_trv_temperature_skips_missing_entity(hass):
 
 def test_supports_hvac_off_true_when_off_in_hvac_modes(hass):
     """Test 5: supports_hvac_off returns True when "off" is in hvac_modes attribute."""
-    hass.states.async_set(CLIMATE_ENTITY, "heat", {"hvac_modes": ["heat", "off"]})
+    hass.states.async_set(
+        CLIMATE_ENTITY, "heat", {"hvac_modes": ["heat", "off"]}
+    )
     assert supports_hvac_off(hass, CLIMATE_ENTITY) is True
 
 
@@ -115,7 +117,9 @@ async def test_set_trv_off_issues_single_set_hvac_mode_off_call(hass):
     """Test 7: set_trv_off issues exactly one set_hvac_mode call with hvac_mode="off"
     and ZERO set_temperature calls.
     """
-    hass.states.async_set(CLIMATE_ENTITY, "heat", {"hvac_modes": ["heat", "off"]})
+    hass.states.async_set(
+        CLIMATE_ENTITY, "heat", {"hvac_modes": ["heat", "off"]}
+    )
 
     hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
     temp_calls = async_mock_service(hass, "climate", "set_temperature")

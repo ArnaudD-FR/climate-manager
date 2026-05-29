@@ -16,19 +16,32 @@ requirements:
 
 must_haves:
   truths:
-    - "When MODE_OFF dispatches to an off-capable TRV, the coordinator first issues set_temperature(frost_protection) and then issues set_hvac_mode=off in that order."
-    - "The 'off' anti-flap sentinel still skips subsequent off cycles for the same entity (no regression of quick task 260526-ffr)."
-    - "Non-off-capable TRVs in MODE_OFF continue to receive only the frost-protection temperature (unchanged)."
-    - "Room card expanded body shows sections in order: Mode selector, custom time program + reset (when custom), Persons, then Climate entities at the bottom under a 'Climate entities' section label."
-    - "Person card expanded body shows sections in order: Presence mode selector, Presence schedule (when scheduled), Associated rooms."
-    - "frontend build (npm run build) regenerates custom_components/climate_manager/www/panel.js with 0 errors."
+    - "When MODE_OFF dispatches to an off-capable TRV, the coordinator first
+      issues set_temperature(frost_protection) and then issues set_hvac_mode=off
+      in that order."
+    - "The 'off' anti-flap sentinel still skips subsequent off cycles for the
+      same entity (no regression of quick task 260526-ffr)."
+    - "Non-off-capable TRVs in MODE_OFF continue to receive only the
+      frost-protection temperature (unchanged)."
+    - "Room card expanded body shows sections in order: Mode selector, custom
+      time program + reset (when custom), Persons, then Climate entities at the
+      bottom under a 'Climate entities' section label."
+    - "Person card expanded body shows sections in order: Presence mode
+      selector, Presence schedule (when scheduled), Associated rooms."
+    - "frontend build (npm run build) regenerates
+      custom_components/climate_manager/www/panel.js with 0 errors."
   artifacts:
     - path: custom_components/climate_manager/coordinator.py
-      provides: "_push_off_safely(entity_id, frost_temp) — frost temp pushed before hvac=off"
+      provides:
+        "_push_off_safely(entity_id, frost_temp) — frost temp pushed before
+        hvac=off"
     - path: tests/test_coordinator.py
-      provides: "Updated MODE_OFF off-capable test asserting both set_temperature(frost) and set_hvac_mode=off are called"
+      provides:
+        "Updated MODE_OFF off-capable test asserting both set_temperature(frost)
+        and set_hvac_mode=off are called"
     - path: frontend/src/components/room-card.ts
-      provides: "Reordered render() — Mode → Custom program → Persons → Climate entities"
+      provides:
+        "Reordered render() — Mode → Custom program → Persons → Climate entities"
     - path: frontend/src/components/person-card.ts
       provides: "Reordered render() — Presence mode → Schedule → Rooms"
     - path: custom_components/climate_manager/www/panel.js
@@ -36,11 +49,15 @@ must_haves:
   key_links:
     - from: coordinator.async_evaluate (MODE_OFF branch)
       to: _push_off_safely
-      via: "passes period_temperatures[PERIOD_FROST_PROTECTION] as new frost_temp argument"
+      via:
+        "passes period_temperatures[PERIOD_FROST_PROTECTION] as new frost_temp
+        argument"
       pattern: "_push_off_safely\\(entity_id, desired_temp\\)"
     - from: _push_off_safely
       to: set_trv_temperature + set_trv_off
-      via: "sequential awaits — temperature first, then hvac off; sentinel set only after both succeed"
+      via:
+        "sequential awaits — temperature first, then hvac off; sentinel set only
+        after both succeed"
       pattern: "await set_trv_temperature.*\\n.*await set_trv_off"
 ---
 
@@ -48,15 +65,22 @@ must_haves:
 Two backend behavior changes and two frontend reorder polish items for the off-mode handling and the expanded card layouts.
 
 Purpose:
-- Backend: when global mode flips to OFF and a TRV is off-capable, pre-set its setpoint to frost-protection BEFORE turning it off. This way, when the TRV later exits OFF, it does not resume an arbitrary stale setpoint — it lands on frost.
-- Frontend: surface the most-used controls first on both room and person expanded cards (mode at the top, schedule next, associations/entities last).
+
+- Backend: when global mode flips to OFF and a TRV is off-capable, pre-set its
+  setpoint to frost-protection BEFORE turning it off. This way, when the TRV
+  later exits OFF, it does not resume an arbitrary stale setpoint — it lands on
+  frost.
+- Frontend: surface the most-used controls first on both room and person
+  expanded cards (mode at the top, schedule next, associations/entities last).
 
 Output:
-- Updated `coordinator.py` `_push_off_safely` (new `frost_temp` param) + MODE_OFF dispatch passes it.
-- Updated `tests/test_coordinator.py` asserting both calls happen for off-capable TRVs.
+
+- Updated `coordinator.py` `_push_off_safely` (new `frost_temp` param) +
+  MODE_OFF dispatch passes it.
+- Updated `tests/test_coordinator.py` asserting both calls happen for
+  off-capable TRVs.
 - Reordered render() in `room-card.ts` and `person-card.ts`.
-- Rebuilt `custom_components/climate_manager/www/panel.js`.
-</objective>
+- Rebuilt `custom_components/climate_manager/www/panel.js`. </objective>
 
 <execution_context>
 @$HOME/.claude/get-shit-done/workflows/execute-plan.md
@@ -152,12 +176,16 @@ Output:
 </verification>
 
 <success_criteria>
-- Backend: MODE_OFF on off-capable TRV → set_temperature(frost) followed by set_hvac_mode=off; anti-flap preserved; heat-only path unchanged.
-- Coordinator test updated to assert both calls and their ordering; all existing MODE_OFF tests still pass.
-- Room card expanded body section order: Mode → Custom program (conditional) → Persons → Climate entities.
-- Person card expanded body section order: Presence mode → Presence schedule (conditional) → Room associations.
-- `panel.js` regenerated with 0 build errors.
-</success_criteria>
+
+- Backend: MODE_OFF on off-capable TRV → set_temperature(frost) followed by
+  set_hvac_mode=off; anti-flap preserved; heat-only path unchanged.
+- Coordinator test updated to assert both calls and their ordering; all existing
+  MODE_OFF tests still pass.
+- Room card expanded body section order: Mode → Custom program (conditional) →
+  Persons → Climate entities.
+- Person card expanded body section order: Presence mode → Presence schedule
+  (conditional) → Room associations.
+- `panel.js` regenerated with 0 build errors. </success_criteria>
 
 <output>
 Create `.planning/quick/260526-plq-off-mode-push-frost-protection-temp-befo/260526-plq-SUMMARY.md` when done, listing:

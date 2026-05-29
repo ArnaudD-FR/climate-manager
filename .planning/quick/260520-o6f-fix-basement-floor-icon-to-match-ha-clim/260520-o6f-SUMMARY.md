@@ -8,6 +8,8 @@ commits:
 files_modified:
   - frontend/src/components/rooms-tab.ts
 ---
+
 # Quick Task 260520-o6f: Fix Basement Floor Icon — Summary
 
-Changed level -1 fallback icon from `mdi:home-floor-b` to `mdi:home-floor-negative-1` in `getFloorIcon()`. Build succeeded, deployed.
+Changed level -1 fallback icon from `mdi:home-floor-b` to
+`mdi:home-floor-negative-1` in `getFloorIcon()`. Build succeeded, deployed.

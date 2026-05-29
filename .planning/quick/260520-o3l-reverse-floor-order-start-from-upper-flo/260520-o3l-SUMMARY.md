@@ -8,6 +8,8 @@ commits:
 files_modified:
   - frontend/src/components/rooms-tab.ts
 ---
+
 # Quick Task 260520-o3l: Reverse Floor Order — Summary
 
-Swapped `a`/`b` in the floor sort comparator — floors now sort descending by level (upper floors first). Build succeeded, deployed.
+Swapped `a`/`b` in the floor sort comparator — floors now sort descending by
+level (upper floors first). Build succeeded, deployed.

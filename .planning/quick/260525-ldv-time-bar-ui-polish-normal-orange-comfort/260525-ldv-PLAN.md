@@ -12,17 +12,23 @@ requirements:
   - QUICK-260525-LDV
 must_haves:
   truths:
-    - "Normal-mode segments in time-bar render as orange (warm shade), comfort-mode segments render as red"
-    - "Popup mode swatches and segment colors stay consistent (single source of truth in PERIOD_COLORS)"
-    - "Copy and paste icon buttons between day-row bars sit visually adjacent — no large gap"
-    - "Time axis hour labels (00:00, 06:00, 12:00, 18:00, 24:00) are visually centered on their corresponding time positions along the bar, not left-aligned at each slot"
+    - "Normal-mode segments in time-bar render as orange (warm shade),
+      comfort-mode segments render as red"
+    - "Popup mode swatches and segment colors stay consistent (single source of
+      truth in PERIOD_COLORS)"
+    - "Copy and paste icon buttons between day-row bars sit visually adjacent —
+      no large gap"
+    - "Time axis hour labels (00:00, 06:00, 12:00, 18:00, 24:00) are visually
+      centered on their corresponding time positions along the bar, not
+      left-aligned at each slot"
     - "Vite production build succeeds without errors after all three changes"
   artifacts:
     - path: "frontend/src/types.ts"
       provides: "PERIOD_COLORS map with normal=orange, comfort=red"
       contains: "PERIOD_COLORS"
     - path: "frontend/src/components/time-bar.ts"
-      provides: "Tightened .day-actions spacing and centered .time-axis tick labels"
+      provides:
+        "Tightened .day-actions spacing and centered .time-axis tick labels"
       contains: ".day-actions"
   key_links:
     - from: "frontend/src/components/time-bar.ts"
@@ -37,9 +43,12 @@ Three frontend UI polish tweaks to the 7-day time-bar editor:
 2. Tighten horizontal spacing between the Copy/Paste icon buttons inside `.day-actions`.
 3. Center-align the hour labels on the time axis (top and bottom) so each label visually sits over its tick position instead of being left-anchored within an equal-spaced slot.
 
-Purpose: Improve scannability of the schedule editor — warmer modes should read warmer (semantic color cue), and the axis/buttons should look more compact and aligned.
+Purpose: Improve scannability of the schedule editor — warmer modes should read
+warmer (semantic color cue), and the axis/buttons should look more compact and
+aligned.
 
-Output: Updated `frontend/src/types.ts` and `frontend/src/components/time-bar.ts`. Production Vite build passes.
+Output: Updated `frontend/src/types.ts` and
+`frontend/src/components/time-bar.ts`. Production Vite build passes.
 </objective>
 
 <execution_context>
@@ -57,17 +66,26 @@ Output: Updated `frontend/src/types.ts` and `frontend/src/components/time-bar.ts
 <!-- Relevant code excerpts already in context. Key reference points: -->
 
 From frontend/src/types.ts (lines 96-101) — PERIOD_COLORS to edit:
+
 - `frost_protection: "#1565C0"` (dark blue — keep)
 - `reduced: "#0277BD"` (medium blue — keep)
 - `normal: "#2E7D32"` (green — CHANGE to orange)
 - `comfort: "#E65100"` (dark orange — CHANGE to red)
 
 From frontend/src/components/time-bar.ts:
-- `.day-actions` rule (lines 201-206): currently `display: flex; align-items: center; flex-shrink: 0; margin-left: 4px;` — no gap defined; default ha-icon-button size (48px touch target) creates the visible spread.
-- `.time-axis` (lines 213-219) and `.time-axis-inner` (lines 221-226): inner uses `display: flex; justify-content: space-between;` with 5 `.axis-tick` spans — flex space-between left-anchors the first tick, right-anchors the last, etc., producing visually left-anchored labels relative to their actual time positions.
-- `_renderTimeAxis()` (lines 838-848): renders 5 ticks ["00:00", "06:00", "12:00", "18:00", "24:00"] in `.time-axis-inner > .axis-tick` spans.
-</interfaces>
-</context>
+
+- `.day-actions` rule (lines 201-206): currently
+  `display: flex; align-items: center; flex-shrink: 0; margin-left: 4px;` — no
+  gap defined; default ha-icon-button size (48px touch target) creates the
+  visible spread.
+- `.time-axis` (lines 213-219) and `.time-axis-inner` (lines 221-226): inner
+  uses `display: flex; justify-content: space-between;` with 5 `.axis-tick`
+  spans — flex space-between left-anchors the first tick, right-anchors the
+  last, etc., producing visually left-anchored labels relative to their actual
+  time positions.
+- `_renderTimeAxis()` (lines 838-848): renders 5 ticks ["00:00", "06:00",
+  "12:00", "18:00", "24:00"] in `.time-axis-inner > .axis-tick` spans.
+  </interfaces> </context>
 
 <tasks>
 
@@ -120,6 +138,7 @@ From frontend/src/components/time-bar.ts:
       `.time-axis-inner > .axis-tick:nth-child(5) { left: 100%; }`
 
     Do NOT modify `_renderTimeAxis()` — same DOM structure, only CSS changes.
+
   </action>
   <verify>
     <automated>cd frontend && npm run build 2>&1 | tail -20</automated>
@@ -157,10 +176,13 @@ From frontend/src/components/time-bar.ts:
 </verification>
 
 <success_criteria>
-- All three changes visible in the running panel and approved at the human-verify checkpoint.
+
+- All three changes visible in the running panel and approved at the
+  human-verify checkpoint.
 - `frontend && npm run build` completes without errors.
-- No regressions in time-bar interactions (clicking, dragging, copy/paste still work — covered transitively by build + visual check; no logic was touched).
-</success_criteria>
+- No regressions in time-bar interactions (clicking, dragging, copy/paste still
+  work — covered transitively by build + visual check; no logic was touched).
+  </success_criteria>
 
 <output>
 Create `.planning/quick/260525-ldv-time-bar-ui-polish-normal-orange-comfort/260525-ldv-SUMMARY.md` when done.

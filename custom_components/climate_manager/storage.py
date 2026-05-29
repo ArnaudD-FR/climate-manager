@@ -13,7 +13,6 @@ Design decisions (from RESEARCH.md):
 """
 
 import copy
-import uuid  # D-07: UUID generation for zone IDs
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store

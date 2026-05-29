@@ -1,4 +1,5 @@
 """Shared pytest fixtures for Climate Manager tests."""
+
 import sys
 import threading
 import types
@@ -59,11 +60,9 @@ def filter_aiohttp_shutdown_threads(monkeypatch):
 
     def _filtered_enumerate():
         return [
-            t for t in original_enumerate()
-            if not (
-                t.daemon
-                and "_run_safe_shutdown_loop" in t.name
-            )
+            t
+            for t in original_enumerate()
+            if not (t.daemon and "_run_safe_shutdown_loop" in t.name)
         ]
 
     monkeypatch.setattr(threading, "enumerate", _filtered_enumerate)

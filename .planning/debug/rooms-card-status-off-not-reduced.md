@@ -1,7 +1,9 @@
 ---
 status: resolved
 slug: rooms-card-status-off-not-reduced
-trigger: "in rooms tab, when global mode is off, the room card header the room status should not be 'reduced'. It should be off"
+trigger:
+  "in rooms tab, when global mode is off, the room card header the room status
+  should not be 'reduced'. It should be off"
 created: 2026-05-26
 updated: 2026-05-26
 ---
@@ -10,11 +12,14 @@ updated: 2026-05-26
 
 ## Symptoms
 
-- **Expected:** When global mode is "off", the room card header status should display "off"
+- **Expected:** When global mode is "off", the room card header status should
+  display "off"
 - **Actual:** Room card header status shows "reduced" instead of "off"
 - **Error messages:** None reported
-- **Timeline:** Unknown — likely related to recent MODE_OFF backend work (260526-ffr)
-- **Reproduction:** Set global mode to "off", navigate to Rooms tab, observe room card header status text
+- **Timeline:** Unknown — likely related to recent MODE_OFF backend work
+  (260526-ffr)
+- **Reproduction:** Set global mode to "off", navigate to Rooms tab, observe
+  room card header status text
 
 ## Current Focus
 
@@ -29,14 +34,15 @@ tdd_checkpoint:
 
 ## Evidence
 
-- timestamp: 2026-05-26T00:00:00
-  file: frontend/src/components/room-card.ts
-  lines: 396-408
-  note: periodDisplay computed at lines 403-405 from active_period without checking globalMode; globalMode read later at line 408 with no branch for "off"
+- timestamp: 2026-05-26T00:00:00 file: frontend/src/components/room-card.ts
+  lines: 396-408 note: periodDisplay computed at lines 403-405 from
+  active_period without checking globalMode; globalMode read later at line 408
+  with no branch for "off"
 
 ## Eliminated Hypotheses
 
-- Frontend mode label map missing "off" key — ELIMINATED: map had `off: "Off"` at line 417; that was for modeLabel, not periodDisplay
+- Frontend mode label map missing "off" key — ELIMINATED: map had `off: "Off"`
+  at line 417; that was for modeLabel, not periodDisplay
 
 ## Resolution
 

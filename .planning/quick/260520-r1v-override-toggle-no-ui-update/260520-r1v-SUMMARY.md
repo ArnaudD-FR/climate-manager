@@ -8,6 +8,7 @@ commits:
 files_modified:
   - frontend/src/components/room-card.ts
 ---
+
 # Quick Task 260520-r1v: Override Toggle No UI Update — Summary
 
 Added `await this.panel.reloadConfig()` in both `_onOverrideToggle` and

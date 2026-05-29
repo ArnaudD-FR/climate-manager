@@ -1,14 +1,15 @@
 # Architecture Patterns: Multi-Zone Heating Integration
 
-**Domain:** HA custom integration — adding zone-level scheduling to an existing coordinator-based control loop
-**Researched:** 2026-05-26
-**Confidence:** HIGH — derived entirely from reading the production codebase, not from external sources
+**Domain:** HA custom integration — adding zone-level scheduling to an existing
+coordinator-based control loop **Researched:** 2026-05-26 **Confidence:** HIGH —
+derived entirely from reading the production codebase, not from external sources
 
 ---
 
 ## Existing Architecture Snapshot
 
-Before proposing changes, here is the precise shape of the current system so integration points are unambiguous.
+Before proposing changes, here is the precise shape of the current system so
+integration points are unambiguous.
 
 ### Data flow (v1.0)
 
@@ -54,18 +55,18 @@ HA startup / 1-min tick
 
 ### Current component inventory
 
-| File | Role |
-|------|------|
-| `const.py` | Domain constants + DEFAULT_CONFIG + default daily programs |
-| `storage.py` | ClimateManagerStore — sparse-merge load, async_save |
-| `coordinator.py` | ClimateManagerCoordinator — evaluate loop, per-room temp resolution, TRV push, status build |
-| `schedule.py` | Pure evaluation functions: evaluate_schedule, resolve_presence, compute_occupied_temp, validate_daily_program |
-| `websocket.py` | 11 WS command factories registered via async_register_commands |
-| `__init__.py` | async_setup_entry + ClimateManagerData dataclass |
-| `frontend/src/types.ts` | TypeScript interfaces: ClimateConfig, RoomConfig, StatusPayload, DailyProgram |
-| `frontend/src/ws-client.ts` | WsClient class — one method per WS command |
-| `frontend/src/main.ts` | ClimateManagerPanel root element — tab shell, config/status loading |
-| `frontend/src/components/rooms-tab.ts` | Rooms tab — groups by floor, renders room-card |
+| File                                   | Role                                                                                                          |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `const.py`                             | Domain constants + DEFAULT_CONFIG + default daily programs                                                    |
+| `storage.py`                           | ClimateManagerStore — sparse-merge load, async_save                                                           |
+| `coordinator.py`                       | ClimateManagerCoordinator — evaluate loop, per-room temp resolution, TRV push, status build                   |
+| `schedule.py`                          | Pure evaluation functions: evaluate_schedule, resolve_presence, compute_occupied_temp, validate_daily_program |
+| `websocket.py`                         | 11 WS command factories registered via async_register_commands                                                |
+| `__init__.py`                          | async_setup_entry + ClimateManagerData dataclass                                                              |
+| `frontend/src/types.ts`                | TypeScript interfaces: ClimateConfig, RoomConfig, StatusPayload, DailyProgram                                 |
+| `frontend/src/ws-client.ts`            | WsClient class — one method per WS command                                                                    |
+| `frontend/src/main.ts`                 | ClimateManagerPanel root element — tab shell, config/status loading                                           |
+| `frontend/src/components/rooms-tab.ts` | Rooms tab — groups by floor, renders room-card                                                                |
 
 ---
 
@@ -73,7 +74,8 @@ HA startup / 1-min tick
 
 ### Guiding principle
 
-Zones slot into the existing evaluation cascade as a new layer between global and per-room. The cascade becomes:
+Zones slot into the existing evaluation cascade as a new layer between global
+and per-room. The cascade becomes:
 
 ```
 global_mode=OFF           → frost temp (unchanged)
@@ -89,7 +91,8 @@ global_mode=TIME_PROGRAM  →
 global_mode=TIME_PROGRAM_PRESENCES → same as above with presence overlay
 ```
 
-Note: room_mode=custom always wins — it bypasses both zone and global programs. This preserves existing room override semantics exactly.
+Note: room_mode=custom always wins — it bypasses both zone and global programs.
+This preserves existing room override semantics exactly.
 
 ---
 
@@ -128,11 +131,21 @@ Note: room_mode=custom always wins — it bypasses both zone and global programs
 
 ### Storage version bump
 
-STORAGE_VERSION must increment to 3. The async_load migration path in storage.py already handles unknown keys gracefully (stored-wins sparse merge), so a fresh `zones` dict defaulting to `{}` is safe without an explicit migration block. Only the version integer needs bumping in both the constant and the Store constructor.
+STORAGE_VERSION must increment to 3. The async_load migration path in storage.py
+already handles unknown keys gracefully (stored-wins sparse merge), so a fresh
+`zones` dict defaulting to `{}` is safe without an explicit migration block.
+Only the version integer needs bumping in both the constant and the Store
+constructor.
 
 ### Why zone_id lives on the room, not on the zone
 
-Storing a `room_ids` list on the zone (mirroring person.room_ids) creates a two-way consistency problem: zone CRUD must scan and update all room refs, and delete_zone must clean them up atomically. Storing `zone_id` on the room makes room-to-zone assignment a single key write and keeps zone config self-contained. Membership is derived by scanning `rooms[area_id]["zone_id"]` at evaluation time, which is O(rooms) and already inside the existing O(rooms) loop — zero cost.
+Storing a `room_ids` list on the zone (mirroring person.room_ids) creates a
+two-way consistency problem: zone CRUD must scan and update all room refs, and
+delete_zone must clean them up atomically. Storing `zone_id` on the room makes
+room-to-zone assignment a single key write and keeps zone config self-contained.
+Membership is derived by scanning `rooms[area_id]["zone_id"]` at evaluation
+time, which is O(rooms) and already inside the existing O(rooms) loop — zero
+cost.
 
 ---
 
@@ -140,34 +153,36 @@ Storing a `room_ids` list on the zone (mirroring person.room_ids) creates a two-
 
 ### Backend
 
-| Component | Change | What changes |
-|-----------|--------|--------------|
-| `const.py` | **MODIFIED** | Add zone mode constants, add `"zones": {}` to DEFAULT_CONFIG, bump STORAGE_VERSION to 3 |
-| `storage.py` | **MODIFIED** | Bump version integer in Store constructor; no migration logic required |
-| `coordinator.py` | **MODIFIED** | Add zone resolution inside room_mode=global branch of both `_evaluate_time_program` and `_evaluate_time_program_presences`; add `zone_id` to rooms entries in `_build_status_payload` |
-| `schedule.py` | **NOT MODIFIED** | `evaluate_schedule` already accepts any DailyProgram dict; zone programs use it unchanged |
-| `websocket.py` | **MODIFIED** | Register 5 new commands; existing 11 commands unchanged |
-| `__init__.py` | **NOT MODIFIED** | ClimateManagerData requires no new fields — zones live in runtime_config |
+| Component        | Change           | What changes                                                                                                                                                                          |
+| ---------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `const.py`       | **MODIFIED**     | Add zone mode constants, add `"zones": {}` to DEFAULT_CONFIG, bump STORAGE_VERSION to 3                                                                                               |
+| `storage.py`     | **MODIFIED**     | Bump version integer in Store constructor; no migration logic required                                                                                                                |
+| `coordinator.py` | **MODIFIED**     | Add zone resolution inside room_mode=global branch of both `_evaluate_time_program` and `_evaluate_time_program_presences`; add `zone_id` to rooms entries in `_build_status_payload` |
+| `schedule.py`    | **NOT MODIFIED** | `evaluate_schedule` already accepts any DailyProgram dict; zone programs use it unchanged                                                                                             |
+| `websocket.py`   | **MODIFIED**     | Register 5 new commands; existing 11 commands unchanged                                                                                                                               |
+| `__init__.py`    | **NOT MODIFIED** | ClimateManagerData requires no new fields — zones live in runtime_config                                                                                                              |
 
 ### Frontend
 
-| Component | Change | What changes |
-|-----------|--------|--------------|
-| `types.ts` | **MODIFIED** | Add `ZoneConfig` interface; add `zones` key to `ClimateConfig`; add `zone_id` to `RoomConfig` and `RoomStatus` |
-| `ws-client.ts` | **MODIFIED** | Add 5 new methods mirroring new WS commands |
-| `main.ts` | **MODIFIED** | Add "Zones" tab button; render `<climate-manager-zones-tab>` |
-| `components/zones-tab.ts` | **NEW** | Zone list + create form + empty state |
-| `components/zone-card.ts` | **NEW** | Single zone editor: name input, mode select, time-bar, delete button |
-| `components/room-card.ts` | **MODIFIED** | Add zone assignment selector in expanded view |
-| `components/rooms-tab.ts` | **NOT MODIFIED** | No structural change needed; room-card handles zone display internally |
-| `components/global-settings-tab.ts` | **NOT MODIFIED** | No zone content needed here |
-| `components/persons-tab.ts` | **NOT MODIFIED** | Person-room associations unchanged by zones |
+| Component                           | Change           | What changes                                                                                                   |
+| ----------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                          | **MODIFIED**     | Add `ZoneConfig` interface; add `zones` key to `ClimateConfig`; add `zone_id` to `RoomConfig` and `RoomStatus` |
+| `ws-client.ts`                      | **MODIFIED**     | Add 5 new methods mirroring new WS commands                                                                    |
+| `main.ts`                           | **MODIFIED**     | Add "Zones" tab button; render `<climate-manager-zones-tab>`                                                   |
+| `components/zones-tab.ts`           | **NEW**          | Zone list + create form + empty state                                                                          |
+| `components/zone-card.ts`           | **NEW**          | Single zone editor: name input, mode select, time-bar, delete button                                           |
+| `components/room-card.ts`           | **MODIFIED**     | Add zone assignment selector in expanded view                                                                  |
+| `components/rooms-tab.ts`           | **NOT MODIFIED** | No structural change needed; room-card handles zone display internally                                         |
+| `components/global-settings-tab.ts` | **NOT MODIFIED** | No zone content needed here                                                                                    |
+| `components/persons-tab.ts`         | **NOT MODIFIED** | Person-room associations unchanged by zones                                                                    |
 
 ---
 
 ## New WebSocket Commands
 
-5 new commands. All follow the existing factory pattern in websocket.py (closure over `entry`, `@websocket_api.async_response`, `vol` schema, write-then-evaluate pattern).
+5 new commands. All follow the existing factory pattern in websocket.py (closure
+over `entry`, `@websocket_api.async_response`, `vol` schema, write-then-evaluate
+pattern).
 
 ```
 climate_manager/get_zones
@@ -202,13 +217,19 @@ climate_manager/set_room_zone
   intent explicit and avoids the panel constructing room config deltas.
 ```
 
-Note: `get_config` already returns the full runtime_config including the new `zones` key once it is added to DEFAULT_CONFIG. No change to the get_config handler is needed. The `get_zones` command is optional; it is worth adding only if zones need to be fetched independently (e.g. for lazy-loading). For v1.1, including zones in get_config is sufficient.
+Note: `get_config` already returns the full runtime_config including the new
+`zones` key once it is added to DEFAULT_CONFIG. No change to the get_config
+handler is needed. The `get_zones` command is optional; it is worth adding only
+if zones need to be fetched independently (e.g. for lazy-loading). For v1.1,
+including zones in get_config is sufficient.
 
 ---
 
 ## Coordinator Modification Detail
 
-The zone lookup is inserted inside the `room_mode=global` path in both `_evaluate_time_program` and `_evaluate_time_program_presences`. The current single-line assignment:
+The zone lookup is inserted inside the `room_mode=global` path in both
+`_evaluate_time_program` and `_evaluate_time_program_presences`. The current
+single-line assignment:
 
 ```python
 daily_program = global_daily_program
@@ -238,12 +259,19 @@ else:
     zone_mode = None
 ```
 
-For the presence-overlay pass in `_evaluate_time_program_presences`, whether a room participates in presence override depends on the effective mode governing it:
-- Zone absent → uses global_mode to decide (existing behavior)
-- Zone present with `mode=time_program_presences` → participates in presence override
-- Zone present with `mode=time_program` → skips presence override even if global_mode is time_program_presences
+For the presence-overlay pass in `_evaluate_time_program_presences`, whether a
+room participates in presence override depends on the effective mode governing
+it:
 
-This is implemented by passing `zone_mode` (or `None`) alongside `daily_program` through the baseline step, then gating the presence-override step on `zone_mode != MODE_TIME_PROGRAM` (when a zone is active).
+- Zone absent → uses global_mode to decide (existing behavior)
+- Zone present with `mode=time_program_presences` → participates in presence
+  override
+- Zone present with `mode=time_program` → skips presence override even if
+  global_mode is time_program_presences
+
+This is implemented by passing `zone_mode` (or `None`) alongside `daily_program`
+through the baseline step, then gating the presence-override step on
+`zone_mode != MODE_TIME_PROGRAM` (when a zone is active).
 
 ### Status payload extension
 
@@ -251,7 +279,8 @@ This is implemented by passing `zone_mode` (or `None`) alongside `daily_program`
 room_entry["zone_id"] = room_configs.get(area_id, {}).get("zone_id")
 ```
 
-Added to `_build_status_payload` for all room entries. Allows the frontend to display zone membership without a separate config fetch.
+Added to `_build_status_payload` for all room entries. Allows the frontend to
+display zone membership without a separate config fetch.
 
 ---
 
@@ -271,7 +300,7 @@ export interface ClimateConfig {
   global_time_program: DailyProgram;
   rooms: Record<string, RoomConfig>;
   persons: Record<string, PersonConfig>;
-  zones: Record<string, ZoneConfig>;  // NEW
+  zones: Record<string, ZoneConfig>; // NEW
   climate_entities: string[];
 }
 
@@ -279,7 +308,7 @@ export interface ClimateConfig {
 export interface RoomConfig {
   room_mode?: "global" | "frost_protection" | "custom";
   time_program?: DailyProgram | null;
-  zone_id?: string | null;  // NEW
+  zone_id?: string | null; // NEW
 }
 
 // RoomStatus extended (add one key):
@@ -292,7 +321,7 @@ export interface RoomStatus {
   active_period?: string | null;
   present_person_count: number;
   has_trv?: boolean;
-  zone_id?: string | null;  // NEW
+  zone_id?: string | null; // NEW
 }
 ```
 
@@ -311,17 +340,20 @@ Files: `const.py`, `storage.py`, `types.ts`
 - Bump STORAGE_VERSION to 3 in const.py and storage.py Store constructor
 - Add ZoneConfig, extend ClimateConfig / RoomConfig / RoomStatus in types.ts
 
-Gate: Existing install loads cleanly with `zones: {}` default. No existing tests broken.
+Gate: Existing install loads cleanly with `zones: {}` default. No existing tests
+broken.
 
 ### Phase 2: WebSocket API
 
 Files: `websocket.py`, `ws-client.ts`
 
-- Implement set_zone, delete_zone, set_zone_program, set_room_zone in websocket.py
+- Implement set_zone, delete_zone, set_zone_program, set_room_zone in
+  websocket.py
 - Register all new commands in async_register_commands
 - Add corresponding methods to WsClient
 
-Gate: Zone CRUD verifiable via browser console or test without any UI or coordinator changes.
+Gate: Zone CRUD verifiable via browser console or test without any UI or
+coordinator changes.
 
 ### Phase 3: Coordinator zone evaluation
 
@@ -329,14 +361,17 @@ Files: `coordinator.py`
 
 - Add zone resolution inside room_mode=global path of both evaluation methods
 - Add zone_id to status payload rooms
-- Handle zone_mode=off (frost branch) and zone time_program (daily_program override)
+- Handle zone_mode=off (frost branch) and zone time_program (daily_program
+  override)
 - Handle presence-override gating when zone_mode=time_program
 
-Gate: Assign a room to a zone via WS, verify TRV receives zone temperature at next tick (HA logs). Rooms without zone_id behave identically to v1.0.
+Gate: Assign a room to a zone via WS, verify TRV receives zone temperature at
+next tick (HA logs). Rooms without zone_id behave identically to v1.0.
 
 ### Phase 4: Zones tab UI
 
-Files: `components/zones-tab.ts` (new), `components/zone-card.ts` (new), `main.ts`
+Files: `components/zones-tab.ts` (new), `components/zone-card.ts` (new),
+`main.ts`
 
 - Zones tab with zone list, create form (name + mode + default time-bar)
 - Zone card with name edit, mode select, time-bar, delete
@@ -352,7 +387,8 @@ Files: `components/room-card.ts`
 - Populated from `panelConfig.zones`; includes "None" option
 - Calls `ws.setRoomZone(roomId, zoneId | null)` on change
 
-Gate: Assign rooms to zones from the Rooms tab. Room card shows zone name. Assignment survives page reload.
+Gate: Assign rooms to zones from the Rooms tab. Room card shows zone name.
+Assignment survives page reload.
 
 ---
 
@@ -360,28 +396,53 @@ Gate: Assign rooms to zones from the Rooms tab. Room card shows zone name. Assig
 
 ### Storing room_ids on the zone object
 
-Mirroring `person.room_ids` by adding `room_ids: list` to the zone. This creates a two-way consistency problem requiring multi-key writes on every room assignment change and on zone delete. Zone_id on the room is the correct model for a one-to-many relationship where the "many" side holds the foreign key.
+Mirroring `person.room_ids` by adding `room_ids: list` to the zone. This creates
+a two-way consistency problem requiring multi-key writes on every room
+assignment change and on zone delete. Zone_id on the room is the correct model
+for a one-to-many relationship where the "many" side holds the foreign key.
 
 ### Adding a zone evaluation function to schedule.py
 
-Zone programs use the same DailyProgram structure and `evaluate_schedule()` function as global and room programs. A wrapper is pure indirection with no abstraction value.
+Zone programs use the same DailyProgram structure and `evaluate_schedule()`
+function as global and room programs. A wrapper is pure indirection with no
+abstraction value.
 
 ### Separate period temperature values per zone
 
-Zones share the global period_temperatures. Zone time programs select period modes; the temperature per mode is always global. Per-zone temperature overrides are a v2+ concern.
+Zones share the global period_temperatures. Zone time programs select period
+modes; the temperature per mode is always global. Per-zone temperature overrides
+are a v2+ concern.
 
 ### Using zone_id as a display name
 
-zone_id is a stable slug used as a dict key; `name` is the display string. The frontend must always display `zones[zone_id].name`, never zone_id itself. When the user renames a zone, only the `name` key changes — zone_id stays stable so room assignments don't need updating.
+zone_id is a stable slug used as a dict key; `name` is the display string. The
+frontend must always display `zones[zone_id].name`, never zone_id itself. When
+the user renames a zone, only the `name` key changes — zone_id stays stable so
+room assignments don't need updating.
 
 ---
 
 ## Open Questions
 
-1. **Zone mode vs global mode interaction for presence:** If a room is in a zone with `mode=time_program` and the global mode is `time_program_presences`, should persons still override that room? The design above says NO (zone mode=time_program opts out of presence). Confirm with user before implementing Phase 3 to avoid a costly coordinator rewrite.
+1. **Zone mode vs global mode interaction for presence:** If a room is in a zone
+   with `mode=time_program` and the global mode is `time_program_presences`,
+   should persons still override that room? The design above says NO (zone
+   mode=time_program opts out of presence). Confirm with user before
+   implementing Phase 3 to avoid a costly coordinator rewrite.
 
-2. **Zone ID generation:** The frontend generates zone_id as a slug from the user's name. A safe formula: `name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")`. The backend treats zone_id as an opaque string key. Confirm this is acceptable; alternatively the backend generates a UUID-style ID on set_zone if zone_id is absent.
+2. **Zone ID generation:** The frontend generates zone*id as a slug from the
+   user's name. A safe formula: `name.toLowerCase().replace(/\s+/g,
+   "*").replace(/[^a-z0-9_]/g, "")`. The backend treats zone_id as an opaque
+   string key. Confirm this is acceptable; alternatively the backend generates a
+   UUID-style ID on set_zone if zone_id is absent.
 
-3. **delete_zone atomicity:** Clearing `zone_id` from all affected rooms plus removing the zone must be a single `async_save` call. Test this explicitly — partial writes would leave dangling zone_id references that cause coordinator warnings.
+3. **delete_zone atomicity:** Clearing `zone_id` from all affected rooms plus
+   removing the zone must be a single `async_save` call. Test this explicitly —
+   partial writes would leave dangling zone_id references that cause coordinator
+   warnings.
 
-4. **Zone time program default on create:** When a zone is created without a time_program, should it default to the global time program (deep-copied) or to the standard default weekday schedule? Defaulting to `_DEFAULT_DAILY_PROGRAM` (same as global default) is safest — avoids surprising behaviour if the user later changes the global program.
+4. **Zone time program default on create:** When a zone is created without a
+   time_program, should it default to the global time program (deep-copied) or
+   to the standard default weekday schedule? Defaulting to
+   `_DEFAULT_DAILY_PROGRAM` (same as global default) is safest — avoids
+   surprising behaviour if the user later changes the global program.

@@ -9,13 +9,18 @@ created: 2026-05-18
 
 ## Symptoms
 
-The edit popup shown when clicking a time period segment contains a "Delete period" button but no "Split period" button. Users need to be able to split a period at its midpoint directly from the popup.
+The edit popup shown when clicking a time period segment contains a "Delete
+period" button but no "Split period" button. Users need to be able to split a
+period at its midpoint directly from the popup.
 
 ## Current Focus
 
-**hypothesis:** The `_renderPopup()` method's `"edit"` branch renders only a delete action. A `_onSplitPeriod()` handler and a "Split" button need to be added.
+**hypothesis:** The `_renderPopup()` method's `"edit"` branch renders only a
+delete action. A `_onSplitPeriod()` handler and a "Split" button need to be
+added.
 
-**next_action:** Implement `_onSplitPeriod(dayIndex, segIndex)` in `time-bar.ts`, add a "Split" button to the edit popup HTML, and build.
+**next_action:** Implement `_onSplitPeriod(dayIndex, segIndex)` in
+`time-bar.ts`, add a "Split" button to the edit popup HTML, and build.
 
 ## Evidence
 
@@ -31,5 +36,6 @@ The edit popup shown when clicking a time period segment contains a "Delete peri
 
 ## Resolution
 
-root_cause: Edit popup has no "Split period" action.
-fix: Added `_onSplitPeriod` method and "Split" button to the popup, with type cycling and 15-min snapped midpoint.
+root_cause: Edit popup has no "Split period" action. fix: Added `_onSplitPeriod`
+method and "Split" button to the popup, with type cycling and 15-min snapped
+midpoint.

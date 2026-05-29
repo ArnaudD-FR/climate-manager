@@ -16,66 +16,75 @@ created: 2026-05-17
 
 ## Design System
 
-| Property | Value |
-|----------|-------|
-| Tool | none — HA CSS variables (no shadcn; Lit/TypeScript panel, not React) |
-| Preset | not applicable |
-| Component library | HA built-in `ha-*` web components (ha-card, ha-tabs, ha-select, ha-textfield, ha-icon-button) |
-| Icon library | Material Design Icons via `ha-icon` (mdi:*) — already available in every HA frontend |
-| Font | Inherited from HA host page (`--mdc-typography-body1-font-family` resolves to Roboto or system-ui) |
+| Property          | Value                                                                                              |
+| ----------------- | -------------------------------------------------------------------------------------------------- |
+| Tool              | none — HA CSS variables (no shadcn; Lit/TypeScript panel, not React)                               |
+| Preset            | not applicable                                                                                     |
+| Component library | HA built-in `ha-*` web components (ha-card, ha-tabs, ha-select, ha-textfield, ha-icon-button)      |
+| Icon library      | Material Design Icons via `ha-icon` (mdi:\*) — already available in every HA frontend              |
+| Font              | Inherited from HA host page (`--mdc-typography-body1-font-family` resolves to Roboto or system-ui) |
 
-> Source: CLAUDE.md (Lit 3.x + TypeScript + Vite, bundled Lit, ha-* components composable natively)
+> Source: CLAUDE.md (Lit 3.x + TypeScript + Vite, bundled Lit, ha-\* components
+> composable natively)
 
 ---
 
 ## Spacing Scale
 
-All values are multiples of 4. Applied via CSS custom properties or inline Lit `styleMap`.
+All values are multiples of 4. Applied via CSS custom properties or inline Lit
+`styleMap`.
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| xs | 4px | Icon gaps, badge internal padding |
-| sm | 8px | Inline spacing within a row, chip padding |
-| md | 16px | Card internal padding, input label gaps |
-| lg | 24px | Section padding, card-to-card gap |
-| xl | 32px | Tab content top margin |
-| 2xl | 48px | Major section breaks (status strip → config section) |
-| 3xl | 64px | Not used in this phase |
+| Token | Value | Usage                                                |
+| ----- | ----- | ---------------------------------------------------- |
+| xs    | 4px   | Icon gaps, badge internal padding                    |
+| sm    | 8px   | Inline spacing within a row, chip padding            |
+| md    | 16px  | Card internal padding, input label gaps              |
+| lg    | 24px  | Section padding, card-to-card gap                    |
+| xl    | 32px  | Tab content top margin                               |
+| 2xl   | 48px  | Major section breaks (status strip → config section) |
+| 3xl   | 64px  | Not used in this phase                               |
 
 Exceptions:
-- Touch targets for drag handles on the time bar: minimum 44px tall (WCAG 2.5.5 touch target size)
-- Time bar row height: 40px visible bar + 4px gap = 44px per row (satisfies touch target)
+
+- Touch targets for drag handles on the time bar: minimum 44px tall (WCAG 2.5.5
+  touch target size)
+- Time bar row height: 40px visible bar + 4px gap = 44px per row (satisfies
+  touch target)
 
 ---
 
 ## Typography
 
-Inherits HA font stack. All sizes are the CSS `font-size` value applied on the element.
+Inherits HA font stack. All sizes are the CSS `font-size` value applied on the
+element.
 
-| Role | Size | Weight | Line Height | Usage |
-|------|------|--------|-------------|-------|
-| Body | 14px | 400 (regular) | 1.5 | Field labels, card body text, toast messages |
-| Label | 12px | 400 (regular) | 1.4 | Time axis ticks (00:00 … 24:00), badge text, sensor value captions |
-| Heading | 16px | 600 (semibold) | 1.2 | Card header (room name, person name), section title ("Current Status", "Configuration") |
-| Display | 20px | 600 (semibold) | 1.2 | Tab titles ([Global Settings] [Rooms] [Persons]) if rendered outside ha-tabs |
+| Role    | Size | Weight         | Line Height | Usage                                                                                   |
+| ------- | ---- | -------------- | ----------- | --------------------------------------------------------------------------------------- |
+| Body    | 14px | 400 (regular)  | 1.5         | Field labels, card body text, toast messages                                            |
+| Label   | 12px | 400 (regular)  | 1.4         | Time axis ticks (00:00 … 24:00), badge text, sensor value captions                      |
+| Heading | 16px | 600 (semibold) | 1.2         | Card header (room name, person name), section title ("Current Status", "Configuration") |
+| Display | 20px | 600 (semibold) | 1.2         | Tab titles ([Global Settings] [Rooms] [Persons]) if rendered outside ha-tabs            |
 
-> Only 2 weights declared: regular (400) and semibold (600).
-> Source: HA Material Design baseline; confirmed as default by researcher.
+> Only 2 weights declared: regular (400) and semibold (600). Source: HA Material
+> Design baseline; confirmed as default by researcher.
 
 ---
 
 ## Color
 
-The panel runs inside the HA Lovelace page and inherits the user's active theme. All color values below are HA CSS variable references — do NOT hardcode hex values.
+The panel runs inside the HA Lovelace page and inherits the user's active theme.
+All color values below are HA CSS variable references — do NOT hardcode hex
+values.
 
-| Role | Value | Usage |
-|------|-------|-------|
-| Dominant (60%) | `var(--primary-background-color)` | Panel background, tab content area |
-| Secondary (30%) | `var(--card-background-color)` | ha-card backgrounds (room cards, person cards, status strip) |
-| Accent (10%) | `var(--primary-color)` | Accent reserved-for list below |
-| Destructive | `var(--error-color)` | Delete period button, delete room/person association confirmation |
+| Role            | Value                             | Usage                                                             |
+| --------------- | --------------------------------- | ----------------------------------------------------------------- |
+| Dominant (60%)  | `var(--primary-background-color)` | Panel background, tab content area                                |
+| Secondary (30%) | `var(--card-background-color)`    | ha-card backgrounds (room cards, person cards, status strip)      |
+| Accent (10%)    | `var(--primary-color)`            | Accent reserved-for list below                                    |
+| Destructive     | `var(--error-color)`              | Delete period button, delete room/person association confirmation |
 
 Accent (`--primary-color`) reserved exclusively for:
+
 - Active tab indicator underline
 - "Override global time program" toggle thumb (when enabled)
 - Presence mode badge border for "Present" state
@@ -83,14 +92,14 @@ Accent (`--primary-color`) reserved exclusively for:
 
 **Period mode colors** (not theme-variable — fixed semantic colors per D-03):
 
-| Period | CSS Color | Hex Fallback |
-|--------|-----------|--------------|
-| Frost protection | `#1565C0` | Deep blue |
-| Reduced | `#64B5F6` | Light blue |
-| Normal | `#F57C00` | Orange |
-| Comfort | `#D32F2F` | Red |
-| Present (presence bar) | `#388E3C` | Green |
-| Absent (presence bar) | `#9E9E9E` | Gray |
+| Period                 | CSS Color | Hex Fallback |
+| ---------------------- | --------- | ------------ |
+| Frost protection       | `#1565C0` | Deep blue    |
+| Reduced                | `#64B5F6` | Light blue   |
+| Normal                 | `#F57C00` | Orange       |
+| Comfort                | `#D32F2F` | Red          |
+| Present (presence bar) | `#388E3C` | Green        |
+| Absent (presence bar)  | `#9E9E9E` | Gray         |
 
 > Source: CONTEXT.md D-03 (period colors locked decision)
 
@@ -100,7 +109,8 @@ Accent (`--primary-color`) reserved exclusively for:
 
 ### Top-Level Navigation
 
-- **`<climate-manager-panel>`** — root custom element, registered as the Lovelace panel
+- **`<climate-manager-panel>`** — root custom element, registered as the
+  Lovelace panel
   - Renders `<ha-tabs>` with 3 tabs: `[Global Settings]` `[Rooms]` `[Persons]`
   - Tab switching is client-side only (no WebSocket call on tab change)
   - Active tab persists in component property only (no URL routing in v1)
@@ -108,64 +118,90 @@ Accent (`--primary-color`) reserved exclusively for:
 ### Global Settings Tab
 
 - **Status strip** (read-only, top of tab):
+
   - Current global mode label (bold)
   - Active period: name + "until HH:MM" (e.g., "Normal — until 22:00")
-  - Present persons: comma-separated names with green dot prefix; "No one home" when empty
+  - Present persons: comma-separated names with green dot prefix; "No one home"
+    when empty
   - Rendered as a `<ha-card>` with heading "Current Status"
-  - All values sourced from `climate_manager/get_status` WebSocket command on panel load and on coordinator push event
+  - All values sourced from `climate_manager/get_status` WebSocket command on
+    panel load and on coordinator push event
 
 - **Configuration section** (below status strip):
-  - Global mode selector: `<ha-select>` with options Off / Time Program / Time Program & Presences
-  - Default temperatures: 4× `<ha-textfield type="number">` for Frost / Reduced / Normal / Comfort, step=0.5, min=5, max=30, suffix="°C"
-  - Global time program editor: `<climate-manager-time-bar>` component (see below)
+  - Global mode selector: `<ha-select>` with options Off / Time Program / Time
+    Program & Presences
+  - Default temperatures: 4× `<ha-textfield type="number">` for Frost / Reduced
+    / Normal / Comfort, step=0.5, min=5, max=30, suffix="°C"
+  - Global time program editor: `<climate-manager-time-bar>` component (see
+    below)
 
 ### Rooms Tab
 
-- **Room list**: ordered — rooms with custom program first (expanded by default), rooms using global program after (collapsed by default)
+- **Room list**: ordered — rooms with custom program first (expanded by
+  default), rooms using global program after (collapsed by default)
   - Source: CONTEXT.md D-14
 - **`<climate-manager-room-card>`** per room:
-  - Collapsed state: room name (heading) + program badge ("Global program" or "Custom program")
+  - Collapsed state: room name (heading) + program badge ("Global program" or
+    "Custom program")
   - Expanded state:
-    - Live status row: temperature reading (from `temperature_sensor` or TRV `current_temperature`), humidity reading (from `humidity_sensor`, hidden if not configured), active period name — all read-only
-    - Associated TRV entity IDs: plain `<ha-textfield>` list, one per TRV, + [+ Add TRV] button
-    - Optional sensor fields: `<ha-textfield>` for `temperature_sensor` entity ID, `<ha-textfield>` for `humidity_sensor` entity ID (both optional, placeholder: "sensor.room_temperature")
-    - "Override global time program" toggle: `<ha-switch>`; when off, inline editor is hidden
-    - Inline 7-bar time program editor (visible only when override is enabled): `<climate-manager-time-bar>`
+    - Live status row: temperature reading (from `temperature_sensor` or TRV
+      `current_temperature`), humidity reading (from `humidity_sensor`, hidden
+      if not configured), active period name — all read-only
+    - Associated TRV entity IDs: plain `<ha-textfield>` list, one per TRV, + [+
+      Add TRV] button
+    - Optional sensor fields: `<ha-textfield>` for `temperature_sensor` entity
+      ID, `<ha-textfield>` for `humidity_sensor` entity ID (both optional,
+      placeholder: "sensor.room_temperature")
+    - "Override global time program" toggle: `<ha-switch>`; when off, inline
+      editor is hidden
+    - Inline 7-bar time program editor (visible only when override is enabled):
+      `<climate-manager-time-bar>`
 
 ### Persons Tab
 
-- **Person list**: ordered — persons with any non-default setting first (expanded), fully-default persons after (collapsed)
+- **Person list**: ordered — persons with any non-default setting first
+  (expanded), fully-default persons after (collapsed)
   - Source: CONTEXT.md D-15
 - **`<climate-manager-person-card>`** per person:
-  - Collapsed state: person name + presence mode badge (Automatic / Present / Absent)
+  - Collapsed state: person name + presence mode badge (Automatic / Present /
+    Absent)
   - Expanded state:
-    - Presence mode selector: 3-button segmented control or `<ha-select>`: Automatic / Present / Absent
-    - Room associations: checkboxes — one per discovered room (room name label + checkbox)
-    - Presence schedule bar: `<climate-manager-time-bar mode="presence">` (2 modes: Present=green, Absent=gray)
+    - Presence mode selector: 3-button segmented control or `<ha-select>`:
+      Automatic / Present / Absent
+    - Room associations: checkboxes — one per discovered room (room name label +
+      checkbox)
+    - Presence schedule bar: `<climate-manager-time-bar mode="presence">` (2
+      modes: Present=green, Absent=gray)
     - Schedule editor visible only when mode is Automatic
 
 ### Time Bar Component (`<climate-manager-time-bar>`)
 
-Shared component used for both time programs (4 modes) and presence schedules (2 modes). Parameterized by `mode` property: `"schedule"` or `"presence"`.
+Shared component used for both time programs (4 modes) and presence schedules (2
+modes). Parameterized by `mode` property: `"schedule"` or `"presence"`.
 
 **Structure per day row:**
-- Day label: 3-letter abbreviation (Mon, Tue, Wed, Thu, Fri, Sat, Sun), right-aligned, 40px wide, vertically centered
+
+- Day label: 3-letter abbreviation (Mon, Tue, Wed, Thu, Fri, Sat, Sun),
+  right-aligned, 40px wide, vertically centered
 - 24h bar: full-width colored segments, 40px tall
 - [Copy] button (ha-icon-button, mdi:content-copy) — right of bar
-- [Paste] button (ha-icon-button, mdi:content-paste) — right of Copy; disabled (opacity 0.4) when clipboard is empty
-- Time axis: shared tick row below all 7 bars — labels at 00:00, 06:00, 12:00, 18:00, 24:00
+- [Paste] button (ha-icon-button, mdi:content-paste) — right of Copy; disabled
+  (opacity 0.4) when clipboard is empty
+- Time axis: shared tick row below all 7 bars — labels at 00:00, 06:00, 12:00,
+  18:00, 24:00
 
 **Interactions (per D-04, D-05, D-06, D-07):**
 
-| Interaction | Trigger | Behavior |
-|-------------|---------|----------|
-| Split period | Click empty area on bar | Snap to nearest 15 min → mode popup (4 colored squares + mode names) → selected mode applied to new right-hand segment |
-| Edit/delete block | Click existing colored block | Popup: time range display, [Change mode] button (opens mode picker), [Delete] button (merges into left neighbor) |
-| Move boundary | Drag border between two blocks | Border moves with mouse; tooltip shows "HH:MM" in real time; 15-min snap; save fires on mouse-up |
-| Copy day | [Copy] button | Stores that day's periods in panel-local `_clipboard` property |
-| Paste day | [Paste] button | Overwrites target day with clipboard periods; save fires immediately |
+| Interaction       | Trigger                        | Behavior                                                                                                               |
+| ----------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Split period      | Click empty area on bar        | Snap to nearest 15 min → mode popup (4 colored squares + mode names) → selected mode applied to new right-hand segment |
+| Edit/delete block | Click existing colored block   | Popup: time range display, [Change mode] button (opens mode picker), [Delete] button (merges into left neighbor)       |
+| Move boundary     | Drag border between two blocks | Border moves with mouse; tooltip shows "HH:MM" in real time; 15-min snap; save fires on mouse-up                       |
+| Copy day          | [Copy] button                  | Stores that day's periods in panel-local `_clipboard` property                                                         |
+| Paste day         | [Paste] button                 | Overwrites target day with clipboard periods; save fires immediately                                                   |
 
 **Constraints:**
+
 - Bar is always fully covered — no gaps. Leftmost block always starts at 00:00.
 - Minimum segment width: 15 minutes (snapping prevents smaller segments)
 - Mode popup appears at click position, dismissed on outside-click or selection
@@ -174,7 +210,8 @@ Shared component used for both time programs (4 modes) and presence schedules (2
 
 - Appears bottom-center of panel viewport
 - Success: "Saved" with mdi:check-circle icon in `--primary-color`
-- Error: "Save failed — retrying..." with mdi:alert-circle icon in `var(--error-color)`
+- Error: "Save failed — retrying..." with mdi:alert-circle icon in
+  `var(--error-color)`
 - Auto-dismiss: 3s for success, stays visible until resolved for error
 - Non-blocking (pointer-events: none)
 - Source: CONTEXT.md D-10
@@ -183,42 +220,42 @@ Shared component used for both time programs (4 modes) and presence schedules (2
 
 ## Copywriting Contract
 
-| Element | Copy |
-|---------|------|
-| Primary CTA | None — auto-save on every change; no explicit save button |
-| Tab 1 | "Global Settings" |
-| Tab 2 | "Rooms" |
-| Tab 3 | "Persons" |
-| Status strip heading | "Current Status" |
-| Config section heading | "Configuration" |
-| Active period format | "{Period name} — until {HH:MM}" |
-| No active period | "No active period" |
-| Present persons (populated) | "{Name1}, {Name2}" with green dot prefix per name |
-| Present persons (empty) | "No one home" |
-| Program badge — global | "Global program" |
-| Program badge — custom | "Custom program" |
-| Override toggle label | "Override global time program" |
-| Add TRV button | "+ Add TRV" |
-| Presence mode badge — automatic | "Automatic" |
-| Presence mode badge — present | "Present" |
-| Presence mode badge — absent | "Absent" |
-| Empty rooms list | "No rooms discovered. Create areas in Home Assistant and assign climate entities." |
-| Empty persons list | "No persons found. Add person entities in Home Assistant." |
-| Empty time program | "Click the bar to add your first period." |
-| Toast success | "Saved" |
-| Toast error | "Save failed — retrying..." |
-| Temperature field suffix | "°C" |
-| Temperature field labels | "Frost protection", "Reduced", "Normal", "Comfort" |
-| Global mode options | "Off", "Time program", "Time program & presences" |
-| Split popup title | "Split at {HH:MM}" |
-| Edit block popup: change mode | "Change mode" |
-| Edit block popup: delete | "Delete period" |
-| Delete period confirmation | None — immediate delete with undo-via-click-elsewhere not applicable; single-click delete confirmed by the interaction model (D-05) |
-| Sensor field placeholder | "sensor.room_temperature" / "sensor.room_humidity" |
-| Sensor label (temperature) | "Temperature sensor (optional)" |
-| Sensor label (humidity) | "Humidity sensor (optional)" |
-| Time bar Copy button aria-label | "Copy {Day} schedule" (e.g., "Copy Monday schedule") |
-| Time bar Paste button aria-label | "Paste to {Day}" (e.g., "Paste to Tuesday") |
+| Element                          | Copy                                                                                                                                |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Primary CTA                      | None — auto-save on every change; no explicit save button                                                                           |
+| Tab 1                            | "Global Settings"                                                                                                                   |
+| Tab 2                            | "Rooms"                                                                                                                             |
+| Tab 3                            | "Persons"                                                                                                                           |
+| Status strip heading             | "Current Status"                                                                                                                    |
+| Config section heading           | "Configuration"                                                                                                                     |
+| Active period format             | "{Period name} — until {HH:MM}"                                                                                                     |
+| No active period                 | "No active period"                                                                                                                  |
+| Present persons (populated)      | "{Name1}, {Name2}" with green dot prefix per name                                                                                   |
+| Present persons (empty)          | "No one home"                                                                                                                       |
+| Program badge — global           | "Global program"                                                                                                                    |
+| Program badge — custom           | "Custom program"                                                                                                                    |
+| Override toggle label            | "Override global time program"                                                                                                      |
+| Add TRV button                   | "+ Add TRV"                                                                                                                         |
+| Presence mode badge — automatic  | "Automatic"                                                                                                                         |
+| Presence mode badge — present    | "Present"                                                                                                                           |
+| Presence mode badge — absent     | "Absent"                                                                                                                            |
+| Empty rooms list                 | "No rooms discovered. Create areas in Home Assistant and assign climate entities."                                                  |
+| Empty persons list               | "No persons found. Add person entities in Home Assistant."                                                                          |
+| Empty time program               | "Click the bar to add your first period."                                                                                           |
+| Toast success                    | "Saved"                                                                                                                             |
+| Toast error                      | "Save failed — retrying..."                                                                                                         |
+| Temperature field suffix         | "°C"                                                                                                                                |
+| Temperature field labels         | "Frost protection", "Reduced", "Normal", "Comfort"                                                                                  |
+| Global mode options              | "Off", "Time program", "Time program & presences"                                                                                   |
+| Split popup title                | "Split at {HH:MM}"                                                                                                                  |
+| Edit block popup: change mode    | "Change mode"                                                                                                                       |
+| Edit block popup: delete         | "Delete period"                                                                                                                     |
+| Delete period confirmation       | None — immediate delete with undo-via-click-elsewhere not applicable; single-click delete confirmed by the interaction model (D-05) |
+| Sensor field placeholder         | "sensor.room_temperature" / "sensor.room_humidity"                                                                                  |
+| Sensor label (temperature)       | "Temperature sensor (optional)"                                                                                                     |
+| Sensor label (humidity)          | "Humidity sensor (optional)"                                                                                                        |
+| Time bar Copy button aria-label  | "Copy {Day} schedule" (e.g., "Copy Monday schedule")                                                                                |
+| Time bar Paste button aria-label | "Paste to {Day}" (e.g., "Paste to Tuesday")                                                                                         |
 
 ---
 
@@ -226,81 +263,91 @@ Shared component used for both time programs (4 modes) and presence schedules (2
 
 Per CONTEXT.md D-08, D-09:
 
-| Trigger | Save fires? | WebSocket command |
-|---------|-------------|-------------------|
-| Global mode dropdown change | Immediately | `climate_manager/set_global_mode` |
-| Temperature field blur or Enter | Immediately | `climate_manager/set_period_temperatures` |
-| Override toggle flip | Immediately | `climate_manager/set_room_config` |
-| TRV entity field blur | Immediately | `climate_manager/set_room_config` |
-| Sensor field blur | Immediately | `climate_manager/set_room_config` |
-| Presence mode selector change | Immediately | `climate_manager/set_person_config` |
-| Room association checkbox | Immediately | `climate_manager/set_person_config` |
-| Time bar: mouse-up after drag | On mouse-up | `climate_manager/set_time_program` or `climate_manager/set_room_time_program` or `climate_manager/set_person_schedule` |
-| Time bar: popup close after split/edit/delete | On popup close | same as above |
-| Time bar: [Paste] button click | Immediately | same as above |
+| Trigger                                       | Save fires?    | WebSocket command                                                                                                      |
+| --------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Global mode dropdown change                   | Immediately    | `climate_manager/set_global_mode`                                                                                      |
+| Temperature field blur or Enter               | Immediately    | `climate_manager/set_period_temperatures`                                                                              |
+| Override toggle flip                          | Immediately    | `climate_manager/set_room_config`                                                                                      |
+| TRV entity field blur                         | Immediately    | `climate_manager/set_room_config`                                                                                      |
+| Sensor field blur                             | Immediately    | `climate_manager/set_room_config`                                                                                      |
+| Presence mode selector change                 | Immediately    | `climate_manager/set_person_config`                                                                                    |
+| Room association checkbox                     | Immediately    | `climate_manager/set_person_config`                                                                                    |
+| Time bar: mouse-up after drag                 | On mouse-up    | `climate_manager/set_time_program` or `climate_manager/set_room_time_program` or `climate_manager/set_person_schedule` |
+| Time bar: popup close after split/edit/delete | On popup close | same as above                                                                                                          |
+| Time bar: [Paste] button click                | Immediately    | same as above                                                                                                          |
 
 ---
 
 ## WebSocket Command Set (Design Contract)
 
-Commands are granular per field group (one mutation per logical unit). All commands follow HA's `vol.Required("type")` pattern.
+Commands are granular per field group (one mutation per logical unit). All
+commands follow HA's `vol.Required("type")` pattern.
 
-| Command | Direction | Payload | Response |
-|---------|-----------|---------|----------|
-| `climate_manager/get_status` | panel → backend | `{}` | `{global_mode, active_period, present_persons, rooms_status[]}` |
-| `climate_manager/get_config` | panel → backend | `{}` | full merged config (runtime_config) |
-| `climate_manager/set_global_mode` | panel → backend | `{mode: string}` | `{success: true}` |
-| `climate_manager/set_period_temperatures` | panel → backend | `{temperatures: {frost_protection, reduced, normal, comfort}}` | `{success: true}` |
-| `climate_manager/set_time_program` | panel → backend | `{program: {mon:[], tue:[], …, sun:[]}}` | `{success: true}` |
-| `climate_manager/set_room_config` | panel → backend | `{room_id: string, config: {temperature_sensor?, humidity_sensor?, time_program?}}` | `{success: true}` |
-| `climate_manager/set_person_config` | panel → backend | `{person_id: string, config: {mode?, room_ids?, schedule?}}` | `{success: true}` |
-| `climate_manager/subscribe_status` | panel → backend | `{}` | subscription; backend pushes updated status after each coordinator evaluation |
+| Command                                   | Direction       | Payload                                                                             | Response                                                                      |
+| ----------------------------------------- | --------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `climate_manager/get_status`              | panel → backend | `{}`                                                                                | `{global_mode, active_period, present_persons, rooms_status[]}`               |
+| `climate_manager/get_config`              | panel → backend | `{}`                                                                                | full merged config (runtime_config)                                           |
+| `climate_manager/set_global_mode`         | panel → backend | `{mode: string}`                                                                    | `{success: true}`                                                             |
+| `climate_manager/set_period_temperatures` | panel → backend | `{temperatures: {frost_protection, reduced, normal, comfort}}`                      | `{success: true}`                                                             |
+| `climate_manager/set_time_program`        | panel → backend | `{program: {mon:[], tue:[], …, sun:[]}}`                                            | `{success: true}`                                                             |
+| `climate_manager/set_room_config`         | panel → backend | `{room_id: string, config: {temperature_sensor?, humidity_sensor?, time_program?}}` | `{success: true}`                                                             |
+| `climate_manager/set_person_config`       | panel → backend | `{person_id: string, config: {mode?, room_ids?, schedule?}}`                        | `{success: true}`                                                             |
+| `climate_manager/subscribe_status`        | panel → backend | `{}`                                                                                | subscription; backend pushes updated status after each coordinator evaluation |
 
-> WebSocket command granularity is at Claude's discretion (CONTEXT.md Discretion section). This minimal 7-command set supports auto-save without flooding the backend.
+> WebSocket command granularity is at Claude's discretion (CONTEXT.md Discretion
+> section). This minimal 7-command set supports auto-save without flooding the
+> backend.
 
 ---
 
 ## States & Loading
 
-| State | Display |
-|-------|---------|
-| Panel loading | `<ha-circular-progress>` centered in panel; no content shown |
-| WebSocket disconnected | Error banner: "Connection lost. Reconnecting…" at top of panel (non-dismissible) |
-| Config loaded | Full panel rendered |
-| Save in-flight | No spinner — optimistic UI; toast appears on resolution |
-| Save success | Toast: "Saved" (3s auto-dismiss) |
-| Save error | Toast: "Save failed — retrying..." (persistent until resolved) |
-| Room with no TRV assigned | Room card shows info badge: "No climate entities" (orange, mdi:alert) |
+| State                               | Display                                                                                             |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Panel loading                       | `<ha-circular-progress>` centered in panel; no content shown                                        |
+| WebSocket disconnected              | Error banner: "Connection lost. Reconnecting…" at top of panel (non-dismissible)                    |
+| Config loaded                       | Full panel rendered                                                                                 |
+| Save in-flight                      | No spinner — optimistic UI; toast appears on resolution                                             |
+| Save success                        | Toast: "Saved" (3s auto-dismiss)                                                                    |
+| Save error                          | Toast: "Save failed — retrying..." (persistent until resolved)                                      |
+| Room with no TRV assigned           | Room card shows info badge: "No climate entities" (orange, mdi:alert)                               |
 | Sensor field with invalid entity ID | Field shows error underline + helper text: "Entity not found in Home Assistant" (validated on blur) |
 
 ---
 
 ## Registry Safety
 
-| Registry | Blocks Used | Safety Gate |
-|----------|-------------|-------------|
-| shadcn official | none | not applicable — Lit panel, not React |
-| npm (Lit 3.x) | `lit`, `@lit/reactive-element` | bundled into panel.js via Vite — no external registry safety gate required |
-| home-assistant-js-websocket | `home-assistant-js-websocket` | official HA library, bundled via Vite |
+| Registry                    | Blocks Used                    | Safety Gate                                                                |
+| --------------------------- | ------------------------------ | -------------------------------------------------------------------------- |
+| shadcn official             | none                           | not applicable — Lit panel, not React                                      |
+| npm (Lit 3.x)               | `lit`, `@lit/reactive-element` | bundled into panel.js via Vite — no external registry safety gate required |
+| home-assistant-js-websocket | `home-assistant-js-websocket`  | official HA library, bundled via Vite                                      |
 
-No third-party registries. No shadcn blocks. Registry vetting gate: not applicable.
+No third-party registries. No shadcn blocks. Registry vetting gate: not
+applicable.
 
 ---
 
 ## Accessibility
 
 - All interactive elements reachable via keyboard Tab order
-- Time bar drag handles: keyboard-accessible alternative via [Edit] popup (click block → change mode / delete)
-- Color is never the sole differentiator — period mode blocks show the mode initial letter (F / R / N / C) as an `aria-label` and visible 1-character label when bar segment is wide enough (>40px)
-- Touch targets: 44px minimum height on all interactive bar rows (per spacing exception above)
-- ARIA roles: `role="tab"` on tab elements, `role="tabpanel"` on content areas, `role="status"` on toast element
+- Time bar drag handles: keyboard-accessible alternative via [Edit] popup (click
+  block → change mode / delete)
+- Color is never the sole differentiator — period mode blocks show the mode
+  initial letter (F / R / N / C) as an `aria-label` and visible 1-character
+  label when bar segment is wide enough (>40px)
+- Touch targets: 44px minimum height on all interactive bar rows (per spacing
+  exception above)
+- ARIA roles: `role="tab"` on tab elements, `role="tabpanel"` on content areas,
+  `role="status"` on toast element
 
 ---
 
 ## Checker Sign-Off
 
 - [x] Dimension 1 Copywriting: PASS
-- [x] Dimension 2 Visuals: FLAG (non-blocking — aria-label text added to Copywriting Contract above)
+- [x] Dimension 2 Visuals: FLAG (non-blocking — aria-label text added to
+      Copywriting Contract above)
 - [x] Dimension 3 Color: PASS
 - [x] Dimension 4 Typography: PASS
 - [x] Dimension 5 Spacing: PASS

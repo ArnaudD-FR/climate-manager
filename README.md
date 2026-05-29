@@ -1,8 +1,13 @@
 # Climate Manager
 
-A Home Assistant custom integration that manages home climate controls through smart radiator thermostats (TRVs). It provides zone-based heating modes, weekday time programs, per-room schedule overrides, and person presence tracking — all configurable through a full Lovelace dashboard panel.
+A Home Assistant custom integration that manages home climate controls through
+smart radiator thermostats (TRVs). It provides zone-based heating modes, weekday
+time programs, per-room schedule overrides, and person presence tracking — all
+configurable through a full Lovelace dashboard panel.
 
-> **Core value:** Every room is always at the right temperature at the right time, without manual intervention — driven by schedules and who is actually home.
+> **Core value:** Every room is always at the right temperature at the right
+> time, without manual intervention — driven by schedules and who is actually
+> home.
 
 ---
 
@@ -36,13 +41,21 @@ A Home Assistant custom integration that manages home climate controls through s
 
 ## Features
 
-- **Zone-based scheduling** — Group rooms into zones, each with its own weekly heating program (Normal, Comfort, Reduced, Frost Protection periods)
-- **Three heating modes per zone** — _Off_, _Time program_, _Time program & presences_
-- **Per-room overrides** — Each room can follow its zone program, use a custom schedule, or be set to Off individually
-- **Person presence** — Associate persons with rooms; in _Time program & presences_ mode the room only heats when someone is home
-- **Presence tracking modes** — Scheduled (weekly timetable), HA home tracking, Force Present, Force Absent
-- **Gap-fill logic** — When a person is present, Reduced/Frost periods sandwiched between Normal/Comfort periods are held at the preceding Normal/Comfort temperature
-- **Live status** — Overview tab shows current period, temperature, and humidity for every room
+- **Zone-based scheduling** — Group rooms into zones, each with its own weekly
+  heating program (Normal, Comfort, Reduced, Frost Protection periods)
+- **Three heating modes per zone** — _Off_, _Time program_, _Time program &
+  presences_
+- **Per-room overrides** — Each room can follow its zone program, use a custom
+  schedule, or be set to Off individually
+- **Person presence** — Associate persons with rooms; in _Time program &
+  presences_ mode the room only heats when someone is home
+- **Presence tracking modes** — Scheduled (weekly timetable), HA home tracking,
+  Force Present, Force Absent
+- **Gap-fill logic** — When a person is present, Reduced/Frost periods
+  sandwiched between Normal/Comfort periods are held at the preceding
+  Normal/Comfort temperature
+- **Live status** — Overview tab shows current period, temperature, and humidity
+  for every room
 - **TRV control** — Works with any HA `climate` entity; no brand-specific APIs
 
 ---
@@ -59,7 +72,8 @@ A Home Assistant custom integration that manages home climate controls through s
 
 ### Manual
 
-1. Copy `custom_components/climate_manager/` into your HA `config/custom_components/` directory
+1. Copy `custom_components/climate_manager/` into your HA
+   `config/custom_components/` directory
 2. Restart Home Assistant
 3. Go to Settings → Integrations → Add Integration → **Climate Manager**
 
@@ -79,7 +93,8 @@ Rooms are grouped into **zones**. Each zone has a **mode**:
 
 ### Time program
 
-A weekly schedule divided into days (Mon–Sun). Each day has periods with a start time and a mode:
+A weekly schedule divided into days (Mon–Sun). Each day has periods with a start
+time and a mode:
 
 | Period               | Typical use                                           |
 | -------------------- | ----------------------------------------------------- |
@@ -88,19 +103,24 @@ A weekly schedule divided into days (Mon–Sun). Each day has periods with a sta
 | **Reduced**          | Lower temperature (sleeping, away)                    |
 | **Frost Protection** | Minimum anti-freeze temperature                       |
 
-Each period is active from its start time until the next period's start. The last period of the day runs until midnight.
+Each period is active from its start time until the next period's start. The
+last period of the day runs until midnight.
 
 ### Presence & scheduling
 
 When a zone is in _Time program & presences_ mode:
 
-- **Person absent** → room stays at Reduced temperature regardless of the schedule
-- **Person present** → room is heated from the first Normal/Comfort period to the last
-- **Gap-fill** — A Reduced or Frost period sandwiched between two Normal/Comfort periods is held at the preceding Normal/Comfort temperature while someone is present
+- **Person absent** → room stays at Reduced temperature regardless of the
+  schedule
+- **Person present** → room is heated from the first Normal/Comfort period to
+  the last
+- **Gap-fill** — A Reduced or Frost period sandwiched between two Normal/Comfort
+  periods is held at the preceding Normal/Comfort temperature while someone is
+  present
 
 **Example:** schedule Normal 06:00 → Reduced 09:00 → Normal 17:00 → Frost 22:00.
-If present all day: room heats 06:00–22:00, holding Normal during the 09:00–17:00 Reduced gap.
-If absent: room stays at Reduced all day.
+If present all day: room heats 06:00–22:00, holding Normal during the
+09:00–17:00 Reduced gap. If absent: room stays at Reduced all day.
 
 ### Per-room overrides
 
@@ -116,7 +136,8 @@ Each room has a **mode** that can override its zone:
 
 ## Configuration
 
-All configuration is done through the panel UI accessible from the HA sidebar. No YAML editing required.
+All configuration is done through the panel UI accessible from the HA sidebar.
+No YAML editing required.
 
 ### Global settings
 
@@ -139,7 +160,8 @@ All configuration is done through the panel UI accessible from the HA sidebar. N
 
 ### Persons
 
-- Set presence mode (Scheduled / HA home tracking / Force Present / Force Absent)
+- Set presence mode (Scheduled / HA home tracking / Force Present / Force
+  Absent)
 - Edit presence schedule
 - Assign rooms
 

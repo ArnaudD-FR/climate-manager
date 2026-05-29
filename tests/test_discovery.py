@@ -5,10 +5,13 @@ Verifies Assumptions A1/A2 from RESEARCH.md:
   A1 - RegistryEntry has a .domain attribute usable for filtering
   A2 - AreaEntry has .id and .name attributes
 """
-import pytest
+
 from homeassistant.helpers import area_registry as ar, entity_registry as er
 
-from custom_components.climate_manager.discovery import discover_persons, discover_rooms
+from custom_components.climate_manager.discovery import (
+    discover_persons,
+    discover_rooms,
+)
 
 
 async def test_discover_rooms_returns_climate_entities_by_area(hass):
