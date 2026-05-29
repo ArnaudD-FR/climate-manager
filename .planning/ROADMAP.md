@@ -36,7 +36,7 @@ two independent weekly presence schedules, automatically selected by ISO week
 parity, and the integration can keep TRV readings honest by auto-calibrating
 their temperature offset against the room's reference sensor.
 
-- [ ] **Phase 7: Even/Odd Week Scheduling — Backend** — Person schema gains
+- [x] **Phase 7: Even/Odd Week Scheduling — Backend** — Person schema gains (completed 2026-05-29)
       `schedule_type`/`schedule_even`/`schedule_odd`; evaluator selects by week
       parity
 - [ ] **Phase 8: Even/Odd Week Scheduling — Frontend** — Week-switcher toggle
@@ -71,9 +71,9 @@ parity — without breaking any existing single-schedule person.
 
 **Plans**: 2 plans (Wave 1, parallel)
 
-- [ ] 07-01-PLAN.md — Evaluator week-parity selection + schema/types stub
+- [x] 07-01-PLAN.md — Evaluator week-parity selection + schema/types stub
       (SCHED-01, SCHED-02, SCHED-03)
-- [ ] 07-02-PLAN.md — set_person_config auto-seeding + revert preservation
+- [x] 07-02-PLAN.md — set_person_config auto-seeding + revert preservation
       (SCHED-01, SCHED-05, SCHED-06)
 
 ### Phase 8: Even/Odd Week Scheduling — Frontend
@@ -141,6 +141,6 @@ Phases execute in numeric order: 7 → 8 → 9 (Phase 9 may run in parallel with
 | 4. Zone Data Model & Storage         | v1.1      | 2/2            | Complete    | 2026-05-27 |
 | 5. Zone CRUD & Evaluation Engine     | v1.1      | 3/3            | Complete    | 2026-05-27 |
 | 6. Zone & Room Assignment UI         | v1.1      | 4/4            | Complete    | 2026-05-28 |
-| 7. Even/Odd Week Scheduling — Backend | v1.2     | 0/2            | Planned     | -          |
+| 7. Even/Odd Week Scheduling — Backend | v1.2     | 2/2 | Complete   | 2026-05-29 |
 | 8. Even/Odd Week Scheduling — Frontend | v1.2    | 0/TBD          | Not started | -          |
 | 9. TRV Temperature Offset Auto-Calibration | v1.2 | 0/TBD         | Not started | -          |
