@@ -160,13 +160,6 @@ export class ZoneTab extends LitElement {
       margin-bottom: 16px;
     }
 
-    .select-label {
-      display: block;
-      font-size: 12px;
-      color: var(--secondary-text-color);
-      margin-bottom: 4px;
-    }
-
     .mode-select {
       width: 100%;
       padding: 10px 12px;

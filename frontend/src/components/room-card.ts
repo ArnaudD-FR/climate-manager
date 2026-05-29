@@ -285,13 +285,6 @@ export class RoomCard extends LitElement {
       margin-bottom: 16px;
     }
 
-    .select-label {
-      display: block;
-      font-size: 12px;
-      color: var(--secondary-text-color);
-      margin-bottom: 4px;
-    }
-
     .mode-select {
       width: 100%;
       padding: 10px 12px;
@@ -723,8 +716,8 @@ export class RoomCard extends LitElement {
                 : ""}
 
               <!-- Zone picker (ASSIGN-02, D-12) -->
+              <div class="section-label">Zone</div>
               <div class="select-wrapper">
-                <label class="select-label">Zone</label>
                 <select class="mode-select" @change=${this._onZoneChange}>
                   <option value="" ?selected=${!this.config?.zone_id}>
                     ${this.panelConfig?.default_zone_name ?? "Default Zone"}
