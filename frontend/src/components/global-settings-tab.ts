@@ -333,7 +333,7 @@ export class GlobalSettingsTab extends LitElement {
         id: zoneId,
         name: zone.name,
         mode: zone.mode,
-        activePeriod: getActivePeriod(zone.time_program, now),
+        activePeriod: zone.mode !== MODE_OFF ? getActivePeriod(zone.time_program, now) : null,
       });
     }
     return rows;
