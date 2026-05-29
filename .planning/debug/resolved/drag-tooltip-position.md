@@ -1,6 +1,6 @@
 ---
 slug: drag-tooltip-position
-status: in-progress
+status: resolved
 trigger: manual
 goal: find_and_fix
 created: 2026-05-18
