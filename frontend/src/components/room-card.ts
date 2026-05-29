@@ -18,6 +18,7 @@ import { PERIOD_DISPLAY_NAMES, PERIOD_COLORS, getZoneColor } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
+import { chipStyles, sectionLabelStyles, selectStyles, expandIconStyles } from "../shared-styles.js";
 
 import "./time-bar.js";
 import "./search-picker.js";
@@ -80,7 +81,7 @@ export class RoomCard extends LitElement {
     }
   }
 
-  static styles = css`
+  static styles = [chipStyles, sectionLabelStyles, selectStyles, expandIconStyles, css`
     :host {
       display: block;
     }
@@ -197,124 +198,14 @@ export class RoomCard extends LitElement {
       margin-bottom: 12px;
     }
 
-    .section-label {
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      color: var(--secondary-text-color);
-      margin-bottom: 8px;
-    }
-
-    /* Person / room association chips */
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 16px;
-      background: var(--secondary-background-color, #f5f5f5);
-      border: 1px solid var(--divider-color, #e0e0e0);
-      font-size: 13px;
-      color: var(--primary-text-color);
-      cursor: pointer;
-    }
-
-    .chip:hover {
-      background: var(--secondary-background-color, #eeeeee);
-      border-color: var(--primary-color);
-    }
-
-    .chip ha-icon {
-      --mdc-icon-size: 16px;
-      width: 16px;
-      height: 16px;
-      flex-shrink: 0;
-    }
-
-    .chip-remove {
-      background: none;
-      border: none;
-      padding: 0 0 0 2px;
-      margin: 0;
-      cursor: pointer;
-      color: var(--secondary-text-color);
-      font-size: 18px;
-      line-height: 1;
-      display: flex;
-      align-items: center;
-    }
-
-    .chip-remove:hover {
-      color: var(--error-color, #f44336);
-    }
-
-    .chip-add {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 4px 10px;
-      border-radius: 16px;
-      background: none;
-      border: 1px solid var(--primary-color, #03a9f4);
-      font-size: 13px;
-      color: var(--primary-color, #03a9f4);
-      cursor: pointer;
-      font-family: inherit;
-    }
-
-    .chip-add:hover {
-      background: var(--secondary-background-color);
-    }
-
-    .chip-add ha-icon {
-      --mdc-icon-size: 16px;
-      width: 16px;
-      height: 16px;
-    }
-
     /* 3-way room mode selector (D-20) */
     .select-wrapper {
       margin-bottom: 16px;
     }
 
-    .mode-select {
-      width: 100%;
-      padding: 10px 12px;
-      font-size: 16px;
-      font-family: inherit;
-      color: var(--primary-text-color);
-      background-color: var(--card-background-color, var(--secondary-background-color));
-      border: 1px solid var(--divider-color);
-      border-radius: 4px;
-      outline: none;
-      cursor: pointer;
-    }
-
-    .mode-select:focus {
-      border-color: var(--primary-color);
-      border-width: 2px;
-    }
-
     /* Inline time bar */
     .time-bar-section {
       margin-top: 12px;
-    }
-
-    .expand-icon {
-      color: var(--secondary-text-color);
-      transition: transform 0.2s;
-    }
-
-    .expand-icon.expanded {
-      transform: rotate(180deg);
     }
 
     .reset-btn {
@@ -333,7 +224,7 @@ export class RoomCard extends LitElement {
     .reset-btn:hover {
       background: var(--secondary-background-color);
     }
-  `;
+  `];
 
   // -----------------------------------------------------------------------
   // Person association handlers
