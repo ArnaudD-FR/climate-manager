@@ -58,15 +58,16 @@ without `schedule_type` continue to behave exactly as before.
   sends `schedule_type`, `schedule_even`, `schedule_odd` via the standard
   sparse-merge payload — the same mechanism used for `mode`, `room_ids`, and
   `schedule` today.
-- **D-04:** `get_config` already returns the full `persons` dict from
-  `runtime_config`. New fields pass through automatically — no read-path
-  handler changes needed. Frontend reads them from the existing persons payload.
+- **D-04 [informational]:** `get_config` already returns the full `persons`
+  dict from `runtime_config`. New fields pass through automatically — no
+  read-path handler changes needed. Frontend reads them from the existing
+  persons payload.
 
 ### Storage Version
 
-- **D-05:** No STORAGE_VERSION bump. Absent `schedule_type` defaults to
-  `"single"` at read time. The sparse-merge pattern in `storage.py` preserves
-  unknown fields — this is a zero-migration additive extension.
+- **D-05 [informational]:** No STORAGE_VERSION bump. Absent `schedule_type`
+  defaults to `"single"` at read time. The sparse-merge pattern in `storage.py`
+  preserves unknown fields — this is a zero-migration additive extension.
 
 ### Claude's Discretion
 

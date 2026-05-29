@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Presence & Calibration
-status: planning
-last_updated: "2026-05-29T15:29:38.705Z"
-last_activity: 2026-05-29 — Roadmap created for v1.2 (Phases 7-9)
+status: executing
+last_updated: "2026-05-29T16:16:50.154Z"
+last_activity: 2026-05-29 -- Phase 07 planning complete
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
+  total_plans: 2
   completed_plans: 0
   percent: 0
 ---
@@ -28,8 +28,8 @@ presence schedules + TRV offset auto-calibration.
 
 Phase: Phase 7 — Even/Odd Week Scheduling — Backend (not started)
 Plan: —
-Status: Roadmapped (awaiting phase planning)
-Last activity: 2026-05-29 — Roadmap created for v1.2 (Phases 7-9)
+Status: Ready to execute
+Last activity: 2026-05-29 -- Phase 07 planning complete
 
 ## Performance Metrics
 
