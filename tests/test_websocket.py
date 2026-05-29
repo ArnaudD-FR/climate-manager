@@ -26,6 +26,38 @@ from custom_components.climate_manager.const import (
     _DEFAULT_DAILY_PROGRAM,
 )
 
+# Presence schedule: Mon–Fri present 08:00–22:00, absent otherwise; Sat–Sun absent
+# Inline copy to keep this test file self-contained (same as test_schedule.py).
+PERSON_SCHEDULE: dict = {
+    "mon": [
+        {"start": "00:00", "state": "absent"},
+        {"start": "08:00", "state": "present"},
+        {"start": "22:00", "state": "absent"},
+    ],
+    "tue": [
+        {"start": "00:00", "state": "absent"},
+        {"start": "08:00", "state": "present"},
+        {"start": "22:00", "state": "absent"},
+    ],
+    "wed": [
+        {"start": "00:00", "state": "absent"},
+        {"start": "08:00", "state": "present"},
+        {"start": "22:00", "state": "absent"},
+    ],
+    "thu": [
+        {"start": "00:00", "state": "absent"},
+        {"start": "08:00", "state": "present"},
+        {"start": "22:00", "state": "absent"},
+    ],
+    "fri": [
+        {"start": "00:00", "state": "absent"},
+        {"start": "08:00", "state": "present"},
+        {"start": "22:00", "state": "absent"},
+    ],
+    "sat": [{"start": "00:00", "state": "absent"}],
+    "sun": [{"start": "00:00", "state": "absent"}],
+}
+
 
 async def _setup_entry(hass) -> MockConfigEntry:
     """Helper: set up the integration entry and return it.
@@ -949,3 +981,138 @@ async def test_ws_set_zone_time_program_accepts_full_program(
     ] == [{"start": "06:00", "mode": "normal"}], (
         "zone time_program was affected by mutation to the input program — not a deep copy"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests: even/odd week schedule seeding via set_person_config (Plan 07-02)
+# ---------------------------------------------------------------------------
+
+
+# T-07-W1: single→even_odd seeds both schedule_even and schedule_odd (SCHED-05)
+async def test_ws_set_person_config_seeds_even_odd_from_schedule(
+    hass, hass_ws_client
+):
+    """SCHED-05: switching to even_odd seeds schedule_even and schedule_odd
+    from the existing schedule when neither key is present in storage.
+    """
+    entry = await _setup_entry(hass)
+
+    # Seed an existing single schedule for person.alice
+    entry.runtime_data.runtime_config["persons"] = {
+        "person.alice": {"schedule": PERSON_SCHEDULE},
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_person_config",
+            "person_id": "person.alice",
+            "config": {"schedule_type": "even_odd"},
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    stored = entry.runtime_data.runtime_config["persons"]["person.alice"]
+    assert stored["schedule_type"] == "even_odd"
+    assert "schedule_even" in stored
+    assert "schedule_odd" in stored
+    # Seeded copies must equal the original schedule
+    assert stored["schedule_even"] == PERSON_SCHEDULE
+    assert stored["schedule_odd"] == PERSON_SCHEDULE
+    # Seeded copies must be independent objects (Pitfall 2)
+    assert stored["schedule_even"] is not stored["schedule_odd"]
+
+
+# T-07-W2: seeding guard — second switch does not overwrite existing
+#           schedule_even (Pitfall 1)
+async def test_ws_set_person_config_does_not_overwrite_existing_schedule_even(
+    hass, hass_ws_client
+):
+    """SCHED-05 guard: schedule_even already in storage → no overwrite."""
+    entry = await _setup_entry(hass)
+
+    custom_even = {
+        "mon": [{"start": "06:00", "state": "present"}],
+        **{d: [] for d in ["tue", "wed", "thu", "fri", "sat", "sun"]},
+    }
+    entry.runtime_data.runtime_config["persons"] = {
+        "person.alice": {
+            "schedule_type": "even_odd",
+            "schedule_even": custom_even,
+            "schedule_odd": {},
+        }
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_person_config",
+            "person_id": "person.alice",
+            "config": {"schedule_type": "even_odd"},
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    stored = entry.runtime_data.runtime_config["persons"]["person.alice"]
+    # schedule_even must remain the custom value (not reset)
+    assert stored["schedule_even"] == custom_even
+
+
+# T-07-W3: set_person_config with schedule_type="single" does not touch
+#           schedule_even / schedule_odd (D-02)
+async def test_ws_set_person_config_single_does_not_seed(hass, hass_ws_client):
+    """D-02: schedule_type=single → no seeding, schedule_even/odd not added."""
+    entry = await _setup_entry(hass)
+    entry.runtime_data.runtime_config["persons"] = {
+        "person.alice": {"schedule": PERSON_SCHEDULE},
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_person_config",
+            "person_id": "person.alice",
+            "config": {"schedule_type": "single"},
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    stored = entry.runtime_data.runtime_config["persons"]["person.alice"]
+    assert "schedule_even" not in stored
+    assert "schedule_odd" not in stored
+
+
+# T-07-W4: after even_odd→single revert, schedule_even/odd preserved (SCHED-06)
+async def test_ws_set_person_config_revert_preserves_week_schedules(
+    hass, hass_ws_client
+):
+    """D-02: reverting to single preserves schedule_even and schedule_odd."""
+    entry = await _setup_entry(hass)
+
+    entry.runtime_data.runtime_config["persons"] = {
+        "person.alice": {
+            "schedule_type": "even_odd",
+            "schedule_even": PERSON_SCHEDULE,
+            "schedule_odd": PERSON_SCHEDULE,
+        }
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_person_config",
+            "person_id": "person.alice",
+            "config": {"schedule_type": "single"},
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    stored = entry.runtime_data.runtime_config["persons"]["person.alice"]
+    assert stored["schedule_type"] == "single"
+    # D-02: week schedules silently preserved — user can switch back later
+    assert "schedule_even" in stored
+    assert "schedule_odd" in stored
