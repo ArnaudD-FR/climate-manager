@@ -219,7 +219,11 @@ def compute_occupied_temp(
 
     # End of occupied window = start of the period immediately after the last N/C,
     # or None if the last N/C is the final period of the day (window extends to midnight).
-    last_nc_idx = today_periods.index(nc_periods[-1])
+    # Use identity-based search (not list.index()) so duplicate dicts do not
+    # cause the wrong index to be returned (WR-02).
+    last_nc_idx = next(
+        i for i, p in enumerate(today_periods) if p is nc_periods[-1]
+    )
     if last_nc_idx + 1 < len(today_periods):
         occupied_end: datetime.time | None = _parse_time(
             today_periods[last_nc_idx + 1]["start"]
