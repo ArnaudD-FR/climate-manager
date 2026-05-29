@@ -214,6 +214,12 @@ export class RoomCard extends LitElement {
       border: 1px solid var(--divider-color, #e0e0e0);
       font-size: 13px;
       color: var(--primary-text-color);
+      cursor: pointer;
+    }
+
+    .chip:hover {
+      background: var(--secondary-background-color, #eeeeee);
+      border-color: var(--primary-color);
     }
 
     .chip ha-icon {
@@ -615,12 +621,12 @@ export class RoomCard extends LitElement {
       <div class="section-label">Associated persons</div>
       <div class="chips">
         ${assignedPersonIds.map((personId) => html`
-          <span class="chip">
+          <span class="chip" @click=${() => void this.panel.navigateToPerson(personId)}>
             <ha-icon icon="mdi:account"></ha-icon>
             ${this._getPersonName(personId)}
             <button
               class="chip-remove"
-              @click=${() => void this._onRemovePerson(personId)}
+              @click=${(e: Event) => { e.stopPropagation(); void this._onRemovePerson(personId); }}
             >×</button>
           </span>
         `)}

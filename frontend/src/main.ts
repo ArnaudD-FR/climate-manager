@@ -46,6 +46,7 @@ export class ClimateManagerPanel extends LitElement {
   @state() private _editingTabId: string | null = null;
   @state() private _tabNameInput = "";
   @state() private _expandRoomId: string | null = null;
+  @state() private _expandPersonId: string | null = null;
 
   @query("climate-manager-toast")
   private _toast?: ClimateManagerToast;
@@ -250,6 +251,14 @@ export class ClimateManagerPanel extends LitElement {
     this._expandRoomId = null;
   }
 
+  /** Navigate to the Persons tab and auto-expand the given person card. */
+  async navigateToPerson(personId: string): Promise<void> {
+    this._setTab("persons");
+    this._expandPersonId = personId;
+    await this.updateComplete;
+    this._expandPersonId = null;
+  }
+
   /** Patch a subset of _config in-place without a WS round-trip. */
   patchConfig(patch: Partial<ClimateConfig>): void {
     if (this._config) this._config = { ...this._config, ...patch };
@@ -448,6 +457,7 @@ export class ClimateManagerPanel extends LitElement {
           .ws=${this._ws!}
           .panel=${this}
           .hass=${this.hass}
+          .expandPersonId=${this._expandPersonId}
         ></climate-manager-persons-tab>`;
       default:
         return html``;

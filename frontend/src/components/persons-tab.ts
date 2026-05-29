@@ -25,6 +25,7 @@ export class PersonsTab extends LitElement {
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
   @property({ attribute: false }) hass!: Hass;
+  @property({ attribute: false }) expandPersonId: string | null = null;
 
   static styles = css`
     :host {
@@ -112,6 +113,7 @@ export class PersonsTab extends LitElement {
             .ws=${this.ws}
             .panel=${this.panel}
             .status=${this.status}
+            .autoExpand=${this.expandPersonId === personId}
           ></climate-manager-person-card>
         `;
       })}

@@ -12,7 +12,7 @@
  * D-22: default schedule seeded on first switch to scheduled mode.
  */
 
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import type { PersonConfig, DailyProgram, Period, StatusPayload } from "../types.js";
@@ -57,6 +57,7 @@ export class PersonCard extends LitElement {
   @property({ attribute: false }) status: StatusPayload | null = null;
 
   @state() _expanded = false;
+  @property({ type: Boolean }) autoExpand = false;
 
   // Memoize days array — same pattern as global-settings-tab to prevent
   // time-bar drag-preview from clearing on status-only re-renders.
@@ -75,6 +76,13 @@ export class PersonCard extends LitElement {
     super.connectedCallback();
     // D-15 (updated): always collapsed by default
     this._expanded = false;
+  }
+
+  updated(changedProperties: PropertyValues) {
+    if (changedProperties.has("autoExpand") && this.autoExpand) {
+      this._expanded = true;
+      this.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   }
 
   static styles = css`
@@ -211,6 +219,12 @@ export class PersonCard extends LitElement {
       border: 1px solid var(--divider-color, #e0e0e0);
       font-size: 13px;
       color: var(--primary-text-color);
+      cursor: pointer;
+    }
+
+    .chip:hover {
+      background: var(--secondary-background-color, #eeeeee);
+      border-color: var(--primary-color);
     }
 
     .chip ha-icon {
@@ -421,12 +435,12 @@ export class PersonCard extends LitElement {
                   const room = this.roomChoices.find((r) => r.id === roomId);
                   if (!room) return "";
                   return html`
-                    <span class="chip">
+                    <span class="chip" @click=${() => void this.panel.navigateToRoom(roomId)}>
                       <ha-icon icon="mdi:home-outline"></ha-icon>
                       ${room.name}
                       <button
                         class="chip-remove"
-                        @click=${() => void this._onRoomToggle(roomId, false)}
+                        @click=${(e: Event) => { e.stopPropagation(); void this._onRoomToggle(roomId, false); }}
                       >×</button>
                     </span>
                   `;
