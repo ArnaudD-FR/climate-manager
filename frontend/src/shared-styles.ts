@@ -114,6 +114,16 @@ export const selectStyles = css`
   }
 `;
 
+/** Scheduling behavior hint — rendered below time-bar components. */
+export const scheduleHintStyles = css`
+  .schedule-hint {
+    font-size: 12px;
+    color: var(--secondary-text-color);
+    margin: 6px 0 12px;
+    line-height: 1.5;
+  }
+`;
+
 /** Animated chevron used in collapsible card headers — used by room-card, person-card. */
 export const expandIconStyles = css`
   .expand-icon {

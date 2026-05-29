@@ -26,7 +26,7 @@ import type { ClimateConfig, ZoneConfig, DailyProgram, Period, RoomConfig, Statu
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
-import { chipStyles, sectionLabelStyles, selectStyles } from "../shared-styles.js";
+import { chipStyles, sectionLabelStyles, selectStyles, scheduleHintStyles } from "../shared-styles.js";
 
 import "./time-bar.js";
 import "./search-picker.js";
@@ -96,7 +96,7 @@ export class ZoneTab extends LitElement {
   // Static styles
   // -------------------------------------------------------------------------
 
-  static styles = [chipStyles, sectionLabelStyles, selectStyles, css`
+  static styles = [chipStyles, sectionLabelStyles, selectStyles, scheduleHintStyles, css`
     :host {
       display: block;
     }
@@ -431,6 +431,19 @@ export class ZoneTab extends LitElement {
   // Render
   // -------------------------------------------------------------------------
 
+  private _renderScheduleHint() {
+    const mode = this.zoneConfig?.mode;
+    let text: string;
+    if (mode === "off") {
+      text = "Zone is off — the schedule is saved but not applied. All assigned rooms use frost protection only.";
+    } else if (mode === "time_program_presences") {
+      text = "Rooms heat according to this schedule only when an assigned person is present. When everyone is absent, rooms stay at Reduced temperature. A Reduced or Frost period sandwiched between two Normal/Comfort periods is held at the preceding Normal/Comfort temperature while someone is present.";
+    } else {
+      text = "Rooms in this zone follow this schedule. Each period sets the target temperature for all assigned rooms.";
+    }
+    return html`<p class="schedule-hint">${text}</p>`;
+  }
+
   private _getFloorIcon(fid: string): string {
     const floor = this.hass?.floors?.[fid];
     if (floor?.icon) return floor.icon;
@@ -460,7 +473,7 @@ export class ZoneTab extends LitElement {
 
     return html`
       <!-- 1. Mode picker -->
-      <div class="section-label">Mode</div>
+      <div class="section-label" title="Controls how rooms in this zone are heated">Mode</div>
       <div class="select-wrapper">
         <select class="mode-select" @change=${this._onModeChange}>
           <option value="off" ?selected=${this.zoneConfig.mode === "off"}>Off</option>
@@ -476,6 +489,8 @@ export class ZoneTab extends LitElement {
         @periods-changed=${this._onPeriodsChanged}
       ></climate-manager-time-bar>
 
+      ${this._renderScheduleHint()}
+
       <!-- Reset row: Default Zone gets one button; custom zones get two -->
       <div class="reset-row">
         ${!this.isDefault
@@ -486,7 +501,7 @@ export class ZoneTab extends LitElement {
 
       <!-- 5. Assigned Rooms section (D-08 / D-09 / D-10) -->
       <div class="section-divider"></div>
-      <div class="section-label">Assigned rooms</div>
+      <div class="section-label" title="Rooms that follow this zone's schedule">Assigned rooms</div>
       ${roomGroups.map((group) => html`
         ${group.floorId !== null
           ? html`<div class="floor-group-label"><ha-icon icon=${this._getFloorIcon(group.floorId)}></ha-icon>${group.floorName}</div>`

@@ -19,7 +19,7 @@ import type { PersonConfig, DailyProgram, Period, StatusPayload } from "../types
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
-import { chipStyles, sectionLabelStyles, selectStyles, expandIconStyles } from "../shared-styles.js";
+import { chipStyles, sectionLabelStyles, selectStyles, expandIconStyles, scheduleHintStyles } from "../shared-styles.js";
 
 import "./time-bar.js";
 import "./search-picker.js";
@@ -92,7 +92,7 @@ export class PersonCard extends LitElement {
     }
   }
 
-  static styles = [chipStyles, sectionLabelStyles, selectStyles, expandIconStyles, css`
+  static styles = [chipStyles, sectionLabelStyles, selectStyles, expandIconStyles, scheduleHintStyles, css`
     :host {
       display: block;
     }
@@ -319,7 +319,7 @@ export class PersonCard extends LitElement {
             <div class="card-content">
 
               <!-- Presence mode selector -->
-              <div class="section-label">Presence mode</div>
+              <div class="section-label" title="How this person's presence is determined">Presence mode</div>
               <div class="select-wrapper">
                 <select class="mode-select" @change=${this._onModeChange}>
                   <option value=${PRESENCE_MODE_SCHEDULED} ?selected=${currentMode === PRESENCE_MODE_SCHEDULED}>Scheduled</option>
@@ -330,7 +330,7 @@ export class PersonCard extends LitElement {
               </div>
 
               <!-- Room associations as chips -->
-              <div class="section-label">Room associations</div>
+              <div class="section-label" title="Rooms affected by this person's presence — relevant in Time &amp; presence mode">Room associations</div>
               <div class="chips">
                 ${currentRoomIds.map((roomId) => {
                   const room = this.roomChoices.find((r) => r.id === roomId);
@@ -367,7 +367,7 @@ export class PersonCard extends LitElement {
               <!-- Presence schedule (only in Scheduled mode) -->
               ${isScheduled
                 ? html`
-                  <div class="section-label">Presence schedule</div>
+                  <div class="section-label" title="When this person is considered present — used in Time &amp; presence mode">Presence schedule</div>
                   <div class="schedule-section">
                     <climate-manager-time-bar
                       mode="presence"
@@ -375,6 +375,7 @@ export class PersonCard extends LitElement {
                       @periods-changed=${this._onSchedulePeriodsChanged}
                     ></climate-manager-time-bar>
                   </div>
+                  <p class="schedule-hint">Defines when this person is considered present. Active in Time &amp; presence mode only — periods marked Present enable heating for this person's assigned rooms.</p>
                   <button class="reset-btn" @click=${() => void this._onResetSchedule()}>Reset to default</button>
                 `
                 : ""}

@@ -18,7 +18,7 @@ import { PERIOD_DISPLAY_NAMES, PERIOD_COLORS, getZoneColor } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
-import { chipStyles, sectionLabelStyles, selectStyles, expandIconStyles } from "../shared-styles.js";
+import { chipStyles, sectionLabelStyles, selectStyles, expandIconStyles, scheduleHintStyles } from "../shared-styles.js";
 
 import "./time-bar.js";
 import "./search-picker.js";
@@ -81,7 +81,7 @@ export class RoomCard extends LitElement {
     }
   }
 
-  static styles = [chipStyles, sectionLabelStyles, selectStyles, expandIconStyles, css`
+  static styles = [chipStyles, sectionLabelStyles, selectStyles, expandIconStyles, scheduleHintStyles, css`
     :host {
       display: block;
     }
@@ -512,7 +512,7 @@ export class RoomCard extends LitElement {
     }));
 
     return html`
-      <div class="section-label">Associated persons</div>
+      <div class="section-label" title="Persons assigned to this room — in Time &amp; presence mode, their presence determines whether the room heats">Associated persons</div>
       <div class="chips">
         ${assignedPersonIds.map((personId) => html`
           <span class="chip" @click=${() => void this.panel.navigateToPerson(personId)}>
@@ -537,6 +537,19 @@ export class RoomCard extends LitElement {
           : ""}
       </div>
     `;
+  }
+
+  private _renderCustomScheduleHint() {
+    const globalMode = this.status?.global_mode ?? this.panelConfig?.global_mode ?? "";
+    let text: string;
+    if (globalMode === "off") {
+      text = "Zone is in Off mode. The schedule is saved but not applied.";
+    } else if (globalMode === "time_program_presences") {
+      text = "This room follows its own custom schedule. Normal and Comfort periods apply only when an assigned person is present — otherwise the room stays at Reduced temperature.";
+    } else {
+      text = "This room follows its own custom schedule, overriding the zone program.";
+    }
+    return html`<p class="schedule-hint">${text}</p>`;
   }
 
   render() {
@@ -578,7 +591,7 @@ export class RoomCard extends LitElement {
           ? html`
             <div class="card-content">
               <!-- 3-way room mode selector (D-20) -->
-              <div class="section-label">Mode</div>
+              <div class="section-label" title="Zone program follows the zone schedule, Custom sets a room-specific schedule, Off keeps the room at frost protection only">Mode</div>
               <div class="select-wrapper">
                 <select
                   class="mode-select"
@@ -594,7 +607,7 @@ export class RoomCard extends LitElement {
               <!-- Inline time-bar (only in Custom mode) -->
               ${resolvedMode === "custom"
                 ? html`
-                  <div class="section-label">Schedule</div>
+                  <div class="section-label" title="This room's custom heating schedule — overrides the zone program">Schedule</div>
                   <div class="time-bar-section">
                     <climate-manager-time-bar
                       mode="schedule"
@@ -602,12 +615,13 @@ export class RoomCard extends LitElement {
                       @periods-changed=${this._onPeriodsChanged}
                     ></climate-manager-time-bar>
                   </div>
+                  ${this._renderCustomScheduleHint()}
                   <button class="reset-btn" @click=${() => void this._onResetToGlobal()}>Reset to global configuration</button>
                 `
                 : ""}
 
               <!-- Zone picker (ASSIGN-02, D-12) -->
-              <div class="section-label">Zone</div>
+              <div class="section-label" title="The zone this room belongs to — rooms in the same zone share a schedule">Zone</div>
               <div class="select-wrapper">
                 <select class="mode-select" @change=${this._onZoneChange}>
                   <option value="" ?selected=${!this.config?.zone_id}>
@@ -623,7 +637,7 @@ export class RoomCard extends LitElement {
 
               ${this._renderPersonsSection()}
 
-              <div class="section-label">Climate entities</div>
+              <div class="section-label" title="Smart thermostat entities (TRVs) controlled in this room">Climate entities</div>
               ${this._renderTrvSection()}
             </div>
           `
