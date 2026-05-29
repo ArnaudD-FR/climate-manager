@@ -66,7 +66,15 @@ export class RoomCard extends LitElement {
   updated(changedProperties: PropertyValues) {
     if (changedProperties.has("autoExpand") && this.autoExpand) {
       this._expanded = true;
-      this.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Defer scroll until after the expansion render completes so getBoundingClientRect
+      // reflects the full expanded height before choosing the scroll position.
+      void this.updateComplete.then(() => {
+        const rect = this.getBoundingClientRect();
+        this.scrollIntoView({
+          behavior: "smooth",
+          block: rect.height <= window.innerHeight ? "nearest" : "start",
+        });
+      });
     }
   }
 

@@ -81,7 +81,13 @@ export class PersonCard extends LitElement {
   updated(changedProperties: PropertyValues) {
     if (changedProperties.has("autoExpand") && this.autoExpand) {
       this._expanded = true;
-      this.scrollIntoView({ behavior: "smooth", block: "start" });
+      void this.updateComplete.then(() => {
+        const rect = this.getBoundingClientRect();
+        this.scrollIntoView({
+          behavior: "smooth",
+          block: rect.height <= window.innerHeight ? "nearest" : "start",
+        });
+      });
     }
   }
 

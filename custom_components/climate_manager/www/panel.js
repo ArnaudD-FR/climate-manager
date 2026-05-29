@@ -2234,7 +2234,13 @@ const Ne = class Ne extends k {
     super.connectedCallback(), this._expanded = !1;
   }
   updated(e) {
-    e.has("autoExpand") && this.autoExpand && (this._expanded = !0, this.scrollIntoView({ behavior: "smooth", block: "start" }));
+    e.has("autoExpand") && this.autoExpand && (this._expanded = !0, this.updateComplete.then(() => {
+      const t = this.getBoundingClientRect();
+      this.scrollIntoView({
+        behavior: "smooth",
+        block: t.height <= window.innerHeight ? "nearest" : "start"
+      });
+    }));
   }
   // -----------------------------------------------------------------------
   // Person association handlers
@@ -3010,7 +3016,13 @@ const W = "scheduled", xe = "ha", $e = "force_present", we = "force_absent", tt 
     super.connectedCallback(), this._expanded = !1;
   }
   updated(e) {
-    e.has("autoExpand") && this.autoExpand && (this._expanded = !0, this.scrollIntoView({ behavior: "smooth", block: "start" }));
+    e.has("autoExpand") && this.autoExpand && (this._expanded = !0, this.updateComplete.then(() => {
+      const t = this.getBoundingClientRect();
+      this.scrollIntoView({
+        behavior: "smooth",
+        block: t.height <= window.innerHeight ? "nearest" : "start"
+      });
+    }));
   }
   // -----------------------------------------------------------------------
   // Save handlers
