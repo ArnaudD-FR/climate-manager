@@ -458,6 +458,24 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
 
         T-03-09: same setdefault + update pattern as set_room_config.
         """
+        # SCHED-05: auto-seed schedule_even/schedule_odd when switching to
+        # even_odd. Guard: only seed when schedule_even is not already in
+        # storage — an existing empty {} schedule must not be overwritten
+        # (key-absence check, not truthiness — Pitfall 1 in RESEARCH.md).
+        incoming = msg["config"]
+        if incoming.get("schedule_type") == "even_odd":
+            current_person = entry.runtime_data.runtime_config.get(
+                "persons", {}
+            ).get(msg["person_id"], {})
+            if "schedule_even" not in current_person:
+                incoming.setdefault(
+                    "schedule_even",
+                    copy.deepcopy(current_person.get("schedule", {})),
+                )
+                incoming.setdefault(
+                    "schedule_odd",
+                    copy.deepcopy(current_person.get("schedule", {})),
+                )
         (
             entry.runtime_data.runtime_config.setdefault("persons", {})
             .setdefault(msg["person_id"], {})
