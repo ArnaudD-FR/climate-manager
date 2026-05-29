@@ -12,7 +12,12 @@
 import { LitElement, html, css } from "lit";
 import { property } from "lit/decorators.js";
 
-import type { ClimateConfig, StatusPayload, RoomStatus, Hass } from "../types.js";
+import type {
+  ClimateConfig,
+  StatusPayload,
+  RoomStatus,
+  Hass,
+} from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import type { RoomChoice } from "./person-card.js";
@@ -41,21 +46,27 @@ export class PersonsTab extends LitElement {
     }
   `;
 
-  /** Build the room choices list — only TRV rooms (excludes chaudière/boiler). */
+  /** Room choices: only TRV rooms (excludes boiler-only rooms). */
   private _getRoomChoices(): RoomChoice[] {
     // Only rooms with TRVs (has_trv===true); excludes boiler-only areas
-    const statusRooms = (this.status?.rooms_status ?? []).filter((r) => r.has_trv !== false);
+    const statusRooms = (this.status?.rooms_status ?? []).filter(
+      (r) => r.has_trv !== false,
+    );
 
-    const allRoomIds = new Set([
-      ...statusRooms.map((r) => r.area_id),
-    ]);
+    const allRoomIds = new Set([...statusRooms.map((r) => r.area_id)]);
 
     return [...allRoomIds].map((roomId) => {
       const name =
-        (statusRooms.find((r) => r.area_id === roomId) as (RoomStatus & { name?: string }) | undefined)?.name ??
+        (
+          statusRooms.find((r) => r.area_id === roomId) as
+            | (RoomStatus & { name?: string })
+            | undefined
+        )?.name ??
         roomId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       const floorId = this.hass?.areas?.[roomId]?.floor_id ?? null;
-      const secondary = floorId ? (this.hass?.floors?.[floorId]?.name ?? undefined) : undefined;
+      const secondary = floorId
+        ? (this.hass?.floors?.[floorId]?.name ?? undefined)
+        : undefined;
       return { id: roomId, name, secondary };
     });
   }
@@ -98,7 +109,7 @@ export class PersonsTab extends LitElement {
     return html`
       ${sortedIds.map((personId) => {
         const personConfig = persons[personId] ?? {};
-        // Display name: derive from person entity id (person.john_doe → "John Doe")
+        // Display name from entity id (person.john_doe → "John Doe")
         const personName = personId
           .replace(/^person\./, "")
           .replace(/_/g, " ")

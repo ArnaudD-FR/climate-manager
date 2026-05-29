@@ -80,20 +80,34 @@ def async_register_commands(
     websocket_api.async_register_command(hass, _make_ws_get_status(entry))
     websocket_api.async_register_command(hass, _make_ws_get_config(entry))
     websocket_api.async_register_command(hass, _make_ws_set_global_mode(entry))
-    websocket_api.async_register_command(hass, _make_ws_set_period_temperatures(entry))
+    websocket_api.async_register_command(
+        hass, _make_ws_set_period_temperatures(entry)
+    )
     websocket_api.async_register_command(hass, _make_ws_set_time_program(entry))
     websocket_api.async_register_command(hass, _make_ws_set_room_config(entry))
-    websocket_api.async_register_command(hass, _make_ws_set_person_config(entry))
+    websocket_api.async_register_command(
+        hass, _make_ws_set_person_config(entry)
+    )
     websocket_api.async_register_command(hass, _make_ws_subscribe_status(entry))
-    websocket_api.async_register_command(hass, _make_ws_reset_period_temperatures(entry))
-    websocket_api.async_register_command(hass, _make_ws_reset_time_program(entry))
-    websocket_api.async_register_command(hass, _make_ws_reset_room_to_global_program(entry))
+    websocket_api.async_register_command(
+        hass, _make_ws_reset_period_temperatures(entry)
+    )
+    websocket_api.async_register_command(
+        hass, _make_ws_reset_time_program(entry)
+    )
+    websocket_api.async_register_command(
+        hass, _make_ws_reset_room_to_global_program(entry)
+    )
     websocket_api.async_register_command(hass, _make_ws_create_zone(entry))
     websocket_api.async_register_command(hass, _make_ws_rename_zone(entry))
     websocket_api.async_register_command(hass, _make_ws_set_zone_mode(entry))
     websocket_api.async_register_command(hass, _make_ws_delete_zone(entry))
-    websocket_api.async_register_command(hass, _make_ws_set_zone_time_program(entry))
-    websocket_api.async_register_command(hass, _make_ws_reset_zone_time_program(entry))
+    websocket_api.async_register_command(
+        hass, _make_ws_set_zone_time_program(entry)
+    )
+    websocket_api.async_register_command(
+        hass, _make_ws_reset_zone_time_program(entry)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +148,7 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
 
         # Build per-room status list
         from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
+
         _area_reg = ar.async_get(hass)
 
         rooms_status = []
@@ -148,41 +163,58 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
             }
 
             # Temperature/humidity: HA area registry (HA 2026.5+) → auto-discovered → TRV built-in
-            temp_sensor = getattr(_area, "temperature_entity_id", None) or auto.get("temperature")
-            humidity_sensor = getattr(_area, "humidity_entity_id", None) or auto.get("humidity")
+            temp_sensor = getattr(
+                _area, "temperature_entity_id", None
+            ) or auto.get("temperature")
+            humidity_sensor = getattr(
+                _area, "humidity_entity_id", None
+            ) or auto.get("humidity")
             if temp_sensor:
                 sensor_state = hass.states.get(temp_sensor)
-                if sensor_state is not None and sensor_state.state not in ("unavailable", "unknown"):
+                if sensor_state is not None and sensor_state.state not in (
+                    "unavailable",
+                    "unknown",
+                ):
                     try:
                         room_entry["temperature"] = float(sensor_state.state)
                     except (ValueError, TypeError):
-                        pass  # leave temperature absent rather than emitting an invalid value
+                        pass  # leave temperature absent (invalid sensor state)
             elif entity_ids:
                 trv_state = hass.states.get(entity_ids[0])
                 if trv_state is not None:
-                    current_temp = trv_state.attributes.get("current_temperature")
+                    current_temp = trv_state.attributes.get(
+                        "current_temperature"
+                    )
                     if current_temp is not None:
                         room_entry["temperature"] = current_temp
 
             if humidity_sensor:
                 hum_state = hass.states.get(humidity_sensor)
-                if hum_state is not None and hum_state.state not in ("unavailable", "unknown"):
+                if hum_state is not None and hum_state.state not in (
+                    "unavailable",
+                    "unknown",
+                ):
                     try:
                         room_entry["humidity"] = float(hum_state.state)
                     except (ValueError, TypeError):
-                        pass  # leave humidity absent rather than emitting an invalid value
+                        pass  # leave humidity absent (invalid sensor state)
 
             # Active period for this room — per-room value when available, global fallback
-            room_entry["active_period"] = coordinator._last_room_periods.get(area_id, active_period)
+            room_entry["active_period"] = coordinator._last_room_periods.get(
+                area_id, active_period
+            )
 
             # D-24: count persons assigned to this area who are currently present
             room_entry["present_person_count"] = sum(
                 1
                 for person_id, person_config in persons_config.items()
-                if area_id in person_config.get("room_ids", []) and person_id in present_set
+                if area_id in person_config.get("room_ids", [])
+                and person_id in present_set
             )
 
-            room_entry["has_trv"] = any(is_trv_entity(hass, eid) for eid in entity_ids)
+            room_entry["has_trv"] = any(
+                is_trv_entity(hass, eid) for eid in entity_ids
+            )
 
             rooms_status.append(room_entry)
 
@@ -225,7 +257,10 @@ def _make_ws_get_config(entry: ClimateManagerConfigEntry):
             for reg_entry in entity_reg.entities.values()
             if reg_entry.entity_id.split(".")[0] == "climate"
         )
-        payload = {**entry.runtime_data.runtime_config, "climate_entities": climate_entities}
+        payload = {
+            **entry.runtime_data.runtime_config,
+            "climate_entities": climate_entities,
+        }
         connection.send_result(msg["id"], payload)
 
     return ws_get_config
@@ -256,7 +291,9 @@ def _make_ws_set_global_mode(entry: ClimateManagerConfigEntry):
         T-03-04: vol.In(VALID_MODES) in the schema rejects invalid modes before handler runs.
         """
         entry.runtime_data.runtime_config["global_mode"] = msg["mode"]
-        await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
+        await entry.runtime_data.store.async_save(
+            entry.runtime_data.runtime_config
+        )
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
@@ -290,10 +327,14 @@ def _make_ws_set_period_temperatures(entry: ClimateManagerConfigEntry):
         """
         temps = msg["temperatures"]
         # Sparse-safe: update only the period_temperatures sub-dict key-by-key
-        period_temps = entry.runtime_data.runtime_config.setdefault("period_temperatures", {})
+        period_temps = entry.runtime_data.runtime_config.setdefault(
+            "period_temperatures", {}
+        )
         for key, value in temps.items():
             period_temps[key] = value
-        await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
+        await entry.runtime_data.store.async_save(
+            entry.runtime_data.runtime_config
+        )
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
@@ -322,11 +363,17 @@ def _make_ws_set_time_program(entry: ClimateManagerConfigEntry):
         """
         ok, err = validate_daily_program(msg["program"])
         if not ok:
-            connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, err)
+            connection.send_error(
+                msg["id"], websocket_api.ERR_INVALID_FORMAT, err
+            )
             return  # T-03-05: return BEFORE save/evaluate
 
-        entry.runtime_data.runtime_config["global_time_program"] = msg["program"]
-        await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
+        entry.runtime_data.runtime_config["global_time_program"] = msg[
+            "program"
+        ]
+        await entry.runtime_data.store.async_save(
+            entry.runtime_data.runtime_config
+        )
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
@@ -357,25 +404,32 @@ def _make_ws_set_room_config(entry: ClimateManagerConfigEntry):
                (validate_zone_assignment inside async_save may raise ValueError on
                invalid zone_id assignments — ZONE-04).
         """
-        rooms_backup = copy.deepcopy(entry.runtime_data.runtime_config.get("rooms", {}))
+        rooms_backup = copy.deepcopy(
+            entry.runtime_data.runtime_config.get("rooms", {})
+        )
         # zone_id: null from the frontend signals 'move room to Default Zone' — pop the key
         # per D-06 sparse model (gap CR-03 fix from VERIFICATION 06-04).
         incoming_config = msg["config"]
         if "zone_id" in incoming_config and incoming_config["zone_id"] is None:
             incoming_config.pop("zone_id")
-            entry.runtime_data.runtime_config.setdefault("rooms", {}).setdefault(msg["room_id"], {}).pop("zone_id", None)
+            entry.runtime_data.runtime_config.setdefault(
+                "rooms", {}
+            ).setdefault(msg["room_id"], {}).pop("zone_id", None)
         (
-            entry.runtime_data.runtime_config
-            .setdefault("rooms", {})
+            entry.runtime_data.runtime_config.setdefault("rooms", {})
             .setdefault(msg["room_id"], {})
             .update(incoming_config)
         )
         try:
-            await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
+            await entry.runtime_data.store.async_save(
+                entry.runtime_data.runtime_config
+            )
         except ValueError as exc:
             # Roll back in-memory mutation so runtime_config stays consistent
             entry.runtime_data.runtime_config["rooms"] = rooms_backup
-            connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, str(exc))
+            connection.send_error(
+                msg["id"], websocket_api.ERR_INVALID_FORMAT, str(exc)
+            )
             return
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
@@ -404,12 +458,13 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
         T-03-09: same setdefault + update pattern as set_room_config.
         """
         (
-            entry.runtime_data.runtime_config
-            .setdefault("persons", {})
+            entry.runtime_data.runtime_config.setdefault("persons", {})
             .setdefault(msg["person_id"], {})
             .update(msg["config"])
         )
-        await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
+        await entry.runtime_data.store.async_save(
+            entry.runtime_data.runtime_config
+        )
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
@@ -435,8 +490,12 @@ def _make_ws_reset_period_temperatures(entry: ClimateManagerConfigEntry):
         T-03-09: A shallow copy of the module-level constant is used so the
                  runtime_config never shares references with the module default.
         """
-        entry.runtime_data.runtime_config["period_temperatures"] = dict(DEFAULT_PERIOD_TEMPERATURES)
-        await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
+        entry.runtime_data.runtime_config["period_temperatures"] = dict(
+            DEFAULT_PERIOD_TEMPERATURES
+        )
+        await entry.runtime_data.store.async_save(
+            entry.runtime_data.runtime_config
+        )
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
@@ -463,8 +522,12 @@ def _make_ws_reset_time_program(entry: ClimateManagerConfigEntry):
                  references with the module-level default (each day's period list
                  must be independent).
         """
-        entry.runtime_data.runtime_config["global_time_program"] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM)
-        await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
+        entry.runtime_data.runtime_config["global_time_program"] = (
+            copy.deepcopy(_DEFAULT_DAILY_PROGRAM)
+        )
+        await entry.runtime_data.store.async_save(
+            entry.runtime_data.runtime_config
+        )
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
@@ -538,7 +601,9 @@ def _make_ws_create_zone(entry: ClimateManagerConfigEntry):
         new_zone = {
             "name": msg["name"],
             "mode": MODE_TIME_PROGRAM,
-            "time_program": copy.deepcopy(runtime_config["global_time_program"]),
+            "time_program": copy.deepcopy(
+                runtime_config["global_time_program"]
+            ),
         }
         zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
         runtime_config.setdefault("zones", {})[zone_id] = new_zone
@@ -546,7 +611,9 @@ def _make_ws_create_zone(entry: ClimateManagerConfigEntry):
             await entry.runtime_data.store.async_save(runtime_config)
         except Exception as exc:  # noqa: BLE001
             runtime_config["zones"] = zones_backup
-            connection.send_error(msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc))
+            connection.send_error(
+                msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+            )
             return
         connection.send_result(
             msg["id"],
@@ -592,7 +659,9 @@ def _make_ws_rename_zone(entry: ClimateManagerConfigEntry):
                 await entry.runtime_data.store.async_save(runtime_config)
             except Exception as exc:  # noqa: BLE001
                 runtime_config["default_zone_name"] = name_backup
-                connection.send_error(msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc))
+                connection.send_error(
+                    msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+                )
                 return
         else:
             if msg["zone_id"] not in runtime_config.get("zones", {}):
@@ -608,7 +677,9 @@ def _make_ws_rename_zone(entry: ClimateManagerConfigEntry):
                 await entry.runtime_data.store.async_save(runtime_config)
             except Exception as exc:  # noqa: BLE001
                 runtime_config["zones"] = zones_backup
-                connection.send_error(msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc))
+                connection.send_error(
+                    msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+                )
                 return
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
@@ -652,7 +723,9 @@ def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
             await entry.runtime_data.store.async_save(runtime_config)
         except Exception as exc:  # noqa: BLE001
             runtime_config["zones"] = zones_backup
-            connection.send_error(msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc))
+            connection.send_error(
+                msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+            )
             return
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
@@ -711,7 +784,9 @@ def _make_ws_delete_zone(entry: ClimateManagerConfigEntry):
             # CR-01: restore BOTH snapshots on failure
             runtime_config["zones"] = zones_backup
             runtime_config["rooms"] = rooms_backup
-            connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, str(exc))
+            connection.send_error(
+                msg["id"], websocket_api.ERR_INVALID_FORMAT, str(exc)
+            )
             return
 
         connection.send_result(msg["id"], {"success": True})
@@ -756,7 +831,9 @@ def _make_ws_set_zone_time_program(entry: ClimateManagerConfigEntry):
         # Validate BEFORE any mutation (Pitfall 6 / T-05-08)
         ok, err = validate_daily_program(msg["program"])
         if not ok:
-            connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, err)
+            connection.send_error(
+                msg["id"], websocket_api.ERR_INVALID_FORMAT, err
+            )
             return
 
         zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
@@ -765,7 +842,9 @@ def _make_ws_set_zone_time_program(entry: ClimateManagerConfigEntry):
             await entry.runtime_data.store.async_save(runtime_config)
         except Exception as exc:  # noqa: BLE001
             runtime_config["zones"] = zones_backup
-            connection.send_error(msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc))
+            connection.send_error(
+                msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+            )
             return
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
@@ -808,18 +887,22 @@ def _make_ws_reset_zone_time_program(entry: ClimateManagerConfigEntry):
         zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
         if msg["target"] == "default":
             # Pitfall 5: deepcopy the module constant, never assign directly
-            runtime_config["zones"][msg["zone_id"]]["time_program"] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM)
+            runtime_config["zones"][msg["zone_id"]]["time_program"] = (
+                copy.deepcopy(_DEFAULT_DAILY_PROGRAM)
+            )
         else:
             # target == "global": deepcopy from current runtime global_time_program (Pitfall 2)
-            runtime_config["zones"][msg["zone_id"]]["time_program"] = copy.deepcopy(
-                runtime_config["global_time_program"]
+            runtime_config["zones"][msg["zone_id"]]["time_program"] = (
+                copy.deepcopy(runtime_config["global_time_program"])
             )
 
         try:
             await entry.runtime_data.store.async_save(runtime_config)
         except Exception as exc:  # noqa: BLE001
             runtime_config["zones"] = zones_backup
-            connection.send_error(msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc))
+            connection.send_error(
+                msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+            )
             return
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())

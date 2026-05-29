@@ -1,9 +1,9 @@
 /**
  * Climate Manager Panel — Toast / snackbar notification element.
  *
- * Usage: call show("Saved", false) for success, show("Save failed — retrying...", true) for error.
- * Success auto-dismisses after 3 s; error stays until resolved.
- * Rendered bottom-center, pointer-events: none, role="status" (ARIA live region).
+ * Usage: show("Saved", false) for success, show("Error", true) for error.
+ * Success auto-dismisses after 3 s; errors stay until resolved.
+ * Rendered bottom-center, pointer-events:none, role="status" (ARIA live).
  */
 
 import { LitElement, html, css } from "lit";
@@ -34,7 +34,7 @@ export class ClimateManagerToast extends LitElement {
       padding: 12px 16px;
       border-radius: 4px;
       background: var(--card-background-color, #fff);
-      box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0,0,0,0.2));
+      box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0, 0, 0, 0.2));
       font-size: 14px;
       font-family: inherit;
       color: var(--primary-text-color, #212121);
@@ -100,10 +100,7 @@ export class ClimateManagerToast extends LitElement {
         aria-live="polite"
         aria-atomic="true"
       >
-        <ha-icon
-          class="icon ${iconClass}"
-          icon="${iconName}"
-        ></ha-icon>
+        <ha-icon class="icon ${iconClass}" icon="${iconName}"></ha-icon>
         <span>${this._message}</span>
       </div>
     `;

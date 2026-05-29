@@ -234,7 +234,7 @@ export class ClimateManagerPanel extends LitElement {
     try {
       this._status = await this._ws.getStatus();
     } catch {
-      // Non-fatal: subscribe_status push will populate status on next evaluation.
+      // Non-fatal: subscribe_status push will populate status on next tick.
     }
   }
 
@@ -303,7 +303,7 @@ export class ClimateManagerPanel extends LitElement {
       const result = await this._ws.createZone(newName);
       await this._loadConfig();
       this._setTab("zone_" + result.zone_id);
-      // D-03: focus the zone name field so the user can rename without a second click.
+      // D-03: focus zone name field so user can rename immediately.
       await this.updateComplete;
       const zoneTab = this.shadowRoot?.querySelector(
         "climate-manager-zone-tab",
@@ -412,7 +412,11 @@ export class ClimateManagerPanel extends LitElement {
                   this._onTabNameKeydown("default", e)}
                 @click=${(e: Event) => e.stopPropagation()}
               />`
-            : html`<span class="zone-dot" style="background:${getZoneColor(undefined).color}"></span>${this._config.default_zone_name}`}
+            : html`<span
+                  class="zone-dot"
+                  style="background:${getZoneColor(undefined).color}"
+                ></span
+                >${this._config.default_zone_name}`}
         </button>
         ${Object.entries(this._config.zones).map(
           ([zoneId, zone]) => html`
@@ -434,7 +438,11 @@ export class ClimateManagerPanel extends LitElement {
                       this._onTabNameKeydown(zoneId, e)}
                     @click=${(e: Event) => e.stopPropagation()}
                   />`
-                : html`<span class="zone-dot" style="background:${getZoneColor(zoneId).color}"></span>${zone.name}`}
+                : html`<span
+                      class="zone-dot"
+                      style="background:${getZoneColor(zoneId).color}"
+                    ></span
+                    >${zone.name}`}
             </button>
           `,
         )}
@@ -454,7 +462,7 @@ export class ClimateManagerPanel extends LitElement {
   }
 
   private _renderTabContent() {
-    // Zone tab cases — checked before the switch so "zone_*" keys are intercepted first.
+    // Zone tab cases — checked before switch so "zone_*" keys are intercepted.
     if (this._activeTab === "zone_default") {
       return html`<climate-manager-zone-tab
         .config=${this._config!}
@@ -474,7 +482,7 @@ export class ClimateManagerPanel extends LitElement {
     if (this._activeTab.startsWith("zone_")) {
       const zoneId = this._activeTab.slice(5); // strip "zone_"
       const zoneConfig = this._config!.zones[zoneId];
-      if (!zoneConfig) return html``; // defensive — _validateActiveTab should have caught this
+      if (!zoneConfig) return html``; // _validateActiveTab covers this
       return html`<climate-manager-zone-tab
         .config=${this._config!}
         .zoneId=${zoneId}

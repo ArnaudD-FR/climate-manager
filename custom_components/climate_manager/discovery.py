@@ -14,6 +14,7 @@ Design decisions (from RESEARCH.md):
 - Open Question 3: Use entity_id.split(".")[0] == "climate" as safe primary
   filter (entity_id prefix always works; .domain may vary by HA version)
 """
+
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
@@ -70,7 +71,9 @@ async def discover_rooms(hass: HomeAssistant) -> dict[str, list[str]]:
     return {area_id: ids for area_id, ids in rooms.items() if ids}
 
 
-async def discover_room_sensors(hass: HomeAssistant) -> dict[str, dict[str, str]]:
+async def discover_room_sensors(
+    hass: HomeAssistant,
+) -> dict[str, dict[str, str]]:
     """Return {area_id: {temperature: entity_id, humidity: entity_id}} for auto-discovered sensors.
 
     Finds the first sensor entity per area with device_class "temperature" or "humidity".
@@ -82,13 +85,20 @@ async def discover_room_sensors(hass: HomeAssistant) -> dict[str, dict[str, str]
     device_reg = dr.async_get(hass)
 
     known_area_ids: set[str] = {area.id for area in area_reg.async_list_areas()}
-    area_sensors: dict[str, list[str]] = {area_id: [] for area_id in known_area_ids}
+    area_sensors: dict[str, list[str]] = {
+        area_id: [] for area_id in known_area_ids
+    }
     seen: set[str] = set()
 
     # Pass 1: direct entity-level area assignment
     for entry in entity_reg.entities.values():
-        if entry.entity_id.split(".")[0] == "sensor" and entry.area_id in known_area_ids:
-            area_sensors[entry.area_id].append(entry.entity_id)  # type: ignore[index]
+        if (
+            entry.entity_id.split(".")[0] == "sensor"
+            and entry.area_id in known_area_ids
+        ):
+            area_sensors[entry.area_id].append(  # type: ignore[index]
+                entry.entity_id
+            )
             seen.add(entry.entity_id)
 
     # Pass 2: device-level area assignment

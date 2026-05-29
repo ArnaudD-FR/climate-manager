@@ -89,14 +89,20 @@ class ClimateManagerData:
     coordinator: "ClimateManagerCoordinator | None" = field(default=None)
     cancel_scheduler: "Callable[[], None] | None" = field(default=None)
     # Registry listeners — list of unsub callables, one per registered listener.
-    cancel_registry_listeners: "list[Callable[[], None]]" = field(default_factory=list)
+    cancel_registry_listeners: "list[Callable[[], None]]" = field(
+        default_factory=list
+    )
 
 
 # Modern typed ConfigEntry alias (Pattern 2 — entry.runtime_data pattern).
 type ClimateManagerConfigEntry = ConfigEntry[ClimateManagerData]
 
 # Explicit public API — prevents silent breakage if imports are reorganised.
-__all__ = ["ClimateManagerData", "ClimateManagerConfigEntry", "ClimateManagerCoordinator"]
+__all__ = [
+    "ClimateManagerData",
+    "ClimateManagerConfigEntry",
+    "ClimateManagerCoordinator",
+]
 
 
 async def async_setup_entry(
@@ -233,7 +239,10 @@ async def async_setup_entry(
     cancel_device = hass.bus.async_listen(
         dr.EVENT_DEVICE_REGISTRY_UPDATED, _handle_device_registry_updated
     )
-    entry.runtime_data.cancel_registry_listeners = [cancel_entity, cancel_device]
+    entry.runtime_data.cancel_registry_listeners = [
+        cancel_entity,
+        cancel_device,
+    ]
 
     return True
 

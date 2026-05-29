@@ -9,21 +9,27 @@ A Home Assistant custom integration that manages home climate controls through s
 ## Screenshots
 
 ### Overview tab
+
 ![Overview tab](docs/screenshots/overview.png)
 
 ### Rooms tab
+
 ![Rooms tab](docs/screenshots/rooms.png)
 
 ### Zone tab (Home — default zone)
+
 ![Zone tab](docs/screenshots/zone.png)
 
 ### Zone tab (Upstairs — Time program & presences)
+
 ![Zone Upstairs tab](docs/screenshots/zone-upstairs.png)
 
 ### Persons tab
+
 ![Persons tab](docs/screenshots/persons.png)
 
 ### Global Settings tab
+
 ![Global Settings tab](docs/screenshots/global-settings.png)
 
 ---
@@ -31,9 +37,9 @@ A Home Assistant custom integration that manages home climate controls through s
 ## Features
 
 - **Zone-based scheduling** — Group rooms into zones, each with its own weekly heating program (Normal, Comfort, Reduced, Frost Protection periods)
-- **Three heating modes per zone** — *Off*, *Time program*, *Time program & presences*
+- **Three heating modes per zone** — _Off_, _Time program_, _Time program & presences_
 - **Per-room overrides** — Each room can follow its zone program, use a custom schedule, or be set to Off individually
-- **Person presence** — Associate persons with rooms; in *Time program & presences* mode the room only heats when someone is home
+- **Person presence** — Associate persons with rooms; in _Time program & presences_ mode the room only heats when someone is home
 - **Presence tracking modes** — Scheduled (weekly timetable), HA home tracking, Force Present, Force Absent
 - **Gap-fill logic** — When a person is present, Reduced/Frost periods sandwiched between Normal/Comfort periods are held at the preceding Normal/Comfort temperature
 - **Live status** — Overview tab shows current period, temperature, and humidity for every room
@@ -65,28 +71,28 @@ A Home Assistant custom integration that manages home climate controls through s
 
 Rooms are grouped into **zones**. Each zone has a **mode**:
 
-| Mode | Behaviour |
-|---|---|
-| **Off** | All rooms in the zone are kept at frost protection temperature |
-| **Time program** | Rooms follow the zone's weekly schedule |
+| Mode                         | Behaviour                                                         |
+| ---------------------------- | ----------------------------------------------------------------- |
+| **Off**                      | All rooms in the zone are kept at frost protection temperature    |
+| **Time program**             | Rooms follow the zone's weekly schedule                           |
 | **Time program & presences** | Rooms follow the schedule only when an assigned person is present |
 
 ### Time program
 
 A weekly schedule divided into days (Mon–Sun). Each day has periods with a start time and a mode:
 
-| Period | Typical use |
-|---|---|
-| **Normal** | Standard daytime temperature |
-| **Comfort** | Higher temperature (e.g. weekends, working from home) |
-| **Reduced** | Lower temperature (sleeping, away) |
-| **Frost Protection** | Minimum anti-freeze temperature |
+| Period               | Typical use                                           |
+| -------------------- | ----------------------------------------------------- |
+| **Normal**           | Standard daytime temperature                          |
+| **Comfort**          | Higher temperature (e.g. weekends, working from home) |
+| **Reduced**          | Lower temperature (sleeping, away)                    |
+| **Frost Protection** | Minimum anti-freeze temperature                       |
 
 Each period is active from its start time until the next period's start. The last period of the day runs until midnight.
 
 ### Presence & scheduling
 
-When a zone is in *Time program & presences* mode:
+When a zone is in _Time program & presences_ mode:
 
 - **Person absent** → room stays at Reduced temperature regardless of the schedule
 - **Person present** → room is heated from the first Normal/Comfort period to the last
@@ -100,11 +106,11 @@ If absent: room stays at Reduced all day.
 
 Each room has a **mode** that can override its zone:
 
-| Room mode | Behaviour |
-|---|---|
-| **Zone program** | Follows the zone's schedule and mode |
+| Room mode          | Behaviour                                     |
+| ------------------ | --------------------------------------------- |
+| **Zone program**   | Follows the zone's schedule and mode          |
 | **Custom program** | Uses its own schedule; zone Off still applies |
-| **Off** | Frost protection only, regardless of zone |
+| **Off**            | Frost protection only, regardless of zone     |
 
 ---
 

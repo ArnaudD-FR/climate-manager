@@ -59,14 +59,14 @@ export class WsClient {
     });
   }
 
-  /** Reset period temperatures to backend defaults (DEFAULT_PERIOD_TEMPERATURES in const.py). */
+  /** Reset period temperatures to backend defaults. */
   resetPeriodTemperatures(): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
       type: "climate_manager/reset_period_temperatures",
     });
   }
 
-  /** Reset global time program to backend defaults (_DEFAULT_DAILY_PROGRAM in const.py). */
+  /** Reset global time program to backend defaults. */
   resetTimeProgram(): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
       type: "climate_manager/reset_time_program",
@@ -74,17 +74,27 @@ export class WsClient {
   }
 
   /**
-   * Create a new custom zone. Resolves with the new zone's id and full ZoneConfig (D-02/D-03 phase 6).
+   * Create a new custom zone. Resolves with the new zone id and ZoneConfig.
    */
-  createZone(name: string): Promise<{ zone_id: string; name: string; mode: string; time_program: DailyProgram }> {
-    return this.hass.connection.sendMessagePromise<{ zone_id: string; name: string; mode: string; time_program: DailyProgram }>({
+  createZone(name: string): Promise<{
+    zone_id: string;
+    name: string;
+    mode: string;
+    time_program: DailyProgram;
+  }> {
+    return this.hass.connection.sendMessagePromise<{
+      zone_id: string;
+      name: string;
+      mode: string;
+      time_program: DailyProgram;
+    }>({
       type: "climate_manager/create_zone",
       name,
     });
   }
 
   /**
-   * Delete a custom zone. Assigned rooms revert to the Default Zone on the backend (Phase 5 EVAL behaviour).
+   * Delete a custom zone. Rooms revert to Default Zone on the backend.
    */
   deleteZone(zoneId: string): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
@@ -94,7 +104,7 @@ export class WsClient {
   }
 
   /**
-   * Rename a zone. Pass zoneId="default" to rename the Default Zone (D-05 phase 5 sentinel).
+   * Rename a zone. Pass zoneId="default" to rename the Default Zone.
    */
   renameZone(zoneId: string, name: string): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
@@ -105,7 +115,7 @@ export class WsClient {
   }
 
   /**
-   * Set the heating mode for a zone. Same enum as global_mode (off / time_program / time_program_presences).
+   * Set the heating mode for a zone. Same enum as global_mode.
    */
   setZoneMode(zoneId: string, mode: string): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
@@ -118,7 +128,10 @@ export class WsClient {
   /**
    * Replace the time program for a zone (all 7 day keys required).
    */
-  setZoneTimeProgram(zoneId: string, program: DailyProgram): Promise<{ success: boolean }> {
+  setZoneTimeProgram(
+    zoneId: string,
+    program: DailyProgram,
+  ): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
       type: "climate_manager/set_zone_time_program",
       zone_id: zoneId,
@@ -127,9 +140,12 @@ export class WsClient {
   }
 
   /**
-   * Reset a zone's time program to a target (verify the backend's accepted target values against websocket.py before passing user input).
+   * Reset a zone's time program to a named target (see websocket.py).
    */
-  resetZoneTimeProgram(zoneId: string, target: string): Promise<{ success: boolean }> {
+  resetZoneTimeProgram(
+    zoneId: string,
+    target: string,
+  ): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
       type: "climate_manager/reset_zone_time_program",
       zone_id: zoneId,
@@ -137,7 +153,7 @@ export class WsClient {
     });
   }
 
-  /** Reset a room's time_program to the current global_time_program (deep-copied on the backend). */
+  /** Reset room time_program to global_time_program (backend deep-copies). */
   resetRoomToGlobalProgram(roomId: string): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
       type: "climate_manager/reset_room_to_global_program",

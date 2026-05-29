@@ -57,7 +57,12 @@ from .const import (
     ROOM_MODE_CUSTOM,
 )
 from .schedule import compute_occupied_temp, evaluate_schedule, resolve_presence
-from .trv import is_trv_entity, set_trv_off, set_trv_temperature, supports_hvac_off
+from .trv import (
+    is_trv_entity,
+    set_trv_off,
+    set_trv_temperature,
+    supports_hvac_off,
+)
 
 if TYPE_CHECKING:
     from . import ClimateManagerData
@@ -129,29 +134,42 @@ class ClimateManagerCoordinator:
 
             if room_mode == ROOM_MODE_FROST:
                 # EVAL-05 / D-20: frost_protection room_mode wins unconditionally
-                desired_temps[area_id] = period_temperatures[PERIOD_FROST_PROTECTION]
+                desired_temps[area_id] = period_temperatures[
+                    PERIOD_FROST_PROTECTION
+                ]
                 room_periods[area_id] = PERIOD_FROST_PROTECTION
                 frost_locked_rooms.add(area_id)
                 continue
 
             if room_mode == ROOM_MODE_CUSTOM:
                 # EVAL-05 / D-20: custom room schedule wins over zone resolution
-                room_program = room_config.get("time_program") or config["global_time_program"]
+                room_program = (
+                    room_config.get("time_program")
+                    or config["global_time_program"]
+                )
                 period_mode = evaluate_schedule(room_program, now)
                 temp = period_temperatures.get(period_mode)
                 if temp is None:
-                    _LOGGER.warning("Unknown period mode %r for area %s — skipping", period_mode, area_id)
+                    _LOGGER.warning(
+                        "Unknown period mode %r for area %s — skipping",
+                        period_mode,
+                        area_id,
+                    )
                     continue
                 desired_temps[area_id] = temp
                 room_periods[area_id] = period_mode
                 continue
 
             # Room follows its zone (D-09)
-            zone_mode, zone_time_program = self._resolve_zone_config(area_id, config)
+            zone_mode, zone_time_program = self._resolve_zone_config(
+                area_id, config
+            )
 
             if zone_mode == MODE_OFF:
                 # EVAL-01: zone off → frost protection
-                desired_temps[area_id] = period_temperatures[PERIOD_FROST_PROTECTION]
+                desired_temps[area_id] = period_temperatures[
+                    PERIOD_FROST_PROTECTION
+                ]
                 room_periods[area_id] = PERIOD_FROST_PROTECTION
                 frost_locked_rooms.add(area_id)
                 mode_off_rooms.add(area_id)
@@ -161,13 +179,21 @@ class ClimateManagerCoordinator:
                 period_mode = evaluate_schedule(zone_time_program, now)
                 temp = period_temperatures.get(period_mode)
                 if temp is None:
-                    _LOGGER.warning("Unknown period mode %r for area %s — skipping", period_mode, area_id)
+                    _LOGGER.warning(
+                        "Unknown period mode %r for area %s — skipping",
+                        period_mode,
+                        area_id,
+                    )
                     continue
                 desired_temps[area_id] = temp
                 room_periods[area_id] = period_mode
 
             else:
-                _LOGGER.warning("Unknown zone_mode %r for area %s — skipping", zone_mode, area_id)
+                _LOGGER.warning(
+                    "Unknown zone_mode %r for area %s — skipping",
+                    zone_mode,
+                    area_id,
+                )
 
         # PASS 2: presence override for zones with mode=time_program_presences (EVAL-03).
         # All configured persons considered — not scoped to zone members (D-11).
@@ -191,7 +217,9 @@ class ClimateManagerCoordinator:
                     continue
 
                 # Presence override applies only when zone mode is time_program_presences
-                zone_mode_for_room, zone_program_for_room = self._resolve_zone_config(area_id, config)
+                zone_mode_for_room, zone_program_for_room = (
+                    self._resolve_zone_config(area_id, config)
+                )
                 if zone_mode_for_room != MODE_TIME_PROGRAM_PRESENCES:
                     continue
 
@@ -224,25 +252,34 @@ class ClimateManagerCoordinator:
         )
 
         # Push pass — off-capable TRVs in mode_off_rooms use _push_off_safely.
-        await asyncio.gather(*(
-            (
-                self._push_off_safely(entity_id, desired_temps[area_id])
-                if supports_hvac_off(self._hass, entity_id)
-                else self._push_safely(entity_id, desired_temps[area_id], "ZONE_EVAL_OFF")
+        await asyncio.gather(
+            *(
+                (
+                    self._push_off_safely(entity_id, desired_temps[area_id])
+                    if supports_hvac_off(self._hass, entity_id)
+                    else self._push_safely(
+                        entity_id, desired_temps[area_id], "ZONE_EVAL_OFF"
+                    )
+                )
+                if area_id in mode_off_rooms
+                else self._push_safely(
+                    entity_id, desired_temps[area_id], "ZONE_EVAL"
+                )
+                for area_id, entity_ids in rooms.items()
+                for entity_id in entity_ids
+                if area_id in desired_temps
+                and is_trv_entity(self._hass, entity_id)
             )
-            if area_id in mode_off_rooms
-            else self._push_safely(entity_id, desired_temps[area_id], "ZONE_EVAL")
-            for area_id, entity_ids in rooms.items()
-            for entity_id in entity_ids
-            if area_id in desired_temps and is_trv_entity(self._hass, entity_id)
-        ))
+        )
 
         self._hass.bus.async_fire(
             f"{DOMAIN}_status_update",
             self._build_status_payload(),
         )
 
-    def _resolve_zone_config(self, area_id: str, config: dict) -> tuple[str, dict]:
+    def _resolve_zone_config(
+        self, area_id: str, config: dict
+    ) -> tuple[str, dict]:
         """Return (mode, time_program) for a room based on its zone assignment.
 
         Rooms without a zone_id belong to the Default Zone (global_mode / global_time_program).
@@ -255,14 +292,16 @@ class ClimateManagerCoordinator:
         zone = config.get("zones", {}).get(zone_id)
         if zone is None:
             _LOGGER.warning(
-                "Room %s references unknown zone_id %r — falling back to Default Zone",
+                "Room %s has unknown zone_id %r — using Default Zone",
                 area_id,
                 zone_id,
             )
             return (config["global_mode"], config["global_time_program"])
         return (zone["mode"], zone["time_program"])
 
-    def _compute_present_persons(self, config: dict, now: datetime) -> list[str]:
+    def _compute_present_persons(
+        self, config: dict, now: datetime
+    ) -> list[str]:
         """Return the list of person IDs currently present, regardless of global mode.
 
         Used for status reporting in all modes. Presence mode only affects TRV
@@ -296,6 +335,7 @@ class ClimateManagerCoordinator:
         Includes rooms_status so the Rooms tab populates from push events.
         """
         from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
+
         _area_reg = ar.async_get(self._hass)
 
         # D-24: pre-compute persons join data for present_person_count
@@ -308,7 +348,9 @@ class ClimateManagerCoordinator:
             room_entry: dict = {
                 "area_id": area_id,
                 "name": _area.name if _area else area_id,
-                "active_period": self._last_room_periods.get(area_id, self._last_active_period),
+                "active_period": self._last_room_periods.get(
+                    area_id, self._last_active_period
+                ),
                 "entity_ids": entity_ids,
             }
 
@@ -316,37 +358,52 @@ class ClimateManagerCoordinator:
             room_entry["present_person_count"] = sum(
                 1
                 for person_id, person_config in persons_config.items()
-                if area_id in person_config.get("room_ids", []) and person_id in present_set
+                if area_id in person_config.get("room_ids", [])
+                and person_id in present_set
             )
 
             auto = self._data.room_auto_sensors.get(area_id, {})
 
             # Temperature/humidity: HA area registry (HA 2026.5+) → auto-discovered → TRV built-in
-            temp_sensor = getattr(_area, "temperature_entity_id", None) or auto.get("temperature")
-            humidity_sensor = getattr(_area, "humidity_entity_id", None) or auto.get("humidity")
+            temp_sensor = getattr(
+                _area, "temperature_entity_id", None
+            ) or auto.get("temperature")
+            humidity_sensor = getattr(
+                _area, "humidity_entity_id", None
+            ) or auto.get("humidity")
             if temp_sensor:
                 sensor_state = self._hass.states.get(temp_sensor)
-                if sensor_state is not None and sensor_state.state not in ("unavailable", "unknown"):
+                if sensor_state is not None and sensor_state.state not in (
+                    "unavailable",
+                    "unknown",
+                ):
                     try:
                         room_entry["temperature"] = float(sensor_state.state)
                     except (ValueError, TypeError):
-                        pass  # leave temperature absent rather than emitting an invalid value
+                        pass  # leave temperature absent (invalid sensor state)
             elif entity_ids:
                 trv_state = self._hass.states.get(entity_ids[0])
                 if trv_state is not None:
-                    current_temp = trv_state.attributes.get("current_temperature")
+                    current_temp = trv_state.attributes.get(
+                        "current_temperature"
+                    )
                     if current_temp is not None:
                         room_entry["temperature"] = current_temp
 
             if humidity_sensor:
                 hum_state = self._hass.states.get(humidity_sensor)
-                if hum_state is not None and hum_state.state not in ("unavailable", "unknown"):
+                if hum_state is not None and hum_state.state not in (
+                    "unavailable",
+                    "unknown",
+                ):
                     try:
                         room_entry["humidity"] = float(hum_state.state)
                     except (ValueError, TypeError):
-                        pass  # leave humidity absent rather than emitting an invalid value
+                        pass  # leave humidity absent (invalid sensor state)
 
-            room_entry["has_trv"] = any(is_trv_entity(self._hass, eid) for eid in entity_ids)
+            room_entry["has_trv"] = any(
+                is_trv_entity(self._hass, eid) for eid in entity_ids
+            )
 
             rooms_status.append(room_entry)
 
@@ -357,12 +414,16 @@ class ClimateManagerCoordinator:
             "rooms_status": rooms_status,
         }
 
-    async def _push_safely(self, entity_id: str, desired_temp: float, context: str) -> None:
+    async def _push_safely(
+        self, entity_id: str, desired_temp: float, context: str
+    ) -> None:
         """Wrapper around _push_if_changed that logs exceptions instead of propagating them."""
         try:
             await self._push_if_changed(entity_id, desired_temp)
         except Exception:  # noqa: BLE001
-            _LOGGER.warning("Failed to push temperature to %s in %s", entity_id, context)
+            _LOGGER.warning(
+                "Failed to push temperature to %s in %s", entity_id, context
+            )
 
     async def _push_off_safely(self, entity_id: str, frost_temp: float) -> None:
         """Pre-set frost setpoint then issue set_hvac_mode=off for an off-capable TRV in MODE_OFF.
@@ -388,7 +449,9 @@ class ClimateManagerCoordinator:
         try:
             await set_trv_temperature(self._hass, entity_id, frost_temp)
         except Exception:  # noqa: BLE001
-            _LOGGER.warning("Failed to pre-set frost temp on %s before MODE_OFF", entity_id)
+            _LOGGER.warning(
+                "Failed to pre-set frost temp on %s before MODE_OFF", entity_id
+            )
 
         try:
             await set_trv_off(self._hass, entity_id)
@@ -396,7 +459,9 @@ class ClimateManagerCoordinator:
         except Exception:  # noqa: BLE001
             _LOGGER.warning("Failed to push OFF to %s in MODE_OFF", entity_id)
 
-    async def _push_if_changed(self, entity_id: str, desired_temp: float) -> None:
+    async def _push_if_changed(
+        self, entity_id: str, desired_temp: float
+    ) -> None:
         """Push temperature to TRV only if it differs from the last pushed value.
 
         D-02: push-on-change — skip if already at desired temp (last == desired_temp).

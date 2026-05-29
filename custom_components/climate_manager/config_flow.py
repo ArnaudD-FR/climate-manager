@@ -10,6 +10,7 @@ Design decisions (from RESEARCH.md):
   (Pitfall 5 — manifest gate is cleaner than flow-level abort)
 - T-01-09: No user input accepted — no validation needed, no injection surface
 """
+
 from homeassistant import config_entries
 
 from .const import DOMAIN

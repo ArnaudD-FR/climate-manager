@@ -19,21 +19,37 @@
 import { LitElement, html, css, unsafeCSS } from "lit";
 import { property } from "lit/decorators.js";
 
-import { PERIOD_DISPLAY_NAMES, PRESENCE_COLORS, getZoneColor } from "../types.js";
-import type { Hass, ClimateConfig, StatusPayload, DailyProgram, Period } from "../types.js";
+import {
+  PERIOD_DISPLAY_NAMES,
+  PRESENCE_COLORS,
+  getZoneColor,
+} from "../types.js";
+import type {
+  Hass,
+  ClimateConfig,
+  StatusPayload,
+  DailyProgram,
+  Period,
+} from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 
 // Day key order matching time-bar days[] indices (0=Mon..6=Sun)
 const DAY_KEYS: Array<keyof DailyProgram> = [
-  "mon", "tue", "wed", "thu", "fri", "sat", "sun",
+  "mon",
+  "tue",
+  "wed",
+  "thu",
+  "fri",
+  "sat",
+  "sun",
 ];
 
 // ---------------------------------------------------------------------------
 // Pure helpers (also exported for reuse by room-card / person-card)
 // ---------------------------------------------------------------------------
 
-/** Convert a DailyProgram (keyed by day name) into a 7-element Period[][] array. */
+/** Convert a DailyProgram into a 7-element Period[][] array. */
 export function programToDays(program: DailyProgram | undefined): Period[][] {
   return DAY_KEYS.map((key) => (program?.[key] ? [...program[key]] : []));
 }
@@ -43,8 +59,11 @@ export function dayIndexToKey(index: number): keyof DailyProgram {
   return DAY_KEYS[index] ?? "mon";
 }
 
-/** Evaluate the active schedule period name from a DailyProgram at the given time. */
-export function getActivePeriod(program: DailyProgram | undefined, now: Date): string | null {
+/** Evaluate the active period name from a DailyProgram at the given time. */
+export function getActivePeriod(
+  program: DailyProgram | undefined,
+  now: Date,
+): string | null {
   if (!program) return null;
   const jsDay = now.getDay(); // 0=Sun..6=Sat
   const dayIdx = jsDay === 0 ? 6 : jsDay - 1; // remap to Mon=0..Sun=6
@@ -73,7 +92,6 @@ const MODE_LABELS: Record<string, string> = {
   [MODE_TIME_PROGRAM]: "Time program",
   [MODE_TIME_PROGRAM_PRESENCES]: "Time program & presences",
 };
-
 
 // ---------------------------------------------------------------------------
 // Component
@@ -227,7 +245,10 @@ export class GlobalSettingsTab extends LitElement {
       font-size: 15px;
       font-family: inherit;
       color: var(--primary-text-color);
-      background-color: var(--card-background-color, var(--secondary-background-color));
+      background-color: var(
+        --card-background-color,
+        var(--secondary-background-color)
+      );
       border: 1px solid var(--divider-color);
       border-radius: 4px;
       outline: none;
@@ -277,7 +298,9 @@ export class GlobalSettingsTab extends LitElement {
     if (!root) return;
     const getValue = (id: string): number => {
       const field = root.querySelector<HTMLInputElement>(`#temp-${id}`);
-      return field ? parseFloat(field.value) : (this.config.period_temperatures[id] ?? 0);
+      return field
+        ? parseFloat(field.value)
+        : (this.config.period_temperatures[id] ?? 0);
     };
     const temperatures = {
       frost_protection: getValue("frost_protection"),
@@ -296,7 +319,9 @@ export class GlobalSettingsTab extends LitElement {
 
   private _onTemperatureInput = () => {
     if (this._tempSaveTimer !== null) clearTimeout(this._tempSaveTimer);
-    this._tempSaveTimer = setTimeout(() => { void this._saveTemperatures(); }, 600);
+    this._tempSaveTimer = setTimeout(() => {
+      void this._saveTemperatures();
+    }, 600);
   };
 
   private _onTemperatureBlur = () => {
@@ -321,9 +346,19 @@ export class GlobalSettingsTab extends LitElement {
   // Render helpers
   // -----------------------------------------------------------------------
 
-  private _getZoneRows(): Array<{ id: string; name: string; mode: string; activePeriod: string | null }> {
+  private _getZoneRows(): Array<{
+    id: string;
+    name: string;
+    mode: string;
+    activePeriod: string | null;
+  }> {
     const now = new Date();
-    const rows: Array<{ id: string; name: string; mode: string; activePeriod: string | null }> = [];
+    const rows: Array<{
+      id: string;
+      name: string;
+      mode: string;
+      activePeriod: string | null;
+    }> = [];
     // Default Zone — use backend status for accuracy
     rows.push({
       id: "default",
@@ -337,7 +372,10 @@ export class GlobalSettingsTab extends LitElement {
         id: zoneId,
         name: zone.name,
         mode: zone.mode,
-        activePeriod: zone.mode !== MODE_OFF ? getActivePeriod(zone.time_program, now) : null,
+        activePeriod:
+          zone.mode !== MODE_OFF
+            ? getActivePeriod(zone.time_program, now)
+            : null,
       });
     }
     return rows;
@@ -350,17 +388,23 @@ export class GlobalSettingsTab extends LitElement {
     // All persons with presence status
     const allPersonIds = Object.keys(this.config?.persons ?? {});
     const presentSet = new Set(status?.present_persons ?? []);
-    const personsContent = allPersonIds.length === 0
-      ? html`<span class="status-value">No persons configured</span>`
-      : html`
-          <span class="status-value">
-            ${allPersonIds.map((personId, i) => {
-              const name = this.hass?.states[personId]?.attributes?.friendly_name ?? personId;
-              const isPresent = presentSet.has(personId);
-              return html`<span class="person-dot ${isPresent ? "" : "absent"}"></span>${name}${i < allPersonIds.length - 1 ? ", " : ""}`;
-            })}
-          </span>
-        `;
+    const personsContent =
+      allPersonIds.length === 0
+        ? html`<span class="status-value">No persons configured</span>`
+        : html`
+            <span class="status-value">
+              ${allPersonIds.map((personId, i) => {
+                const name =
+                  this.hass?.states[personId]?.attributes?.friendly_name ??
+                  personId;
+                const isPresent = presentSet.has(personId);
+                return html`<span
+                    class="person-dot ${isPresent ? "" : "absent"}"
+                  ></span
+                  >${name}${i < allPersonIds.length - 1 ? ", " : ""}`;
+              })}
+            </span>
+          `;
 
     return html`
       <ha-card>
@@ -373,7 +417,9 @@ export class GlobalSettingsTab extends LitElement {
               <span>Active period</span>
             </div>
             ${zoneRows.map((row) => {
-              const color = getZoneColor(row.id === "default" ? undefined : row.id);
+              const color = getZoneColor(
+                row.id === "default" ? undefined : row.id,
+              );
               const modeLabel = MODE_LABELS[row.mode] ?? row.mode;
               const periodLabel = row.activePeriod
                 ? (PERIOD_DISPLAY_NAMES[row.activePeriod] ?? row.activePeriod)
@@ -383,8 +429,12 @@ export class GlobalSettingsTab extends LitElement {
                   <span
                     class="zone-status-name"
                     style="color: ${color.color}; cursor: pointer;"
-                    @click=${() => this.panel.navigateToZone(row.id === "default" ? undefined : row.id)}
-                  >${row.name}</span>
+                    @click=${() =>
+                      this.panel.navigateToZone(
+                        row.id === "default" ? undefined : row.id,
+                      )}
+                    >${row.name}</span
+                  >
                   <span class="zone-status-value">${modeLabel}</span>
                   <span class="zone-status-value">${periodLabel}</span>
                 </div>
@@ -418,7 +468,9 @@ export class GlobalSettingsTab extends LitElement {
             .value=${temps[id] != null ? String(temps[id]) : ""}
             @input=${this._onTemperatureInput}
             @blur=${this._onTemperatureBlur}
-            @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLElement).blur(); }}
+            @keydown=${(e: KeyboardEvent) => {
+              if (e.key === "Enter") (e.target as HTMLElement).blur();
+            }}
           />
           <span class="temp-suffix">°C</span>
         </div>
@@ -431,11 +483,12 @@ export class GlobalSettingsTab extends LitElement {
         <div class="card-content">
           <div class="temp-fields">
             ${tempField("frost_protection", "Frost protection")}
-            ${tempField("reduced", "Reduced")}
-            ${tempField("normal", "Normal")}
+            ${tempField("reduced", "Reduced")} ${tempField("normal", "Normal")}
             ${tempField("comfort", "Comfort")}
           </div>
-          <button class="reset-btn" @click=${this._onResetTemperatures}>Reset to default</button>
+          <button class="reset-btn" @click=${this._onResetTemperatures}>
+            Reset to default
+          </button>
         </div>
       </ha-card>
     `;
@@ -443,8 +496,7 @@ export class GlobalSettingsTab extends LitElement {
 
   render() {
     return html`
-      ${this._renderStatusCard()}
-      ${this._renderTemperaturesCard()}
+      ${this._renderStatusCard()} ${this._renderTemperaturesCard()}
     `;
   }
 }

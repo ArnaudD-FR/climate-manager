@@ -13,7 +13,12 @@
 import { LitElement, html, css } from "lit";
 import { property } from "lit/decorators.js";
 
-import type { ClimateConfig, StatusPayload, RoomStatus, Hass } from "../types.js";
+import type {
+  ClimateConfig,
+  StatusPayload,
+  RoomStatus,
+  Hass,
+} from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 
@@ -65,23 +70,22 @@ export class RoomsTab extends LitElement {
   `;
 
   private _getRoomStatus(roomId: string): RoomStatus | null {
-    return (
-      this.status?.rooms_status?.find((r) => r.area_id === roomId) ?? null
-    );
+    return this.status?.rooms_status?.find((r) => r.area_id === roomId) ?? null;
   }
 
   render() {
     const rooms = this.config?.rooms ?? {};
     // Only TRV rooms (has_trv===true); excludes boiler/chaudière entities
-    const statusRooms = (this.status?.rooms_status ?? []).filter((r) => r.has_trv !== false);
-    const allRoomIds = new Set([
-      ...statusRooms.map((r) => r.area_id),
-    ]);
+    const statusRooms = (this.status?.rooms_status ?? []).filter(
+      (r) => r.has_trv !== false,
+    );
+    const allRoomIds = new Set([...statusRooms.map((r) => r.area_id)]);
 
     if (allRoomIds.size === 0) {
       return html`
         <div class="empty-state">
-          No rooms discovered. Create areas in Home Assistant and assign climate entities.
+          No rooms discovered. Create areas in Home Assistant and assign climate
+          entities.
         </div>
       `;
     }

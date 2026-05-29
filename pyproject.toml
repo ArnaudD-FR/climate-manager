@@ -3,6 +3,13 @@ name = "climate_manager"
 version = "1.0.0"
 requires-python = ">=3.12"
 
+[tool.ruff]
+line-length = 80
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

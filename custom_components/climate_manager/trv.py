@@ -15,6 +15,7 @@ Design decisions (from RESEARCH.md / CLAUDE.md):
 - T-01-07: hvac_mode is hardcoded "heat"
 - T-01-08: Guard on hass.states.get returning None or "unavailable"
 """
+
 from homeassistant.components.climate import HVACMode
 from homeassistant.core import HomeAssistant
 

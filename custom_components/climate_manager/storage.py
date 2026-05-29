@@ -10,16 +10,24 @@ Design decisions (from RESEARCH.md):
 - Note: serialize_in_event_loop parameter not present in HA 2024.x Store
   (was added in later HA core; use default Store constructor for compatibility)
 """
+
 import copy
-import uuid  # D-07: UUID generation for zone IDs (used by Phase 5 CRUD; documented here)
+import uuid  # D-07: UUID generation for zone IDs
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import DEFAULT_CONFIG, STORAGE_KEY, STORAGE_VERSION, _DEFAULT_DAILY_PROGRAM
+from .const import (
+    DEFAULT_CONFIG,
+    STORAGE_KEY,
+    STORAGE_VERSION,
+    _DEFAULT_DAILY_PROGRAM,
+)
 
 
-_SENTINEL = object()  # sentinel for distinguishing absent key from explicit None (WR-01)
+_SENTINEL = (
+    object()
+)  # sentinel for distinguishing absent key from explicit None (WR-01)
 
 
 def validate_zone_assignment(config: dict) -> None:
@@ -48,7 +56,8 @@ def validate_zone_assignment(config: dict) -> None:
             continue  # D-06: absent zone_id = Default Zone member — valid
         if zone_id is None:
             raise ValueError(
-                f"Room '{area_id}' has zone_id: null — sparse model prohibits explicit null (D-06)"
+                f"Room '{area_id}' has zone_id: null"
+                " — sparse model prohibits explicit null (D-06)"
             )
         if zone_id not in zones:
             raise ValueError(
@@ -98,7 +107,11 @@ class ClimateManagerStore:
         # ever accidentally merging with stored data (CR-02 guard).
         result = copy.deepcopy(DEFAULT_CONFIG)
         for key, value in stored.items():
-            if key in ("period_temperatures",) and isinstance(value, dict) and isinstance(result.get(key), dict):
+            if (
+                key in ("period_temperatures",)
+                and isinstance(value, dict)
+                and isinstance(result.get(key), dict)
+            ):
                 # Only period_temperatures needs key-by-key merge (partial stored sub-dict).
                 # rooms, persons, zones are replaced wholesale — the stored value IS the full collection.
                 result[key].update(value)

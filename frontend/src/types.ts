@@ -7,8 +7,9 @@
 
 /**
  * A single period entry in a daily program.
- * Discriminated union: exactly one of `mode` (schedule bar) or `state` (presence bar)
- * must be present. TypeScript will flag access to `period.mode` without checking the
+ * Discriminated union: exactly one of `mode` (schedule bar) or `state`
+ * (presence bar) must be present. TypeScript will flag access to
+ * `period.mode` without checking the
  * discriminant, preventing silent undefined rendering (WR-03).
  */
 export type Period =
@@ -30,7 +31,7 @@ export interface RoomConfig {
   room_mode?: "global" | "frost_protection" | "custom";
   time_program?: DailyProgram | null;
   /**
-   * Absent = Default Zone member (D-06); UUID string when room is in a custom zone (D-07).
+   * Absent = Default Zone member (D-06); UUID string for custom zone (D-07).
    * Sparse model — never written as null.
    */
   zone_id?: string;
@@ -47,7 +48,7 @@ export interface PersonConfig {
 export interface ZoneConfig {
   /** Display name for the zone (user-editable). */
   name: string;
-  /** Same enum as global_mode: "off" | "time_program" | "time_program_presences" */
+  /** Same enum as global_mode values. */
   mode: string;
   /** Same structure as global_time_program (7-day weekly schedule). */
   time_program: DailyProgram;
@@ -58,9 +59,9 @@ export interface ClimateConfig {
   global_mode: string;
   period_temperatures: Record<string, number>;
   global_time_program: DailyProgram;
-  /** D-03: Default Zone display name. Backend falls back to "Home" for v1.0 installs, so this is always present in get_config payloads. */
+  /** D-03: Default Zone display name. Always present in get_config payloads. */
   default_zone_name: string;
-  /** ZONE-01: custom zones keyed by UUID string. Empty object = no custom zones; all rooms belong to Default Zone (D-01). */
+  /** ZONE-01: custom zones keyed by UUID. Empty = all rooms in Default Zone. */
   zones: Record<string, ZoneConfig>;
   rooms: Record<string, RoomConfig>;
   persons: Record<string, PersonConfig>;
@@ -76,11 +77,11 @@ export interface RoomStatus {
   humidity?: number | null;
   active_period?: string | null;
   present_person_count: number;
-  /** True when at least one entity reports current_temperature (TRV); false for boiler-only rooms. */
+  /** True when at least one entity reports current_temperature (TRV). */
   has_trv?: boolean;
 }
 
-/** Payload pushed by climate_manager/subscribe_status and returned by get_status. */
+/** Payload pushed by subscribe_status and returned by get_status. */
 export interface StatusPayload {
   global_mode: string;
   active_period: string | null;
@@ -101,10 +102,23 @@ export interface Hass {
       options?: { resubscribe?: boolean },
     ): Promise<() => void>;
   };
-  states: Record<string, { state: string; attributes: Record<string, unknown> }>;
-  areas: Record<string, { area_id: string; name: string; floor_id: string | null }>;
-  floors: Record<string, { floor_id: string; name: string; level: number; icon?: string | null }>;
-  callService(domain: string, service: string, serviceData?: Record<string, unknown>): Promise<void>;
+  states: Record<
+    string,
+    { state: string; attributes: Record<string, unknown> }
+  >;
+  areas: Record<
+    string,
+    { area_id: string; name: string; floor_id: string | null }
+  >;
+  floors: Record<
+    string,
+    { floor_id: string; name: string; level: number; icon?: string | null }
+  >;
+  callService(
+    domain: string,
+    service: string,
+    serviceData?: Record<string, unknown>,
+  ): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +149,7 @@ export const PERIOD_LABELS: Record<string, string> = {
   absent: "A",
 };
 
-/** Full display names shown inside period blocks (ellipsized when too narrow). */
+/** Full display names shown inside period blocks (ellipsized when narrow). */
 export const PERIOD_DISPLAY_NAMES: Record<string, string> = {
   frost_protection: "Frost protection",
   reduced: "Reduced",
@@ -157,17 +171,37 @@ export interface ZoneColor {
 
 /** Index 0 = Default Zone (violet). Indices 1-4 = custom zone palette. */
 export const ZONE_COLORS: ZoneColor[] = [
-  { background: "rgba(124, 58, 237, 0.12)", color: "#7c3aed", border: "rgba(124, 58, 237, 0.25)" }, // violet
-  { background: "rgba(13, 148, 136, 0.12)",  color: "#0d9488", border: "rgba(13, 148, 136, 0.25)"  }, // teal
-  { background: "rgba(217, 119, 6, 0.12)",   color: "#d97706", border: "rgba(217, 119, 6, 0.25)"   }, // amber
-  { background: "rgba(2, 132, 199, 0.12)",   color: "#0284c7", border: "rgba(2, 132, 199, 0.25)"   }, // sky
-  { background: "rgba(190, 18, 60, 0.12)",   color: "#be123c", border: "rgba(190, 18, 60, 0.25)"   }, // rose
+  {
+    background: "rgba(124, 58, 237, 0.12)",
+    color: "#7c3aed",
+    border: "rgba(124, 58, 237, 0.25)",
+  }, // violet
+  {
+    background: "rgba(13, 148, 136, 0.12)",
+    color: "#0d9488",
+    border: "rgba(13, 148, 136, 0.25)",
+  }, // teal
+  {
+    background: "rgba(217, 119, 6, 0.12)",
+    color: "#d97706",
+    border: "rgba(217, 119, 6, 0.25)",
+  }, // amber
+  {
+    background: "rgba(2, 132, 199, 0.12)",
+    color: "#0284c7",
+    border: "rgba(2, 132, 199, 0.25)",
+  }, // sky
+  {
+    background: "rgba(190, 18, 60, 0.12)",
+    color: "#be123c",
+    border: "rgba(190, 18, 60, 0.25)",
+  }, // rose
 ];
 
 /**
  * Returns a deterministic color for a zone.
  * Default Zone (no zone_id) → violet (index 0).
- * Custom zones → indices 1-4 via UUID hash, never overlapping with Default Zone's color.
+ * Custom zones → indices 1-4 via UUID hash, never overlapping with Default.
  */
 export function getZoneColor(zoneId: string | undefined): ZoneColor {
   if (!zoneId) return ZONE_COLORS[0];

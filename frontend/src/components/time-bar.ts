@@ -10,17 +10,17 @@
  *   - Full-width 40px colored bar (segments from `days[i]`)
  *   - [Copy] and [Paste] icon buttons
  *
- * Above all 7 rows: a time axis showing hour markers (00:00 / 06:00 / 12:00 / 18:00 / 24:00).
+ * Above all 7 rows: a time axis (00:00 / 06:00 / 12:00 / 18:00 / 24:00).
  * Below all 7 rows: a shared time axis (same structure, same labels).
  *
  * Interactions (D-04…D-09):
  *   click empty bar   → mode popup "Split at HH:MM" → insert new segment
- *   click block       → popup: time range + Change mode + Split period + Delete (merges into left)
- *   drag boundary     → tooltip shows HH:MM (snapped), save fires on pointerup only
+ *   click block       → popup: time range + Change mode + Split + Delete
+ *   drag boundary     → tooltip shows HH:MM (snapped), save on pointerup
  *   Copy              → store day's periods in panel-local _clipboard
  *   Paste             → overwrite target day, emit periods-changed immediately
  *
- * Emits CustomEvent "periods-changed" { dayIndex, periods } on interaction END only.
+ * Emits CustomEvent "periods-changed" { dayIndex, periods } on interaction end.
  * Never calls WebSocket — presentational + interaction only.
  */
 
@@ -102,7 +102,7 @@ export class ClimateManagerTimeBar extends LitElement {
    */
   @state() private _dragPreviewDays: Period[][] | null = null;
   @state() private _popup: PopupState | null = null;
-  /** Set true by _onPointerUp; cleared by _onBarClick/_onSegmentClick to swallow the synthetic post-drag click. */
+  /** Set after drag; cleared by click handlers to suppress synthetic click. */
   private _justDragged = false;
 
   // -----------------------------------------------------------------------
@@ -127,10 +127,9 @@ export class ClimateManagerTimeBar extends LitElement {
       display: flex;
       align-items: center;
       height: 40px;
-      /* overflow must be visible so the 44px drag handle (positioned right:-22px
-         on .segment) extends beyond the segment boundary and remains hittable.
-         overflow:hidden clips the protruding half of the handle, making the
-         touch target unreachable on Android WebView. */
+      /* overflow:visible so the 44px drag handle (positioned right:-22px on
+         .segment) stays hittable beyond the segment boundary. overflow:hidden
+         clips the handle, making the touch target unreachable on Android. */
       overflow: visible;
     }
 
@@ -220,7 +219,7 @@ export class ClimateManagerTimeBar extends LitElement {
       opacity: 0.4;
     }
 
-    /* ---- Shared time axis (above and below day rows) ---------------------- */
+    /* ---- Shared time axis (above and below day rows) --------------------- */
     /* Mirrors the exact 3-column layout of .day-row so ticks align pixel-
        perfectly with the bar area regardless of button size. */
     .time-axis {
@@ -241,9 +240,9 @@ export class ClimateManagerTimeBar extends LitElement {
       height: 1em;
     }
 
-    /* Invisible clone of .day-actions — forces the inner to match bar-wrap width.
-       height:0 + overflow:hidden collapses the row to label height only while
-       still letting the browser compute the natural button width for flex layout. */
+    /* Invisible clone of .day-actions — forces bar-wrap width to match.
+       height:0 + overflow:hidden collapses to label height while the browser
+       computes the natural button width for flex layout. */
     .time-axis-actions-ghost {
       display: flex;
       flex-shrink: 0;
@@ -263,16 +262,24 @@ export class ClimateManagerTimeBar extends LitElement {
       color: var(--secondary-text-color, #757575);
       white-space: nowrap;
     }
-    .axis-tick:first-child { transform: translateX(0); }
-    .axis-tick:last-child  { transform: translateX(-100%); }
+    .axis-tick:first-child {
+      transform: translateX(0);
+    }
+    .axis-tick:last-child {
+      transform: translateX(-100%);
+    }
 
     /* On narrow screens hide 3h-interval ticks (3, 9, 15, 21) */
     @media (max-width: 479px) {
-      .axis-tick--3h { display: none; }
+      .axis-tick--3h {
+        display: none;
+      }
     }
     /* On very narrow screens also hide 6h-interval ticks (6, 18) */
     @media (max-width: 339px) {
-      .axis-tick--6h { display: none; }
+      .axis-tick--6h {
+        display: none;
+      }
     }
 
     /* Drag tooltip */
@@ -299,7 +306,7 @@ export class ClimateManagerTimeBar extends LitElement {
       position: fixed;
       background: var(--card-background-color, #fff);
       border-radius: 4px;
-      box-shadow: var(--ha-card-box-shadow, 0 4px 16px rgba(0,0,0,0.25));
+      box-shadow: var(--ha-card-box-shadow, 0 4px 16px rgba(0, 0, 0, 0.25));
       padding: 12px;
       z-index: 9991;
       min-width: 160px;
@@ -404,9 +411,10 @@ export class ClimateManagerTimeBar extends LitElement {
   }
 
   private _colorForPeriod(period: Period): string {
-    const key = this.mode === "presence"
-      ? (period.state ?? "absent")
-      : (period.mode ?? "frost_protection");
+    const key =
+      this.mode === "presence"
+        ? (period.state ?? "absent")
+        : (period.mode ?? "frost_protection");
     if (this.mode === "presence") {
       return PRESENCE_COLORS[key] ?? PRESENCE_COLORS["absent"];
     }
@@ -414,9 +422,10 @@ export class ClimateManagerTimeBar extends LitElement {
   }
 
   private _labelForPeriod(period: Period): string {
-    const key = this.mode === "presence"
-      ? (period.state ?? "absent")
-      : (period.mode ?? "frost_protection");
+    const key =
+      this.mode === "presence"
+        ? (period.state ?? "absent")
+        : (period.mode ?? "frost_protection");
     return PERIOD_DISPLAY_NAMES[key] ?? key;
   }
 
@@ -429,16 +438,15 @@ export class ClimateManagerTimeBar extends LitElement {
   ): Array<{ period: Period; startMin: number; endMin: number }> {
     if (periods.length === 0) return [];
 
-    const sorted = [...periods].sort((a, b) =>
-      a.start.localeCompare(b.start),
-    );
+    const sorted = [...periods].sort((a, b) => a.start.localeCompare(b.start));
 
     // Ensure first segment starts at 00:00
     const first = sorted[0];
     const firstMin = this._timeToMinutes(first.start);
-    const working = firstMin > 0
-      ? [{ start: "00:00", mode: first.mode, state: first.state }, ...sorted]
-      : sorted;
+    const working =
+      firstMin > 0
+        ? [{ start: "00:00", mode: first.mode, state: first.state }, ...sorted]
+        : sorted;
 
     const result: Array<{ period: Period; startMin: number; endMin: number }> =
       [];
@@ -535,13 +543,13 @@ export class ClimateManagerTimeBar extends LitElement {
       return;
     }
 
-    const barEl = (e.currentTarget as HTMLElement);
+    const barEl = e.currentTarget as HTMLElement;
     const rect = barEl.getBoundingClientRect();
     const rawMinutes = this._pixelToMinutes(e.clientX - rect.left, rect.width);
     const snapped = this._snapToMinutes(rawMinutes);
 
     // Check if click is on an existing segment (handled by _onSegmentClick)
-    // This handler fires on the bar wrap background, so it's a "new" area click.
+    // Fires on bar-wrap background — always a "new" area click.
     this._popup = {
       kind: "split",
       dayIndex,
@@ -627,7 +635,7 @@ export class ClimateManagerTimeBar extends LitElement {
     if (!seg) return;
 
     // Delete: remove this period from the source periods array.
-    // The left neighbor (or implicit 00:00 fill) expands to cover the gap (D-05).
+    // Left neighbor (or implicit 00:00 fill) expands to cover the gap (D-05).
     const newPeriods = (this.days[dayIndex] ?? []).filter(
       (p) => p.start !== seg.period.start,
     );
@@ -640,7 +648,7 @@ export class ClimateManagerTimeBar extends LitElement {
    * Split the clicked period at its midpoint (snapped to 15 min).
    * The first half keeps the original type; the second half gets the next
    * type in the cycle:
-   *   schedule: frost_protection → reduced → normal → comfort → frost_protection
+   *   schedule: frost_protection→reduced→normal→comfort→frost_protection
    *   presence: present → absent → present
    *
    * If the period is too narrow to split (< 30 min, leaving no room for two
@@ -666,23 +674,26 @@ export class ClimateManagerTimeBar extends LitElement {
 
     // Determine the next type in the cycle
     const cycle = this.mode === "presence" ? PRESENCE_CYCLE : SCHEDULE_CYCLE;
-    const currentType = this.mode === "presence"
-      ? (seg.period.state ?? "absent")
-      : (seg.period.mode ?? "frost_protection");
+    const currentType =
+      this.mode === "presence"
+        ? (seg.period.state ?? "absent")
+        : (seg.period.mode ?? "frost_protection");
     const currentIdx = cycle.indexOf(currentType);
     const nextType = cycle[(currentIdx + 1) % cycle.length];
 
     // Build the two replacement periods
-    const firstHalf: Period = this.mode === "presence"
-      ? { start: seg.period.start, state: currentType }
-      : { start: seg.period.start, mode: currentType };
-    const secondHalf: Period = this.mode === "presence"
-      ? { start: this._minutesToHHMM(snappedMid), state: nextType }
-      : { start: this._minutesToHHMM(snappedMid), mode: nextType };
+    const firstHalf: Period =
+      this.mode === "presence"
+        ? { start: seg.period.start, state: currentType }
+        : { start: seg.period.start, mode: currentType };
+    const secondHalf: Period =
+      this.mode === "presence"
+        ? { start: this._minutesToHHMM(snappedMid), state: nextType }
+        : { start: this._minutesToHHMM(snappedMid), mode: nextType };
 
     // Replace the original period in the source array with the two halves.
     // The original period is identified by its start time.
-    // For a synthesised 00:00 filler (not present in source), we insert both halves.
+    // For a synthesised 00:00 filler (absent from source), insert both halves.
     const sourcePeriods = this.days[dayIndex] ?? [];
     const existsInSource = sourcePeriods.some(
       (p) => p.start === seg.period.start,
@@ -805,10 +816,7 @@ export class ClimateManagerTimeBar extends LitElement {
       if (leftSeg && rightSeg) {
         const minBoundary = leftSeg.startMin + 15;
         const maxBoundary = rightSeg.endMin - 15;
-        const clamped = Math.max(
-          minBoundary,
-          Math.min(maxBoundary, snapped),
-        );
+        const clamped = Math.max(minBoundary, Math.min(maxBoundary, snapped));
 
         // Rebuild: move right segment's start to clamped value
         const newPeriods = (this.days[dayIndex] ?? []).map((p) => {
@@ -846,8 +854,7 @@ export class ClimateManagerTimeBar extends LitElement {
     this._drag = null;
     this._dragTooltipMinutes = null;
     this._dragPreviewDays = null;
-    // Do NOT set _justDragged — the drag did not complete, so no synthetic click
-    // needs to be suppressed.
+    // Do NOT set _justDragged — drag cancelled, no synthetic click to suppress.
   }
 
   // -----------------------------------------------------------------------
@@ -918,7 +925,6 @@ export class ClimateManagerTimeBar extends LitElement {
       >
         <!-- Time axis above day rows — identical structure to bottom axis -->
         ${this._renderTimeAxis()}
-
         ${DAY_LABELS.map((label, dayIndex) =>
           this._renderDayRow(label, dayIndex),
         )}
@@ -941,10 +947,7 @@ export class ClimateManagerTimeBar extends LitElement {
       <!-- Popup overlay + popup -->
       ${this._popup
         ? html`
-            <div
-              class="popup-overlay"
-              @click=${this._closePopup}
-            ></div>
+            <div class="popup-overlay" @click=${this._closePopup}></div>
             <div
               class="popup"
               style="left:${this._popup.x}px;top:${this._popup.y}px"
@@ -972,16 +975,25 @@ export class ClimateManagerTimeBar extends LitElement {
         <div class="time-axis-inner">
           ${ticks.map((h) => {
             const densityClass =
-              h % 12 === 0 ? "" : h % 6 === 0 ? "axis-tick--6h" : "axis-tick--3h";
+              h % 12 === 0
+                ? ""
+                : h % 6 === 0
+                  ? "axis-tick--6h"
+                  : "axis-tick--3h";
             return html`<span
               class="axis-tick ${densityClass}"
               style="left:${(h / 24) * 100}%"
-            >${String(h).padStart(2, "0")}:00</span>`;
+              >${String(h).padStart(2, "0")}:00</span
+            >`;
           })}
         </div>
         <div class="time-axis-actions-ghost" aria-hidden="true">
-          <ha-icon-button><ha-icon icon="mdi:content-copy"></ha-icon></ha-icon-button>
-          <ha-icon-button><ha-icon icon="mdi:content-paste"></ha-icon></ha-icon-button>
+          <ha-icon-button
+            ><ha-icon icon="mdi:content-copy"></ha-icon
+          ></ha-icon-button>
+          <ha-icon-button
+            ><ha-icon icon="mdi:content-paste"></ha-icon
+          ></ha-icon-button>
         </div>
       </div>
     `;
@@ -1002,8 +1014,10 @@ export class ClimateManagerTimeBar extends LitElement {
           class="bar-wrap"
           @click=${(e: MouseEvent) => {
             // Only treat as bar click if not hitting a segment
-            if ((e.target as HTMLElement).classList.contains("bar-wrap") ||
-                (e.target as HTMLElement).classList.contains("bar-row-inner")) {
+            if (
+              (e.target as HTMLElement).classList.contains("bar-wrap") ||
+              (e.target as HTMLElement).classList.contains("bar-row-inner")
+            ) {
               this._onBarClick(e, dayIndex);
             }
           }}
@@ -1062,7 +1076,8 @@ export class ClimateManagerTimeBar extends LitElement {
         aria-label="${ariaLabel}"
         @click=${(e: MouseEvent) => this._onSegmentClick(e, dayIndex, segIdx)}
       >
-        ${widthPct > 2.7 /* ~40px at typical width — hide label on very narrow blocks */
+        ${widthPct >
+        2.7 /* ~40px at typical width — hide label on very narrow blocks */
           ? html`<span class="segment-label">${label}</span>`
           : ""}
 
@@ -1105,13 +1120,13 @@ export class ClimateManagerTimeBar extends LitElement {
     }
 
     if (this._popup.kind === "edit") {
-      const segments = this._toSegments(
-        this.days[this._popup.dayIndex] ?? [],
-      );
+      const segments = this._toSegments(this.days[this._popup.dayIndex] ?? []);
       const seg = segments[this._popup.segIndex ?? 0];
       if (!seg) return html``;
 
-      const timeRange = `${this._minutesToHHMM(seg.startMin)} – ${this._minutesToHHMM(seg.endMin)}`;
+      const start = this._minutesToHHMM(seg.startMin);
+      const end = this._minutesToHHMM(seg.endMin);
+      const timeRange = `${start} – ${end}`;
       const modeLabel =
         this.mode === "presence"
           ? (seg.period.state ?? "absent")
@@ -1153,10 +1168,7 @@ export class ClimateManagerTimeBar extends LitElement {
           >
             Split period
           </button>
-          <button
-            class="popup-btn danger"
-            @click=${this._onDeleteSegment}
-          >
+          <button class="popup-btn danger" @click=${this._onDeleteSegment}>
             Delete period
           </button>
         </div>

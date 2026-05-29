@@ -16,17 +16,30 @@
  * No ha-textfield, ha-select, ha-tabs, paper-tab, or ha-dialog.
  *
  * All writes use write-then-reload pattern:
- *   await this.ws.X(); await this.panel.reloadConfig(); this.panel.showToast(...)
+ *   await this.ws.X(); await this.panel.reloadConfig(); this.panel.showToast(…)
  */
 
 import { LitElement, html, css } from "lit";
 import { property, state } from "lit/decorators.js";
 
-import type { ClimateConfig, ZoneConfig, DailyProgram, Period, RoomConfig, StatusPayload, Hass } from "../types.js";
+import type {
+  ClimateConfig,
+  ZoneConfig,
+  DailyProgram,
+  Period,
+  RoomConfig,
+  StatusPayload,
+  Hass,
+} from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
-import { chipStyles, sectionLabelStyles, selectStyles, scheduleHintStyles } from "../shared-styles.js";
+import {
+  chipStyles,
+  sectionLabelStyles,
+  selectStyles,
+  scheduleHintStyles,
+} from "../shared-styles.js";
 
 import "./time-bar.js";
 import "./search-picker.js";
@@ -36,7 +49,7 @@ export class ZoneTab extends LitElement {
   // Public properties
   // -------------------------------------------------------------------------
 
-  /** Full panel config — needed to enumerate rooms and resolve zone/room names. */
+  /** Full panel config — enumerate rooms and resolve zone/room names. */
   @property({ attribute: false }) config!: ClimateConfig;
 
   /**
@@ -47,13 +60,13 @@ export class ZoneTab extends LitElement {
 
   /**
    * Current zone's name, mode, and time_program.
-   * For the Default Zone, main.ts synthesizes this from global_mode + global_time_program.
+   * Default Zone: synthesized from global_mode + global_time_program.
    */
   @property({ attribute: false }) zoneConfig!: ZoneConfig;
 
   /**
    * When true, the delete button is not rendered (UI-05).
-   * Also controls chip remove visibility (rooms cannot be removed from Default Zone).
+   * Also hides chip remove buttons (rooms cannot leave Default Zone).
    */
   @property({ type: Boolean }) isDefault = false;
 
@@ -66,7 +79,7 @@ export class ZoneTab extends LitElement {
   /** HA hass object — used for resolving area names. */
   @property({ attribute: false }) hass!: Hass;
 
-  /** Live status — used to enumerate all TRV rooms, not just configured ones. */
+  /** Live status — enumerates all TRV rooms, not just configured ones. */
   @property({ attribute: false }) status: StatusPayload | null = null;
 
   // -------------------------------------------------------------------------
@@ -78,7 +91,7 @@ export class ZoneTab extends LitElement {
   // -------------------------------------------------------------------------
   // Memoized days getter
   // Prevents time-bar drag-preview from clearing on status-only re-renders.
-  // Keyed by zoneConfig.time_program identity (same pattern as global-settings-tab.ts).
+  // Keyed by zoneConfig.time_program identity (same as global-settings-tab.ts).
   // -------------------------------------------------------------------------
 
   private _lastProgram: DailyProgram | undefined = undefined;
@@ -96,116 +109,122 @@ export class ZoneTab extends LitElement {
   // Static styles
   // -------------------------------------------------------------------------
 
-  static styles = [chipStyles, sectionLabelStyles, selectStyles, scheduleHintStyles, css`
-    :host {
-      display: block;
-    }
+  static styles = [
+    chipStyles,
+    sectionLabelStyles,
+    selectStyles,
+    scheduleHintStyles,
+    css`
+      :host {
+        display: block;
+      }
 
-    /* Delete row (top of zone tab, custom zones only) */
-    .delete-row {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 8px;
-      justify-content: flex-end;
-      margin-top: 24px;
-    }
+      /* Delete row (top of zone tab, custom zones only) */
+      .delete-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 24px;
+      }
 
-    .delete-btn {
-      background: none;
-      border: 1px solid var(--divider-color, rgba(0,0,0,0.12));
-      color: var(--secondary-text-color);
-      padding: 6px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      font-family: inherit;
-    }
+      .delete-btn {
+        background: none;
+        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+        color: var(--secondary-text-color);
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-family: inherit;
+      }
 
-    .delete-btn:hover {
-      background: var(--secondary-background-color);
-    }
+      .delete-btn:hover {
+        background: var(--secondary-background-color);
+      }
 
-    .cancel-btn {
-      background: none;
-      border: 1px solid var(--divider-color, rgba(0,0,0,0.12));
-      color: var(--secondary-text-color);
-      padding: 6px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      font-family: inherit;
-    }
+      .cancel-btn {
+        background: none;
+        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+        color: var(--secondary-text-color);
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-family: inherit;
+      }
 
-    .cancel-btn:hover {
-      background: var(--secondary-background-color);
-    }
+      .cancel-btn:hover {
+        background: var(--secondary-background-color);
+      }
 
-    .danger-btn {
-      background: var(--error-color, #db4437);
-      color: white;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      font-family: inherit;
-    }
+      .danger-btn {
+        background: var(--error-color, #db4437);
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-family: inherit;
+      }
 
-    .danger-btn:hover {
-      opacity: 0.9;
-    }
+      .danger-btn:hover {
+        opacity: 0.9;
+      }
 
-    .select-wrapper {
-      margin-bottom: 16px;
-    }
+      .select-wrapper {
+        margin-bottom: 16px;
+      }
 
-    .section-divider {
-      margin: 16px 0 8px;
-    }
+      .section-divider {
+        margin: 16px 0 8px;
+      }
 
-    .floor-group-label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      color: var(--secondary-text-color);
-      margin: 8px 0 4px;
-    }
+      .floor-group-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--secondary-text-color);
+        margin: 8px 0 4px;
+      }
 
-    .floor-group-label ha-icon {
-      --mdc-icon-size: 14px;
-      width: 14px;
-      height: 14px;
-      flex-shrink: 0;
-    }
+      .floor-group-label ha-icon {
+        --mdc-icon-size: 14px;
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+      }
 
-    .reset-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-      margin-bottom: 8px;
-      justify-content: flex-end;
-    }
+      .reset-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+        justify-content: flex-end;
+      }
 
-    .reset-btn {
-      background: none;
-      border: 1px solid var(--divider-color, rgba(0,0,0,0.12));
-      color: var(--secondary-text-color);
-      padding: 5px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 13px;
-      font-family: inherit;
-    }
+      .reset-btn {
+        background: none;
+        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+        color: var(--secondary-text-color);
+        padding: 5px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
+      }
 
-    .reset-btn:hover {
-      background: var(--secondary-background-color);
-    }
-  `];
+      .reset-btn:hover {
+        background: var(--secondary-background-color);
+      }
+    `,
+  ];
 
   // -------------------------------------------------------------------------
   // Handlers
@@ -253,12 +272,15 @@ export class ZoneTab extends LitElement {
   };
 
   /**
-   * Time-bar periods-changed event — update the zone time program for the changed day.
-   * When isDefault is true, writes go to the global time program via ws.setTimeProgram
+   * Time-bar periods-changed — update the zone time program for the day.
+   * When isDefault, writes go to the global time program via ws.setTimeProgram
    * (the Default Zone is backed by global_time_program per Phase 4 D-02).
    */
   private _onPeriodsChanged = async (e: CustomEvent) => {
-    const { dayIndex, periods } = e.detail as { dayIndex: number; periods: Period[] };
+    const { dayIndex, periods } = e.detail as {
+      dayIndex: number;
+      periods: Period[];
+    };
     const program: DailyProgram = { ...this.zoneConfig.time_program };
     const key = dayIndexToKey(dayIndex);
     program[key] = periods;
@@ -278,13 +300,14 @@ export class ZoneTab extends LitElement {
 
   /**
    * Add a room to this zone (D-09).
-   * When isDefault is true, sends zone_id: null — Task 1's backend handler interprets
-   * null as 'pop zone_id' per D-06 sparse model (gap WR-01 fix).
+   * isDefault: zone_id: null — backend pops zone_id (D-06 sparse model).
    */
   private async _onAddRoom(roomId: string) {
     try {
       if (this.isDefault) {
-        await this.ws.setRoomConfig(roomId, { zone_id: null as unknown as string | undefined });
+        await this.ws.setRoomConfig(roomId, {
+          zone_id: null as unknown as string | undefined,
+        });
       } else {
         await this.ws.setRoomConfig(roomId, { zone_id: this.zoneId });
       }
@@ -297,13 +320,13 @@ export class ZoneTab extends LitElement {
 
   /**
    * Remove a room from a custom zone (D-08).
-   * Sends setRoomConfig with zone_id: null — Task 1's backend handler interprets null
-   * as 'pop zone_id' per D-06 sparse model (gap CR-03 fix from VERIFICATION 06-04).
-   * Absent zone_id = Default Zone member (D-06 phase 4).
-   * Not rendered for Default Zone (rooms can't be removed — no other zone to send them to).
+   * Sends zone_id: null — backend pops zone_id (D-06 sparse model).
+   * Absent zone_id = Default Zone member. Not rendered for Default Zone.
    */
   private async _onRemoveRoom(roomId: string) {
-    const patch: Partial<RoomConfig> = { zone_id: null as unknown as string | undefined };
+    const patch: Partial<RoomConfig> = {
+      zone_id: null as unknown as string | undefined,
+    };
     try {
       await this.ws.setRoomConfig(roomId, patch);
       await this.panel.reloadConfig();
@@ -333,7 +356,7 @@ export class ZoneTab extends LitElement {
 
   /**
    * Confirm delete — delete zone and reload config.
-   * After successful delete, parent main.ts detects missing tab via _validateActiveTab()
+   * On success, main.ts detects missing tab via _validateActiveTab()
    * and falls back to "global". This component does not navigate.
    */
   private async _onConfirmDelete() {
@@ -362,9 +385,11 @@ export class ZoneTab extends LitElement {
     );
   }
 
-  /** All TRV room IDs from status; falls back to config.rooms keys when status unavailable. */
+  /** All TRV room IDs from status; falls back to config.rooms keys. */
   private _allRoomIds(): string[] {
-    const fromStatus = this.status?.rooms_status?.filter((r) => r.has_trv !== false);
+    const fromStatus = this.status?.rooms_status?.filter(
+      (r) => r.has_trv !== false,
+    );
     if (fromStatus?.length) return fromStatus.map((r) => r.area_id);
     return Object.keys(this.config?.rooms ?? {});
   }
@@ -372,8 +397,8 @@ export class ZoneTab extends LitElement {
   /**
    * Returns IDs of rooms assigned to this zone.
    * For custom zones: rooms whose zone_id === this.zoneId.
-   * For Default Zone: rooms whose zone_id is undefined OR points to a non-existent zone (orphan-safe, D-06 phase 4).
-   * Uses all TRV rooms as the universe (not just configured rooms) so unconfigured rooms appear.
+   * Default Zone: rooms with undefined or orphaned zone_id (D-06 phase 4).
+   * Universe is all TRV rooms so unconfigured rooms appear.
    */
   private _getAssignedRoomIds(): string[] {
     const zoneKeys = Object.keys(this.config?.zones ?? {});
@@ -387,8 +412,12 @@ export class ZoneTab extends LitElement {
     });
   }
 
-  /** Assigned rooms grouped by floor, each group sorted alphabetically. Floors ordered descending by level (upper first). */
-  private _getSortedAssignedRoomGroups(): Array<{ floorId: string | null; floorName: string; roomIds: string[] }> {
+  /** Rooms grouped by floor (alpha-sorted), floors descending by level. */
+  private _getSortedAssignedRoomGroups(): Array<{
+    floorId: string | null;
+    floorName: string;
+    roomIds: string[];
+  }> {
     const assignedIds = this._getAssignedRoomIds();
     const floorGroups = new Map<string | null, string[]>();
     for (const roomId of assignedIds) {
@@ -397,18 +426,29 @@ export class ZoneTab extends LitElement {
       floorGroups.get(floorId)!.push(roomId);
     }
     for (const ids of floorGroups.values()) {
-      ids.sort((a, b) => this._getRoomName(a).localeCompare(this._getRoomName(b)));
+      ids.sort((a, b) =>
+        this._getRoomName(a).localeCompare(this._getRoomName(b)),
+      );
     }
     const sortedFloorIds = [...floorGroups.keys()]
       .filter((fid): fid is string => fid !== null)
-      .sort((a, b) => (this.hass?.floors?.[b]?.level ?? 0) - (this.hass?.floors?.[a]?.level ?? 0));
-    const result: Array<{ floorId: string | null; floorName: string; roomIds: string[] }> = sortedFloorIds.map((fid) => ({
+      .sort(
+        (a, b) =>
+          (this.hass?.floors?.[b]?.level ?? 0) -
+          (this.hass?.floors?.[a]?.level ?? 0),
+      );
+    const result: Array<{
+      floorId: string | null;
+      floorName: string;
+      roomIds: string[];
+    }> = sortedFloorIds.map((fid) => ({
       floorId: fid,
       floorName: this.hass?.floors?.[fid]?.name ?? fid,
       roomIds: floorGroups.get(fid)!,
     }));
     const floorless = floorGroups.get(null) ?? [];
-    if (floorless.length) result.push({ floorId: null, floorName: "", roomIds: floorless });
+    if (floorless.length)
+      result.push({ floorId: null, floorName: "", roomIds: floorless });
     return result;
   }
 
@@ -416,7 +456,11 @@ export class ZoneTab extends LitElement {
    * Returns rooms NOT assigned to this zone, shaped for the search-picker.
    * Per D-10: includes rooms in other zones (valid reassignment targets).
    */
-  private _getUnassignedRoomItems(): Array<{ id: string; label: string; icon?: string }> {
+  private _getUnassignedRoomItems(): Array<{
+    id: string;
+    label: string;
+    icon?: string;
+  }> {
     const assignedIds = new Set(this._getAssignedRoomIds());
     return this._allRoomIds()
       .filter((roomId) => !assignedIds.has(roomId))
@@ -434,15 +478,33 @@ export class ZoneTab extends LitElement {
   private _renderModeDescription() {
     const mode = this.zoneConfig?.mode;
     if (mode === "off") {
-      return html`<p class="schedule-hint">Zone is off. All assigned rooms are kept at frost protection temperature only.</p>`;
+      return html`<p class="schedule-hint">
+        Zone is off. All assigned rooms are kept at frost protection temperature
+        only.
+      </p>`;
     }
     if (mode === "time_program_presences") {
       return html`
-        <p class="schedule-hint">Rooms heat according to the schedule when an assigned person is present. While present, the room stays heated from the first Normal/Comfort period to the last — Reduced or Frost gaps in between are held at the preceding Normal/Comfort temperature. When everyone is absent, the room stays at Reduced temperature regardless of the schedule.</p>
-        <p class="schedule-hint"><em>Example:</em> schedule Normal 06:00, Reduced 09:00, Normal 17:00, Frost 22:00 — if present, the room heats 06:00–22:00 and holds Normal temperature during the 09:00–17:00 gap. If absent, the room stays at Reduced all day.</p>
+        <p class="schedule-hint">
+          Rooms heat according to the schedule when an assigned person is
+          present. While present, the room stays heated from the first
+          Normal/Comfort period to the last — Reduced or Frost gaps in between
+          are held at the preceding Normal/Comfort temperature. When everyone is
+          absent, the room stays at Reduced temperature regardless of the
+          schedule.
+        </p>
+        <p class="schedule-hint">
+          <em>Example:</em> schedule Normal 06:00, Reduced 09:00, Normal 17:00,
+          Frost 22:00 — if present, the room heats 06:00–22:00 and holds Normal
+          temperature during the 09:00–17:00 gap. If absent, the room stays at
+          Reduced all day.
+        </p>
       `;
     }
-    return html`<p class="schedule-hint">Rooms follow the weekly schedule. Each period sets the target temperature for all assigned rooms.</p>`;
+    return html`<p class="schedule-hint">
+      Rooms follow the weekly schedule. Each period sets the target temperature
+      for all assigned rooms.
+    </p>`;
   }
 
   private _getFloorIcon(fid: string): string {
@@ -467,19 +529,44 @@ export class ZoneTab extends LitElement {
         <ha-icon icon="mdi:home-outline"></ha-icon>
         ${this._getRoomName(roomId)}
         ${!this.isDefault
-          ? html`<button class="chip-remove" @click=${(e: Event) => { e.stopPropagation(); void this._onRemoveRoom(roomId); }}>×</button>`
+          ? html`<button
+              class="chip-remove"
+              @click=${(e: Event) => {
+                e.stopPropagation();
+                void this._onRemoveRoom(roomId);
+              }}
+            >
+              ×
+            </button>`
           : ""}
       </span>
     `;
 
     return html`
       <!-- 1. Mode picker -->
-      <div class="section-label" title="Controls how rooms in this zone are heated">Mode</div>
+      <div
+        class="section-label"
+        title="Controls how rooms in this zone are heated"
+      >
+        Mode
+      </div>
       <div class="select-wrapper">
         <select class="mode-select" @change=${this._onModeChange}>
-          <option value="off" ?selected=${this.zoneConfig.mode === "off"}>Off</option>
-          <option value="time_program" ?selected=${this.zoneConfig.mode === "time_program"}>Time program</option>
-          <option value="time_program_presences" ?selected=${this.zoneConfig.mode === "time_program_presences"}>Time program &amp; presences</option>
+          <option value="off" ?selected=${this.zoneConfig.mode === "off"}>
+            Off
+          </option>
+          <option
+            value="time_program"
+            ?selected=${this.zoneConfig.mode === "time_program"}
+          >
+            Time program
+          </option>
+          <option
+            value="time_program_presences"
+            ?selected=${this.zoneConfig.mode === "time_program_presences"}
+          >
+            Time program &amp; presences
+          </option>
         </select>
       </div>
       ${this._renderModeDescription()}
@@ -494,52 +581,69 @@ export class ZoneTab extends LitElement {
       <!-- Reset row: Default Zone gets one button; custom zones get two -->
       <div class="reset-row">
         ${!this.isDefault
-          ? html`<button class="reset-btn" @click=${this._onResetToGlobal}>Reset to ${this.config.default_zone_name}</button>`
+          ? html`<button class="reset-btn" @click=${this._onResetToGlobal}>
+              Reset to ${this.config.default_zone_name}
+            </button>`
           : ""}
-        <button class="reset-btn" @click=${this._onResetToDefault}>Reset to default</button>
+        <button class="reset-btn" @click=${this._onResetToDefault}>
+          Reset to default
+        </button>
       </div>
 
       <!-- 5. Assigned Rooms section (D-08 / D-09 / D-10) -->
       <div class="section-divider"></div>
-      <div class="section-label" title="Rooms that follow this zone's schedule">Assigned rooms</div>
-      ${roomGroups.map((group) => html`
-        ${group.floorId !== null
-          ? html`<div class="floor-group-label"><ha-icon icon=${this._getFloorIcon(group.floorId)}></ha-icon>${group.floorName}</div>`
-          : ""}
-        <div class="chips">
-          ${group.roomIds.map(renderChip)}
-        </div>
-      `)}
+      <div class="section-label" title="Rooms that follow this zone's schedule">
+        Assigned rooms
+      </div>
+      ${roomGroups.map(
+        (group) => html`
+          ${group.floorId !== null
+            ? html`<div class="floor-group-label">
+                <ha-icon icon=${this._getFloorIcon(group.floorId)}></ha-icon
+                >${group.floorName}
+              </div>`
+            : ""}
+          <div class="chips">${group.roomIds.map(renderChip)}</div>
+        `,
+      )}
       ${unassignedRooms.length > 0
         ? html`
-          <div class="chips">
-            <search-picker
-              .items=${unassignedRooms}
-              triggerLabel="Add room"
-              triggerIcon="mdi:plus"
-              placeholder="Search rooms…"
-              @picked=${this._onRoomPicked}
-            ></search-picker>
-          </div>
-        `
+            <div class="chips">
+              <search-picker
+                .items=${unassignedRooms}
+                triggerLabel="Add room"
+                triggerIcon="mdi:plus"
+                placeholder="Search rooms…"
+                @picked=${this._onRoomPicked}
+              ></search-picker>
+            </div>
+          `
         : ""}
-
 
       <!-- Delete row (custom zones only, D-05) -->
       ${!this.isDefault
         ? html`
-          <div class="delete-row">
-            ${this._confirmingDelete
-              ? html`
-                <span>Delete zone?</span>
-                <button class="cancel-btn" @click=${this._onCancelDelete}>Cancel</button>
-                <button class="danger-btn" @click=${() => void this._onConfirmDelete()}>Confirm</button>
-              `
-              : html`
-                <button class="delete-btn" @click=${this._onDeleteClick}>Delete zone</button>
-              `}
-          </div>
-        `
+            <div class="delete-row">
+              ${this._confirmingDelete
+                ? html`
+                    <span>Delete zone?</span>
+                    <button class="cancel-btn" @click=${this._onCancelDelete}>
+                      Cancel
+                    </button>
+                    <button
+                      class="danger-btn"
+                      @click=${() => void this._onConfirmDelete()}
+                    >
+                      Confirm
+                    </button>
+                  `
+                : html`
+                    <button class="delete-btn" @click=${this._onDeleteClick}>
+                      Delete zone
+                    </button>
+                  `}
+            </div>
+          `
         : ""}
     `;
   }

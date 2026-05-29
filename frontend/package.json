@@ -9,6 +9,7 @@
     "lit": "^3"
   },
   "devDependencies": {
+    "prettier": "^3.8.3",
     "typescript": "^5",
     "vite": "^5"
   }

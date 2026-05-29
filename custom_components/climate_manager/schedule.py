@@ -182,7 +182,9 @@ def compute_occupied_temp(
     current_time = now.time()
 
     # Find today's periods from the per-day dict (D-01)
-    today_periods = sorted(daily_program.get(day_name, []), key=lambda p: p["start"])
+    today_periods = sorted(
+        daily_program.get(day_name, []), key=lambda p: p["start"]
+    )
 
     # Identify Normal/Comfort periods
     nc_modes = {PERIOD_NORMAL, PERIOD_COMFORT}
@@ -191,7 +193,8 @@ def compute_occupied_temp(
     if not nc_periods:
         # D-05: no Normal/Comfort periods at all → apply Reduced
         _LOGGER.debug(
-            "compute_occupied_temp: no N/C periods for today (%s) — returning Reduced for present person",
+            "compute_occupied_temp: no N/C periods for today (%s)"
+            " — returning Reduced for present person",
             day_name,
         )
         return period_temperatures[PERIOD_REDUCED], PERIOD_REDUCED
@@ -203,9 +206,13 @@ def compute_occupied_temp(
     # or None if the last N/C is the final period of the day (window extends to midnight).
     last_nc_idx = today_periods.index(nc_periods[-1])
     if last_nc_idx + 1 < len(today_periods):
-        occupied_end: datetime.time | None = _parse_time(today_periods[last_nc_idx + 1]["start"])
+        occupied_end: datetime.time | None = _parse_time(
+            today_periods[last_nc_idx + 1]["start"]
+        )
     else:
-        occupied_end = None  # last N/C is last period — window extends to midnight
+        occupied_end = (
+            None  # last N/C is last period — window extends to midnight
+        )
 
     # Before the occupied window → Reduced
     if current_time < first_nc_start:
@@ -232,7 +239,9 @@ def compute_occupied_temp(
         active_mode = last_nc_mode_seen
 
     effective = active_mode if active_mode is not None else PERIOD_REDUCED
-    return period_temperatures.get(effective, period_temperatures[PERIOD_REDUCED]), effective
+    return period_temperatures.get(
+        effective, period_temperatures[PERIOD_REDUCED]
+    ), effective
 
 
 def validate_daily_program(

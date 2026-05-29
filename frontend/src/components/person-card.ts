@@ -1,7 +1,7 @@
 /**
  * Climate Manager Panel — Person Card component (UI-04).
  *
- * Expandable card per person. Collapsed: person name + presence mode badge + presence dot.
+ * Expandable card per person. Collapsed: name + presence mode badge + dot.
  * Expanded: presence mode selector (4-option select), room association
  * chips, presence schedule bar (only visible when mode === "scheduled").
  *
@@ -15,11 +15,22 @@
 import { LitElement, html, css, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 
-import type { PersonConfig, DailyProgram, Period, StatusPayload } from "../types.js";
+import type {
+  PersonConfig,
+  DailyProgram,
+  Period,
+  StatusPayload,
+} from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
-import { chipStyles, sectionLabelStyles, selectStyles, expandIconStyles, scheduleHintStyles } from "../shared-styles.js";
+import {
+  chipStyles,
+  sectionLabelStyles,
+  selectStyles,
+  expandIconStyles,
+  scheduleHintStyles,
+} from "../shared-styles.js";
 
 import "./time-bar.js";
 import "./search-picker.js";
@@ -30,13 +41,33 @@ const PRESENCE_MODE_HA = "ha";
 const PRESENCE_MODE_FORCE_PRESENT = "force_present";
 const PRESENCE_MODE_FORCE_ABSENT = "force_absent";
 
-// Default schedule seeded when switching to Scheduled mode with no existing schedule (D-22)
+// Default schedule seeded on first switch to Scheduled mode (D-22)
 const DEFAULT_SCHEDULE: DailyProgram = {
-  mon: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
-  tue: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
-  wed: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
-  thu: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
-  fri: [{ start: "00:00", state: "present" }, { start: "08:00", state: "absent" }, { start: "18:00", state: "present" }],
+  mon: [
+    { start: "00:00", state: "present" },
+    { start: "08:00", state: "absent" },
+    { start: "18:00", state: "present" },
+  ],
+  tue: [
+    { start: "00:00", state: "present" },
+    { start: "08:00", state: "absent" },
+    { start: "18:00", state: "present" },
+  ],
+  wed: [
+    { start: "00:00", state: "present" },
+    { start: "08:00", state: "absent" },
+    { start: "18:00", state: "present" },
+  ],
+  thu: [
+    { start: "00:00", state: "present" },
+    { start: "08:00", state: "absent" },
+    { start: "18:00", state: "present" },
+  ],
+  fri: [
+    { start: "00:00", state: "present" },
+    { start: "08:00", state: "absent" },
+    { start: "18:00", state: "present" },
+  ],
   sat: [{ start: "00:00", state: "present" }],
   sun: [{ start: "00:00", state: "present" }],
 };
@@ -44,7 +75,7 @@ const DEFAULT_SCHEDULE: DailyProgram = {
 export interface RoomChoice {
   id: string;
   name: string;
-  /** Optional floor name shown as secondary text in the add-room search-picker (D-19). */
+  /** Optional floor name shown as secondary text in the room search-picker. */
   secondary?: string;
 }
 
@@ -92,111 +123,118 @@ export class PersonCard extends LitElement {
     }
   }
 
-  static styles = [chipStyles, sectionLabelStyles, selectStyles, expandIconStyles, scheduleHintStyles, css`
-    :host {
-      display: block;
-    }
+  static styles = [
+    chipStyles,
+    sectionLabelStyles,
+    selectStyles,
+    expandIconStyles,
+    scheduleHintStyles,
+    css`
+      :host {
+        display: block;
+      }
 
-    ha-card {
-      margin-bottom: 12px;
-    }
+      ha-card {
+        margin-bottom: 12px;
+      }
 
-    .card-header-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px;
-      cursor: pointer;
-    }
+      .card-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        cursor: pointer;
+      }
 
-    .card-header-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+      .card-header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
 
-    .person-name {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--primary-text-color);
-    }
+      .person-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--primary-text-color);
+      }
 
-    .mode-badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 400;
-    }
+      .mode-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 400;
+      }
 
-    .mode-badge.scheduled {
-      background: var(--secondary-background-color, #f5f5f5);
-      color: var(--secondary-text-color, #757575);
-    }
+      .mode-badge.scheduled {
+        background: var(--secondary-background-color, #f5f5f5);
+        color: var(--secondary-text-color, #757575);
+      }
 
-    .mode-badge.force-present {
-      border: 1px solid var(--primary-color, #03a9f4);
-      color: var(--primary-color, #03a9f4);
-    }
+      .mode-badge.force-present {
+        border: 1px solid var(--primary-color, #03a9f4);
+        color: var(--primary-color, #03a9f4);
+      }
 
-    .mode-badge.force-absent {
-      background: var(--secondary-background-color, #f5f5f5);
-      color: var(--secondary-text-color, #757575);
-    }
+      .mode-badge.force-absent {
+        background: var(--secondary-background-color, #f5f5f5);
+        color: var(--secondary-text-color, #757575);
+      }
 
-    .mode-badge.ha {
-      background: var(--secondary-background-color, #f5f5f5);
-      color: var(--secondary-text-color, #757575);
-    }
+      .mode-badge.ha {
+        background: var(--secondary-background-color, #f5f5f5);
+        color: var(--secondary-text-color, #757575);
+      }
 
-    .presence-dot {
-      font-size: 12px;
-      line-height: 1;
-    }
+      .presence-dot {
+        font-size: 12px;
+        line-height: 1;
+      }
 
-    .presence-dot.present {
-      color: var(--success-color, #4caf50);
-    }
+      .presence-dot.present {
+        color: var(--success-color, #4caf50);
+      }
 
-    .presence-dot.absent {
-      color: var(--secondary-text-color, #9e9e9e);
-    }
+      .presence-dot.absent {
+        color: var(--secondary-text-color, #9e9e9e);
+      }
 
-    .card-content {
-      padding: 0 16px 16px;
-      border-top: 1px solid var(--divider-color, #e0e0e0);
-    }
+      .card-content {
+        padding: 0 16px 16px;
+        border-top: 1px solid var(--divider-color, #e0e0e0);
+      }
 
-    .section-label {
-      margin-top: 12px;
-    }
+      .section-label {
+        margin-top: 12px;
+      }
 
-    .select-wrapper {
-      margin-bottom: 4px;
-    }
+      .select-wrapper {
+        margin-bottom: 4px;
+      }
 
-    /* Presence schedule */
-    .schedule-section {
-      margin-top: 12px;
-    }
+      /* Presence schedule */
+      .schedule-section {
+        margin-top: 12px;
+      }
 
-    .reset-btn {
-      margin-top: 12px;
-      padding: 8px 16px;
-      font-size: 14px;
-      font-family: inherit;
-      color: var(--primary-color, #03a9f4);
-      background: none;
-      border: 1px solid var(--primary-color, #03a9f4);
-      border-radius: 4px;
-      cursor: pointer;
-    }
+      .reset-btn {
+        margin-top: 12px;
+        padding: 8px 16px;
+        font-size: 14px;
+        font-family: inherit;
+        color: var(--primary-color, #03a9f4);
+        background: none;
+        border: 1px solid var(--primary-color, #03a9f4);
+        border-radius: 4px;
+        cursor: pointer;
+      }
 
-    .reset-btn:hover {
-      background: var(--secondary-background-color);
-    }
-  `];
+      .reset-btn:hover {
+        background: var(--secondary-background-color);
+      }
+    `,
+  ];
 
   // -----------------------------------------------------------------------
   // Save handlers
@@ -206,13 +244,16 @@ export class PersonCard extends LitElement {
     const newMode = (e.target as HTMLSelectElement).value;
     if (!newMode) return;
     try {
-      // D-22: seed default schedule when switching to Scheduled with no existing schedule
+      // D-22: seed default schedule when switching to Scheduled (no existing)
       const hasSchedule =
         !!this.config?.schedule &&
         Object.values(this.config.schedule).some((day) => day.length > 0);
 
       if (newMode === PRESENCE_MODE_SCHEDULED && !hasSchedule) {
-        await this.ws.setPersonConfig(this.personId, { mode: newMode, schedule: DEFAULT_SCHEDULE });
+        await this.ws.setPersonConfig(this.personId, {
+          mode: newMode,
+          schedule: DEFAULT_SCHEDULE,
+        });
       } else {
         await this.ws.setPersonConfig(this.personId, { mode: newMode });
       }
@@ -226,7 +267,9 @@ export class PersonCard extends LitElement {
   private async _onRoomToggle(roomId: string, add: boolean) {
     const currentIds = [...(this.config?.room_ids ?? [])];
     const newIds = add
-      ? currentIds.includes(roomId) ? currentIds : [...currentIds, roomId]
+      ? currentIds.includes(roomId)
+        ? currentIds
+        : [...currentIds, roomId]
       : currentIds.filter((id) => id !== roomId);
     try {
       await this.ws.setPersonConfig(this.personId, { room_ids: newIds });
@@ -239,7 +282,9 @@ export class PersonCard extends LitElement {
 
   private async _onResetSchedule() {
     try {
-      await this.ws.setPersonConfig(this.personId, { schedule: DEFAULT_SCHEDULE });
+      await this.ws.setPersonConfig(this.personId, {
+        schedule: DEFAULT_SCHEDULE,
+      });
       await this.panel.reloadConfig();
       this.panel.showToast("Reset to defaults", false);
     } catch {
@@ -248,10 +293,19 @@ export class PersonCard extends LitElement {
   }
 
   private async _onSchedulePeriodsChanged(e: CustomEvent) {
-    const { dayIndex, periods } = e.detail as { dayIndex: number; periods: Period[] };
+    const { dayIndex, periods } = e.detail as {
+      dayIndex: number;
+      periods: Period[];
+    };
 
     const currentSchedule = this.config.schedule ?? {
-      mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [],
+      mon: [],
+      tue: [],
+      wed: [],
+      thu: [],
+      fri: [],
+      sat: [],
+      sun: [],
     };
     const schedule: DailyProgram = { ...currentSchedule };
     const key = dayIndexToKey(dayIndex);
@@ -283,10 +337,14 @@ export class PersonCard extends LitElement {
   private _getBadgeInfo(): { cls: string; text: string } {
     const mode = this.config?.mode ?? PRESENCE_MODE_SCHEDULED;
     switch (mode) {
-      case PRESENCE_MODE_FORCE_PRESENT: return { cls: "force-present", text: "Force Present" };
-      case PRESENCE_MODE_FORCE_ABSENT: return { cls: "force-absent", text: "Force Absent" };
-      case PRESENCE_MODE_HA: return { cls: "ha", text: "HA home tracking" };
-      default: return { cls: "scheduled", text: "Scheduled" };
+      case PRESENCE_MODE_FORCE_PRESENT:
+        return { cls: "force-present", text: "Force Present" };
+      case PRESENCE_MODE_FORCE_ABSENT:
+        return { cls: "force-absent", text: "Force Absent" };
+      case PRESENCE_MODE_HA:
+        return { cls: "ha", text: "HA home tracking" };
+      default:
+        return { cls: "scheduled", text: "Scheduled" };
     }
   }
 
@@ -295,16 +353,28 @@ export class PersonCard extends LitElement {
     const currentMode = this.config?.mode ?? PRESENCE_MODE_SCHEDULED;
     const isScheduled = currentMode === PRESENCE_MODE_SCHEDULED;
     const currentRoomIds = this.config?.room_ids ?? [];
-    const unassignedRooms = this.roomChoices.filter((r) => !currentRoomIds.includes(r.id));
+    const unassignedRooms = this.roomChoices.filter(
+      (r) => !currentRoomIds.includes(r.id),
+    );
 
     return html`
       <ha-card>
-        <div class="card-header-row" @click=${() => { this._expanded = !this._expanded; }}>
+        <div
+          class="card-header-row"
+          @click=${() => {
+            this._expanded = !this._expanded;
+          }}
+        >
           <div class="card-header-left">
             <span
-              class="presence-dot ${this._isCurrentlyPresent() ? "present" : "absent"}"
-              title="Currently ${this._isCurrentlyPresent() ? "present" : "absent"}"
-            >●</span>
+              class="presence-dot ${this._isCurrentlyPresent()
+                ? "present"
+                : "absent"}"
+              title="Currently ${this._isCurrentlyPresent()
+                ? "present"
+                : "absent"}"
+              >●</span
+            >
             <span class="person-name">${this.personName}</span>
             <span class="mode-badge ${badgeCls}">${badgeText}</span>
           </div>
@@ -316,76 +386,129 @@ export class PersonCard extends LitElement {
 
         ${this._expanded
           ? html`
-            <div class="card-content">
+              <div class="card-content">
+                <!-- Presence mode selector -->
+                <div
+                  class="section-label"
+                  title="How this person's presence is determined"
+                >
+                  Presence mode
+                </div>
+                <div class="select-wrapper">
+                  <select class="mode-select" @change=${this._onModeChange}>
+                    <option
+                      value=${PRESENCE_MODE_SCHEDULED}
+                      ?selected=${currentMode === PRESENCE_MODE_SCHEDULED}
+                    >
+                      Scheduled
+                    </option>
+                    <option
+                      value=${PRESENCE_MODE_HA}
+                      ?selected=${currentMode === PRESENCE_MODE_HA}
+                    >
+                      HA home tracking
+                    </option>
+                    <option
+                      value=${PRESENCE_MODE_FORCE_PRESENT}
+                      ?selected=${currentMode === PRESENCE_MODE_FORCE_PRESENT}
+                    >
+                      Force Present
+                    </option>
+                    <option
+                      value=${PRESENCE_MODE_FORCE_ABSENT}
+                      ?selected=${currentMode === PRESENCE_MODE_FORCE_ABSENT}
+                    >
+                      Force Absent
+                    </option>
+                  </select>
+                </div>
+                <p class="schedule-hint">
+                  ${currentMode === PRESENCE_MODE_FORCE_PRESENT
+                    ? "Always considered present, regardless of schedule."
+                    : currentMode === PRESENCE_MODE_FORCE_ABSENT
+                      ? "Always absent. Rooms are not heated for presence."
+                      : currentMode === PRESENCE_MODE_HA
+                        ? "Presence mirrors Home Assistant home/away tracking."
+                        : "Presence follows a weekly schedule."}
+                </p>
 
-              <!-- Presence mode selector -->
-              <div class="section-label" title="How this person's presence is determined">Presence mode</div>
-              <div class="select-wrapper">
-                <select class="mode-select" @change=${this._onModeChange}>
-                  <option value=${PRESENCE_MODE_SCHEDULED} ?selected=${currentMode === PRESENCE_MODE_SCHEDULED}>Scheduled</option>
-                  <option value=${PRESENCE_MODE_HA} ?selected=${currentMode === PRESENCE_MODE_HA}>HA home tracking</option>
-                  <option value=${PRESENCE_MODE_FORCE_PRESENT} ?selected=${currentMode === PRESENCE_MODE_FORCE_PRESENT}>Force Present</option>
-                  <option value=${PRESENCE_MODE_FORCE_ABSENT} ?selected=${currentMode === PRESENCE_MODE_FORCE_ABSENT}>Force Absent</option>
-                </select>
-              </div>
-              <p class="schedule-hint">${
-                currentMode === PRESENCE_MODE_FORCE_PRESENT ? "This person is always considered present, regardless of schedule or location." :
-                currentMode === PRESENCE_MODE_FORCE_ABSENT ? "This person is always considered absent. Their rooms will not be heated for their presence." :
-                currentMode === PRESENCE_MODE_HA ? "Presence mirrors Home Assistant's home/away tracking for this person." :
-                "Presence follows a weekly schedule. Edit the schedule below."
-              }</p>
+                <!-- Room associations as chips -->
+                <div
+                  class="section-label"
+                  title="Rooms heated by this person's presence"
+                >
+                  Room associations
+                </div>
+                <div class="chips">
+                  ${currentRoomIds.map((roomId) => {
+                    const room = this.roomChoices.find((r) => r.id === roomId);
+                    if (!room) return "";
+                    return html`
+                      <span
+                        class="chip"
+                        @click=${() => void this.panel.navigateToRoom(roomId)}
+                      >
+                        <ha-icon icon="mdi:home-outline"></ha-icon>
+                        ${room.name}
+                        <button
+                          class="chip-remove"
+                          @click=${(e: Event) => {
+                            e.stopPropagation();
+                            void this._onRoomToggle(roomId, false);
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    `;
+                  })}
+                  ${unassignedRooms.length > 0
+                    ? html`
+                        <search-picker
+                          .items=${unassignedRooms.map((r) => ({
+                            id: r.id,
+                            label: r.name,
+                            secondary: r.secondary,
+                            icon: "mdi:home-outline",
+                          }))}
+                          triggerLabel="Add room"
+                          triggerIcon="mdi:plus"
+                          placeholder="Search rooms…"
+                          @picked=${(e: CustomEvent) => {
+                            const { id } = e.detail as { id: string };
+                            void this._onRoomToggle(id, true);
+                          }}
+                        ></search-picker>
+                      `
+                    : ""}
+                </div>
 
-              <!-- Room associations as chips -->
-              <div class="section-label" title="Rooms affected by this person's presence — relevant in Time &amp; presence mode">Room associations</div>
-              <div class="chips">
-                ${currentRoomIds.map((roomId) => {
-                  const room = this.roomChoices.find((r) => r.id === roomId);
-                  if (!room) return "";
-                  return html`
-                    <span class="chip" @click=${() => void this.panel.navigateToRoom(roomId)}>
-                      <ha-icon icon="mdi:home-outline"></ha-icon>
-                      ${room.name}
-                      <button
-                        class="chip-remove"
-                        @click=${(e: Event) => { e.stopPropagation(); void this._onRoomToggle(roomId, false); }}
-                      >×</button>
-                    </span>
-                  `;
-                })}
-                ${unassignedRooms.length > 0
+                <!-- Presence schedule (only in Scheduled mode) -->
+                ${isScheduled
                   ? html`
-                    <search-picker
-                      .items=${unassignedRooms.map((r) => ({
-                        id: r.id,
-                        label: r.name,
-                        secondary: r.secondary,
-                        icon: "mdi:home-outline",
-                      }))}
-                      triggerLabel="Add room"
-                      triggerIcon="mdi:plus"
-                      placeholder="Search rooms…"
-                      @picked=${(e: CustomEvent) => { const {id} = e.detail as {id: string}; void this._onRoomToggle(id, true); }}
-                    ></search-picker>
-                  `
+                      <div
+                        class="section-label"
+                        title="When this person is considered present"
+                      >
+                        Presence schedule
+                      </div>
+                      <div class="schedule-section">
+                        <climate-manager-time-bar
+                          mode="presence"
+                          .days=${this._days}
+                          @periods-changed=${this._onSchedulePeriodsChanged}
+                        ></climate-manager-time-bar>
+                      </div>
+                      <button
+                        class="reset-btn"
+                        @click=${() => void this._onResetSchedule()}
+                      >
+                        Reset to default
+                      </button>
+                    `
                   : ""}
               </div>
-
-              <!-- Presence schedule (only in Scheduled mode) -->
-              ${isScheduled
-                ? html`
-                  <div class="section-label" title="When this person is considered present — used in Time &amp; presence mode">Presence schedule</div>
-                  <div class="schedule-section">
-                    <climate-manager-time-bar
-                      mode="presence"
-                      .days=${this._days}
-                      @periods-changed=${this._onSchedulePeriodsChanged}
-                    ></climate-manager-time-bar>
-                  </div>
-                  <button class="reset-btn" @click=${() => void this._onResetSchedule()}>Reset to default</button>
-                `
-                : ""}
-            </div>
-          `
+            `
           : ""}
       </ha-card>
     `;

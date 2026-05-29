@@ -1,6 +1,6 @@
 /**
  * Shared Lit CSS fragments reused across card components.
- * Import the needed exports and compose via `static styles = [sharedStyle, css`...`]`.
+ * Import exports and compose via `static styles = [sharedStyle, css`...`]`.
  */
 
 import { css } from "lit";
@@ -93,7 +93,7 @@ export const sectionLabelStyles = css`
   }
 `;
 
-/** Native <select> styled to match the HA card aesthetic — used by room-card, person-card, zone-tab. */
+/** Native <select> styled to match HA card aesthetic. */
 export const selectStyles = css`
   .mode-select {
     width: 100%;
@@ -101,7 +101,10 @@ export const selectStyles = css`
     font-size: 16px;
     font-family: inherit;
     color: var(--primary-text-color);
-    background-color: var(--card-background-color, var(--secondary-background-color));
+    background-color: var(
+      --card-background-color,
+      var(--secondary-background-color)
+    );
     border: 1px solid var(--divider-color);
     border-radius: 4px;
     outline: none;
@@ -124,7 +127,7 @@ export const scheduleHintStyles = css`
   }
 `;
 
-/** Animated chevron used in collapsible card headers — used by room-card, person-card. */
+/** Animated chevron for collapsible card headers (room-card, person-card). */
 export const expandIconStyles = css`
   .expand-icon {
     color: var(--secondary-text-color);

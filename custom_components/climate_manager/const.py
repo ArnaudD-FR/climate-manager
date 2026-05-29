@@ -56,10 +56,10 @@ ROOM_MODE_CUSTOM = "custom"
 DEFAULT_GLOBAL_MODE = MODE_TIME_PROGRAM
 
 DEFAULT_PERIOD_TEMPERATURES: dict[str, float] = {
-    PERIOD_FROST_PROTECTION: 5.0,   # GLOBAL-03
-    PERIOD_REDUCED: 18.0,            # GLOBAL-03
-    PERIOD_NORMAL: 20.0,             # GLOBAL-03
-    PERIOD_COMFORT: 22.0,            # GLOBAL-03
+    PERIOD_FROST_PROTECTION: 5.0,  # GLOBAL-03
+    PERIOD_REDUCED: 18.0,  # GLOBAL-03
+    PERIOD_NORMAL: 20.0,  # GLOBAL-03
+    PERIOD_COMFORT: 22.0,  # GLOBAL-03
 }
 
 # ---------------------------------------------------------------------------
@@ -176,12 +176,13 @@ DEFAULT_CONFIG: dict = {
     "global_mode": DEFAULT_GLOBAL_MODE,
     "period_temperatures": dict(DEFAULT_PERIOD_TEMPERATURES),
     "global_time_program": copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
-    "rooms": {},    # sparse: only rooms with non-default config (SCHED-05, D-11)
+    "rooms": {},  # sparse: only rooms with non-default config (SCHED-05, D-11)
     "persons": {},  # sparse: only persons with non-default settings (D-11)
-    "default_zone_name": "Home",  # D-03: Default Zone display name (user-editable in Phase 5/6)
-    "zones": {},                  # ZONE-01: custom zones, keyed by UUID string (D-07)
-                                  # Empty dict = no custom zones; all rooms belong to Default Zone.
-                                  # DEFAULT_CONFIG["zones"] MUST stay {} — pitfall 2: dict.update()
-                                  # would resurrect deleted zones if DEFAULT_CONFIG["zones"] were
-                                  # non-empty.
+    # D-03: Default Zone display name (user-editable in Phase 5/6)
+    "default_zone_name": "Home",
+    "zones": {},  # ZONE-01: custom zones, keyed by UUID string (D-07)
+    # Empty dict = no custom zones; all rooms belong to Default Zone.
+    # DEFAULT_CONFIG["zones"] MUST stay {} — pitfall 2: dict.update()
+    # would resurrect deleted zones if DEFAULT_CONFIG["zones"] were
+    # non-empty.
 }

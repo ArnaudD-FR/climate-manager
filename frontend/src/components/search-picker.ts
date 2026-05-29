@@ -6,7 +6,7 @@
  * add-room pickers in room-card.ts and person-card.ts.
  *
  * Public API:
- *   - items: Array<{id, label, secondary?, icon?}> — pre-filtered list of selectable items
+ *   - items: Array<{id, label, secondary?, icon?}> — pre-filtered items
  *   - placeholder: string — input placeholder text (default: "Search…")
  *   - triggerLabel: string — text on the trigger button (default: "Add")
  *   - triggerIcon: string — mdi icon for trigger button (default: "mdi:plus")
@@ -28,7 +28,7 @@ export interface SearchPickerItem {
 }
 
 export class SearchPicker extends LitElement {
-  /** Pre-filtered list of selectable items. Consumer excludes already-assigned items. */
+  /** Pre-filtered selectable items (consumer excludes already-assigned). */
   @property({ type: Array }) items: SearchPickerItem[] = [];
 
   /** Placeholder text for the search input. */
@@ -93,7 +93,7 @@ export class SearchPicker extends LitElement {
       background: var(--card-background-color, #fff);
       border: 1px solid var(--divider-color, #e0e0e0);
       border-radius: 8px;
-      box-shadow: var(--ha-card-box-shadow, 0 4px 16px rgba(0,0,0,0.15));
+      box-shadow: var(--ha-card-box-shadow, 0 4px 16px rgba(0, 0, 0, 0.15));
       overflow: hidden;
     }
 
@@ -192,7 +192,8 @@ export class SearchPicker extends LitElement {
 
     // Focus the input after render
     this.updateComplete.then(() => {
-      const input = this.shadowRoot?.querySelector<HTMLInputElement>(".search-input");
+      const input =
+        this.shadowRoot?.querySelector<HTMLInputElement>(".search-input");
       input?.focus();
     });
 
@@ -228,7 +229,7 @@ export class SearchPicker extends LitElement {
   // -------------------------------------------------------------------------
 
   private _onTriggerClick(e: MouseEvent) {
-    e.stopPropagation(); // Prevent document click handler from immediately closing
+    e.stopPropagation(); // prevent document click from immediately closing
     if (this._open) {
       this._closePopup();
     } else {
@@ -253,7 +254,7 @@ export class SearchPicker extends LitElement {
         detail: { id: item.id },
         bubbles: true,
         composed: true,
-      })
+      }),
     );
     this._closePopup();
   }
@@ -292,46 +293,51 @@ export class SearchPicker extends LitElement {
 
       ${this._open
         ? html`
-          <div class="popup" @click=${(e: MouseEvent) => e.stopPropagation()}>
-            <div class="search-row">
-              <input
-                class="search-input"
-                type="text"
-                .value=${this._query}
-                placeholder=${this.placeholder}
-                @input=${this._onSearchInput}
-                @keydown=${this._onKeydown}
-                autocomplete="off"
-                spellcheck="false"
-              />
+            <div class="popup" @click=${(e: MouseEvent) => e.stopPropagation()}>
+              <div class="search-row">
+                <input
+                  class="search-input"
+                  type="text"
+                  .value=${this._query}
+                  placeholder=${this.placeholder}
+                  @input=${this._onSearchInput}
+                  @keydown=${this._onKeydown}
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </div>
+              ${filtered.length > 0
+                ? html`
+                    <ul class="item-list" role="listbox">
+                      ${filtered.map(
+                        (item) => html`
+                          <li
+                            class="item-row"
+                            role="option"
+                            @click=${() => this._onItemClick(item)}
+                          >
+                            ${item.icon
+                              ? html`<ha-icon
+                                  class="item-icon"
+                                  icon=${item.icon}
+                                ></ha-icon>`
+                              : ""}
+                            <div class="item-text">
+                              <span class="item-label">${item.label}</span>
+                              ${item.secondary
+                                ? html`<span class="item-secondary"
+                                    >${item.secondary}</span
+                                  >`
+                                : ""}
+                            </div>
+                          </li>
+                        `,
+                      )}
+                    </ul>
+                  `
+                : html`<div class="empty-message">No results</div>`}
             </div>
-            ${filtered.length > 0
-              ? html`
-                <ul class="item-list" role="listbox">
-                  ${filtered.map(
-                    (item) => html`
-                      <li
-                        class="item-row"
-                        role="option"
-                        @click=${() => this._onItemClick(item)}
-                      >
-                        ${item.icon
-                          ? html`<ha-icon class="item-icon" icon=${item.icon}></ha-icon>`
-                          : ""}
-                        <div class="item-text">
-                          <span class="item-label">${item.label}</span>
-                          ${item.secondary
-                            ? html`<span class="item-secondary">${item.secondary}</span>`
-                            : ""}
-                        </div>
-                      </li>
-                    `
-                  )}
-                </ul>
-              `
-              : html`<div class="empty-message">No results</div>`}
-          </div>
-        `
+          `
         : ""}
     `;
   }
