@@ -431,15 +431,15 @@ export class ZoneTab extends LitElement {
   // Render
   // -------------------------------------------------------------------------
 
-  private _renderScheduleHint() {
+  private _renderModeDescription() {
     const mode = this.zoneConfig?.mode;
     let text: string;
     if (mode === "off") {
-      text = "Zone is off — the schedule is saved but not applied. All assigned rooms use frost protection only.";
+      text = "Zone is off. All assigned rooms are kept at frost protection temperature only.";
     } else if (mode === "time_program_presences") {
-      text = "Rooms heat according to this schedule only when an assigned person is present. When everyone is absent, rooms stay at Reduced temperature. A Reduced or Frost period sandwiched between two Normal/Comfort periods is held at the preceding Normal/Comfort temperature while someone is present.";
+      text = "Rooms heat according to the schedule only when an assigned person is present. When everyone is absent, rooms stay at Reduced temperature.";
     } else {
-      text = "Rooms in this zone follow this schedule. Each period sets the target temperature for all assigned rooms.";
+      text = "Rooms follow the weekly schedule. Each period sets the target temperature for all assigned rooms.";
     }
     return html`<p class="schedule-hint">${text}</p>`;
   }
@@ -481,6 +481,7 @@ export class ZoneTab extends LitElement {
           <option value="time_program_presences" ?selected=${this.zoneConfig.mode === "time_program_presences"}>Time program &amp; presences</option>
         </select>
       </div>
+      ${this._renderModeDescription()}
 
       <!-- 4. Time-bar -->
       <climate-manager-time-bar
@@ -488,8 +489,6 @@ export class ZoneTab extends LitElement {
         .days=${this._days}
         @periods-changed=${this._onPeriodsChanged}
       ></climate-manager-time-bar>
-
-      ${this._renderScheduleHint()}
 
       <!-- Reset row: Default Zone gets one button; custom zones get two -->
       <div class="reset-row">

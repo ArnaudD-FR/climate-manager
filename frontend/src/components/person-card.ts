@@ -328,6 +328,12 @@ export class PersonCard extends LitElement {
                   <option value=${PRESENCE_MODE_FORCE_ABSENT} ?selected=${currentMode === PRESENCE_MODE_FORCE_ABSENT}>Force Absent</option>
                 </select>
               </div>
+              <p class="schedule-hint">${
+                currentMode === PRESENCE_MODE_FORCE_PRESENT ? "This person is always considered present, regardless of schedule or location." :
+                currentMode === PRESENCE_MODE_FORCE_ABSENT ? "This person is always considered absent. Their rooms will not be heated for their presence." :
+                currentMode === PRESENCE_MODE_HA ? "Presence mirrors Home Assistant's home/away tracking for this person." :
+                "Presence follows a weekly schedule. Edit the schedule below."
+              }</p>
 
               <!-- Room associations as chips -->
               <div class="section-label" title="Rooms affected by this person's presence — relevant in Time &amp; presence mode">Room associations</div>
@@ -375,7 +381,6 @@ export class PersonCard extends LitElement {
                       @periods-changed=${this._onSchedulePeriodsChanged}
                     ></climate-manager-time-bar>
                   </div>
-                  <p class="schedule-hint">Defines when this person is considered present. Active in Time &amp; presence mode only — periods marked Present enable heating for this person's assigned rooms.</p>
                   <button class="reset-btn" @click=${() => void this._onResetSchedule()}>Reset to default</button>
                 `
                 : ""}

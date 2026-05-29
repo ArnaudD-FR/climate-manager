@@ -460,24 +460,6 @@ export class RoomCard extends LitElement {
     `;
   }
 
-  // Cache hui-thermostat-card instances so they are not recreated on every render.
-  // On each render we only need to push the updated hass object to each card.
-  private _trvCards = new Map<string, HTMLElement>();
-
-  private _getTrvCard(entityId: string): HTMLElement {
-    let card = this._trvCards.get(entityId);
-    if (!card) {
-      card = document.createElement("hui-thermostat-card") as HTMLElement;
-      (card as unknown as { setConfig(c: object): void }).setConfig({
-        type: "thermostat",
-        entity: entityId,
-      });
-      this._trvCards.set(entityId, card);
-    }
-    (card as unknown as { hass: unknown }).hass = this.hass;
-    return card;
-  }
-
   private _renderTrvSection() {
     const entityIds = this.roomStatus?.entity_ids ?? [];
 
@@ -491,8 +473,21 @@ export class RoomCard extends LitElement {
     }
 
     return html`
-      <div class="trv-section">
-        ${entityIds.map((id) => this._getTrvCard(id))}
+      <div class="chips">
+        ${entityIds.map((entityId) => {
+          const state = this.hass?.states[entityId];
+          const name = (state?.attributes?.["friendly_name"] as string | undefined) ?? entityId;
+          const temp = state?.attributes?.["current_temperature"] != null
+            ? `${state.attributes["current_temperature"]}°C`
+            : "—";
+          return html`
+            <span class="chip" @click=${() => this._openEntityMoreInfo(entityId)}>
+              <ha-icon icon="mdi:thermometer"></ha-icon>
+              ${name}
+              <span style="color:var(--secondary-text-color);margin-left:4px;font-size:12px;">${temp}</span>
+            </span>
+          `;
+        })}
       </div>
     `;
   }
@@ -539,17 +534,24 @@ export class RoomCard extends LitElement {
     `;
   }
 
-  private _renderCustomScheduleHint() {
-    const globalMode = this.status?.global_mode ?? this.panelConfig?.global_mode ?? "";
+  private _renderRoomModeDescription(resolvedMode: string) {
     let text: string;
-    if (globalMode === "off") {
-      text = "Zone is in Off mode. The schedule is saved but not applied.";
-    } else if (globalMode === "time_program_presences") {
-      text = "This room follows its own custom schedule. Normal and Comfort periods apply only when an assigned person is present — otherwise the room stays at Reduced temperature.";
+    if (resolvedMode === "frost_protection") {
+      text = "Heating is disabled. The room is kept at frost protection temperature only.";
+    } else if (resolvedMode === "custom") {
+      text = "This room uses its own custom schedule, independent of the zone.";
     } else {
-      text = "This room follows its own custom schedule, overriding the zone program.";
+      text = "This room follows the zone's heating schedule.";
     }
     return html`<p class="schedule-hint">${text}</p>`;
+  }
+
+  private _openEntityMoreInfo(entityId: string) {
+    this.dispatchEvent(new CustomEvent("hass-more-info", {
+      bubbles: true,
+      composed: true,
+      detail: { entityId },
+    }));
   }
 
   render() {
@@ -603,22 +605,7 @@ export class RoomCard extends LitElement {
                   <option value="frost_protection" ?selected=${resolvedMode === "frost_protection"}>Off</option>
                 </select>
               </div>
-
-              <!-- Inline time-bar (only in Custom mode) -->
-              ${resolvedMode === "custom"
-                ? html`
-                  <div class="section-label" title="This room's custom heating schedule — overrides the zone program">Schedule</div>
-                  <div class="time-bar-section">
-                    <climate-manager-time-bar
-                      mode="schedule"
-                      .days=${this._days}
-                      @periods-changed=${this._onPeriodsChanged}
-                    ></climate-manager-time-bar>
-                  </div>
-                  ${this._renderCustomScheduleHint()}
-                  <button class="reset-btn" @click=${() => void this._onResetToGlobal()}>Reset to global configuration</button>
-                `
-                : ""}
+              ${this._renderRoomModeDescription(resolvedMode)}
 
               <!-- Zone picker (ASSIGN-02, D-12) -->
               <div class="section-label" title="The zone this room belongs to — rooms in the same zone share a schedule">Zone</div>
@@ -634,6 +621,21 @@ export class RoomCard extends LitElement {
                   `)}
                 </select>
               </div>
+
+              <!-- Inline time-bar (only in Custom mode) -->
+              ${resolvedMode === "custom"
+                ? html`
+                  <div class="section-label" title="This room's custom heating schedule — overrides the zone program">Schedule</div>
+                  <div class="time-bar-section">
+                    <climate-manager-time-bar
+                      mode="schedule"
+                      .days=${this._days}
+                      @periods-changed=${this._onPeriodsChanged}
+                    ></climate-manager-time-bar>
+                  </div>
+                  <button class="reset-btn" @click=${() => void this._onResetToGlobal()}>Reset to global configuration</button>
+                `
+                : ""}
 
               ${this._renderPersonsSection()}
 
