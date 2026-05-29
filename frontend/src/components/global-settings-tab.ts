@@ -19,7 +19,7 @@
 import { LitElement, html, css, unsafeCSS } from "lit";
 import { property } from "lit/decorators.js";
 
-import { PERIOD_DISPLAY_NAMES, PRESENCE_COLORS } from "../types.js";
+import { PERIOD_DISPLAY_NAMES, PRESENCE_COLORS, getZoneColor } from "../types.js";
 import type { Hass, ClimateConfig, StatusPayload, DailyProgram, Period } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
@@ -41,6 +41,24 @@ export function programToDays(program: DailyProgram | undefined): Period[][] {
 /** Convert a day index (0=Mon..6=Sun) back to a DailyProgram key. */
 export function dayIndexToKey(index: number): keyof DailyProgram {
   return DAY_KEYS[index] ?? "mon";
+}
+
+/** Evaluate the active schedule period name from a DailyProgram at the given time. */
+export function getActivePeriod(program: DailyProgram | undefined, now: Date): string | null {
+  if (!program) return null;
+  const jsDay = now.getDay(); // 0=Sun..6=Sat
+  const dayIdx = jsDay === 0 ? 6 : jsDay - 1; // remap to Mon=0..Sun=6
+  const dayKey = DAY_KEYS[dayIdx];
+  const periods = program[dayKey] ?? [];
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  let active: string | null = null;
+  for (const p of periods) {
+    const [h = 0, m = 0] = p.start.split(":").map(Number);
+    if (h * 60 + m <= nowMinutes) {
+      active = "mode" in p ? p.mode : null;
+    }
+  }
+  return active;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +144,51 @@ export class GlobalSettingsTab extends LitElement {
       background: var(--present-color);
       margin-right: 4px;
       vertical-align: middle;
+    }
+
+    /* ---- Zone status grid ---- */
+    .zone-status-grid {
+      margin-bottom: 12px;
+    }
+
+    .zone-status-header {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--divider-color);
+      margin-bottom: 2px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--secondary-text-color);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .zone-status-row {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap: 8px;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--divider-color);
+      font-size: 13px;
+      align-items: center;
+    }
+
+    .zone-status-grid .zone-status-row:last-child {
+      border-bottom: none;
+    }
+
+    .zone-status-name {
+      font-weight: 500;
+    }
+
+    .zone-status-name:hover {
+      text-decoration: underline;
+    }
+
+    .zone-status-value {
+      color: var(--secondary-text-color);
     }
 
     /* ---- Temperatures card ---- */
@@ -254,17 +317,31 @@ export class GlobalSettingsTab extends LitElement {
   // Render helpers
   // -----------------------------------------------------------------------
 
+  private _getZoneRows(): Array<{ id: string; name: string; mode: string; activePeriod: string | null }> {
+    const now = new Date();
+    const rows: Array<{ id: string; name: string; mode: string; activePeriod: string | null }> = [];
+    // Default Zone — use backend status for accuracy
+    rows.push({
+      id: "default",
+      name: this.config.default_zone_name,
+      mode: this.status?.global_mode ?? this.config.global_mode,
+      activePeriod: this.status?.active_period ?? null,
+    });
+    // Custom zones — client-side active period evaluation
+    for (const [zoneId, zone] of Object.entries(this.config.zones)) {
+      rows.push({
+        id: zoneId,
+        name: zone.name,
+        mode: zone.mode,
+        activePeriod: getActivePeriod(zone.time_program, now),
+      });
+    }
+    return rows;
+  }
+
   private _renderStatusCard() {
     const status = this.status;
-
-    // Global mode label
-    const modeLabel = MODE_LABELS[status?.global_mode ?? this.config.global_mode] ?? status?.global_mode ?? this.config.global_mode;
-
-    // Active period
-    let activePeriodText = "No active period";
-    if (status?.active_period) {
-      activePeriodText = PERIOD_DISPLAY_NAMES[status.active_period] ?? status.active_period;
-    }
+    const zoneRows = this._getZoneRows();
 
     // Present persons
     let personsContent = html`<span class="status-value">No one home</span>`;
@@ -285,13 +362,30 @@ export class GlobalSettingsTab extends LitElement {
       <ha-card>
         <div class="card-header">Current Status</div>
         <div class="card-content">
-          <div class="status-row">
-            <span class="status-label">Mode:</span>
-            <span class="status-value">${modeLabel}</span>
-          </div>
-          <div class="status-row">
-            <span class="status-label">Active period:</span>
-            <span class="status-value">${activePeriodText}</span>
+          <div class="zone-status-grid">
+            <div class="zone-status-header">
+              <span>Zone</span>
+              <span>Mode</span>
+              <span>Active period</span>
+            </div>
+            ${zoneRows.map((row) => {
+              const color = getZoneColor(row.id === "default" ? undefined : row.id);
+              const modeLabel = MODE_LABELS[row.mode] ?? row.mode;
+              const periodLabel = row.activePeriod
+                ? (PERIOD_DISPLAY_NAMES[row.activePeriod] ?? row.activePeriod)
+                : "—";
+              return html`
+                <div class="zone-status-row">
+                  <span
+                    class="zone-status-name"
+                    style="color: ${color.color}; cursor: pointer;"
+                    @click=${() => this.panel.navigateToZone(row.id === "default" ? undefined : row.id)}
+                  >${row.name}</span>
+                  <span class="zone-status-value">${modeLabel}</span>
+                  <span class="zone-status-value">${periodLabel}</span>
+                </div>
+              `;
+            })}
           </div>
           <div class="status-row">
             <span class="status-label">Present persons:</span>
