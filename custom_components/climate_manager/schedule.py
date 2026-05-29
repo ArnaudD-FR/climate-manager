@@ -145,6 +145,14 @@ def resolve_presence(
     # SCHED-02: select the correct week schedule based on ISO week parity
     schedule_type = person_config.get("schedule_type", "single")
     if schedule_type == "even_odd":
+        # Known limitation (WR-03): ISO week parity is derived from the raw
+        # ISO week number modulo 2. In years that contain an ISO week 53
+        # (e.g. 2026, 2032), week 53 is odd and the immediately following
+        # week 1 of the next year is also odd — resulting in two consecutive
+        # "odd" weeks at the year boundary and one skipped "even" week.
+        # This is an accepted limitation for v1. A future version may anchor
+        # parity to a fixed reference date to guarantee strict alternation
+        # across all year boundaries.
         week_parity = now.date().isocalendar().week % 2
         schedule_key = "schedule_even" if week_parity == 0 else "schedule_odd"
         schedule = person_config.get(schedule_key, {})
