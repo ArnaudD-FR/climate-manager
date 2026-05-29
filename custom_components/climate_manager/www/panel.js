@@ -2729,9 +2729,9 @@ const Le = class Le extends C {
                   .value=${e}
                   @change=${this._onRoomModeChange}
                 >
+                  <option value="frost_protection" ?selected=${e === "frost_protection"}>Off</option>
                   <option value="global" ?selected=${e === "global"}>Zone program</option>
                   <option value="custom" ?selected=${e === "custom"}>Custom program</option>
-                  <option value="frost_protection" ?selected=${e === "frost_protection"}>Off</option>
                 </select>
               </div>
               ${this._renderRoomModeDescription(e)}
