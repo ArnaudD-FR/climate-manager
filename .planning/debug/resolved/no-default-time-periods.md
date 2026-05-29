@@ -1,6 +1,6 @@
 ---
 slug: no-default-time-periods
-status: root_cause_found
+status: resolved
 trigger: "there is no default time periods for each week days"
 created: 2026-05-18
 ---
