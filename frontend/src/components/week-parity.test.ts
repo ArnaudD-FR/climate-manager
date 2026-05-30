@@ -13,7 +13,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getISOWeekNumber, getWeekParity } from "./person-card.ts";
+import { getISOWeekNumber, getWeekParity } from "./week-parity.ts";
 
 test("getISOWeekNumber: 2026-05-25 is ISO week 22 (even)", () => {
   assert.equal(getISOWeekNumber(new Date("2026-05-25")), 22);

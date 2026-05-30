@@ -73,6 +73,11 @@ const DEFAULT_SCHEDULE: DailyProgram = {
   sun: [{ start: "00:00", state: "present" }],
 };
 
+// ISO week-parity helpers — implemented in week-parity.ts to allow
+// node --experimental-strip-types tests without Lit decorator transforms.
+// Re-exported here so callers can import from person-card.ts directly.
+export { getISOWeekNumber, getWeekParity } from "./week-parity.js";
+
 export interface RoomChoice {
   id: string;
   name: string;
