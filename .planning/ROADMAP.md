@@ -104,7 +104,7 @@ persons.
       (SCHED-04)
 - [x] 08-02-PLAN.md — Schedule-type select, even/odd switcher, dual memoized
       schedules, per-week save/reset wiring (SCHED-04)
-- [ ] 08-03-PLAN.md — Build/deploy + manual SCHED-04 behavior verification
+- [x] 08-03-PLAN.md — Build/deploy + manual SCHED-04 behavior verification
       (SCHED-04)
 
 ### Phase 9: TRV Temperature Offset Auto-Calibration

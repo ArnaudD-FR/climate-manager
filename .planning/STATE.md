@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Presence & Calibration
-status: executing
-last_updated: "2026-05-29T17:37:56.726Z"
+status: ready_to_plan
+last_updated: 2026-05-30T06:59:01.082Z
 last_activity: 2026-05-29 -- Phase 8 planning complete
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 31
   percent: 33
+stopped_at: Phase 08 complete (3/3) — ready to discuss Phase 9
 ---
 
 # Project State
@@ -21,21 +22,21 @@ See: .planning/PROJECT.md (updated 2026-05-29)
 
 **Core value:** A household's rooms are always at the right temperature at the
 right time, without manual intervention — driven by schedules and who is
-actually home. **Current focus:** Phase 8 — even/odd week scheduling — frontend
+actually home. **Current focus:** Phase 9 — trv temperature offset auto calibration
 presence schedules + TRV offset auto-calibration.
 
 ## Current Position
 
-Phase: 8
+Phase: 9
 Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-29 -- Phase 8 planning complete
+Status: Ready to plan
+Last activity: 2026-05-30
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 11
+- Total plans completed: 14
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -47,7 +48,7 @@ Last activity: 2026-05-29 -- Phase 8 planning complete
 | 05    | 3     | -     | -        |
 | 06    | 4     | -     | -        |
 | 07 | 2 | - | - |
-| 08    | TBD   | -     | -        |
+| 08 | 3 | - | - |
 | 09    | TBD   | -     | -        |
 
 **Recent Trend:**
