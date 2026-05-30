@@ -76,7 +76,8 @@ const DEFAULT_SCHEDULE: DailyProgram = {
 // ISO week-parity helpers — implemented in week-parity.ts to allow
 // node --experimental-strip-types tests without Lit decorator transforms.
 // Re-exported here so callers can import from person-card.ts directly.
-export { getISOWeekNumber, getWeekParity } from "./week-parity.js";
+import { getISOWeekNumber, getWeekParity } from "./week-parity.js";
+export { getISOWeekNumber, getWeekParity };
 
 export interface RoomChoice {
   id: string;
@@ -95,6 +96,9 @@ export class PersonCard extends LitElement {
   @property({ attribute: false }) status: StatusPayload | null = null;
 
   @state() _expanded = false;
+  // Active week for even/odd schedule mode (D-10: not persisted).
+  // Recalculated from ISO week parity each time the card expands (D-09).
+  @state() private _activeWeek: "even" | "odd" = "even";
   @property({ type: Boolean }) autoExpand = false;
 
   // Memoize days array — same pattern as global-settings-tab to prevent
@@ -110,6 +114,30 @@ export class PersonCard extends LitElement {
     return this._cachedDays;
   }
 
+  // Memoized even-week days (D-13)
+  private _lastScheduleEven: DailyProgram | undefined = undefined;
+  private _cachedDaysEven: Period[][] = [];
+  private get _daysEven(): Period[][] {
+    const schedule = this.config?.schedule_even;
+    if (schedule !== this._lastScheduleEven) {
+      this._lastScheduleEven = schedule;
+      this._cachedDaysEven = programToDays(schedule);
+    }
+    return this._cachedDaysEven;
+  }
+
+  // Memoized odd-week days (D-13)
+  private _lastScheduleOdd: DailyProgram | undefined = undefined;
+  private _cachedDaysOdd: Period[][] = [];
+  private get _daysOdd(): Period[][] {
+    const schedule = this.config?.schedule_odd;
+    if (schedule !== this._lastScheduleOdd) {
+      this._lastScheduleOdd = schedule;
+      this._cachedDaysOdd = programToDays(schedule);
+    }
+    return this._cachedDaysOdd;
+  }
+
   connectedCallback() {
     super.connectedCallback();
     // D-15 (updated): always collapsed by default
@@ -117,6 +145,10 @@ export class PersonCard extends LitElement {
   }
 
   updated(changedProperties: PropertyValues) {
+    // D-09, D-10: recalculate active week from ISO parity on expand.
+    if (changedProperties.has("_expanded") && this._expanded) {
+      this._activeWeek = getWeekParity(new Date());
+    }
     if (changedProperties.has("autoExpand") && this.autoExpand) {
       this._expanded = true;
       setTimeout(() => {
@@ -286,13 +318,35 @@ export class PersonCard extends LitElement {
     }
   }
 
-  private async _onResetSchedule() {
+  private async _onScheduleTypeChange(e: Event) {
+    const newType = (e.target as HTMLSelectElement).value as
+      | "single"
+      | "even_odd";
     try {
       await this.ws.setPersonConfig(this.personId, {
-        schedule: DEFAULT_SCHEDULE,
+        schedule_type: newType,
       });
       await this.panel.reloadConfig();
-      this.panel.showToast("Reset to defaults", false);
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onResetSchedule() {
+    // D-14, D-15: reset only the active week in even/odd mode.
+    const isEvenOdd = (this.config.schedule_type ?? "single") === "even_odd";
+    const field = isEvenOdd
+      ? this._activeWeek === "even"
+        ? "schedule_even"
+        : "schedule_odd"
+      : "schedule";
+    try {
+      await this.ws.setPersonConfig(this.personId, {
+        [field]: DEFAULT_SCHEDULE,
+      });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Reset done", false);
     } catch {
       this.panel.showToast("Reset failed — retrying...", true);
     }
@@ -303,8 +357,14 @@ export class PersonCard extends LitElement {
       dayIndex: number;
       periods: Period[];
     };
-
-    const currentSchedule = this.config.schedule ?? {
+    // D-11, D-12: write to the active week's schedule field only.
+    const isEvenOdd = (this.config.schedule_type ?? "single") === "even_odd";
+    const activeSchedule = isEvenOdd
+      ? this._activeWeek === "even"
+        ? this.config.schedule_even
+        : this.config.schedule_odd
+      : this.config.schedule;
+    const base: DailyProgram = activeSchedule ?? {
       mon: [],
       tue: [],
       wed: [],
@@ -313,18 +373,22 @@ export class PersonCard extends LitElement {
       sat: [],
       sun: [],
     };
-    const schedule: DailyProgram = { ...currentSchedule };
-    const key = dayIndexToKey(dayIndex);
-    schedule[key] = periods;
-
+    const updated: DailyProgram = { ...base };
+    updated[dayIndexToKey(dayIndex)] = periods;
+    const field = isEvenOdd
+      ? this._activeWeek === "even"
+        ? "schedule_even"
+        : "schedule_odd"
+      : "schedule";
     try {
-      await this.ws.setPersonConfig(this.personId, { schedule });
+      await this.ws.setPersonConfig(this.personId, {
+        [field]: updated,
+      });
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
       this.panel.showToast("Save failed — retrying...", true);
     }
-
     e.stopPropagation();
   }
 
