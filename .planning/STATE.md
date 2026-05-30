@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Presence & Calibration
 status: executing
-last_updated: "2026-05-30T12:44:29.932Z"
+last_updated: "2026-05-30T13:03:35.957Z"
 last_activity: 2026-05-30 -- Phase 09 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 9
-  completed_plans: 5
-  percent: 56
+  completed_plans: 8
+  percent: 67
 ---
 
 # Project State
@@ -86,6 +86,7 @@ affecting current work:
 ### Pending Todos
 
 - (cleared) TRV temperature offset auto-calibration — now scoped as Phase 9
+- Add HA logs for climate entity offset updates (2026-05-30)
 
 ### Blockers/Concerns
 
