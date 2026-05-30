@@ -132,7 +132,9 @@ jittery over-correction.
    threshold (default 0.5°C), so small fluctuations do not cause repeated
    offset changes
 
-**Plans**: 4 plans
+**Plans**: 4 plans (Wave 1 parallel → Wave 2 sequential)
+**Wave 1 (parallel):** 09-01 (trv.py), 09-03 (websocket.py)
+**Wave 2 (sequential):** 09-02 (coordinator, depends on 09-01), 09-04 (frontend, depends on 09-03)
 
 - [ ] 09-01-PLAN.md — trv.py: supports_offset_calibration + set_trv_offset (TDD)
 - [ ] 09-02-PLAN.md — coordinator.py + const.py: calibration pass, DEFAULT_CONFIG keys (TDD)
