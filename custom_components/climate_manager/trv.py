@@ -119,27 +119,24 @@ async def set_trv_off(hass: HomeAssistant, entity_id: str) -> None:
 def supports_offset_calibration(hass: HomeAssistant, entity_id: str) -> bool:
     """Return True if the TRV entity supports temperature offset adjustment.
 
-    Requires BOTH a readable attribute AND a writable service path (D-08):
+    Two detection paths (D-08):
     - Attribute check: entity exposes temperature_offset in its state.
     - Service check: tado_x.set_temperature_offset is registered.
 
-    A TRV with the attribute but without the tado_x service has no write path
-    yet (generic brand support is deferred). Returning False prevents the
-    calibration loop from calling a non-existent service every tick.
+    Returns True if either path matches. set_trv_offset routes to the tado_x
+    service when it is present; if only the attribute path matched, the
+    set_trv_offset call will return silently (no write path available yet).
 
-    Returns False when:
-    - The entity state is missing (None) — ROOM-03 parity
-    - The temperature_offset attribute is absent
-    - The tado_x service is not registered (no write path)
+    Returns False when the entity state is missing (None) — ROOM-03 parity.
 
     Never raises.
     """
     state = hass.states.get(entity_id)
     if state is None:
         return False
-    if "temperature_offset" not in state.attributes:
-        return False
-    return hass.services.has_service("tado_x", "set_temperature_offset")
+    has_attribute = "temperature_offset" in state.attributes
+    has_service = hass.services.has_service("tado_x", "set_temperature_offset")
+    return has_attribute or has_service
 
 
 async def set_trv_offset(
