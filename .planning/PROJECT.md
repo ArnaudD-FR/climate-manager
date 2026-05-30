@@ -49,7 +49,7 @@ and add automatic TRV calibration from room sensors.
   parity evaluation) and Phase 8 (even/odd week frontend UI — getWeekParity helpers, schedule-type
   select, Even/Odd switcher, per-week save/reset, ISO parity default, live panel verified) — v1.2
 
-**In Progress:** v1.2 Presence & Calibration (Phase 9: TRV calibration next)
+**Shipped:** Phase 9 (TRV temperature offset auto-calibration — capability guard, calibration engine, set_calibration_config WS command, Options card toggle in Global Settings) — v1.2
 
 ## Requirements
 
@@ -73,7 +73,7 @@ and add automatic TRV calibration from room sensors.
 
 - ✓ Even/odd week presence scheduling (alternate schedules, ISO week parity) —
   v1.2 Phase 8
-- [ ] TRV temperature offset auto-calibration from room sensor — v1.2
+- ✓ TRV temperature offset auto-calibration from room sensor — v1.2 Phase 9
 
 ### Out of Scope
 
@@ -136,4 +136,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-_Last updated: 2026-05-29 — Milestone v1.2 started_
+_Last updated: 2026-05-30 — Phase 9 complete, Milestone v1.2 all phases done_
