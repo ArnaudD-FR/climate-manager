@@ -103,6 +103,16 @@ export interface StatusPayload {
   rooms_status: RoomStatus[];
 }
 
+/** Per-TRV calibration status returned by get_calibration_status. */
+export interface TRVCalibrationEntry {
+  entity_id: string;
+  friendly_name: string;
+  supports_calibration: boolean;
+  current_temperature: number | null;
+  current_offset: number | null;
+  last_calibrated_at: string | null;
+}
+
 /**
  * Minimal subset of the HA `HomeAssistant` object exposed to a custom panel.
  * HA injects this as the `hass` property on the root panel element.

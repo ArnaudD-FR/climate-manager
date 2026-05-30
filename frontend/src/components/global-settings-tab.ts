@@ -18,7 +18,7 @@
  */
 
 import { LitElement, html, css, unsafeCSS } from "lit";
-import { property } from "lit/decorators.js";
+import { property, state } from "lit/decorators.js";
 
 import {
   PERIOD_DISPLAY_NAMES,
@@ -31,6 +31,7 @@ import type {
   StatusPayload,
   DailyProgram,
   Period,
+  TRVCalibrationEntry,
 } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
@@ -113,6 +114,9 @@ export class GlobalSettingsTab extends LitElement {
 
   /** HA hass object — used for resolving person entity friendly names. */
   @property({ attribute: false }) hass!: Hass;
+
+  @state() private _trvStatuses: TRVCalibrationEntry[] = [];
+  @state() private _loadingStatuses = false;
 
   static styles = css`
     :host {
@@ -299,6 +303,84 @@ export class GlobalSettingsTab extends LitElement {
       flex: 1;
       margin-right: 16px;
     }
+
+    /* ---- TRV calibration status table ---- */
+    .calib-table-wrap {
+      margin-top: 16px;
+      overflow-x: auto;
+    }
+
+    .calib-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      color: var(--primary-text-color);
+    }
+
+    .calib-table th {
+      text-align: left;
+      font-weight: 600;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--divider-color, #e0e0e0);
+      white-space: nowrap;
+    }
+
+    .calib-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--divider-color, #e0e0e0);
+      vertical-align: middle;
+    }
+
+    .calib-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .calib-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .calib-badge.supported {
+      background: rgba(34, 197, 94, 0.15);
+      color: #15803d;
+    }
+
+    .calib-badge.unsupported {
+      background: rgba(0, 0, 0, 0.06);
+      color: var(--secondary-text-color);
+    }
+
+    .calib-loading {
+      text-align: center;
+      padding: 16px;
+      color: var(--secondary-text-color);
+      font-size: 13px;
+    }
+
+    .calib-empty {
+      text-align: center;
+      padding: 16px;
+      color: var(--secondary-text-color);
+      font-size: 13px;
+    }
+
+    .refresh-btn {
+      margin-top: 8px;
+      background: none;
+      border: 1px solid var(--divider-color, #e0e0e0);
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--primary-text-color);
+    }
+
+    .refresh-btn:hover {
+      background: var(--secondary-background-color, #f5f5f5);
+    }
   `;
 
   // -----------------------------------------------------------------------
@@ -365,8 +447,21 @@ export class GlobalSettingsTab extends LitElement {
       await this.ws.setCalibrationConfig(enabled);
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
+      if (enabled) void this._loadCalibrationStatuses();
     } catch {
       this.panel.showToast("Save failed", true);
+    }
+  };
+
+  private _loadCalibrationStatuses = async () => {
+    this._loadingStatuses = true;
+    try {
+      const result = await this.ws.getCalibrationStatus();
+      this._trvStatuses = result.trvs;
+    } catch {
+      this._trvStatuses = [];
+    } finally {
+      this._loadingStatuses = false;
     }
   };
 
@@ -522,21 +617,85 @@ export class GlobalSettingsTab extends LitElement {
     `;
   }
 
+  private _renderTRVTable() {
+    if (this._loadingStatuses) {
+      return html`<div class="calib-loading">Loading TRV status…</div>`;
+    }
+    if (this._trvStatuses.length === 0) {
+      return html`<div class="calib-empty">No managed TRVs found.</div>`;
+    }
+    return html`
+      <div class="calib-table-wrap">
+        <table class="calib-table">
+          <thead>
+            <tr>
+              <th>TRV</th>
+              <th>Auto-calibration</th>
+              <th>Temp / Offset</th>
+              <th>Last adjusted</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${this._trvStatuses.map(
+              (trv) => html`
+                <tr>
+                  <td>${trv.friendly_name}</td>
+                  <td>
+                    <span
+                      class="calib-badge ${trv.supports_calibration
+                        ? "supported"
+                        : "unsupported"}"
+                    >
+                      ${trv.supports_calibration
+                        ? "Supported"
+                        : "Not supported"}
+                    </span>
+                  </td>
+                  <td>
+                    ${trv.current_temperature != null
+                      ? html`${trv.current_temperature.toFixed(1)} °C`
+                      : "—"}
+                    ${trv.current_offset != null
+                      ? html`&nbsp;/&nbsp;${trv.current_offset > 0
+                          ? "+"
+                          : ""}${trv.current_offset.toFixed(1)}
+                        °C`
+                      : ""}
+                  </td>
+                  <td>
+                    ${trv.last_calibrated_at
+                      ? new Date(trv.last_calibrated_at).toLocaleString()
+                      : "Never"}
+                  </td>
+                </tr>
+              `,
+            )}
+          </tbody>
+        </table>
+        <button class="refresh-btn" @click=${this._loadCalibrationStatuses}>
+          Refresh
+        </button>
+      </div>
+    `;
+  }
+
   private _renderOptionsCard() {
     const enabled = this.config.calibration_enabled ?? false;
+    if (enabled && this._trvStatuses.length === 0 && !this._loadingStatuses) {
+      void this._loadCalibrationStatuses();
+    }
     return html`
       <ha-card>
-        <div class="card-header">Options</div>
+        <div class="card-header">TRV Auto-Calibration</div>
         <div class="card-content">
           <div class="option-row">
-            <span class="option-label">
-              Auto-calibrate TRV temperature offsets
-            </span>
+            <span class="option-label">Enable auto-calibration</span>
             <ha-switch
               .checked=${enabled}
               @change=${this._onCalibrationToggle}
             ></ha-switch>
           </div>
+          ${enabled ? this._renderTRVTable() : ""}
         </div>
       </ha-card>
     `;

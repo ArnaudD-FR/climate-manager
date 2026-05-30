@@ -15,6 +15,7 @@ import type {
   PersonConfig,
   DailyProgram,
   ZoneConfig,
+  TRVCalibrationEntry,
 } from "./types.js";
 
 export class WsClient {
@@ -203,6 +204,15 @@ export class WsClient {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
       type: "climate_manager/set_calibration_config",
       enabled,
+    });
+  }
+
+  /** Return per-TRV calibration status for the TRV Auto-Calibration card. */
+  getCalibrationStatus(): Promise<{ trvs: TRVCalibrationEntry[] }> {
+    return this.hass.connection.sendMessagePromise<{
+      trvs: TRVCalibrationEntry[];
+    }>({
+      type: "climate_manager/get_calibration_status",
     });
   }
 }

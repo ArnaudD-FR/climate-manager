@@ -41,7 +41,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant
@@ -104,6 +104,8 @@ class ClimateManagerCoordinator:
         self._last_present_persons: list[str] = []
         # Per-room effective period (may differ from global in time_program_presences mode).
         self._last_room_periods: dict[str, str] = {}
+        # Tracks when each TRV's offset was last changed by auto-calibration.
+        self._calibration_last_changed: dict[str, str] = {}
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
@@ -369,6 +371,9 @@ class ClimateManagerCoordinator:
 
         try:
             await set_trv_offset(self._hass, entity_id, new_offset)
+            self._calibration_last_changed[entity_id] = datetime.now(
+                timezone.utc
+            ).isoformat(timespec="seconds")
         except Exception:  # noqa: BLE001
             _LOGGER.warning(
                 "Failed to apply offset %.1f to %s", new_offset, entity_id

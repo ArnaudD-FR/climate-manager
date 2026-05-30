@@ -69,7 +69,7 @@ from .const import (
     _DEFAULT_DAILY_PROGRAM,
 )
 from .schedule import validate_daily_program
-from .trv import is_trv_entity
+from .trv import is_trv_entity, supports_offset_calibration
 
 VALID_MODES = [MODE_OFF, MODE_TIME_PROGRAM, MODE_TIME_PROGRAM_PRESENCES]
 
@@ -115,6 +115,9 @@ def async_register_commands(
     )
     websocket_api.async_register_command(
         hass, _make_ws_set_calibration_config(entry)
+    )
+    websocket_api.async_register_command(
+        hass, _make_ws_get_calibration_status(entry)
     )
 
 
@@ -1027,3 +1030,84 @@ def _make_ws_set_calibration_config(entry: ClimateManagerConfigEntry):
         # next scheduled cycle (RESEARCH Pitfall 4)
 
     return ws_set_calibration_config
+
+
+def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
+    """Factory: create get_calibration_status handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/get_calibration_status",
+        }
+    )
+    @websocket_api.async_response
+    async def ws_get_calibration_status(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Return per-TRV calibration status for the Options card table.
+
+        For every TRV entity across all managed rooms, returns:
+          - entity_id, friendly_name
+          - supports_calibration (bool)
+          - current_temperature, current_offset (from entity state attributes)
+          - last_calibrated_at (ISO timestamp, or null if never changed this run)
+        """
+        coordinator = entry.runtime_data.coordinator
+        rooms = entry.runtime_data.rooms
+        entity_reg = er.async_get(hass)
+
+        trvs = []
+        for _area_id, entity_ids in rooms.items():
+            for entity_id in entity_ids:
+                if not is_trv_entity(hass, entity_id):
+                    continue
+
+                reg_entry = entity_reg.async_get(entity_id)
+                state = hass.states.get(entity_id)
+
+                # Prefer user-assigned name, then friendly_name from state
+                if reg_entry and reg_entry.name:
+                    friendly_name: str = reg_entry.name
+                elif state:
+                    friendly_name = state.attributes.get(
+                        "friendly_name", entity_id
+                    )
+                else:
+                    friendly_name = entity_id
+
+                current_temperature: float | None = None
+                current_offset: float | None = None
+                if state:
+                    ct = state.attributes.get("current_temperature")
+                    if ct is not None:
+                        try:
+                            current_temperature = float(ct)
+                        except (ValueError, TypeError):
+                            pass
+                    off = state.attributes.get("temperature_offset")
+                    if off is not None:
+                        try:
+                            current_offset = float(off)
+                        except (ValueError, TypeError):
+                            pass
+
+                trvs.append(
+                    {
+                        "entity_id": entity_id,
+                        "friendly_name": friendly_name,
+                        "supports_calibration": supports_offset_calibration(
+                            hass, entity_id
+                        ),
+                        "current_temperature": current_temperature,
+                        "current_offset": current_offset,
+                        "last_calibrated_at": (
+                            coordinator._calibration_last_changed.get(entity_id)
+                        ),
+                    }
+                )
+
+        connection.send_result(msg["id"], {"trvs": trvs})
+
+    return ws_get_calibration_status
