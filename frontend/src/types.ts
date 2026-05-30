@@ -73,7 +73,12 @@ export interface ClimateConfig {
   climate_entities: string[];
   /** CALIB-01: global calibration on/off. Absent = false (sparse config). */
   calibration_enabled?: boolean;
-  /** CALIB-04: jitter threshold in degrees C. Absent = 0.5 (sparse config). */
+  /**
+   * CALIB-04: jitter threshold in degrees C. Absent = 0.5 (sparse config).
+   * TODO(phase-10): no mutation path exists yet — backend const only.
+   * Remove this field or add a setCalibrationThreshold WS command in
+   * the phase that exposes threshold configuration to the user.
+   */
   calibration_threshold?: number;
 }
 
