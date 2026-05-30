@@ -35,11 +35,11 @@ let dt = class {
     return this.cssText;
   }
 };
-const pt = (a) => new dt(typeof a == "string" ? a : a + "", void 0, Pe),
-  k = (a, ...e) => {
+const pt = (n) => new dt(typeof n == "string" ? n : n + "", void 0, Pe),
+  k = (n, ...e) => {
     const t =
-      a.length === 1
-        ? a[0]
+      n.length === 1
+        ? n[0]
         : e.reduce(
             (o, s, i) =>
               o +
@@ -52,14 +52,14 @@ const pt = (a) => new dt(typeof a == "string" ? a : a + "", void 0, Pe),
                     ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.",
                 );
               })(s) +
-              a[i + 1],
-            a[0],
+              n[i + 1],
+            n[0],
           );
-    return new dt(t, a, Pe);
+    return new dt(t, n, Pe);
   },
-  vt = (a, e) => {
+  vt = (n, e) => {
     if (Te)
-      a.adoptedStyleSheets = e.map((t) =>
+      n.adoptedStyleSheets = e.map((t) =>
         t instanceof CSSStyleSheet ? t : t.styleSheet,
       );
     else
@@ -68,19 +68,19 @@ const pt = (a) => new dt(typeof a == "string" ? a : a + "", void 0, Pe),
           s = fe.litNonce;
         s !== void 0 && o.setAttribute("nonce", s),
           (o.textContent = t.cssText),
-          a.appendChild(o);
+          n.appendChild(o);
       }
   },
   Ke = Te
-    ? (a) => a
-    : (a) =>
-        a instanceof CSSStyleSheet
+    ? (n) => n
+    : (n) =>
+        n instanceof CSSStyleSheet
           ? ((e) => {
               let t = "";
               for (const o of e.cssRules) t += o.cssText;
               return pt(t);
-            })(a)
-          : a;
+            })(n)
+          : n;
 /**
  * @license
  * Copyright 2017 Google LLC
@@ -98,32 +98,32 @@ const {
   Je = Z.trustedTypes,
   St = Je ? Je.emptyScript : "",
   $e = Z.reactiveElementPolyfillSupport,
-  re = (a, e) => a,
+  re = (n, e) => n,
   _e = {
-    toAttribute(a, e) {
+    toAttribute(n, e) {
       switch (e) {
         case Boolean:
-          a = a ? St : null;
+          n = n ? St : null;
           break;
         case Object:
         case Array:
-          a = a == null ? a : JSON.stringify(a);
+          n = n == null ? n : JSON.stringify(n);
       }
-      return a;
+      return n;
     },
-    fromAttribute(a, e) {
-      let t = a;
+    fromAttribute(n, e) {
+      let t = n;
       switch (e) {
         case Boolean:
-          t = a !== null;
+          t = n !== null;
           break;
         case Number:
-          t = a === null ? null : Number(a);
+          t = n === null ? null : Number(n);
           break;
         case Object:
         case Array:
           try {
-            t = JSON.parse(a);
+            t = JSON.parse(n);
           } catch {
             t = null;
           }
@@ -131,7 +131,7 @@ const {
       return t;
     },
   },
-  Ee = (a, e) => !yt(a, e),
+  Ee = (n, e) => !yt(n, e),
   Qe = {
     attribute: !0,
     type: String,
@@ -175,8 +175,8 @@ let Y = class extends HTMLElement {
     return {
       get: s,
       set(r) {
-        const n = s == null ? void 0 : s.call(this);
-        i == null || i.call(this, r), this.requestUpdate(e, n, o);
+        const a = s == null ? void 0 : s.call(this);
+        i == null || i.call(this, r), this.requestUpdate(e, a, o);
       },
       configurable: !0,
       enumerable: !0,
@@ -315,32 +315,32 @@ let Y = class extends HTMLElement {
     const o = this.constructor,
       s = o._$Eh.get(e);
     if (s !== void 0 && this._$Em !== s) {
-      const n = o.getPropertyOptions(s),
+      const a = o.getPropertyOptions(s),
         l =
-          typeof n.converter == "function"
-            ? { fromAttribute: n.converter }
-            : ((i = n.converter) == null ? void 0 : i.fromAttribute) !== void 0
-              ? n.converter
+          typeof a.converter == "function"
+            ? { fromAttribute: a.converter }
+            : ((i = a.converter) == null ? void 0 : i.fromAttribute) !== void 0
+              ? a.converter
               : _e;
       this._$Em = s;
-      const d = l.fromAttribute(t, n.type);
-      (this[s] = d ?? ((r = this._$Ej) == null ? void 0 : r.get(s)) ?? d),
+      const c = l.fromAttribute(t, a.type);
+      (this[s] = c ?? ((r = this._$Ej) == null ? void 0 : r.get(s)) ?? c),
         (this._$Em = null);
     }
   }
   requestUpdate(e, t, o, s = !1, i) {
     var r;
     if (e !== void 0) {
-      const n = this.constructor;
+      const a = this.constructor;
       if (
         (s === !1 && (i = this[e]),
-        o ?? (o = n.getPropertyOptions(e)),
+        o ?? (o = a.getPropertyOptions(e)),
         !(
           (o.hasChanged ?? Ee)(i, t) ||
           (o.useDefault &&
             o.reflect &&
             i === ((r = this._$Ej) == null ? void 0 : r.get(e)) &&
-            !this.hasAttribute(n._$Eu(e, o)))
+            !this.hasAttribute(a._$Eu(e, o)))
         ))
       )
         return;
@@ -385,9 +385,9 @@ let Y = class extends HTMLElement {
       const s = this.constructor.elementProperties;
       if (s.size > 0)
         for (const [i, r] of s) {
-          const { wrapped: n } = r,
+          const { wrapped: a } = r,
             l = this[i];
-          n !== !0 ||
+          a !== !0 ||
             this._$AL.has(i) ||
             l === void 0 ||
             this.C(i, void 0, r, l);
@@ -453,19 +453,19 @@ let Y = class extends HTMLElement {
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const ae = globalThis,
-  et = (a) => a,
+  et = (n) => n,
   be = ae.trustedTypes,
-  tt = be ? be.createPolicy("lit-html", { createHTML: (a) => a }) : void 0,
+  tt = be ? be.createPolicy("lit-html", { createHTML: (n) => n }) : void 0,
   ht = "$lit$",
   L = `lit$${Math.random().toFixed(9).slice(2)}$`,
   ut = "?" + L,
   Tt = `<${ut}>`,
-  q = document,
-  le = () => q.createComment(""),
-  ce = (a) => a === null || (typeof a != "object" && typeof a != "function"),
+  V = document,
+  le = () => V.createComment(""),
+  ce = (n) => n === null || (typeof n != "object" && typeof n != "function"),
   ze = Array.isArray,
-  Pt = (a) =>
-    ze(a) || typeof (a == null ? void 0 : a[Symbol.iterator]) == "function",
+  Pt = (n) =>
+    ze(n) || typeof (n == null ? void 0 : n[Symbol.iterator]) == "function",
   we = `[ 	
 \f\r]`,
   oe = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,
@@ -480,27 +480,27 @@ const ae = globalThis,
   rt = /"/g,
   mt = /^(?:script|style|textarea|title)$/i,
   Et =
-    (a) =>
-    (e, ...t) => ({ _$litType$: a, strings: e, values: t }),
-  c = Et(1),
+    (n) =>
+    (e, ...t) => ({ _$litType$: n, strings: e, values: t }),
+  d = Et(1),
   G = Symbol.for("lit-noChange"),
   x = Symbol.for("lit-nothing"),
   at = /* @__PURE__ */ new WeakMap(),
-  W = q.createTreeWalker(q, 129);
-function gt(a, e) {
-  if (!ze(a) || !a.hasOwnProperty("raw"))
+  F = V.createTreeWalker(V, 129);
+function gt(n, e) {
+  if (!ze(n) || !n.hasOwnProperty("raw"))
     throw Error("invalid template strings array");
   return tt !== void 0 ? tt.createHTML(e) : e;
 }
-const zt = (a, e) => {
-  const t = a.length - 1,
+const zt = (n, e) => {
+  const t = n.length - 1,
     o = [];
   let s,
     i = e === 2 ? "<svg>" : e === 3 ? "<math>" : "",
     r = oe;
-  for (let n = 0; n < t; n++) {
-    const l = a[n];
-    let d,
+  for (let a = 0; a < t; a++) {
+    const l = n[a];
+    let c,
       p,
       h = -1,
       f = 0;
@@ -520,25 +520,25 @@ const zt = (a, e) => {
               : p[1] === void 0
                 ? (h = -2)
                 : ((h = r.lastIndex - p[2].length),
-                  (d = p[1]),
+                  (c = p[1]),
                   (r = p[3] === void 0 ? B : p[3] === '"' ? rt : it))
             : r === rt || r === it
               ? (r = B)
               : r === st || r === ot
                 ? (r = oe)
                 : ((r = B), (s = void 0));
-    const g = r === B && a[n + 1].startsWith("/>") ? " " : "";
+    const g = r === B && n[a + 1].startsWith("/>") ? " " : "";
     i +=
       r === oe
         ? l + Tt
         : h >= 0
-          ? (o.push(d), l.slice(0, h) + ht + l.slice(h) + L + g)
-          : l + L + (h === -2 ? n : g);
+          ? (o.push(c), l.slice(0, h) + ht + l.slice(h) + L + g)
+          : l + L + (h === -2 ? a : g);
   }
   return [
     gt(
-      a,
-      i + (a[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : ""),
+      n,
+      i + (n[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : ""),
     ),
     o,
   ];
@@ -549,18 +549,18 @@ class de {
     this.parts = [];
     let i = 0,
       r = 0;
-    const n = e.length - 1,
+    const a = e.length - 1,
       l = this.parts,
-      [d, p] = zt(e, t);
+      [c, p] = zt(e, t);
     if (
-      ((this.el = de.createElement(d, o)),
-      (W.currentNode = this.el.content),
+      ((this.el = de.createElement(c, o)),
+      (F.currentNode = this.el.content),
       t === 2 || t === 3)
     ) {
       const h = this.el.content.firstChild;
       h.replaceWith(...h.childNodes);
     }
-    for (; (s = W.nextNode()) !== null && l.length < n; ) {
+    for (; (s = F.nextNode()) !== null && l.length < a; ) {
       if (s.nodeType === 1) {
         if (s.hasAttributes())
           for (const h of s.getAttributeNames())
@@ -575,9 +575,9 @@ class de {
                 strings: g,
                 ctor:
                   v[1] === "."
-                    ? At
+                    ? Mt
                     : v[1] === "?"
-                      ? Rt
+                      ? At
                       : v[1] === "@"
                         ? Dt
                         : ye,
@@ -593,7 +593,7 @@ class de {
             s.textContent = be ? be.emptyScript : "";
             for (let g = 0; g < f; g++)
               s.append(h[g], le()),
-                W.nextNode(),
+                F.nextNode(),
                 l.push({ type: 2, index: ++i });
             s.append(h[f], le());
           }
@@ -609,25 +609,25 @@ class de {
     }
   }
   static createElement(e, t) {
-    const o = q.createElement("template");
+    const o = V.createElement("template");
     return (o.innerHTML = e), o;
   }
 }
-function K(a, e, t = a, o) {
-  var r, n;
+function K(n, e, t = n, o) {
+  var r, a;
   if (e === G) return e;
   let s = o !== void 0 ? ((r = t._$Co) == null ? void 0 : r[o]) : t._$Cl;
   const i = ce(e) ? void 0 : e._$litDirective$;
   return (
     (s == null ? void 0 : s.constructor) !== i &&
-      ((n = s == null ? void 0 : s._$AO) == null || n.call(s, !1),
-      i === void 0 ? (s = void 0) : ((s = new i(a)), s._$AT(a, t, o)),
+      ((a = s == null ? void 0 : s._$AO) == null || a.call(s, !1),
+      i === void 0 ? (s = void 0) : ((s = new i(n)), s._$AT(n, t, o)),
       o !== void 0 ? ((t._$Co ?? (t._$Co = []))[o] = s) : (t._$Cl = s)),
-    s !== void 0 && (e = K(a, s._$AS(a, e.values), s, o)),
+    s !== void 0 && (e = K(n, s._$AS(n, e.values), s, o)),
     e
   );
 }
-class Mt {
+class Rt {
   constructor(e, t) {
     (this._$AV = []), (this._$AN = void 0), (this._$AD = e), (this._$AM = t);
   }
@@ -642,26 +642,26 @@ class Mt {
         el: { content: t },
         parts: o,
       } = this._$AD,
-      s = ((e == null ? void 0 : e.creationScope) ?? q).importNode(t, !0);
-    W.currentNode = s;
-    let i = W.nextNode(),
+      s = ((e == null ? void 0 : e.creationScope) ?? V).importNode(t, !0);
+    F.currentNode = s;
+    let i = F.nextNode(),
       r = 0,
-      n = 0,
+      a = 0,
       l = o[0];
     for (; l !== void 0; ) {
       if (r === l.index) {
-        let d;
+        let c;
         l.type === 2
-          ? (d = new pe(i, i.nextSibling, this, e))
+          ? (c = new pe(i, i.nextSibling, this, e))
           : l.type === 1
-            ? (d = new l.ctor(i, l.name, l.strings, this, e))
-            : l.type === 6 && (d = new It(i, this, e)),
-          this._$AV.push(d),
-          (l = o[++n]);
+            ? (c = new l.ctor(i, l.name, l.strings, this, e))
+            : l.type === 6 && (c = new It(i, this, e)),
+          this._$AV.push(c),
+          (l = o[++a]);
       }
-      r !== (l == null ? void 0 : l.index) && ((i = W.nextNode()), r++);
+      r !== (l == null ? void 0 : l.index) && ((i = F.nextNode()), r++);
     }
-    return (W.currentNode = q), s;
+    return (F.currentNode = V), s;
   }
   p(e) {
     let t = 0;
@@ -727,7 +727,7 @@ class pe {
   _(e) {
     this._$AH !== x && ce(this._$AH)
       ? (this._$AA.nextSibling.data = e)
-      : this.T(q.createTextNode(e)),
+      : this.T(V.createTextNode(e)),
       (this._$AH = e);
   }
   $(e) {
@@ -741,9 +741,9 @@ class pe {
             o);
     if (((i = this._$AH) == null ? void 0 : i._$AD) === s) this._$AH.p(t);
     else {
-      const r = new Mt(s, this),
-        n = r.u(this.options);
-      r.p(t), this.T(n), (this._$AH = r);
+      const r = new Rt(s, this),
+        a = r.u(this.options);
+      r.p(t), this.T(a), (this._$AH = r);
     }
   }
   _$AC(e) {
@@ -808,14 +808,14 @@ class ye {
         (r = !ce(e) || (e !== this._$AH && e !== G)),
         r && (this._$AH = e);
     else {
-      const n = e;
-      let l, d;
+      const a = e;
+      let l, c;
       for (e = i[0], l = 0; l < i.length - 1; l++)
-        (d = K(this, n[o + l], t, l)),
-          d === G && (d = this._$AH[l]),
-          r || (r = !ce(d) || d !== this._$AH[l]),
-          d === x ? (e = x) : e !== x && (e += (d ?? "") + i[l + 1]),
-          (this._$AH[l] = d);
+        (c = K(this, a[o + l], t, l)),
+          c === G && (c = this._$AH[l]),
+          r || (r = !ce(c) || c !== this._$AH[l]),
+          c === x ? (e = x) : e !== x && (e += (c ?? "") + i[l + 1]),
+          (this._$AH[l] = c);
     }
     r && !s && this.j(e);
   }
@@ -825,7 +825,7 @@ class ye {
       : this.element.setAttribute(this.name, e ?? "");
   }
 }
-class At extends ye {
+class Mt extends ye {
   constructor() {
     super(...arguments), (this.type = 3);
   }
@@ -833,7 +833,7 @@ class At extends ye {
     this.element[this.name] = e === x ? void 0 : e;
   }
 }
-class Rt extends ye {
+class At extends ye {
   constructor() {
     super(...arguments), (this.type = 4);
   }
@@ -886,21 +886,21 @@ class It {
 const ke = ae.litHtmlPolyfillSupport;
 ke == null || ke(de, pe),
   (ae.litHtmlVersions ?? (ae.litHtmlVersions = [])).push("3.3.3");
-const Ot = (a, e, t) => {
+const Ot = (n, e, t) => {
   const o = (t == null ? void 0 : t.renderBefore) ?? e;
   let s = o._$litPart$;
   if (s === void 0) {
     const i = (t == null ? void 0 : t.renderBefore) ?? null;
     o._$litPart$ = s = new pe(e.insertBefore(le(), i), i, void 0, t ?? {});
   }
-  return s._$AI(a), s;
+  return s._$AI(n), s;
 };
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const F = globalThis;
+const W = globalThis;
 class C extends Y {
   constructor() {
     super(...arguments),
@@ -936,10 +936,10 @@ class C extends Y {
 var ct;
 (C._$litElement$ = !0),
   (C.finalized = !0),
-  (ct = F.litElementHydrateSupport) == null || ct.call(F, { LitElement: C });
-const Ce = F.litElementPolyfillSupport;
+  (ct = W.litElementHydrateSupport) == null || ct.call(W, { LitElement: C });
+const Ce = W.litElementPolyfillSupport;
 Ce == null || Ce({ LitElement: C });
-(F.litElementVersions ?? (F.litElementVersions = [])).push("4.2.2");
+(W.litElementVersions ?? (W.litElementVersions = [])).push("4.2.2");
 /**
  * @license
  * Copyright 2017 Google LLC
@@ -952,65 +952,65 @@ const Nt = {
     reflect: !1,
     hasChanged: Ee,
   },
-  Ht = (a = Nt, e, t) => {
+  Ht = (n = Nt, e, t) => {
     const { kind: o, metadata: s } = t;
     let i = globalThis.litPropertyMetadata.get(s);
     if (
       (i === void 0 &&
         globalThis.litPropertyMetadata.set(s, (i = /* @__PURE__ */ new Map())),
-      o === "setter" && ((a = Object.create(a)).wrapped = !0),
-      i.set(t.name, a),
+      o === "setter" && ((n = Object.create(n)).wrapped = !0),
+      i.set(t.name, n),
       o === "accessor")
     ) {
       const { name: r } = t;
       return {
-        set(n) {
+        set(a) {
           const l = e.get.call(this);
-          e.set.call(this, n), this.requestUpdate(r, l, a, !0, n);
+          e.set.call(this, a), this.requestUpdate(r, l, n, !0, a);
         },
-        init(n) {
-          return n !== void 0 && this.C(r, void 0, a, n), n;
+        init(a) {
+          return a !== void 0 && this.C(r, void 0, n, a), a;
         },
       };
     }
     if (o === "setter") {
       const { name: r } = t;
-      return function (n) {
+      return function (a) {
         const l = this[r];
-        e.call(this, n), this.requestUpdate(r, l, a, !0, n);
+        e.call(this, a), this.requestUpdate(r, l, n, !0, a);
       };
     }
     throw Error("Unsupported decorator location: " + o);
   };
-function u(a) {
+function u(n) {
   return (e, t) =>
     typeof t == "object"
-      ? Ht(a, e, t)
+      ? Ht(n, e, t)
       : ((o, s, i) => {
           const r = s.hasOwnProperty(i);
           return (
             s.constructor.createProperty(i, o),
             r ? Object.getOwnPropertyDescriptor(s, i) : void 0
           );
-        })(a, e, t);
+        })(n, e, t);
 }
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-function y(a) {
-  return u({ ...a, state: !0, attribute: !1 });
+function y(n) {
+  return u({ ...n, state: !0, attribute: !1 });
 }
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Ut = (a, e, t) => (
+const Ut = (n, e, t) => (
   (t.configurable = !0),
   (t.enumerable = !0),
-  Reflect.decorate && typeof e != "object" && Object.defineProperty(a, e, t),
+  Reflect.decorate && typeof e != "object" && Object.defineProperty(n, e, t),
   t
 );
 /**
@@ -1018,11 +1018,11 @@ const Ut = (a, e, t) => (
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-function jt(a, e) {
+function jt(n, e) {
   return (t, o, s) => {
     const i = (r) => {
-      var n;
-      return ((n = r.renderRoot) == null ? void 0 : n.querySelector(a)) ?? null;
+      var a;
+      return ((a = r.renderRoot) == null ? void 0 : a.querySelector(n)) ?? null;
     };
     return Ut(t, o, {
       get() {
@@ -1194,7 +1194,7 @@ const j = {
     present: "#2E7D32",
     absent: "#9E9E9E",
   },
-  Me = {
+  Re = {
     frost_protection: "Frost protection",
     reduced: "Reduced",
     normal: "Normal",
@@ -1234,16 +1234,16 @@ const j = {
     },
     // rose
   ];
-function ve(a) {
-  if (!a) return Se[0];
+function ve(n) {
+  if (!n) return Se[0];
   let e = 0;
-  for (let t = 0; t < a.length; t++) e = (e * 31 + a.charCodeAt(t)) >>> 0;
+  for (let t = 0; t < n.length; t++) e = (e * 31 + n.charCodeAt(t)) >>> 0;
   return Se[1 + (e % (Se.length - 1))];
 }
 var Lt = Object.defineProperty,
-  Ae = (a, e, t, o) => {
-    for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
-      (r = a[i]) && (s = r(e, t, s) || s);
+  Me = (n, e, t, o) => {
+    for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
+      (r = n[i]) && (s = r(e, t, s) || s);
     return s && Lt(e, t, s), s;
   };
 const He = class He extends C {
@@ -1275,7 +1275,7 @@ const He = class He extends C {
   render() {
     const e = this._isError ? "mdi:alert-circle" : "mdi:check-circle",
       t = this._isError ? "error" : "success";
-    return c`
+    return d`
       <div
         class="toast ${this._visible ? "visible" : ""}"
         role="status"
@@ -1334,19 +1334,19 @@ He.styles = k`
     }
   `;
 let J = He;
-Ae([y()], J.prototype, "_visible");
-Ae([y()], J.prototype, "_message");
-Ae([y()], J.prototype, "_isError");
+Me([y()], J.prototype, "_visible");
+Me([y()], J.prototype, "_message");
+Me([y()], J.prototype, "_isError");
 customElements.define("climate-manager-toast", J);
 var Zt = Object.defineProperty,
-  H = (a, e, t, o) => {
-    for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
-      (r = a[i]) && (s = r(e, t, s) || s);
+  H = (n, e, t, o) => {
+    for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
+      (r = n[i]) && (s = r(e, t, s) || s);
     return s && Zt(e, t, s), s;
   };
 const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-  Wt = ["frost_protection", "reduced", "normal", "comfort"],
-  Ft = ["present", "absent"],
+  Ft = ["frost_protection", "reduced", "normal", "comfort"],
+  Wt = ["present", "absent"],
   Ue = class Ue extends C {
     constructor() {
       super(...arguments),
@@ -1399,7 +1399,7 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         this.mode === "presence"
           ? e.state ?? "absent"
           : e.mode ?? "frost_protection";
-      return Me[t] ?? t;
+      return Re[t] ?? t;
     }
     /**
      * Convert a periods array to renderable segments with computed widths.
@@ -1407,17 +1407,17 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
      */
     _toSegments(e) {
       if (e.length === 0) return [];
-      const t = [...e].sort((n, l) => n.start.localeCompare(l.start)),
+      const t = [...e].sort((a, l) => a.start.localeCompare(l.start)),
         o = t[0],
         i =
           this._timeToMinutes(o.start) > 0
             ? [{ start: "00:00", mode: o.mode, state: o.state }, ...t]
             : t,
         r = [];
-      for (let n = 0; n < i.length; n++) {
-        const l = this._timeToMinutes(i[n].start),
-          d = n + 1 < i.length ? this._timeToMinutes(i[n + 1].start) : 1440;
-        r.push({ period: i[n], startMin: l, endMin: d });
+      for (let a = 0; a < i.length; a++) {
+        const l = this._timeToMinutes(i[a].start),
+          c = a + 1 < i.length ? this._timeToMinutes(i[a + 1].start) : 1440;
+        r.push({ period: i[a], startMin: l, endMin: c });
       }
       return r;
     }
@@ -1451,9 +1451,9 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
           i = t[o] ?? [];
         if (s.length !== i.length) return !1;
         for (let r = 0; r < s.length; r++) {
-          const n = s[r],
+          const a = s[r],
             l = i[r];
-          if (n.start !== l.start || n.mode !== l.mode || n.state !== l.state)
+          if (a.start !== l.start || a.mode !== l.mode || a.state !== l.state)
             return !1;
         }
       }
@@ -1512,9 +1512,9 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
             ? { start: this._minutesToHHMM(o ?? 0), state: e }
             : { start: this._minutesToHHMM(o ?? 0), mode: e };
       s.push(i);
-      const r = s.sort((l, d) => l.start.localeCompare(d.start)),
-        n = r.filter((l, d) => d === 0 || l.start !== r[d - 1].start);
-      this._closePopup(), this._emitChange(t, n);
+      const r = s.sort((l, c) => l.start.localeCompare(c.start)),
+        a = r.filter((l, c) => c === 0 || l.start !== r[c - 1].start);
+      this._closePopup(), this._emitChange(t, a);
     }
     // -----------------------------------------------------------------------
     // Click on existing segment → edit/delete popup
@@ -1542,12 +1542,12 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
       const { dayIndex: t, segIndex: o } = this._popup,
         i = this._toSegments(this.days[t] ?? [])[o ?? 0];
       if (!i) return;
-      const r = (this.days[t] ?? []).map((n) =>
-        n.start === i.period.start
+      const r = (this.days[t] ?? []).map((a) =>
+        a.start === i.period.start
           ? this.mode === "presence"
-            ? { ...n, state: e }
-            : { ...n, mode: e }
-          : n,
+            ? { ...a, state: e }
+            : { ...a, mode: e }
+          : a,
       );
       this._closePopup(), this._emitChange(t, r);
     }
@@ -1577,25 +1577,25 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
       const i = s.endMin - s.startMin;
       if (i < 30) return;
       const r = s.startMin + i / 2,
-        n = Math.max(
+        a = Math.max(
           s.startMin + 15,
           Math.min(s.endMin - 15, this._snapToMinutes(r)),
         ),
-        l = this.mode === "presence" ? Ft : Wt,
-        d =
+        l = this.mode === "presence" ? Wt : Ft,
+        c =
           this.mode === "presence"
             ? s.period.state ?? "absent"
             : s.period.mode ?? "frost_protection",
-        p = l.indexOf(d),
+        p = l.indexOf(c),
         h = l[(p + 1) % l.length],
         f =
           this.mode === "presence"
-            ? { start: s.period.start, state: d }
-            : { start: s.period.start, mode: d },
+            ? { start: s.period.start, state: c }
+            : { start: s.period.start, mode: c },
         g =
           this.mode === "presence"
-            ? { start: this._minutesToHHMM(n), state: h }
-            : { start: this._minutesToHHMM(n), mode: h },
+            ? { start: this._minutesToHHMM(a), state: h }
+            : { start: this._minutesToHHMM(a), mode: h },
         v = this.days[e] ?? [],
         m = v.some((_) => _.start === s.period.start);
       let b;
@@ -1636,17 +1636,17 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
       if (!s) return;
       const i = s.getBoundingClientRect(),
         r = this._pixelToMinutes(e.clientX - i.left, i.width),
-        n = this._snapToMinutes(r);
-      (this._dragTooltipMinutes = n),
+        a = this._snapToMinutes(r);
+      (this._dragTooltipMinutes = a),
         (this._dragTooltipX = e.clientX),
         (this._dragTooltipY = e.clientY - this._touchTooltipOffset(e));
       const l = this._toSegments(this.days[t] ?? []),
-        d = l[o],
+        c = l[o],
         p = l[o + 1];
-      if (d && p) {
-        const f = d.startMin + 15,
+      if (c && p) {
+        const f = c.startMin + 15,
           g = p.endMin - 15,
-          v = Math.max(f, Math.min(g, n)),
+          v = Math.max(f, Math.min(g, a)),
           m = (this.days[t] ?? []).map((_) =>
             _.start === p.period.start
               ? { ..._, start: this._minutesToHHMM(v) }
@@ -1666,11 +1666,11 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
             : i.querySelector(`.day-row:nth-child(${t + 2}) .bar-wrap`);
       if (s) {
         const r = s.getBoundingClientRect(),
-          n = this._pixelToMinutes(e.clientX - r.left, r.width),
-          l = this._snapToMinutes(n),
-          d = this._toSegments(this.days[t] ?? []),
-          p = d[o],
-          h = d[o + 1];
+          a = this._pixelToMinutes(e.clientX - r.left, r.width),
+          l = this._snapToMinutes(a),
+          c = this._toSegments(this.days[t] ?? []),
+          p = c[o],
+          h = c[o + 1];
         if (p && h) {
           const f = p.startMin + 15,
             g = h.endMin - 15,
@@ -1728,20 +1728,20 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         if (o) {
           const s = o.getBoundingClientRect(),
             i = 8;
-          let { x: r, y: n } = this._popup;
+          let { x: r, y: a } = this._popup;
           s.bottom > window.innerHeight - i &&
-            (n -= s.bottom - (window.innerHeight - i)),
+            (a -= s.bottom - (window.innerHeight - i)),
             s.right > window.innerWidth - i &&
               (r -= s.right - (window.innerWidth - i)),
-            (n = Math.max(i, n)),
+            (a = Math.max(i, a)),
             (r = Math.max(i, r)),
-            (r !== this._popup.x || n !== this._popup.y) &&
-              (this._popup = { ...this._popup, x: r, y: n });
+            (r !== this._popup.x || a !== this._popup.y) &&
+              (this._popup = { ...this._popup, x: r, y: a });
         }
       }
     }
     render() {
-      return c`
+      return d`
       <div
         class="week-grid"
         @pointermove=${this._onPointerMove}
@@ -1759,7 +1759,7 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
       <!-- Drag tooltip -->
       ${
         this._drag !== null && this._dragTooltipMinutes !== null
-          ? c`<div
+          ? d`<div
             class="drag-tooltip"
             style="left:${this._dragTooltipX}px;top:${this._dragTooltipY}px"
             aria-live="polite"
@@ -1772,7 +1772,7 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
       <!-- Popup overlay + popup -->
       ${
         this._popup
-          ? c`
+          ? d`
             <div class="popup-overlay" @click=${this._closePopup}></div>
             <div
               class="popup"
@@ -1794,7 +1794,7 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
      * so ticks align pixel-perfectly with the bar regardless of button size.
      */
     _renderTimeAxis() {
-      return c`
+      return d`
       <div class="time-axis">
         <div class="time-axis-label-spacer"></div>
         <div class="time-axis-inner">
@@ -1805,7 +1805,7 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
                 : t % 6 === 0
                   ? "axis-tick--6h"
                   : "axis-tick--3h";
-            return c`<span
+            return d`<span
               class="axis-tick ${o}"
               style="left:${(t / 24) * 100}%"
               >${String(t).padStart(2, "0")}:00</span
@@ -1827,25 +1827,25 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
       const s = (this._dragPreviewDays ?? this.days)[t] ?? [],
         i = this._toSegments(s),
         r = i.length === 0;
-      return c`
+      return d`
       <div class="day-row">
         <div class="day-label">${e}</div>
 
         <div
           class="bar-wrap"
-          @click=${(n) => {
-            (n.target.classList.contains("bar-wrap") ||
-              n.target.classList.contains("bar-row-inner")) &&
-              this._onBarClick(n, t);
+          @click=${(a) => {
+            (a.target.classList.contains("bar-wrap") ||
+              a.target.classList.contains("bar-row-inner")) &&
+              this._onBarClick(a, t);
           }}
         >
           ${
             r
-              ? c`<div class="empty-hint">
+              ? d`<div class="empty-hint">
                 Click the bar to add your first period.
               </div>`
-              : c`<div class="bar-row-inner">
-                ${i.map((n, l) => this._renderSegment(n, t, l, i.length))}
+              : d`<div class="bar-row-inner">
+                ${i.map((a, l) => this._renderSegment(a, t, l, i.length))}
               </div>`
           }
         </div>
@@ -1872,28 +1872,28 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     `;
     }
     _renderSegment(e, t, o, s) {
-      var d;
+      var c;
       const i = this._colorForPeriod(e.period),
         r = this._labelForPeriod(e.period),
-        n = ((e.endMin - e.startMin) / 1440) * 100,
+        a = ((e.endMin - e.startMin) / 1440) * 100,
         l =
           this.mode === "presence"
             ? e.period.state ?? "absent"
-            : ((d = e.period.mode) == null ? void 0 : d.replace(/_/g, " ")) ??
+            : ((c = e.period.mode) == null ? void 0 : c.replace(/_/g, " ")) ??
               "frost protection";
-      return c`
+      return d`
       <div
         class="segment"
-        style="width:${n}%;background:${i}"
+        style="width:${a}%;background:${i}"
         aria-label="${l}"
         @click=${(p) => this._onSegmentClick(p, t, o)}
       >
-        ${n > 2.7 ? c`<span class="segment-label">${r}</span>` : ""}
+        ${a > 2.7 ? d`<span class="segment-label">${r}</span>` : ""}
 
         <!-- Drag handle on right border (not on last segment) -->
         ${
           o < s - 1
-            ? c`<div
+            ? d`<div
               class="drag-handle"
               @pointerdown=${(p) => this._onDragHandlePointerDown(p, t, o)}
             ></div>`
@@ -1904,14 +1904,14 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     }
     _renderPopup() {
       var e;
-      if (!this._popup) return c``;
+      if (!this._popup) return d``;
       if (this._popup.kind === "split") {
         const t = this._minutesToHHMM(this._popup.snappedMinutes ?? 0);
-        return c`
+        return d`
         <div class="popup-title">Split at ${t}</div>
         <div class="mode-options">
           ${this._modeOptions().map(
-            (o) => c`
+            (o) => d`
               <button
                 class="mode-option"
                 @click=${() => this._onSplitModeSelect(o.key)}
@@ -1931,18 +1931,18 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         const o = this._toSegments(this.days[this._popup.dayIndex] ?? [])[
           this._popup.segIndex ?? 0
         ];
-        if (!o) return c``;
+        if (!o) return d``;
         const s = this._minutesToHHMM(o.startMin),
           i = this._minutesToHHMM(o.endMin),
           r = `${s} – ${i}`,
-          n =
+          a =
             this.mode === "presence"
               ? o.period.state ?? "absent"
               : ((e = o.period.mode) == null ? void 0 : e.replace(/_/g, " ")) ??
                 "frost protection",
-          d = o.endMin - o.startMin >= 30;
-        return c`
-        <div class="popup-title">${r} · ${n}</div>
+          c = o.endMin - o.startMin >= 30;
+        return d`
+        <div class="popup-title">${r} · ${a}</div>
 
         <div class="mode-options">
           <div
@@ -1951,7 +1951,7 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
             Change mode
           </div>
           ${this._modeOptions().map(
-            (p) => c`
+            (p) => d`
               <button
                 class="mode-option"
                 @click=${() => this._onEditModeSelect(p.key)}
@@ -1969,8 +1969,8 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         <div class="popup-actions">
           <button
             class="popup-btn"
-            ?disabled=${!d}
-            style=${d ? "" : "opacity:0.4;cursor:default"}
+            ?disabled=${!c}
+            style=${c ? "" : "opacity:0.4;cursor:default"}
             @click=${this._onSplitPeriod}
           >
             Split period
@@ -1981,7 +1981,7 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         </div>
       `;
       }
-      return c``;
+      return d``;
     }
   };
 Ue.styles = k`
@@ -2341,7 +2341,7 @@ const xe = k`
     height: 16px;
   }
 `,
-  Re = k`
+  Ae = k`
   .section-label {
     font-size: 12px;
     font-weight: 600;
@@ -2391,32 +2391,32 @@ const xe = k`
     transform: rotate(180deg);
   }
 `;
-var qt = Object.defineProperty,
-  V = (a, e, t, o) => {
-    for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
-      (r = a[i]) && (s = r(e, t, s) || s);
-    return s && qt(e, t, s), s;
+var Vt = Object.defineProperty,
+  q = (n, e, t, o) => {
+    for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
+      (r = n[i]) && (s = r(e, t, s) || s);
+    return s && Vt(e, t, s), s;
   };
 const Oe = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-function ne(a) {
-  return Oe.map((e) => (a != null && a[e] ? [...a[e]] : []));
+function ne(n) {
+  return Oe.map((e) => (n != null && n[e] ? [...n[e]] : []));
 }
-function Ne(a) {
-  return Oe[a] ?? "mon";
+function Ne(n) {
+  return Oe[n] ?? "mon";
 }
-function Vt(a, e) {
-  if (!a) return null;
+function qt(n, e) {
+  if (!n) return null;
   const t = e.getDay(),
     o = t === 0 ? 6 : t - 1,
     s = Oe[o],
-    i = a[s] ?? [],
+    i = n[s] ?? [],
     r = e.getHours() * 60 + e.getMinutes();
-  let n = null;
+  let a = null;
   for (const l of i) {
-    const [d = 0, p = 0] = l.start.split(":").map(Number);
-    d * 60 + p <= r && (n = "mode" in l ? l.mode : null);
+    const [c = 0, p = 0] = l.start.split(":").map(Number);
+    c * 60 + p <= r && (a = "mode" in l ? l.mode : null);
   }
-  return n;
+  return a;
 }
 const _t = "off",
   Xt = "time_program",
@@ -2520,7 +2520,7 @@ const _t = "off",
           id: i,
           name: r.name,
           mode: r.mode,
-          activePeriod: r.mode !== _t ? Vt(r.time_program, e) : null,
+          activePeriod: r.mode !== _t ? qt(r.time_program, e) : null,
         });
       return t;
     }
@@ -2532,28 +2532,28 @@ const _t = "off",
         s = new Set((e == null ? void 0 : e.present_persons) ?? []),
         i =
           o.length === 0
-            ? c`<span class="status-value">No persons configured</span>`
-            : c`
+            ? d`<span class="status-value">No persons configured</span>`
+            : d`
             <span class="status-value">
-              ${o.map((n, l) => {
+              ${o.map((a, l) => {
                 var h, f, g;
-                const d =
+                const c =
                     ((g =
-                      (f = (h = this.hass) == null ? void 0 : h.states[n]) ==
+                      (f = (h = this.hass) == null ? void 0 : h.states[a]) ==
                       null
                         ? void 0
                         : f.attributes) == null
                       ? void 0
-                      : g.friendly_name) ?? n,
-                  p = s.has(n);
-                return c`<span
+                      : g.friendly_name) ?? a,
+                  p = s.has(a);
+                return d`<span
                     class="person-dot ${p ? "" : "absent"}"
                   ></span
-                  >${d}${l < o.length - 1 ? ", " : ""}`;
+                  >${c}${l < o.length - 1 ? ", " : ""}`;
               })}
             </span>
           `;
-      return c`
+      return d`
       <ha-card>
         <div class="card-header">Current Status</div>
         <div class="card-content">
@@ -2563,22 +2563,22 @@ const _t = "off",
               <span>Mode</span>
               <span>Active period</span>
             </div>
-            ${t.map((n) => {
-              const l = ve(n.id === "default" ? void 0 : n.id),
-                d = Gt[n.mode] ?? n.mode,
-                p = n.activePeriod ? Me[n.activePeriod] ?? n.activePeriod : "—";
-              return c`
+            ${t.map((a) => {
+              const l = ve(a.id === "default" ? void 0 : a.id),
+                c = Gt[a.mode] ?? a.mode,
+                p = a.activePeriod ? Re[a.activePeriod] ?? a.activePeriod : "—";
+              return d`
                 <div class="zone-status-row">
                   <span
                     class="zone-status-name"
                     style="color: ${l.color}; cursor: pointer;"
                     @click=${() =>
                       this.panel.navigateToZone(
-                        n.id === "default" ? void 0 : n.id,
+                        a.id === "default" ? void 0 : a.id,
                       )}
-                    >${n.name}</span
+                    >${a.name}</span
                   >
-                  <span class="zone-status-value">${d}</span>
+                  <span class="zone-status-value">${c}</span>
                   <span class="zone-status-value">${p}</span>
                 </div>
               `;
@@ -2594,7 +2594,7 @@ const _t = "off",
     }
     _renderTemperaturesCard() {
       const e = this.config.period_temperatures,
-        t = (o, s) => c`
+        t = (o, s) => d`
       <div class="temp-field">
         <label class="temp-label" for="temp-${o}">${s}</label>
         <div class="temp-input-row">
@@ -2617,7 +2617,7 @@ const _t = "off",
         </div>
       </div>
     `;
-      return c`
+      return d`
       <ha-card>
         <div class="card-header">Temperatures</div>
         <div class="card-content">
@@ -2634,73 +2634,172 @@ const _t = "off",
     `;
     }
     _openEntityMoreInfo(e) {
-      this.dispatchEvent(
-        new CustomEvent("hass-more-info", {
-          bubbles: !0,
-          composed: !0,
-          detail: { entityId: e },
-        }),
+      e &&
+        this.dispatchEvent(
+          new CustomEvent("hass-more-info", {
+            bubbles: !0,
+            composed: !0,
+            detail: { entityId: e },
+          }),
+        );
+    }
+    _getFloorIcon(e) {
+      var s, i;
+      const t =
+        (i = (s = this.hass) == null ? void 0 : s.floors) == null
+          ? void 0
+          : i[e];
+      if (t != null && t.icon) return t.icon;
+      const o = (t == null ? void 0 : t.level) ?? 0;
+      return o === -1
+        ? "mdi:home-floor-negative-1"
+        : o < 0
+          ? "mdi:home-floor-b"
+          : o === 1
+            ? "mdi:home-floor-1"
+            : o === 2
+              ? "mdi:home-floor-2"
+              : o === 3 || o > 3
+                ? "mdi:home-floor-3"
+                : "mdi:home-floor-0";
+    }
+    _renderTRVRows(e) {
+      return e.map(
+        (t) => d`
+        <tr>
+          <td>
+            <span
+              class="chip"
+              @click=${() => this._openEntityMoreInfo(t.entity_id)}
+            >
+              <ha-icon icon="mdi:thermometer"></ha-icon>
+              ${t.friendly_name}
+            </span>
+          </td>
+          <td>
+            <span
+              class="calib-badge ${
+                t.supports_calibration ? "supported" : "unsupported"
+              }"
+            >
+              ${t.supports_calibration ? "Tado X" : "Not supported"}
+            </span>
+          </td>
+          <td>
+            ${
+              t.trv_temperature != null
+                ? d`${t.trv_temperature.toFixed(1)} °C`
+                : "—"
+            }
+          </td>
+          <td>
+            ${
+              t.room_temperature != null
+                ? d`${t.room_temperature.toFixed(1)} °C`
+                : "—"
+            }
+          </td>
+          <td>
+            ${
+              t.last_applied_delta != null
+                ? d`${
+                    t.last_applied_delta > 0 ? "+" : ""
+                  }${t.last_applied_delta.toFixed(2)}
+                °C`
+                : "—"
+            }
+          </td>
+          <td>
+            ${
+              t.last_calibrated_at
+                ? new Date(t.last_calibrated_at).toLocaleString()
+                : "Never"
+            }
+          </td>
+        </tr>
+      `,
       );
     }
     _renderTRVTable() {
-      return this._loadingStatuses
-        ? c`<div class="calib-loading">Loading TRV status…</div>`
-        : this._trvStatuses.length === 0
-          ? c`<div class="calib-empty">No managed TRVs found.</div>`
-          : c`
+      var s, i, r;
+      if (this._loadingStatuses)
+        return d`<div class="calib-loading">Loading TRV status…</div>`;
+      if (this._trvStatuses.length === 0)
+        return d`<div class="calib-empty">No managed TRVs found.</div>`;
+      const e = /* @__PURE__ */ new Map();
+      for (const a of this._trvStatuses) {
+        const l =
+          ((r =
+            (i = (s = this.hass) == null ? void 0 : s.areas) == null
+              ? void 0
+              : i[a.area_id]) == null
+            ? void 0
+            : r.floor_id) ?? null;
+        e.has(l) || e.set(l, []), e.get(l).push(a);
+      }
+      for (const a of e.values())
+        a.sort((l, c) => l.friendly_name.localeCompare(c.friendly_name));
+      const t = [...e.keys()]
+          .filter((a) => a !== null)
+          .sort((a, l) => {
+            var c, p, h, f, g, v;
+            return (
+              (((h =
+                (p = (c = this.hass) == null ? void 0 : c.floors) == null
+                  ? void 0
+                  : p[l]) == null
+                ? void 0
+                : h.level) ?? 0) -
+              (((v =
+                (g = (f = this.hass) == null ? void 0 : f.floors) == null
+                  ? void 0
+                  : g[a]) == null
+                ? void 0
+                : v.level) ?? 0)
+            );
+          }),
+        o = e.get(null) ?? [];
+      return d`
       <div class="calib-table-wrap">
         <table class="calib-table">
           <thead>
             <tr>
               <th>TRV</th>
               <th>Auto-calibration</th>
+              <th>TRV temp</th>
+              <th>Room temp</th>
               <th>Last applied delta</th>
               <th>Last adjusted</th>
             </tr>
           </thead>
-          <tbody>
-            ${this._trvStatuses.map(
-              (e) => c`
+          ${t.map((a) => {
+            var c, p, h;
+            const l =
+              ((h =
+                (p = (c = this.hass) == null ? void 0 : c.floors) == null
+                  ? void 0
+                  : p[a]) == null
+                ? void 0
+                : h.name) ?? a;
+            return d`
+              <tbody>
                 <tr>
-                  <td>
-                    <span
-                      class="chip"
-                      @click=${() => this._openEntityMoreInfo(e.entity_id)}
-                    >
-                      <ha-icon icon="mdi:thermometer"></ha-icon>
-                      ${e.friendly_name}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      class="calib-badge ${
-                        e.supports_calibration ? "supported" : "unsupported"
-                      }"
-                    >
-                      ${e.supports_calibration ? "Tado X" : "Not supported"}
-                    </span>
-                  </td>
-                  <td>
-                    ${
-                      e.last_applied_delta != null
-                        ? c`${
-                            e.last_applied_delta > 0 ? "+" : ""
-                          }${e.last_applied_delta.toFixed(2)}
-                        °C`
-                        : "—"
-                    }
-                  </td>
-                  <td>
-                    ${
-                      e.last_calibrated_at
-                        ? new Date(e.last_calibrated_at).toLocaleString()
-                        : "Never"
-                    }
+                  <td colspan="6" class="calib-floor-header">
+                    <ha-icon icon=${this._getFloorIcon(a)}></ha-icon>
+                    ${l}
                   </td>
                 </tr>
-              `,
-            )}
-          </tbody>
+                ${this._renderTRVRows(e.get(a) ?? [])}
+              </tbody>
+            `;
+          })}
+          ${
+            o.length > 0
+              ? d`<tbody>
+                ${this._renderTRVRows(o)}
+              </tbody>`
+              : ""
+          }
         </table>
         <button class="refresh-btn" @click=${this._loadCalibrationStatuses}>
           Refresh
@@ -2715,7 +2814,7 @@ const _t = "off",
           this._trvStatuses.length === 0 &&
           !this._loadingStatuses &&
           this._loadCalibrationStatuses(),
-        c`
+        d`
       <ha-card>
         <div class="card-header">TRV Auto-Calibration</div>
         <div class="card-content">
@@ -2733,7 +2832,7 @@ const _t = "off",
       );
     }
     render() {
-      return c`
+      return d`
       ${this._renderStatusCard()} ${this._renderTemperaturesCard()}
       ${this._renderOptionsCard()}
     `;
@@ -3004,21 +3103,42 @@ je.styles = [
       .refresh-btn:hover {
         background: var(--secondary-background-color, #f5f5f5);
       }
+
+      /* ---- TRV floor section headers ---- */
+      .calib-floor-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--secondary-text-color);
+        padding: 10px 8px 4px;
+        border-bottom: 1px solid var(--divider-color, #e0e0e0);
+      }
+
+      .calib-floor-header ha-icon {
+        --mdc-icon-size: 14px;
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+      }
     `,
 ];
-let R = je;
-V([u({ attribute: !1 })], R.prototype, "config");
-V([u({ attribute: !1 })], R.prototype, "status");
-V([u({ attribute: !1 })], R.prototype, "ws");
-V([u({ attribute: !1 })], R.prototype, "panel");
-V([u({ attribute: !1 })], R.prototype, "hass");
-V([y()], R.prototype, "_trvStatuses");
-V([y()], R.prototype, "_loadingStatuses");
-customElements.define("climate-manager-global-settings-tab", R);
+let A = je;
+q([u({ attribute: !1 })], A.prototype, "config");
+q([u({ attribute: !1 })], A.prototype, "status");
+q([u({ attribute: !1 })], A.prototype, "ws");
+q([u({ attribute: !1 })], A.prototype, "panel");
+q([u({ attribute: !1 })], A.prototype, "hass");
+q([y()], A.prototype, "_trvStatuses");
+q([y()], A.prototype, "_loadingStatuses");
+customElements.define("climate-manager-global-settings-tab", A);
 var Kt = Object.defineProperty,
-  Q = (a, e, t, o) => {
-    for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
-      (r = a[i]) && (s = r(e, t, s) || s);
+  Q = (n, e, t, o) => {
+    for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
+      (r = n[i]) && (s = r(e, t, s) || s);
     return s && Kt(e, t, s), s;
   };
 const Le = class Le extends C {
@@ -3106,7 +3226,7 @@ const Le = class Le extends C {
   // -------------------------------------------------------------------------
   render() {
     const e = this._filteredItems();
-    return c`
+    return d`
       <button
         class="trigger-btn"
         @click=${this._onTriggerClick}
@@ -3119,7 +3239,7 @@ const Le = class Le extends C {
 
       ${
         this._open
-          ? c`
+          ? d`
             <div class="popup" @click=${(t) => t.stopPropagation()}>
               <div class="search-row">
                 <input
@@ -3135,10 +3255,10 @@ const Le = class Le extends C {
               </div>
               ${
                 e.length > 0
-                  ? c`
+                  ? d`
                     <ul class="item-list" role="listbox">
                       ${e.map(
-                        (t) => c`
+                        (t) => d`
                           <li
                             class="item-row"
                             role="option"
@@ -3146,7 +3266,7 @@ const Le = class Le extends C {
                           >
                             ${
                               t.icon
-                                ? c`<ha-icon
+                                ? d`<ha-icon
                                   class="item-icon"
                                   icon=${t.icon}
                                 ></ha-icon>`
@@ -3156,7 +3276,7 @@ const Le = class Le extends C {
                               <span class="item-label">${t.label}</span>
                               ${
                                 t.secondary
-                                  ? c`<span class="item-secondary"
+                                  ? d`<span class="item-secondary"
                                     >${t.secondary}</span
                                   >`
                                   : ""
@@ -3167,7 +3287,7 @@ const Le = class Le extends C {
                       )}
                     </ul>
                   `
-                  : c`<div class="empty-message">No results</div>`
+                  : d`<div class="empty-message">No results</div>`
               }
             </div>
           `
@@ -3317,9 +3437,9 @@ Q([y()], I.prototype, "_open");
 Q([y()], I.prototype, "_query");
 customElements.define("search-picker", I);
 var Jt = Object.defineProperty,
-  A = (a, e, t, o) => {
-    for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
-      (r = a[i]) && (s = r(e, t, s) || s);
+  M = (n, e, t, o) => {
+    for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
+      (r = n[i]) && (s = r(e, t, s) || s);
     return s && Jt(e, t, s), s;
   };
 const Ze = class Ze extends C {
@@ -3441,7 +3561,7 @@ const Ze = class Ze extends C {
           : i[e]) == null
         ? void 0
         : r.room_ids) ?? []),
-    ].filter((n) => n !== this.roomId);
+    ].filter((a) => a !== this.roomId);
     try {
       await this.ws.setPersonConfig(e, { room_ids: o }),
         await this.panel.reloadConfig(),
@@ -3513,7 +3633,7 @@ const Ze = class Ze extends C {
   // Zone assignment handler (ASSIGN-02)
   // -----------------------------------------------------------------------
   _getZoneName() {
-    var t, o, s, i, r, n;
+    var t, o, s, i, r, a;
     const e = (t = this.config) == null ? void 0 : t.zone_id;
     return e
       ? ((r =
@@ -3522,7 +3642,7 @@ const Ze = class Ze extends C {
             : i[e]) == null
           ? void 0
           : r.name) ??
-          ((n = this.panelConfig) == null ? void 0 : n.default_zone_name) ??
+          ((a = this.panelConfig) == null ? void 0 : a.default_zone_name) ??
           "Default Zone"
       : ((o = this.panelConfig) == null ? void 0 : o.default_zone_name) ??
           "Default Zone";
@@ -3551,18 +3671,18 @@ const Ze = class Ze extends C {
    * Otherwise returns a colored pill: "${name} · ${temp}°C".
    */
   _renderPeriodBadge() {
-    var n, l, d, p, h, f;
+    var a, l, c, p, h, f;
     if (
-      (((n = this.config) == null ? void 0 : n.room_mode) ?? "global") ===
+      (((a = this.config) == null ? void 0 : a.room_mode) ?? "global") ===
       "frost_protection"
     )
-      return c``;
+      return d``;
     if (
       (((l = this.status) == null ? void 0 : l.global_mode) ??
-        ((d = this.panelConfig) == null ? void 0 : d.global_mode) ??
+        ((c = this.panelConfig) == null ? void 0 : c.global_mode) ??
         "") === "off"
     )
-      return c`
+      return d`
         <span
           class="program-badge"
           style="background: var(--secondary-background-color); color: var(--secondary-text-color);"
@@ -3571,15 +3691,15 @@ const Ze = class Ze extends C {
       `;
     const o =
       ((p = this.roomStatus) == null ? void 0 : p.active_period) ?? null;
-    if (o == null) return c``;
-    const s = Me[o] ?? o,
+    if (o == null) return d``;
+    const s = Re[o] ?? o,
       i =
         (f = (h = this.panelConfig) == null ? void 0 : h.period_temperatures) ==
         null
           ? void 0
           : f[o],
       r = i != null ? `${s} · ${i}°C` : s;
-    return c`
+    return d`
       <span
         class="program-badge"
         style="background: ${j[o]}; color: white;"
@@ -3612,7 +3732,7 @@ const Ze = class Ze extends C {
         ? ((m = this.roomStatus) == null ? void 0 : m.present_person_count) ?? 0
         : null,
       f = h != null ? `${h}/${p}` : `${p}`;
-    return c`
+    return d`
       <div class="card-header-status">
         <span class="status-item" title="Mode: ${l}">
           <ha-icon icon="mdi:thermometer"></ha-icon>
@@ -3636,28 +3756,28 @@ const Ze = class Ze extends C {
     var t;
     const e = ((t = this.roomStatus) == null ? void 0 : t.entity_ids) ?? [];
     return e.length === 0
-      ? c`
+      ? d`
         <div class="no-trv-badge">
           <ha-icon icon="mdi:alert"></ha-icon>
           No climate entities
         </div>
       `
-      : c`
+      : d`
       <div class="chips">
         ${e.map((o) => {
-          var n, l, d;
-          const s = (n = this.hass) == null ? void 0 : n.states[o],
+          var a, l, c;
+          const s = (a = this.hass) == null ? void 0 : a.states[o],
             i =
               ((l = s == null ? void 0 : s.attributes) == null
                 ? void 0
                 : l.friendly_name) ?? o,
             r =
-              ((d = s == null ? void 0 : s.attributes) == null
+              ((c = s == null ? void 0 : s.attributes) == null
                 ? void 0
-                : d.current_temperature) != null
+                : c.current_temperature) != null
                 ? `${s.attributes.current_temperature}°C`
                 : "—";
-          return c`
+          return d`
             <span
               class="chip"
               @click=${() => this._openEntityMoreInfo(o)}
@@ -3683,13 +3803,13 @@ const Ze = class Ze extends C {
         secondary: this._getPersonPresenceState(i),
         icon: "mdi:account",
       }));
-    return c`
+    return d`
       <div class="section-label" title="Persons whose presence heats this room">
         Associated persons
       </div>
       <div class="chips">
         ${e.map(
-          (i) => c`
+          (i) => d`
             <span
               class="chip"
               @click=${() => void this.panel.navigateToPerson(i)}
@@ -3709,7 +3829,7 @@ const Ze = class Ze extends C {
         )}
         ${
           o.length > 0
-            ? c`
+            ? d`
               <search-picker
                 .items=${s}
                 triggerLabel="Add person"
@@ -3733,7 +3853,7 @@ const Ze = class Ze extends C {
           ? (t =
               "Room uses its own custom schedule. Zone Off mode still applies.")
           : (t = "This room follows the zone's heating schedule."),
-      c`<p class="schedule-hint">${t}</p>`
+      d`<p class="schedule-hint">${t}</p>`
     );
   }
   _openEntityMoreInfo(e) {
@@ -3746,7 +3866,7 @@ const Ze = class Ze extends C {
     );
   }
   render() {
-    var s, i, r, n;
+    var s, i, r, a;
     const e = ((s = this.config) == null ? void 0 : s.room_mode) ?? "global",
       t =
         e === "frost_protection"
@@ -3760,7 +3880,7 @@ const Ze = class Ze extends C {
           : e === "custom"
             ? "Custom program"
             : "Zone program";
-    return c`
+    return d`
       <ha-card>
         <div
           class="card-header-row"
@@ -3784,15 +3904,15 @@ const Ze = class Ze extends C {
               <span
                 class="zone-badge"
                 style=${(() => {
-                  var d;
-                  const l = ve((d = this.config) == null ? void 0 : d.zone_id);
+                  var c;
+                  const l = ve((c = this.config) == null ? void 0 : c.zone_id);
                   return `background:${l.background};color:${l.color};border-color:${l.border}`;
                 })()}
                 @click=${(l) => {
-                  var d;
+                  var c;
                   l.stopPropagation(),
                     this.panel.navigateToZone(
-                      (d = this.config) == null ? void 0 : d.zone_id,
+                      (c = this.config) == null ? void 0 : c.zone_id,
                     );
                 }}
                 >${this._getZoneName()}</span
@@ -3808,7 +3928,7 @@ const Ze = class Ze extends C {
 
         ${
           this._expanded
-            ? c`
+            ? d`
               <div class="card-content">
                 <!-- 3-way room mode selector (D-20) -->
                 <div
@@ -3864,10 +3984,10 @@ const Ze = class Ze extends C {
                       }
                     </option>
                     ${Object.entries(
-                      ((n = this.panelConfig) == null ? void 0 : n.zones) ?? {},
-                    ).map(([l, d]) => {
+                      ((a = this.panelConfig) == null ? void 0 : a.zones) ?? {},
+                    ).map(([l, c]) => {
                       var p;
-                      return c`
+                      return d`
                         <option
                           value=${l}
                           ?selected=${
@@ -3875,7 +3995,7 @@ const Ze = class Ze extends C {
                             l
                           }
                         >
-                          ${d.name}
+                          ${c.name}
                         </option>
                       `;
                     })}
@@ -3885,7 +4005,7 @@ const Ze = class Ze extends C {
                 <!-- Inline time-bar (only in Custom mode) -->
                 ${
                   e === "custom"
-                    ? c`
+                    ? d`
                       <div
                         class="section-label"
                         title="Custom schedule — overrides the zone program"
@@ -3927,7 +4047,7 @@ const Ze = class Ze extends C {
 };
 Ze.styles = [
   xe,
-  Re,
+  Ae,
   De,
   ft,
   Ie,
@@ -4077,22 +4197,22 @@ Ze.styles = [
     `,
 ];
 let S = Ze;
-A([u({ type: String })], S.prototype, "roomId");
-A([u({ type: String })], S.prototype, "roomName");
-A([u({ attribute: !1 })], S.prototype, "config");
-A([u({ attribute: !1 })], S.prototype, "roomStatus");
-A([u({ attribute: !1 })], S.prototype, "panelConfig");
-A([u({ attribute: !1 })], S.prototype, "status");
-A([u({ attribute: !1 })], S.prototype, "ws");
-A([u({ attribute: !1 })], S.prototype, "panel");
-A([u({ attribute: !1 })], S.prototype, "hass");
-A([u({ type: Boolean })], S.prototype, "autoExpand");
-A([y()], S.prototype, "_expanded");
+M([u({ type: String })], S.prototype, "roomId");
+M([u({ type: String })], S.prototype, "roomName");
+M([u({ attribute: !1 })], S.prototype, "config");
+M([u({ attribute: !1 })], S.prototype, "roomStatus");
+M([u({ attribute: !1 })], S.prototype, "panelConfig");
+M([u({ attribute: !1 })], S.prototype, "status");
+M([u({ attribute: !1 })], S.prototype, "ws");
+M([u({ attribute: !1 })], S.prototype, "panel");
+M([u({ attribute: !1 })], S.prototype, "hass");
+M([u({ type: Boolean })], S.prototype, "autoExpand");
+M([y()], S.prototype, "_expanded");
 customElements.define("climate-manager-room-card", S);
 var Qt = Object.defineProperty,
-  ee = (a, e, t, o) => {
-    for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
-      (r = a[i]) && (s = r(e, t, s) || s);
+  ee = (n, e, t, o) => {
+    for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
+      (r = n[i]) && (s = r(e, t, s) || s);
     return s && Qt(e, t, s), s;
   };
 const Be = class Be extends C {
@@ -4115,7 +4235,7 @@ const Be = class Be extends C {
       ),
       o = /* @__PURE__ */ new Set([...t.map((m) => m.area_id)]);
     if (o.size === 0)
-      return c`
+      return d`
         <div class="empty-state">
           No rooms discovered. Create areas in Home Assistant and assign climate
           entities.
@@ -4164,12 +4284,12 @@ const Be = class Be extends C {
               : Ye.level) ?? 0)
           );
         }),
-      n = i.get(null) ?? [],
+      a = i.get(null) ?? [],
       l = (m) => {
         const b = e[m] ?? {},
           _ = this._getRoomStatus(m),
           $ = s(m);
-        return c`
+        return d`
         <climate-manager-room-card
           .roomId=${m}
           .roomName=${$}
@@ -4184,7 +4304,7 @@ const Be = class Be extends C {
         ></climate-manager-room-card>
       `;
       },
-      d = (m) => {
+      c = (m) => {
         var $, E;
         const b =
           (E = ($ = this.hass) == null ? void 0 : $.floors) == null
@@ -4204,7 +4324,7 @@ const Be = class Be extends C {
                   ? "mdi:home-floor-3"
                   : "mdi:home-floor-0";
       };
-    return c`
+    return d`
       ${r.map((m) => {
         var $, E, se;
         const b =
@@ -4215,15 +4335,15 @@ const Be = class Be extends C {
               ? void 0
               : se.name) ?? m,
           _ = i.get(m) ?? [];
-        return c`
+        return d`
           <div class="floor-header">
-            <ha-icon icon=${d(m)}></ha-icon>
+            <ha-icon icon=${c(m)}></ha-icon>
             ${b}
           </div>
           ${_.map(l)}
         `;
       })}
-      ${n.map(l)}
+      ${a.map(l)}
     `;
   }
 };
@@ -4271,20 +4391,20 @@ ee([u({ attribute: !1 })], O.prototype, "panel");
 ee([u({ attribute: !1 })], O.prototype, "hass");
 ee([u({ attribute: !1 })], O.prototype, "expandRoomId");
 customElements.define("climate-manager-rooms-tab", O);
-function bt(a) {
-  const e = new Date(Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())),
+function bt(n) {
+  const e = new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate())),
     t = e.getUTCDay() || 7;
   e.setUTCDate(e.getUTCDate() + 4 - t);
   const o = new Date(Date.UTC(e.getUTCFullYear(), 0, 1));
   return Math.ceil(((e.getTime() - o.getTime()) / 864e5 + 1) / 7);
 }
-function nt(a) {
-  return bt(a) % 2 === 0 ? "even" : "odd";
+function nt(n) {
+  return bt(n) % 2 === 0 ? "even" : "odd";
 }
 var es = Object.defineProperty,
-  D = (a, e, t, o) => {
-    for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
-      (r = a[i]) && (s = r(e, t, s) || s);
+  D = (n, e, t, o) => {
+    for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
+      (r = n[i]) && (s = r(e, t, s) || s);
     return s && es(e, t, s), s;
   };
 const X = "scheduled",
@@ -4320,7 +4440,7 @@ const X = "scheduled",
     sat: [{ start: "00:00", state: "present" }],
     sun: [{ start: "00:00", state: "present" }],
   },
-  We = class We extends C {
+  Fe = class Fe extends C {
     constructor() {
       super(...arguments),
         (this.roomChoices = []),
@@ -4447,7 +4567,7 @@ const X = "scheduled",
     async _onSchedulePeriodsChanged(e) {
       const { dayIndex: t, periods: o } = e.detail,
         s = (this.config.schedule_type ?? "single") === "even_odd",
-        n = {
+        a = {
           ...((s
             ? this._activeWeek === "even"
               ? this.config.schedule_even
@@ -4462,7 +4582,7 @@ const X = "scheduled",
             sun: [],
           }),
         };
-      n[Ne(t)] = o;
+      a[Ne(t)] = o;
       const l = s
         ? this._activeWeek === "even"
           ? "schedule_even"
@@ -4470,7 +4590,7 @@ const X = "scheduled",
         : "schedule";
       try {
         await this.ws.setPersonConfig(this.personId, {
-          [l]: n,
+          [l]: a,
         }),
           await this.panel.reloadConfig(),
           this.panel.showToast("Saved", !1);
@@ -4513,14 +4633,14 @@ const X = "scheduled",
         s = o === X,
         i = ((h = this.config) == null ? void 0 : h.schedule_type) ?? "single",
         r = i === "even_odd",
-        n = r
+        a = r
           ? this._activeWeek === "even"
             ? "Reset Even week to default"
             : "Reset Odd week to default"
           : "Reset to default",
         l = ((f = this.config) == null ? void 0 : f.room_ids) ?? [],
-        d = this.roomChoices.filter((g) => !l.includes(g.id));
-      return c`
+        c = this.roomChoices.filter((g) => !l.includes(g.id));
+      return d`
       <ha-card>
         <div
           class="card-header-row"
@@ -4549,7 +4669,7 @@ const X = "scheduled",
 
         ${
           this._expanded
-            ? c`
+            ? d`
               <div class="card-content">
                 <!-- Presence mode selector -->
                 <div
@@ -4609,7 +4729,7 @@ const X = "scheduled",
                   ${l.map((g) => {
                     const v = this.roomChoices.find((m) => m.id === g);
                     return v
-                      ? c`
+                      ? d`
                       <span
                         class="chip"
                         @click=${() => void this.panel.navigateToRoom(g)}
@@ -4629,10 +4749,10 @@ const X = "scheduled",
                       : "";
                   })}
                   ${
-                    d.length > 0
-                      ? c`
+                    c.length > 0
+                      ? d`
                         <search-picker
-                          .items=${d.map((g) => ({
+                          .items=${c.map((g) => ({
                             id: g.id,
                             label: g.name,
                             secondary: g.secondary,
@@ -4654,7 +4774,7 @@ const X = "scheduled",
                 <!-- Presence schedule (only in Scheduled mode) -->
                 ${
                   s
-                    ? c`
+                    ? d`
                       <div
                         class="section-label"
                         title="When this person is considered present"
@@ -4683,7 +4803,7 @@ const X = "scheduled",
                       </div>
                       ${
                         r
-                          ? c`
+                          ? d`
                             <p class="schedule-hint">
                               Week ${bt(
                                 /* @__PURE__ */ new Date(),
@@ -4732,7 +4852,7 @@ const X = "scheduled",
                         class="reset-btn"
                         @click=${() => void this._onResetSchedule()}
                       >
-                        ${n}
+                        ${a}
                       </button>
                     `
                     : ""
@@ -4745,9 +4865,9 @@ const X = "scheduled",
     `;
     }
   };
-We.styles = [
+Fe.styles = [
   xe,
-  Re,
+  Ae,
   De,
   ft,
   Ie,
@@ -4884,7 +5004,7 @@ We.styles = [
       }
     `,
 ];
-let T = We;
+let T = Fe;
 D([u({ type: String })], T.prototype, "personId");
 D([u({ type: String })], T.prototype, "personName");
 D([u({ attribute: !1 })], T.prototype, "config");
@@ -4897,12 +5017,12 @@ D([y()], T.prototype, "_activeWeek");
 D([u({ type: Boolean })], T.prototype, "autoExpand");
 customElements.define("climate-manager-person-card", T);
 var ts = Object.defineProperty,
-  te = (a, e, t, o) => {
-    for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
-      (r = a[i]) && (s = r(e, t, s) || s);
+  te = (n, e, t, o) => {
+    for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
+      (r = n[i]) && (s = r(e, t, s) || s);
     return s && ts(e, t, s), s;
   };
-const Fe = class Fe extends C {
+const We = class We extends C {
   constructor() {
     super(...arguments), (this.status = null), (this.expandPersonId = null);
   }
@@ -4914,18 +5034,18 @@ const Fe = class Fe extends C {
     ).filter((s) => s.has_trv !== !1);
     return [.../* @__PURE__ */ new Set([...e.map((s) => s.area_id)])].map(
       (s) => {
-        var l, d, p, h, f, g, v;
+        var l, c, p, h, f, g, v;
         const i =
             ((l = e.find((m) => m.area_id === s)) == null ? void 0 : l.name) ??
             s.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase()),
           r =
             ((h =
-              (p = (d = this.hass) == null ? void 0 : d.areas) == null
+              (p = (c = this.hass) == null ? void 0 : c.areas) == null
                 ? void 0
                 : p[s]) == null
               ? void 0
               : h.floor_id) ?? null,
-          n = r
+          a = r
             ? ((v =
                 (g = (f = this.hass) == null ? void 0 : f.floors) == null
                   ? void 0
@@ -4933,54 +5053,54 @@ const Fe = class Fe extends C {
                 ? void 0
                 : v.name) ?? void 0
             : void 0;
-        return { id: s, name: i, secondary: n };
+        return { id: s, name: i, secondary: a };
       },
     );
   }
   /** Determine if a person config has any non-default setting (D-15). */
   _isNonDefault(e) {
-    var r, n, l;
+    var r, a, l;
     const t =
-      (n = (r = this.config) == null ? void 0 : r.persons) == null
+      (a = (r = this.config) == null ? void 0 : r.persons) == null
         ? void 0
-        : n[e];
+        : a[e];
     if (!t) return !1;
     const o = t.mode != null && t.mode !== "scheduled",
       s = (((l = t.room_ids) == null ? void 0 : l.length) ?? 0) > 0,
-      i = t.schedule ? Object.values(t.schedule).some((d) => d.length > 0) : !1;
+      i = t.schedule ? Object.values(t.schedule).some((c) => c.length > 0) : !1;
     return o || s || i;
   }
   render() {
-    var r, n;
+    var r, a;
     const e = ((r = this.config) == null ? void 0 : r.persons) ?? {},
       t = Object.keys(
-        ((n = this.hass) == null ? void 0 : n.states) ?? {},
+        ((a = this.hass) == null ? void 0 : a.states) ?? {},
       ).filter((l) => l.startsWith("person.")),
       o = [.../* @__PURE__ */ new Set([...t, ...Object.keys(e)])];
     if (o.length === 0)
-      return c`
+      return d`
         <div class="empty-state">
           No persons found. Add person entities in Home Assistant.
         </div>
       `;
-    const s = [...o].sort((l, d) => {
+    const s = [...o].sort((l, c) => {
         const p = this._isNonDefault(l),
-          h = this._isNonDefault(d);
-        return p && !h ? -1 : !p && h ? 1 : l.localeCompare(d);
+          h = this._isNonDefault(c);
+        return p && !h ? -1 : !p && h ? 1 : l.localeCompare(c);
       }),
       i = this._getRoomChoices();
-    return c`
+    return d`
       ${s.map((l) => {
-        const d = e[l] ?? {},
+        const c = e[l] ?? {},
           p = l
             .replace(/^person\./, "")
             .replace(/_/g, " ")
             .replace(/\b\w/g, (h) => h.toUpperCase());
-        return c`
+        return d`
           <climate-manager-person-card
             .personId=${l}
             .personName=${p}
-            .config=${d}
+            .config=${c}
             .roomChoices=${i}
             .ws=${this.ws}
             .panel=${this.panel}
@@ -4992,7 +5112,7 @@ const Fe = class Fe extends C {
     `;
   }
 };
-Fe.styles = k`
+We.styles = k`
     :host {
       display: block;
     }
@@ -5005,7 +5125,7 @@ Fe.styles = k`
       line-height: 1.5;
     }
   `;
-let N = Fe;
+let N = We;
 te([u({ attribute: !1 })], N.prototype, "config");
 te([u({ attribute: !1 })], N.prototype, "status");
 te([u({ attribute: !1 })], N.prototype, "ws");
@@ -5014,12 +5134,12 @@ te([u({ attribute: !1 })], N.prototype, "hass");
 te([u({ attribute: !1 })], N.prototype, "expandPersonId");
 customElements.define("climate-manager-persons-tab", N);
 var ss = Object.defineProperty,
-  U = (a, e, t, o) => {
-    for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
-      (r = a[i]) && (s = r(e, t, s) || s);
+  U = (n, e, t, o) => {
+    for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
+      (r = n[i]) && (s = r(e, t, s) || s);
     return s && ss(e, t, s), s;
   };
-const qe = class qe extends C {
+const Ve = class Ve extends C {
   constructor() {
     super(...arguments),
       (this.isDefault = !1),
@@ -5204,26 +5324,26 @@ const qe = class qe extends C {
   }
   /** Rooms grouped by floor (alpha-sorted), floors descending by level. */
   _getSortedAssignedRoomGroups() {
-    var r, n, l;
+    var r, a, l;
     const e = this._getAssignedRoomIds(),
       t = /* @__PURE__ */ new Map();
-    for (const d of e) {
+    for (const c of e) {
       const p =
         ((l =
-          (n = (r = this.hass) == null ? void 0 : r.areas) == null
+          (a = (r = this.hass) == null ? void 0 : r.areas) == null
             ? void 0
-            : n[d]) == null
+            : a[c]) == null
           ? void 0
           : l.floor_id) ?? null;
-      t.has(p) || t.set(p, []), t.get(p).push(d);
+      t.has(p) || t.set(p, []), t.get(p).push(c);
     }
-    for (const d of t.values())
-      d.sort((p, h) =>
+    for (const c of t.values())
+      c.sort((p, h) =>
         this._getRoomName(p).localeCompare(this._getRoomName(h)),
       );
     const s = [...t.keys()]
-        .filter((d) => d !== null)
-        .sort((d, p) => {
+        .filter((c) => c !== null)
+        .sort((c, p) => {
           var h, f, g, v, m, b;
           return (
             (((g =
@@ -5235,23 +5355,23 @@ const qe = class qe extends C {
             (((b =
               (m = (v = this.hass) == null ? void 0 : v.floors) == null
                 ? void 0
-                : m[d]) == null
+                : m[c]) == null
               ? void 0
               : b.level) ?? 0)
           );
         })
-        .map((d) => {
+        .map((c) => {
           var p, h, f;
           return {
-            floorId: d,
+            floorId: c,
             floorName:
               ((f =
                 (h = (p = this.hass) == null ? void 0 : p.floors) == null
                   ? void 0
-                  : h[d]) == null
+                  : h[c]) == null
                 ? void 0
-                : f.name) ?? d,
-            roomIds: t.get(d),
+                : f.name) ?? c,
+            roomIds: t.get(c),
           };
         }),
       i = t.get(null) ?? [];
@@ -5278,12 +5398,12 @@ const qe = class qe extends C {
     var t;
     const e = (t = this.zoneConfig) == null ? void 0 : t.mode;
     return e === "off"
-      ? c`<p class="schedule-hint">
+      ? d`<p class="schedule-hint">
         Zone is off. All assigned rooms are kept at frost protection temperature
         only.
       </p>`
       : e === "time_program_presences"
-        ? c`
+        ? d`
         <p class="schedule-hint">
           Rooms heat according to the schedule when an assigned person is
           present. While present, the room stays heated from the first
@@ -5299,7 +5419,7 @@ const qe = class qe extends C {
           Reduced all day.
         </p>
       `
-        : c`<p class="schedule-hint">
+        : d`<p class="schedule-hint">
       Rooms follow the weekly schedule. Each period sets the target temperature
       for all assigned rooms.
     </p>`;
@@ -5325,14 +5445,14 @@ const qe = class qe extends C {
   render() {
     const e = this._getSortedAssignedRoomGroups(),
       t = this._getUnassignedRoomItems(),
-      o = (s) => c`
+      o = (s) => d`
       <span class="chip" @click=${() => void this.panel.navigateToRoom(s)}>
         <ha-icon icon="mdi:home-outline"></ha-icon>
         ${this._getRoomName(s)}
         ${
           this.isDefault
             ? ""
-            : c`<button
+            : d`<button
               class="chip-remove"
               @click=${(i) => {
                 i.stopPropagation(), this._onRemoveRoom(s);
@@ -5343,7 +5463,7 @@ const qe = class qe extends C {
         }
       </span>
     `;
-    return c`
+    return d`
       <!-- 1. Mode picker -->
       <div
         class="section-label"
@@ -5384,7 +5504,7 @@ const qe = class qe extends C {
         ${
           this.isDefault
             ? ""
-            : c`<button class="reset-btn" @click=${this._onResetToGlobal}>
+            : d`<button class="reset-btn" @click=${this._onResetToGlobal}>
               Reset to ${this.config.default_zone_name}
             </button>`
         }
@@ -5399,10 +5519,10 @@ const qe = class qe extends C {
         Assigned rooms
       </div>
       ${e.map(
-        (s) => c`
+        (s) => d`
           ${
             s.floorId !== null
-              ? c`<div class="floor-group-label">
+              ? d`<div class="floor-group-label">
                 <ha-icon icon=${this._getFloorIcon(s.floorId)}></ha-icon
                 >${s.floorName}
               </div>`
@@ -5413,7 +5533,7 @@ const qe = class qe extends C {
       )}
       ${
         t.length > 0
-          ? c`
+          ? d`
             <div class="chips">
               <search-picker
                 .items=${t}
@@ -5431,11 +5551,11 @@ const qe = class qe extends C {
       ${
         this.isDefault
           ? ""
-          : c`
+          : d`
             <div class="delete-row">
               ${
                 this._confirmingDelete
-                  ? c`
+                  ? d`
                     <span>Delete zone?</span>
                     <button class="cancel-btn" @click=${this._onCancelDelete}>
                       Cancel
@@ -5447,7 +5567,7 @@ const qe = class qe extends C {
                       Confirm
                     </button>
                   `
-                  : c`
+                  : d`
                     <button class="delete-btn" @click=${this._onDeleteClick}>
                       Delete zone
                     </button>
@@ -5459,9 +5579,9 @@ const qe = class qe extends C {
     `;
   }
 };
-qe.styles = [
+Ve.styles = [
   xe,
-  Re,
+  Ae,
   De,
   Ie,
   k`
@@ -5575,24 +5695,24 @@ qe.styles = [
       }
     `,
 ];
-let M = qe;
-U([u({ attribute: !1 })], M.prototype, "config");
-U([u({ attribute: !1 })], M.prototype, "zoneId");
-U([u({ attribute: !1 })], M.prototype, "zoneConfig");
-U([u({ type: Boolean })], M.prototype, "isDefault");
-U([u({ attribute: !1 })], M.prototype, "ws");
-U([u({ attribute: !1 })], M.prototype, "panel");
-U([u({ attribute: !1 })], M.prototype, "hass");
-U([u({ attribute: !1 })], M.prototype, "status");
-U([y()], M.prototype, "_confirmingDelete");
-customElements.define("climate-manager-zone-tab", M);
+let R = Ve;
+U([u({ attribute: !1 })], R.prototype, "config");
+U([u({ attribute: !1 })], R.prototype, "zoneId");
+U([u({ attribute: !1 })], R.prototype, "zoneConfig");
+U([u({ type: Boolean })], R.prototype, "isDefault");
+U([u({ attribute: !1 })], R.prototype, "ws");
+U([u({ attribute: !1 })], R.prototype, "panel");
+U([u({ attribute: !1 })], R.prototype, "hass");
+U([u({ attribute: !1 })], R.prototype, "status");
+U([y()], R.prototype, "_confirmingDelete");
+customElements.define("climate-manager-zone-tab", R);
 var os = Object.defineProperty,
-  P = (a, e, t, o) => {
-    for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
-      (r = a[i]) && (s = r(e, t, s) || s);
+  P = (n, e, t, o) => {
+    for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
+      (r = n[i]) && (s = r(e, t, s) || s);
     return s && os(e, t, s), s;
   };
-const Ve = class Ve extends C {
+const qe = class qe extends C {
   constructor() {
     super(...arguments),
       (this.narrow = !1),
@@ -5763,12 +5883,12 @@ const Ve = class Ve extends C {
   }
   render() {
     return this._config
-      ? c`
+      ? d`
       <div class="panel-header">Climate Manager</div>
 
       ${
         this._wsError
-          ? c`<div class="error-banner">Connection lost. Reconnecting…</div>`
+          ? d`<div class="error-banner">Connection lost. Reconnecting…</div>`
           : ""
       }
 
@@ -5799,7 +5919,7 @@ const Ve = class Ve extends C {
         >
           ${
             this._editingTabId === "default"
-              ? c`<input
+              ? d`<input
                 data-zone="default"
                 class="tab-name-input"
                 .value=${this._tabNameInput}
@@ -5808,7 +5928,7 @@ const Ve = class Ve extends C {
                 @keydown=${(e) => this._onTabNameKeydown("default", e)}
                 @click=${(e) => e.stopPropagation()}
               />`
-              : c`<span
+              : d`<span
                   class="zone-dot"
                   style="background:${ve(void 0).color}"
                 ></span
@@ -5816,7 +5936,7 @@ const Ve = class Ve extends C {
           }
         </button>
         ${Object.entries(this._config.zones).map(
-          ([e, t]) => c`
+          ([e, t]) => d`
             <button
               class="tab-btn ${this._activeTab === "zone_" + e ? "active" : ""}"
               @click=${() => this._setTab("zone_" + e)}
@@ -5824,7 +5944,7 @@ const Ve = class Ve extends C {
             >
               ${
                 this._editingTabId === e
-                  ? c`<input
+                  ? d`<input
                     data-zone="${e}"
                     class="tab-name-input"
                     .value=${this._tabNameInput}
@@ -5833,7 +5953,7 @@ const Ve = class Ve extends C {
                     @keydown=${(o) => this._onTabNameKeydown(e, o)}
                     @click=${(o) => o.stopPropagation()}
                   />`
-                  : c`<span
+                  : d`<span
                       class="zone-dot"
                       style="background:${ve(e).color}"
                     ></span
@@ -5855,11 +5975,11 @@ const Ve = class Ve extends C {
 
       <climate-manager-toast></climate-manager-toast>
     `
-      : c`
+      : d`
         <div class="panel-header">Climate Manager</div>
         ${
           this._wsError
-            ? c`<div class="error-banner">Connection lost. Reconnecting…</div>`
+            ? d`<div class="error-banner">Connection lost. Reconnecting…</div>`
             : ""
         }
         <div class="loading">
@@ -5870,7 +5990,7 @@ const Ve = class Ve extends C {
   }
   _renderTabContent() {
     if (this._activeTab === "zone_default")
-      return c`<climate-manager-zone-tab
+      return d`<climate-manager-zone-tab
         .config=${this._config}
         .zoneId=${"default"}
         .zoneConfig=${{
@@ -5888,7 +6008,7 @@ const Ve = class Ve extends C {
       const e = this._activeTab.slice(5),
         t = this._config.zones[e];
       return t
-        ? c`<climate-manager-zone-tab
+        ? d`<climate-manager-zone-tab
         .config=${this._config}
         .zoneId=${e}
         .zoneConfig=${t}
@@ -5898,11 +6018,11 @@ const Ve = class Ve extends C {
         .panel=${this}
         .hass=${this.hass}
       ></climate-manager-zone-tab>`
-        : c``;
+        : d``;
     }
     switch (this._activeTab) {
       case "global":
-        return c`<climate-manager-global-settings-tab
+        return d`<climate-manager-global-settings-tab
           .config=${this._config}
           .status=${this._status}
           .ws=${this._ws}
@@ -5910,7 +6030,7 @@ const Ve = class Ve extends C {
           .hass=${this.hass}
         ></climate-manager-global-settings-tab>`;
       case "rooms":
-        return c`<climate-manager-rooms-tab
+        return d`<climate-manager-rooms-tab
           .config=${this._config}
           .status=${this._status}
           .ws=${this._ws}
@@ -5919,7 +6039,7 @@ const Ve = class Ve extends C {
           .expandRoomId=${this._expandRoomId}
         ></climate-manager-rooms-tab>`;
       case "persons":
-        return c`<climate-manager-persons-tab
+        return d`<climate-manager-persons-tab
           .config=${this._config}
           .status=${this._status}
           .ws=${this._ws}
@@ -5928,11 +6048,11 @@ const Ve = class Ve extends C {
           .expandPersonId=${this._expandPersonId}
         ></climate-manager-persons-tab>`;
       default:
-        return c``;
+        return d``;
     }
   }
 };
-Ve.styles = k`
+qe.styles = k`
     :host {
       display: block;
       background: var(--primary-background-color);
@@ -6048,7 +6168,7 @@ Ve.styles = k`
       max-width: 20ch;
     }
   `;
-let w = Ve;
+let w = qe;
 P([u({ attribute: !1 })], w.prototype, "hass");
 P([u({ type: Boolean })], w.prototype, "narrow");
 P([u({ attribute: !1 })], w.prototype, "panel");

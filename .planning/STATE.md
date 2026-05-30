@@ -2,16 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Presence & Calibration
-status: milestone_complete
-last_updated: 2026-05-30T13:32:42.593Z
-last_activity: 2026-05-30 -- Phase 09 execution started
+status: completed
+last_updated: "2026-05-30T20:29:21.541Z"
+last_activity: 2026-05-30
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 9
-  completed_plans: 35
-  percent: 67
-stopped_at: Milestone complete (Phase 09 was final phase)
+  completed_plans: 9
+  percent: 100
 ---
 
 # Project State
@@ -111,11 +110,12 @@ None yet.
 | 260528-tvl | zone color palette — dots on tabs, dynamic badge colors | 2026-05-29 | fe2e2c5 | [260528-tvl-zone-color-palette](./quick/260528-tvl-zone-color-palette/)                           |
 | 260529-g8p | add editorconfig with 80 line length, reformat sources  | 2026-05-29 | e0eea90 | [260529-g8p-add-editorconfig-80-line-length](./quick/260529-g8p-add-editorconfig-80-line-length/) |
 | 260530-m8u | TRV Auto-Calibration card: rename, per-TRV status table | 2026-05-30 | e52c674 | [260530-m8u-trv-calibration-card-enhancement](./quick/260530-m8u-trv-calibration-card-enhancement/) |
+| 260530-p4r | TRV calibration table: floor grouping + name sort       | 2026-05-30 | 8123a22 | [260530-p4r-trv-table-floor-grouping](./quick/260530-p4r-trv-table-floor-grouping/)               |
 
 Last activity: 2026-05-29 - Created v1.2 roadmap (Phases 7-9); 11 requirements
 mapped (SCHED-01..06, CALIB-01..05)
 
 ## Session Continuity
 
-Last session: 2026-05-30T08:22:42.898Z
-Resume file: .planning/phases/09-trv-temperature-offset-auto-calibration/09-CONTEXT.md
+Last session: 2026-05-30T20:29:21.539Z
+Resume file: None

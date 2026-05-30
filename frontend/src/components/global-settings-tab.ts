@@ -384,6 +384,27 @@ export class GlobalSettingsTab extends LitElement {
       .refresh-btn:hover {
         background: var(--secondary-background-color, #f5f5f5);
       }
+
+      /* ---- TRV floor section headers ---- */
+      .calib-floor-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--secondary-text-color);
+        padding: 10px 8px 4px;
+        border-bottom: 1px solid var(--divider-color, #e0e0e0);
+      }
+
+      .calib-floor-header ha-icon {
+        --mdc-icon-size: 14px;
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+      }
     `,
   ];
 
@@ -621,13 +642,77 @@ export class GlobalSettingsTab extends LitElement {
     `;
   }
 
-  private _openEntityMoreInfo(entityId: string) {
+  private _openEntityMoreInfo(entityId: string | null) {
+    if (!entityId) return;
     this.dispatchEvent(
       new CustomEvent("hass-more-info", {
         bubbles: true,
         composed: true,
         detail: { entityId },
       }),
+    );
+  }
+
+  private _getFloorIcon(fid: string): string {
+    const floor = this.hass?.floors?.[fid];
+    if (floor?.icon) return floor.icon;
+    const level = floor?.level ?? 0;
+    if (level === -1) return "mdi:home-floor-negative-1";
+    if (level < 0) return "mdi:home-floor-b";
+    if (level === 1) return "mdi:home-floor-1";
+    if (level === 2) return "mdi:home-floor-2";
+    if (level === 3) return "mdi:home-floor-3";
+    if (level > 3) return "mdi:home-floor-3";
+    return "mdi:home-floor-0";
+  }
+
+  private _renderTRVRows(trvs: typeof this._trvStatuses) {
+    return trvs.map(
+      (trv) => html`
+        <tr>
+          <td>
+            <span
+              class="chip"
+              @click=${() => this._openEntityMoreInfo(trv.entity_id)}
+            >
+              <ha-icon icon="mdi:thermometer"></ha-icon>
+              ${trv.friendly_name}
+            </span>
+          </td>
+          <td>
+            <span
+              class="calib-badge ${trv.supports_calibration
+                ? "supported"
+                : "unsupported"}"
+            >
+              ${trv.supports_calibration ? "Tado X" : "Not supported"}
+            </span>
+          </td>
+          <td>
+            ${trv.trv_temperature != null
+              ? html`${trv.trv_temperature.toFixed(1)} °C`
+              : "—"}
+          </td>
+          <td>
+            ${trv.room_temperature != null
+              ? html`${trv.room_temperature.toFixed(1)} °C`
+              : "—"}
+          </td>
+          <td>
+            ${trv.last_applied_delta != null
+              ? html`${trv.last_applied_delta > 0
+                  ? "+"
+                  : ""}${trv.last_applied_delta.toFixed(2)}
+                °C`
+              : "—"}
+          </td>
+          <td>
+            ${trv.last_calibrated_at
+              ? new Date(trv.last_calibrated_at).toLocaleString()
+              : "Never"}
+          </td>
+        </tr>
+      `,
     );
   }
 
@@ -638,6 +723,31 @@ export class GlobalSettingsTab extends LitElement {
     if (this._trvStatuses.length === 0) {
       return html`<div class="calib-empty">No managed TRVs found.</div>`;
     }
+
+    // Group by floor (mirrors rooms-tab floor grouping logic)
+    const floorGroups = new Map<string | null, typeof this._trvStatuses>();
+    for (const trv of this._trvStatuses) {
+      const fid = this.hass?.areas?.[trv.area_id]?.floor_id ?? null;
+      if (!floorGroups.has(fid)) floorGroups.set(fid, []);
+      floorGroups.get(fid)!.push(trv);
+    }
+
+    // Sort each group by friendly_name
+    for (const group of floorGroups.values()) {
+      group.sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
+    }
+
+    // Sort floor IDs by level ascending
+    const sortedFloorIds = [...floorGroups.keys()]
+      .filter((fid): fid is string => fid !== null)
+      .sort(
+        (a, b) =>
+          (this.hass?.floors?.[b]?.level ?? 0) -
+          (this.hass?.floors?.[a]?.level ?? 0),
+      );
+
+    const floorlessTrvs = floorGroups.get(null) ?? [];
+
     return html`
       <div class="calib-table-wrap">
         <table class="calib-table">
@@ -645,49 +755,31 @@ export class GlobalSettingsTab extends LitElement {
             <tr>
               <th>TRV</th>
               <th>Auto-calibration</th>
+              <th>TRV temp</th>
+              <th>Room temp</th>
               <th>Last applied delta</th>
               <th>Last adjusted</th>
             </tr>
           </thead>
-          <tbody>
-            ${this._trvStatuses.map(
-              (trv) => html`
+          ${sortedFloorIds.map((fid) => {
+            const floorName = this.hass?.floors?.[fid]?.name ?? fid;
+            return html`
+              <tbody>
                 <tr>
-                  <td>
-                    <span
-                      class="chip"
-                      @click=${() => this._openEntityMoreInfo(trv.entity_id)}
-                    >
-                      <ha-icon icon="mdi:thermometer"></ha-icon>
-                      ${trv.friendly_name}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      class="calib-badge ${trv.supports_calibration
-                        ? "supported"
-                        : "unsupported"}"
-                    >
-                      ${trv.supports_calibration ? "Tado X" : "Not supported"}
-                    </span>
-                  </td>
-                  <td>
-                    ${trv.last_applied_delta != null
-                      ? html`${trv.last_applied_delta > 0
-                          ? "+"
-                          : ""}${trv.last_applied_delta.toFixed(2)}
-                        °C`
-                      : "—"}
-                  </td>
-                  <td>
-                    ${trv.last_calibrated_at
-                      ? new Date(trv.last_calibrated_at).toLocaleString()
-                      : "Never"}
+                  <td colspan="6" class="calib-floor-header">
+                    <ha-icon icon=${this._getFloorIcon(fid)}></ha-icon>
+                    ${floorName}
                   </td>
                 </tr>
-              `,
-            )}
-          </tbody>
+                ${this._renderTRVRows(floorGroups.get(fid) ?? [])}
+              </tbody>
+            `;
+          })}
+          ${floorlessTrvs.length > 0
+            ? html`<tbody>
+                ${this._renderTRVRows(floorlessTrvs)}
+              </tbody>`
+            : ""}
         </table>
         <button class="refresh-btn" @click=${this._loadCalibrationStatuses}>
           Refresh

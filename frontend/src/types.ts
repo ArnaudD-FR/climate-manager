@@ -105,9 +105,14 @@ export interface StatusPayload {
 
 /** Per-TRV calibration status returned by get_calibration_status. */
 export interface TRVCalibrationEntry {
-  entity_id: string;
+  entity_id: string | null;
+  /** Present for Tado X Radiator Valve X devices; absent for entity-based TRVs. */
+  device_id?: string;
+  area_id: string;
   friendly_name: string;
   supports_calibration: boolean;
+  trv_temperature: number | null;
+  room_temperature: number | null;
   last_applied_delta: number | null;
   last_calibrated_at: string | null;
 }

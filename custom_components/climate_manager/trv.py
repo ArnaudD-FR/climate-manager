@@ -19,6 +19,7 @@ Design decisions (from RESEARCH.md / CLAUDE.md):
 
 from homeassistant.components.climate import HVACMode
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 
 # TRV rooms control individual radiators; boilers/HVAC units have max_temp > 45°C.
 _TRV_MAX_TEMP_THRESHOLD = 45.0
@@ -137,6 +138,60 @@ def supports_offset_calibration(hass: HomeAssistant, entity_id: str) -> bool:
     has_attribute = "temperature_offset" in state.attributes
     has_service = hass.services.has_service("tado_x", "set_temperature_offset")
     return has_attribute or has_service
+
+
+def get_tado_valve_devices(hass: HomeAssistant, area_id: str) -> list[dict]:
+    """Return Radiator Valve X device info for the given area.
+
+    Queries the HA device registry for physical Tado X TRV devices (model
+    "Radiator Valve X") in the area. Used by both the coordinator (calibration
+    loop) and the websocket handler (calibration status display) so that both
+    paths agree on which devices exist.
+
+    Returns a list of {"device_id": str, "name": str} dicts.
+    Returns an empty list when tado_x is not configured or the area has none.
+    """
+    dev_reg = dr.async_get(hass)
+    tado_x_entries = {
+        e.entry_id for e in hass.config_entries.async_entries("tado_x")
+    }
+    if not tado_x_entries:
+        return []
+    result = []
+    for device in dev_reg.devices.values():
+        if device.area_id != area_id:
+            continue
+        if not any(ce in tado_x_entries for ce in device.config_entries):
+            continue
+        if device.model != "Radiator Valve X":
+            continue
+        result.append(
+            {
+                "device_id": device.id,
+                "name": device.name_by_user or device.name or device.id,
+            }
+        )
+    return result
+
+
+async def set_trv_offset_by_device(
+    hass: HomeAssistant, device_id: str, offset: float
+) -> None:
+    """Call tado_x.set_temperature_offset targeting a physical device by device_id.
+
+    The tado_x service takes device_id (not entity_id) — this is the correct
+    call path for Radiator Valve X devices. Returns silently when the service
+    is absent.
+    """
+    if not hass.services.has_service("tado_x", "set_temperature_offset"):
+        return
+
+    await hass.services.async_call(
+        "tado_x",
+        "set_temperature_offset",
+        {"device_id": device_id, "offset": offset},
+        blocking=True,
+    )
 
 
 async def set_trv_offset(

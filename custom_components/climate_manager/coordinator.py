@@ -59,9 +59,11 @@ from .const import (
 )
 from .schedule import compute_occupied_temp, evaluate_schedule, resolve_presence
 from .trv import (
+    get_tado_valve_devices,
     is_trv_entity,
     set_trv_off,
     set_trv_offset,
+    set_trv_offset_by_device,
     set_trv_temperature,
     supports_hvac_off,
     supports_offset_calibration,
@@ -108,6 +110,9 @@ class ClimateManagerCoordinator:
         self._calibration_last_changed: dict[str, str] = {}
         # Tracks the last delta applied per TRV (sensor_temp - current_temp).
         self._calibration_last_delta: dict[str, float] = {}
+        # Tracks the last absolute offset written per Radiator Valve X device_id
+        # (enables incremental adjustment — device doesn't expose current offset).
+        self._calibration_last_offset: dict[str, float] = {}
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
@@ -292,20 +297,114 @@ class ClimateManagerCoordinator:
     async def _async_calibrate(self, config: dict) -> None:
         """Offset-calibrate all compatible TRVs toward their room sensors.
 
+        For rooms with Tado X Radiator Valve X devices, calibration is
+        device_id-based (tado_x.set_temperature_offset takes device_id).
+        For other rooms, entity-based calibration is used as before.
+
         D-04: Returns immediately when calibration_enabled is False.
         D-03: Concurrent gather over all rooms, same pattern as push pass.
         """
         if not config.get("calibration_enabled", False):
             return
         rooms = self._data.rooms
-        await asyncio.gather(
-            *(
-                self._async_calibrate_room(area_id, entity_id, config)
-                for area_id, entity_ids in rooms.items()
-                for entity_id in entity_ids
-                if is_trv_entity(self._hass, entity_id)
-            )
+        tasks = []
+        for area_id, entity_ids in rooms.items():
+            valve_devices = get_tado_valve_devices(self._hass, area_id)
+            if valve_devices:
+                # Find zone climate entity for temperature reading
+                zone_entity = next(
+                    (
+                        eid
+                        for eid in entity_ids
+                        if is_trv_entity(self._hass, eid)
+                    ),
+                    None,
+                )
+                for device in valve_devices:
+                    tasks.append(
+                        self._async_calibrate_tado_device(
+                            area_id,
+                            device["device_id"],
+                            zone_entity,
+                            config,
+                        )
+                    )
+            else:
+                for entity_id in entity_ids:
+                    if is_trv_entity(self._hass, entity_id):
+                        tasks.append(
+                            self._async_calibrate_room(
+                                area_id, entity_id, config
+                            )
+                        )
+        await asyncio.gather(*tasks)
+
+    async def _async_calibrate_tado_device(
+        self,
+        area_id: str,
+        device_id: str,
+        zone_entity_id: str | None,
+        config: dict,
+    ) -> None:
+        """Calibrate one Tado X Radiator Valve X device toward its room sensor.
+
+        Uses device_id for the offset call (tado_x service requirement) and
+        zone_entity_id for temperature reading (no per-TRV temp entity).
+        Tracks offset increments in _calibration_last_offset so successive
+        calls accumulate correctly despite the device not exposing its offset.
+        """
+        sensor_entity_id = (
+            config.get("rooms", {}).get(area_id, {}).get("temperature_sensor")
         )
+        if not sensor_entity_id or not zone_entity_id:
+            return
+
+        state = self._hass.states.get(zone_entity_id)
+        if state is None or state.state == "unavailable":
+            return
+
+        sensor_state = self._hass.states.get(sensor_entity_id)
+        if sensor_state is None or sensor_state.state in (
+            "unavailable",
+            "unknown",
+        ):
+            return
+        try:
+            sensor_temp = float(sensor_state.state)
+        except (ValueError, TypeError):
+            return
+
+        current_temp = state.attributes.get("current_temperature")
+        if current_temp is None:
+            return
+        try:
+            current_temp = float(current_temp)
+        except (ValueError, TypeError):
+            return
+
+        delta = sensor_temp - current_temp
+        threshold = config.get("calibration_threshold", 0.5)
+        if abs(delta) <= threshold:
+            return
+
+        existing_offset = self._calibration_last_offset.get(device_id, 0.0)
+        new_offset = max(
+            -_OFFSET_CLAMP, min(_OFFSET_CLAMP, existing_offset + delta)
+        )
+
+        try:
+            await set_trv_offset_by_device(self._hass, device_id, new_offset)
+            self._calibration_last_offset[device_id] = new_offset
+            self._calibration_last_changed[device_id] = datetime.now(
+                timezone.utc
+            ).isoformat(timespec="seconds")
+            self._calibration_last_delta[device_id] = round(delta, 2)
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning(
+                "Failed to apply offset %.1f to device %s",
+                new_offset,
+                device_id,
+            )
 
     async def _async_calibrate_room(
         self, area_id: str, entity_id: str, config: dict

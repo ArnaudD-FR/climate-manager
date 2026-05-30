@@ -69,7 +69,7 @@ from .const import (
     _DEFAULT_DAILY_PROGRAM,
 )
 from .schedule import validate_daily_program
-from .trv import is_trv_entity
+from .trv import get_tado_valve_devices, is_trv_entity
 
 VALID_MODES = [MODE_OFF, MODE_TIME_PROGRAM, MODE_TIME_PROGRAM_PRESENCES]
 
@@ -1058,16 +1058,83 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
         rooms = entry.runtime_data.rooms
         entity_reg = er.async_get(hass)
 
+        from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
+
+        area_reg = ar.async_get(hass)
+        room_auto_sensors = entry.runtime_data.room_auto_sensors
+
         trvs = []
-        for _area_id, entity_ids in rooms.items():
+        for area_id, entity_ids in rooms.items():
+            # Mirror ws_get_status sensor resolution
+            _area = area_reg.async_get_area(area_id)
+            auto = room_auto_sensors.get(area_id, {})
+            temp_sensor = getattr(
+                _area, "temperature_entity_id", None
+            ) or auto.get("temperature")
+            room_temperature: float | None = None
+            if temp_sensor:
+                s = hass.states.get(temp_sensor)
+                if s and s.state not in ("unavailable", "unknown"):
+                    try:
+                        room_temperature = float(s.state)
+                    except (ValueError, TypeError):
+                        pass
+
+            # Tado X: zone climate entity is room-level, not per physical TRV.
+            # Find Radiator Valve X devices (physical TRVs) for this area and
+            # show those instead. The zone climate entity is used only for
+            # temperature reading.
+            valve_devices = get_tado_valve_devices(hass, area_id)
+
+            # Find the tado_x zone climate entity for temperature reading
+            zone_entity_id: str | None = None
+            zone_trv_temp: float | None = None
+            for eid in entity_ids:
+                if not is_trv_entity(hass, eid):
+                    continue
+                r = entity_reg.async_get(eid)
+                if r and r.platform == "tado_x":
+                    zone_entity_id = eid
+                    zs = hass.states.get(eid)
+                    if zs:
+                        ct = zs.attributes.get("current_temperature")
+                        if ct is not None:
+                            try:
+                                zone_trv_temp = float(ct)
+                            except (ValueError, TypeError):
+                                pass
+                    break
+
+            # Emit one row per physical Radiator Valve X device
+            for device in valve_devices:
+                dev_id = device["device_id"]
+                trvs.append(
+                    {
+                        "entity_id": zone_entity_id,
+                        "device_id": dev_id,
+                        "area_id": area_id,
+                        "friendly_name": device["name"],
+                        "supports_calibration": True,
+                        "trv_temperature": zone_trv_temp,
+                        "room_temperature": room_temperature,
+                        "last_applied_delta": (
+                            coordinator._calibration_last_delta.get(dev_id)
+                        ),
+                        "last_calibrated_at": (
+                            coordinator._calibration_last_changed.get(dev_id)
+                        ),
+                    }
+                )
+
+            # Emit non-tado_x climate entities (other platforms, e.g. Matter)
             for entity_id in entity_ids:
                 if not is_trv_entity(hass, entity_id):
                     continue
-
                 reg_entry = entity_reg.async_get(entity_id)
-                state = hass.states.get(entity_id)
+                if reg_entry and reg_entry.platform == "tado_x":
+                    continue  # zone entity replaced by valve_devices above
 
-                # Prefer user-assigned name, then friendly_name from state
+                state = hass.states.get(entity_id)
                 if reg_entry and reg_entry.name:
                     friendly_name: str = reg_entry.name
                 elif state:
@@ -1077,14 +1144,23 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
                 else:
                     friendly_name = entity_id
 
-                is_tado_x = (
-                    reg_entry is not None and reg_entry.platform == "tado_x"
-                )
+                trv_temperature: float | None = None
+                if state:
+                    ct = state.attributes.get("current_temperature")
+                    if ct is not None:
+                        try:
+                            trv_temperature = float(ct)
+                        except (ValueError, TypeError):
+                            pass
+
                 trvs.append(
                     {
                         "entity_id": entity_id,
+                        "area_id": area_id,
                         "friendly_name": friendly_name,
-                        "supports_calibration": is_tado_x,
+                        "supports_calibration": False,
+                        "trv_temperature": trv_temperature,
+                        "room_temperature": room_temperature,
                         "last_applied_delta": (
                             coordinator._calibration_last_delta.get(entity_id)
                         ),
