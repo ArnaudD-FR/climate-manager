@@ -2,16 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Presence & Calibration
-status: ready_to_plan
-last_updated: 2026-05-30T06:59:01.082Z
-last_activity: 2026-05-29 -- Phase 8 planning complete
+status: planning
+last_updated: "2026-05-30T08:22:42.906Z"
+last_activity: 2026-05-30
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 31
-  percent: 33
-stopped_at: Phase 08 complete (3/3) — ready to discuss Phase 9
+  completed_plans: 5
+  percent: 67
 ---
 
 # Project State
@@ -116,5 +115,5 @@ mapped (SCHED-01..06, CALIB-01..05)
 
 ## Session Continuity
 
-Last session: 2026-05-29T17:18:49.741Z
-Resume file: .planning/phases/08-even-odd-week-scheduling-frontend/08-CONTEXT.md
+Last session: 2026-05-30T08:22:42.898Z
+Resume file: .planning/phases/09-trv-temperature-offset-auto-calibration/09-CONTEXT.md
