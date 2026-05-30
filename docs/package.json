@@ -4,6 +4,7 @@
   "private": true,
   "description": "Screenshot generation tooling for Climate Manager panel",
   "dependencies": {
+    "@mdi/js": "^7.4.47",
     "playwright": "1.49.0"
   }
 }

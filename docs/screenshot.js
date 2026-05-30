@@ -5,6 +5,30 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
+const mdi = require("@mdi/js");
+
+// Extract only the MDI icon paths used by the panel
+const MDI_KEYS = [
+  "mdiAccount",
+  "mdiAccountGroup",
+  "mdiAlert",
+  "mdiAlertCircle",
+  "mdiCheckCircle",
+  "mdiChevronDown",
+  "mdiContentCopy",
+  "mdiContentPaste",
+  "mdiHomeFloor0",
+  "mdiHomeFloor1",
+  "mdiHomeFloor2",
+  "mdiHomeFloor3",
+  "mdiHomeFloorB",
+  "mdiHomeFloorNegative1",
+  "mdiHomeOutline",
+  "mdiPlus",
+  "mdiThermometer",
+  "mdiWaterPercent",
+];
+const mdiPaths = Object.fromEntries(MDI_KEYS.map((k) => [k, mdi[k]]));
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const SCREENSHOTS_DIR = path.join(__dirname, "screenshots");
@@ -73,6 +97,9 @@ async function main() {
     else console.log("  [browser]", msg.text());
   });
   page.on("pageerror", (err) => console.error("  [page error]", err.message));
+
+  // Inject MDI path data before any page script runs
+  await page.addInitScript(`window.__MDI__ = ${JSON.stringify(mdiPaths)};`);
 
   // ------------------------------------------------------------------
   // Load harness and wait for panel to be ready

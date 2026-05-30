@@ -40,24 +40,45 @@
 <script>
   customElements.define('ha-icon', class extends HTMLElement {
     static get observedAttributes() { return ['icon']; }
+    constructor() {
+      super();
+      // Shadow DOM isolates SVG content from Lit's light-DOM template markers.
+      // Rendering into light DOM displaces Lit ChildPart comment nodes, causing
+      // cascading insertBefore failures on subsequent re-renders.
+      const root = this.attachShadow({ mode: 'open' });
+      const style = document.createElement('style');
+      style.textContent = ':host{display:inline-flex;align-items:center;'
+        + 'justify-content:center;width:24px;height:24px;flex-shrink:0;'
+        + 'color:var(--state-icon-color,#44739e)}svg{fill:currentColor}';
+      root.appendChild(style);
+    }
     connectedCallback() { this._render(); }
     attributeChangedCallback() { this._render(); }
     _render() {
-      const icon = (this.getAttribute('icon') || '').split(':')[1] || '';
-      const map = {
-        thermometer: '🌡', alert: '⚠', account: '👤', 'account-check': '👤',
-        'account-off': '👤', home: '🏠', snowflake: '❄', fire: '🔥',
-        pencil: '✏', delete: '🗑', plus: '+', check: '✓', close: '✕',
-        'chevron-down': '▾', 'chevron-up': '▴', refresh: '↺',
-        'weather-sunset-up': '🌅', 'clock-outline': '🕐',
-        'calendar-clock': '📅', 'dots-vertical': '⋮', 'content-save': '💾',
-        'map-marker': '📍',
-      };
-      Object.assign(this.style, {
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: '24px', height: '24px', fontSize: '16px', flexShrink: '0',
-      });
-      this.textContent = map[icon] || '●';
+      const iconAttr = this.getAttribute('icon') || '';
+      const name = iconAttr.startsWith('mdi:') ? iconAttr.slice(4) : iconAttr;
+      const key = 'mdi' + name.split('-').map(
+        (s) => s.charAt(0).toUpperCase() + s.slice(1),
+      ).join('');
+      const pathData = window.__MDI__?.[key];
+      const root = this.shadowRoot;
+      const existing = root.querySelector('svg');
+      if (existing) existing.remove();
+      if (pathData) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('width', '24');
+        svg.setAttribute('height', '24');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathData);
+        svg.appendChild(path);
+        root.appendChild(svg);
+      } else {
+        const span = document.createElement('span');
+        span.style.fontSize = '16px';
+        span.textContent = '●';
+        root.appendChild(span);
+      }
     }
   });
 
