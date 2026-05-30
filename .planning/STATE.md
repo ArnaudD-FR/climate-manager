@@ -87,7 +87,6 @@ affecting current work:
 ### Pending Todos
 
 - (cleared) TRV temperature offset auto-calibration — now scoped as Phase 9
-- Add HA logs for climate entity offset updates (2026-05-30)
 
 ### Blockers/Concerns
 
