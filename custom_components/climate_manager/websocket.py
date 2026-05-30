@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 """Climate Manager WebSocket command handlers.
 
-Registers 17 WebSocket commands for the panel ↔ backend protocol:
+Registers 18 WebSocket commands for the panel ↔ backend protocol:
 - get_status: returns global_mode, active_period, present_persons, rooms_status
 - get_config: returns full runtime_config
 - set_global_mode: mutates global_mode, persists, re-evaluates
@@ -19,10 +19,12 @@ Registers 17 WebSocket commands for the panel ↔ backend protocol:
 - delete_zone: migrates rooms to Default Zone (pop), removes zone, CR-01 snapshot rollback
 - set_zone_time_program: validates program via validate_daily_program before any mutation
 - reset_zone_time_program: restores zone time_program from 'default' or 'global' target
+- set_calibration_config: persists calibration_enabled bool (D-10, CALIB-01)
 
 All handlers access state via the entry closure (never hass.data[DOMAIN]).
 Write handlers follow the write-then-evaluate pattern:
   mutate runtime_config → store.async_save → send_result → coordinator.async_evaluate (background).
+Exception: set_calibration_config does NOT trigger async_evaluate (RESEARCH Pitfall 4).
 
 Security:
 - T-03-04: vol.In/vol.Coerce schema gates reject invalid payloads before handler runs
@@ -36,6 +38,8 @@ Security:
 - T-05-08: set_zone_time_program validates BEFORE any runtime_config mutation (Pitfall 6)
 - T-05-09: reset_zone_time_program uses copy.deepcopy for both target branches (Pitfall 2)
 - T-05-11: delete_zone uses pop() never assigns None — sparse D-06 model preserved
+- T-09-01: set_calibration_config vol.Required("enabled"): bool rejects non-bool
+           payloads before handler runs (T-03-04 parity)
 """
 
 from __future__ import annotations
@@ -108,6 +112,9 @@ def async_register_commands(
     )
     websocket_api.async_register_command(
         hass, _make_ws_reset_zone_time_program(entry)
+    )
+    websocket_api.async_register_command(
+        hass, _make_ws_set_calibration_config(entry)
     )
 
 
@@ -970,3 +977,45 @@ def _make_ws_subscribe_status(entry: ClimateManagerConfigEntry):
         connection.send_message(websocket_api.result_message(msg_id))
 
     return ws_subscribe_status
+
+
+# ---------------------------------------------------------------------------
+# Calibration config command (Plan 09-03, CALIB-01)
+# ---------------------------------------------------------------------------
+
+
+def _make_ws_set_calibration_config(entry: ClimateManagerConfigEntry):
+    """Factory: create set_calibration_config handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/set_calibration_config",
+            vol.Required("enabled"): bool,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_set_calibration_config(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Persist calibration_enabled toggle to runtime_config.
+
+        T-09-01: vol.Required("enabled"): bool in the schema rejects non-bool
+                 payloads before the handler runs (T-03-04 parity).
+        T-09-02: sensor and TRV entity_ids are read server-side from
+                 runtime_config["rooms"] — never from the WS payload.
+        No async_evaluate trigger — calibration runs on the next scheduled
+        cycle (RESEARCH Pitfall 4).
+        """
+        entry.runtime_data.runtime_config["calibration_enabled"] = msg[
+            "enabled"
+        ]
+        await entry.runtime_data.store.async_save(
+            entry.runtime_data.runtime_config
+        )
+        connection.send_result(msg["id"], {"success": True})
+        # NOTE: no async_evaluate trigger — calibration runs on the
+        # next scheduled cycle (RESEARCH Pitfall 4)
+
+    return ws_set_calibration_config
