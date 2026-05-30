@@ -110,6 +110,7 @@ None yet.
 | 260529-h5i | add generated screenshots and amend readme commit       | 2026-05-29 | f220dc7 | [260529-h5i-add-screenshots-amend-readme](./quick/260529-h5i-add-screenshots-amend-readme/)       |
 | 260528-tvl | zone color palette — dots on tabs, dynamic badge colors | 2026-05-29 | fe2e2c5 | [260528-tvl-zone-color-palette](./quick/260528-tvl-zone-color-palette/)                           |
 | 260529-g8p | add editorconfig with 80 line length, reformat sources  | 2026-05-29 | e0eea90 | [260529-g8p-add-editorconfig-80-line-length](./quick/260529-g8p-add-editorconfig-80-line-length/) |
+| 260530-m8u | TRV Auto-Calibration card: rename, per-TRV status table | 2026-05-30 | e52c674 | [260530-m8u-trv-calibration-card-enhancement](./quick/260530-m8u-trv-calibration-card-enhancement/) |
 
 Last activity: 2026-05-29 - Created v1.2 roadmap (Phases 7-9); 11 requirements
 mapped (SCHED-01..06, CALIB-01..05)
