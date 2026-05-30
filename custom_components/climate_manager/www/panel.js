@@ -4448,6 +4448,12 @@ const X = "scheduled",
                       ${
                         r
                           ? d`
+                            <p class="schedule-hint">
+                              Week ${bt(
+                                /* @__PURE__ */ new Date(),
+                              )} is currently
+                              active (${at(/* @__PURE__ */ new Date())} week).
+                            </p>
                             <div class="week-switcher">
                               <button
                                 class="tab-btn ${
@@ -4470,12 +4476,6 @@ const X = "scheduled",
                                 Odd
                               </button>
                             </div>
-                            <p class="schedule-hint">
-                              Week ${bt(
-                                /* @__PURE__ */ new Date(),
-                              )} is currently
-                              active (${at(/* @__PURE__ */ new Date())} week).
-                            </p>
                           `
                           : ""
                       }

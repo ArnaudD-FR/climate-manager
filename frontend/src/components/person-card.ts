@@ -619,6 +619,10 @@ export class PersonCard extends LitElement {
                       </div>
                       ${isEvenOdd
                         ? html`
+                            <p class="schedule-hint">
+                              Week ${getISOWeekNumber(new Date())} is currently
+                              active (${getWeekParity(new Date())} week).
+                            </p>
                             <div class="week-switcher">
                               <button
                                 class="tab-btn ${this._activeWeek === "even"
@@ -641,10 +645,6 @@ export class PersonCard extends LitElement {
                                 Odd
                               </button>
                             </div>
-                            <p class="schedule-hint">
-                              Week ${getISOWeekNumber(new Date())} is currently
-                              active (${getWeekParity(new Date())} week).
-                            </p>
                           `
                         : ""}
                       <div class="schedule-section">
