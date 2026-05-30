@@ -32,3 +32,33 @@ marker (work done, tracking artifact only)
    e.preventDefault)
 
 ---
+
+## v1.1 Heating Zones (Shipped: 2026-05-28)
+
+**Phases completed:** 3 phases (4-6), 9 plans
+**Timeline:** 2026-05-26 → 2026-05-28 (2 days)
+**Codebase:** 257 files changed, +32,080/-8,183 lines, 162 commits
+**Quick tasks shipped:** zone color palette, EditorConfig, screenshots, MIT
+license, pre-commit hooks
+**Known deferred items at close:** 34 quick task directories missing status
+marker (work done, tracking artifact only)
+
+**Key accomplishments:**
+
+1. Zone data model — `zones` dict + `default_zone_name` in DEFAULT_CONFIG;
+   `validate_zone_assignment()` helper; TypeScript `ZoneConfig` interface;
+   fully additive (STORAGE_VERSION=2 unchanged, v1.0 data loads cleanly)
+2. Zone CRUD WebSocket API — 6 new commands (17 total): create, rename, delete
+   (snapshot-rollback), set mode, set/reset time program; all guarded with
+   ERR_NOT_FOUND and schema validation
+3. Coordinator zone-aware per-room dispatch — `_resolve_zone_config()` helper
+   replaces global-mode switch; PASS 1 (baseline temp) + PASS 2 (presence
+   override); 117 tests passing
+4. ZoneTab Lit component (~590 lines) — inline name edit, native mode picker,
+   memoized time-bar, chip+search-picker room assignment, inline delete confirm
+5. Dynamic zone tabs in panel — Default Zone first (no delete), custom zones
+   added/removed dynamically; `+` button to create zones
+6. Zone color palette — 8 colors; color dots on tab buttons and room badges;
+   HA 2026.x compatibility enforced (native `<input>`/`<select>` only)
+
+---
