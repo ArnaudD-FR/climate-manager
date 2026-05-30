@@ -2,7 +2,7 @@
 phase: 08-even-odd-week-scheduling-frontend
 plan: "03"
 subsystem: frontend-panel
-status: partial — awaiting human checkpoint
+status: complete
 tags: [even-odd, scheduling, build, deploy, human-verify]
 dependency_graph:
   requires: ["08-02"]
@@ -23,62 +23,61 @@ metrics:
 
 # Phase 8 Plan 03: Build, Deploy & Human Verification Summary
 
-**One-liner:** Panel built (152.72 kB, 31 modules); deploy blocked on SSH
-connectivity — human must run `make deploy` from the dev machine; Task 2 is a
-blocking human-verify checkpoint for SCHED-04.
+**One-liner:** Panel built (152.72 kB), deployed to live HA instance; all 10
+SCHED-04 behaviors confirmed by human verification. Minor UI tweak applied:
+ISO week hint moved to appear before the Even/Odd tab switcher.
 
 ## Status
 
-**Partial** — Task 1 complete; Task 2 (human verification) pending at
-checkpoint.
+**Complete** — Both tasks done; all 10 SCHED-04 behaviors approved.
 
 ## Completed Tasks
 
 ### Task 1: Build and deploy the updated panel
 
-- `make build` completed successfully: Vite 5.4.21, 31 modules transformed,
-  152.72 kB bundle (gzip: 33.43 kB).
-- The built bundle `custom_components/climate_manager/www/panel.js` is
-  identical to the HEAD commit from 08-02
-  (md5: d7ae47132ba95a31584a085f98eac251) — the source was already compiled
-  in wave 2; no new commit required.
-- `make deploy` **failed**: `ssh: Could not resolve hostname homeassistant.local:
-  Name or service not known` — the HA host is not reachable from this machine
-  over SSH.
+- `make build` completed: Vite 5.4.21, 31 modules, 152.72 kB (gzip: 33.43 kB)
+- `make deploy` run by user from LAN machine; HA core restarted successfully
 
-**Deploy action required:** Run `make deploy` from the machine with SSH access
-to `homeassistant.local` (or override via `make deploy HA_HOST=<ip>`).
+### Task 2: Verify all SCHED-04 behaviors in the live panel
 
-## Pending Tasks
+All 10 behaviors confirmed **approved** in the live Home Assistant panel:
 
-### Task 2: Verify all SCHED-04 behaviors in the live panel (BLOCKED)
+1. Schedule-type select appears/disappears with Scheduled/non-Scheduled mode
+2. No Even/Odd buttons in Single week mode
+3. Even/Odd switcher appears above time-bar in even_odd mode
+4. Active tab defaults to ISO week 22 (Even) on expand
+5. Even tab edits write to schedule_even only
+6. Odd tab edits write to schedule_odd only
+7. Tab-switching preserves both weeks' edits
+8. Both weeks persist across full panel reload
+9. Reset button scoped to active week; other week untouched
+10. Switching back to Single week restores single time-bar + reset label
 
-Blocked on human checkpoint. The 10 SCHED-04 behaviors from VALIDATION.md
-require visual/interactive verification against the live HA panel after
-deployment.
+**UI tweak (user feedback):** ISO week hint repositioned to appear before
+the Even/Odd tab buttons. Applied in `fix(08-03)` commit.
 
 ## Deviations from Plan
 
-**1. [Rule 3 - Info] Deploy failed on SSH connectivity**
+**1. [Rule 3 - Info] Deploy run by user (SSH not reachable from CI machine)**
 
-- **Found during:** Task 1
-- **Issue:** `make deploy` uses SSH to `homeassistant.local` which is not
-  resolvable from the build machine.
-- **Action:** Surfaced clearly; no auto-fix attempted (SSH auth/connectivity
-  is a human-action gate, not a code bug).
-- **Resolution required:** Human runs `make deploy` from a machine with SSH
-  access to the HA host.
+- `make deploy` requires LAN access to `homeassistant.local`; user ran it
+  directly from their dev machine. No code impact.
+
+**2. [Rule 3 - Info] Week hint position adjusted per live review**
+
+- User requested the ISO week hint appear before (not after) the tab buttons.
+  Applied as `fix(08-03)` commit on main; build re-verified clean.
 
 ## Threat Surface Scan
 
-No new network endpoints, auth paths, or schema changes introduced. Panel.js
-is the same bundle produced in 08-02; no new threat surface.
+No new network endpoints, auth paths, or schema changes. Panel.js is the
+updated bundle from 08-02 + 08-03 hint reposition.
 
 ## Known Stubs
 
 None.
 
-## Self-Check: PARTIAL
+## Self-Check: PASSED
 
-Task 1 done criteria met (build succeeded, deploy failure surfaced). Task 2
-pending human verify checkpoint.
+Build succeeded, deployment confirmed, all 10 SCHED-04 behaviors approved,
+UI tweak applied and build re-verified.
