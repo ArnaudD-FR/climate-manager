@@ -57,7 +57,7 @@ async def set_trv_temperature(
     """
     # Availability guard (ROOM-03, T-01-08): skip missing or unavailable TRVs
     state = hass.states.get(entity_id)
-    if state is None or state.state == "unavailable":
+    if state is None or state.state in ("unavailable", "unknown"):
         return
 
     # Step 1: Ensure heat mode (INFRA-04 — hvac_mode must be "heat")
@@ -105,7 +105,7 @@ async def set_trv_off(hass: HomeAssistant, entity_id: str) -> None:
     """
     # Availability guard (ROOM-03, T-01-08): skip missing or unavailable TRVs
     state = hass.states.get(entity_id)
-    if state is None or state.state == "unavailable":
+    if state is None or state.state in ("unavailable", "unknown"):
         return
 
     await hass.services.async_call(
@@ -119,26 +119,26 @@ async def set_trv_off(hass: HomeAssistant, entity_id: str) -> None:
 def supports_offset_calibration(hass: HomeAssistant, entity_id: str) -> bool:
     """Return True if the TRV entity supports temperature offset adjustment.
 
-    Uses an attribute-first, service-second guard order (D-08, Pitfall 3):
-    1. Attribute check (brand-agnostic): True if the entity exposes a
-       temperature_offset attribute in its state.
-    2. Service check (Tado X-specific): True if the tado_x domain has a
-       set_temperature_offset service registered in the HA service registry.
+    Requires BOTH a readable attribute AND a writable service path (D-08):
+    - Attribute check: entity exposes temperature_offset in its state.
+    - Service check: tado_x.set_temperature_offset is registered.
+
+    A TRV with the attribute but without the tado_x service has no write path
+    yet (generic brand support is deferred). Returning False prevents the
+    calibration loop from calling a non-existent service every tick.
 
     Returns False when:
-    - The entity state is missing (None) — ROOM-03 parity (no unavailable
-      check: capability can still be detected while the TRV is unavailable,
-      matching the supports_hvac_off pattern)
-    - The temperature_offset attribute is absent AND the tado_x service is
-      not registered
+    - The entity state is missing (None) — ROOM-03 parity
+    - The temperature_offset attribute is absent
+    - The tado_x service is not registered (no write path)
 
     Never raises.
     """
     state = hass.states.get(entity_id)
     if state is None:
         return False
-    if "temperature_offset" in state.attributes:
-        return True
+    if "temperature_offset" not in state.attributes:
+        return False
     return hass.services.has_service("tado_x", "set_temperature_offset")
 
 
@@ -150,13 +150,21 @@ async def set_trv_offset(
     Caller (coordinator) is responsible for the capability guard before calling
     this function — use supports_offset_calibration to check first.
 
-    Silently skips the entity if its state is None or "unavailable"
-    (ROOM-03 parity / T-01-08), matching the set_trv_off / set_trv_temperature
-    guard pattern.
+    Silently skips the entity if its state is None, "unavailable", or
+    "unknown" (ROOM-03 parity / T-01-08), matching the set_trv_off /
+    set_trv_temperature guard pattern.
+
+    Only calls the tado_x service when it is registered; returns silently
+    for TRVs where the service is absent (no write path available).
     """
     # Availability guard (ROOM-03, T-01-08): skip missing or unavailable TRVs
     state = hass.states.get(entity_id)
-    if state is None or state.state == "unavailable":
+    if state is None or state.state in ("unavailable", "unknown"):
+        return
+
+    # Route: only call tado_x service when it exists; attribute-only TRVs
+    # have no write path yet — skip silently rather than raising ServiceNotFound.
+    if not hass.services.has_service("tado_x", "set_temperature_offset"):
         return
 
     await hass.services.async_call(
