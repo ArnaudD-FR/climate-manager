@@ -132,7 +132,12 @@ jittery over-correction.
    threshold (default 0.5°C), so small fluctuations do not cause repeated
    offset changes
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+- [ ] 09-01-PLAN.md — trv.py: supports_offset_calibration + set_trv_offset (TDD)
+- [ ] 09-02-PLAN.md — coordinator.py + const.py: calibration pass, DEFAULT_CONFIG keys (TDD)
+- [ ] 09-03-PLAN.md — websocket.py: set_calibration_config WS command (TDD)
+- [ ] 09-04-PLAN.md — frontend Options card toggle + build/deploy + manual acceptance
 
 ## Progress
 
@@ -150,4 +155,4 @@ Phases execute in numeric order: 7 → 8 → 9 (Phase 9 may run in parallel with
 | 6. Zone & Room Assignment UI         | v1.1      | 4/4            | Complete    | 2026-05-28 |
 | 7. Even/Odd Week Scheduling — Backend | v1.2     | 2/2 | Complete   | 2026-05-29 |
 | 8. Even/Odd Week Scheduling — Frontend | v1.2    | 2/3 | In Progress|  |
-| 9. TRV Temperature Offset Auto-Calibration | v1.2 | 0/TBD         | Not started | -          |
+| 9. TRV Temperature Offset Auto-Calibration | v1.2 | 0/4            | Not started | -          |
