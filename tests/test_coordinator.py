@@ -1404,3 +1404,384 @@ async def test_room_mode_custom_wins_over_zone(hass):
     ), (
         f"room_mode=custom should win over zone mode=off and push Comfort (22.0), got {calls[-1].data['temperature']}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests: TRV offset calibration pass (09-02)
+# CALIB-02/03/04/05 — _async_calibrate + _async_calibrate_room
+# ---------------------------------------------------------------------------
+
+
+def _make_calibration_config(
+    calibration_enabled: bool = True,
+    calibration_threshold: float = 0.5,
+    rooms_config: dict | None = None,
+    sensor_entity_id: str | None = None,
+    area_id: str = "bedroom",
+) -> dict:
+    """Build a runtime_config with calibration settings for test use."""
+    room_cfg: dict = {}
+    if sensor_entity_id is not None:
+        room_cfg["temperature_sensor"] = sensor_entity_id
+    cfg = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config=rooms_config
+        if rooms_config is not None
+        else ({area_id: room_cfg} if room_cfg else {}),
+    )
+    cfg["calibration_enabled"] = calibration_enabled
+    cfg["calibration_threshold"] = calibration_threshold
+    return cfg
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_calibration_disabled_zero_offset_calls(hass):
+    """D-04: calibration_enabled=False → zero offset service calls.
+
+    Even with a fully configured room+TRV+sensor, no tado_x calls must
+    be made when calibration is globally disabled.
+    """
+    hass.states.async_set(
+        "climate.bedroom_trv",
+        "heat",
+        {
+            "temperature": 20.0,
+            "current_temperature": 19.0,
+            "temperature_offset": 0.0,
+        },
+    )
+    hass.states.async_set("sensor.bedroom_temp", "21.0")
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_calibration_config(
+        calibration_enabled=False,
+        sensor_entity_id="sensor.bedroom_temp",
+    )
+    entry.runtime_data.rooms = {"bedroom": ["climate.bedroom_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    assert len(offset_calls) == 0, (
+        f"calibration_enabled=False must produce zero offset calls; got {len(offset_calls)}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_calibration_no_sensor_zero_offset_calls(hass):
+    """CALIB-05/D-14: room with no temperature_sensor configured → zero calls.
+
+    calibration_enabled=True but no temperature_sensor key in rooms config
+    for this area — the room must be silently skipped.
+    """
+    hass.states.async_set(
+        "climate.bedroom_trv",
+        "heat",
+        {
+            "temperature": 20.0,
+            "current_temperature": 19.0,
+            "temperature_offset": 0.0,
+        },
+    )
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # No temperature_sensor key in rooms config
+    cfg = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config={"bedroom": {}},  # no temperature_sensor key
+    )
+    cfg["calibration_enabled"] = True
+    cfg["calibration_threshold"] = 0.5
+    entry.runtime_data.runtime_config = cfg
+    entry.runtime_data.rooms = {"bedroom": ["climate.bedroom_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    assert len(offset_calls) == 0, (
+        f"Room with no temperature_sensor must produce zero offset calls; "
+        f"got {len(offset_calls)}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_calibration_incompatible_trv_zero_offset_calls(hass):
+    """CALIB-03/D-08: TRV without temperature_offset attr AND no tado_x service.
+
+    supports_offset_calibration returns False → room must be silently skipped.
+    """
+    # TRV with no temperature_offset attribute (no tado_x service either)
+    hass.states.async_set(
+        "climate.incompatible_trv",
+        "heat",
+        {
+            "temperature": 20.0,
+            "current_temperature": 19.0,
+            # NO temperature_offset attribute
+        },
+    )
+    hass.states.async_set("sensor.room_temp", "21.0")
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_calibration_config(
+        calibration_enabled=True,
+        sensor_entity_id="sensor.room_temp",
+        area_id="study",
+    )
+    entry.runtime_data.rooms = {"study": ["climate.incompatible_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    assert len(offset_calls) == 0, (
+        f"Incompatible TRV (no temperature_offset attr, no tado_x service) "
+        f"must produce zero offset calls; got {len(offset_calls)}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_calibration_delta_below_threshold_zero_offset_calls(hass):
+    """CALIB-04/D-07: abs(delta) <= threshold → zero offset calls (jitter guard).
+
+    sensor_temp=20.3, current_temperature=20.0 → delta=0.3 ≤ 0.5 → skip.
+    """
+    hass.states.async_set(
+        "climate.living_trv",
+        "heat",
+        {
+            "temperature": 20.0,
+            "current_temperature": 20.0,
+            "temperature_offset": 0.0,
+        },
+    )
+    hass.states.async_set("sensor.living_temp", "20.3")
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_calibration_config(
+        calibration_enabled=True,
+        calibration_threshold=0.5,
+        sensor_entity_id="sensor.living_temp",
+        area_id="living",
+    )
+    entry.runtime_data.rooms = {"living": ["climate.living_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    assert len(offset_calls) == 0, (
+        f"abs(delta)=0.3 ≤ threshold=0.5 must produce zero offset calls; "
+        f"got {len(offset_calls)}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_calibration_delta_above_threshold_one_offset_call(hass):
+    """D-05/D-06: abs(delta) > threshold → exactly one offset call with correct value.
+
+    sensor_temp=21.0, current_temperature=20.0, existing_offset=0.5
+    delta = 21.0 - 20.0 = 1.0
+    new_offset = 0.5 + 1.0 = 1.5
+    Expected: one call with offset=1.5.
+    """
+    hass.states.async_set(
+        "climate.hall_trv",
+        "heat",
+        {
+            "temperature": 20.0,
+            "current_temperature": 20.0,
+            "temperature_offset": 0.5,
+        },
+    )
+    hass.states.async_set("sensor.hall_temp", "21.0")
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_calibration_config(
+        calibration_enabled=True,
+        calibration_threshold=0.5,
+        sensor_entity_id="sensor.hall_temp",
+        area_id="hall",
+    )
+    entry.runtime_data.rooms = {"hall": ["climate.hall_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    assert len(offset_calls) == 1, (
+        f"abs(delta)=1.0 > threshold=0.5 must produce exactly one offset call; "
+        f"got {len(offset_calls)}"
+    )
+    applied_offset = offset_calls[0].data.get("offset")
+    assert applied_offset == pytest.approx(1.5), (
+        f"new_offset = existing(0.5) + delta(1.0) = 1.5; got {applied_offset}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_calibration_sensor_unavailable_zero_offset_calls(hass):
+    """Pitfall 5: sensor state 'unavailable' → zero offset calls.
+
+    The calibration pass must silently skip when the reference sensor
+    reports 'unavailable'.
+    """
+    hass.states.async_set(
+        "climate.kitchen_trv",
+        "heat",
+        {
+            "temperature": 20.0,
+            "current_temperature": 19.0,
+            "temperature_offset": 0.0,
+        },
+    )
+    hass.states.async_set("sensor.kitchen_temp", "unavailable")
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_calibration_config(
+        calibration_enabled=True,
+        sensor_entity_id="sensor.kitchen_temp",
+        area_id="kitchen",
+    )
+    entry.runtime_data.rooms = {"kitchen": ["climate.kitchen_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    assert len(offset_calls) == 0, (
+        f"Sensor state 'unavailable' must produce zero offset calls; "
+        f"got {len(offset_calls)}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_calibration_sensor_unknown_zero_offset_calls(hass):
+    """Pitfall 5: sensor state 'unknown' → zero offset calls.
+
+    The calibration pass must silently skip when the reference sensor
+    reports 'unknown'.
+    """
+    hass.states.async_set(
+        "climate.bathroom_trv",
+        "heat",
+        {
+            "temperature": 20.0,
+            "current_temperature": 19.0,
+            "temperature_offset": 0.0,
+        },
+    )
+    hass.states.async_set("sensor.bathroom_temp", "unknown")
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_calibration_config(
+        calibration_enabled=True,
+        sensor_entity_id="sensor.bathroom_temp",
+        area_id="bathroom",
+    )
+    entry.runtime_data.rooms = {"bathroom": ["climate.bathroom_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    assert len(offset_calls) == 0, (
+        f"Sensor state 'unknown' must produce zero offset calls; "
+        f"got {len(offset_calls)}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_calibration_trv_current_temperature_none_zero_offset_calls(hass):
+    """Pitfall 2: TRV current_temperature attribute is None → zero offset calls.
+
+    The calibration pass must silently skip when the TRV's current_temperature
+    attribute is absent (None).
+    """
+    hass.states.async_set(
+        "climate.office_trv",
+        "heat",
+        {
+            "temperature": 20.0,
+            # NO current_temperature attribute → will be None
+            "temperature_offset": 0.0,
+        },
+    )
+    hass.states.async_set("sensor.office_temp", "21.5")
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_calibration_config(
+        calibration_enabled=True,
+        sensor_entity_id="sensor.office_temp",
+        area_id="office",
+    )
+    entry.runtime_data.rooms = {"office": ["climate.office_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    assert len(offset_calls) == 0, (
+        f"TRV current_temperature=None must produce zero offset calls; "
+        f"got {len(offset_calls)}"
+    )

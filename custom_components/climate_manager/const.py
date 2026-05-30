@@ -191,4 +191,6 @@ DEFAULT_CONFIG: dict = {
     # DEFAULT_CONFIG["zones"] MUST stay {} — pitfall 2: dict.update()
     # would resurrect deleted zones if DEFAULT_CONFIG["zones"] were
     # non-empty.
+    "calibration_enabled": False,  # CALIB-01: global on/off toggle
+    "calibration_threshold": 0.5,  # CALIB-04: jitter guard in degrees C
 }
