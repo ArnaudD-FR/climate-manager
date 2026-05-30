@@ -71,6 +71,10 @@ export interface ClimateConfig {
   rooms: Record<string, RoomConfig>;
   persons: Record<string, PersonConfig>;
   climate_entities: string[];
+  /** CALIB-01: global calibration on/off. Absent = false (sparse config). */
+  calibration_enabled?: boolean;
+  /** CALIB-04: jitter threshold in degrees C. Absent = 0.5 (sparse config). */
+  calibration_threshold?: number;
 }
 
 /** Per-room live status entry inside StatusPayload.rooms_status. */

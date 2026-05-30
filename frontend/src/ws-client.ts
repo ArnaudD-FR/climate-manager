@@ -197,4 +197,12 @@ export class WsClient {
       type: "climate_manager/subscribe_status",
     });
   }
+
+  /** Enable or disable TRV offset auto-calibration globally. */
+  setCalibrationConfig(enabled: boolean): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_calibration_config",
+      enabled,
+    });
+  }
 }
