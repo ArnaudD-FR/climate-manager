@@ -25,6 +25,7 @@ import {
   PRESENCE_COLORS,
   getZoneColor,
 } from "../types.js";
+import { chipStyles } from "../shared-styles.js";
 import type {
   Hass,
   ClimateConfig,
@@ -118,270 +119,273 @@ export class GlobalSettingsTab extends LitElement {
   @state() private _trvStatuses: TRVCalibrationEntry[] = [];
   @state() private _loadingStatuses = false;
 
-  static styles = css`
-    :host {
-      display: block;
-      --present-color: ${unsafeCSS(PRESENCE_COLORS.present)};
-    }
+  static styles = [
+    chipStyles,
+    css`
+      :host {
+        display: block;
+        --present-color: ${unsafeCSS(PRESENCE_COLORS.present)};
+      }
 
-    ha-card {
-      margin-bottom: 16px;
-    }
+      ha-card {
+        margin-bottom: 16px;
+      }
 
-    .card-header {
-      padding: 16px 16px 0;
-      font-size: 16px;
-      font-weight: 600;
-      line-height: 1.2;
-      color: var(--primary-text-color);
-    }
+      .card-header {
+        padding: 16px 16px 0;
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 1.2;
+        color: var(--primary-text-color);
+      }
 
-    .card-content {
-      padding: 16px;
-    }
+      .card-content {
+        padding: 16px;
+      }
 
-    /* ---- Status card ---- */
-    .status-row {
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
-      margin-bottom: 8px;
-      font-size: 14px;
-      color: var(--primary-text-color);
-    }
+      /* ---- Status card ---- */
+      .status-row {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--primary-text-color);
+      }
 
-    .status-label {
-      font-weight: 600;
-      flex-shrink: 0;
-    }
+      .status-label {
+        font-weight: 600;
+        flex-shrink: 0;
+      }
 
-    .status-value {
-      color: var(--secondary-text-color);
-    }
+      .status-value {
+        color: var(--secondary-text-color);
+      }
 
-    .person-dot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--present-color);
-      margin-right: 4px;
-      vertical-align: middle;
-    }
+      .person-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--present-color);
+        margin-right: 4px;
+        vertical-align: middle;
+      }
 
-    .person-dot.absent {
-      background: var(--secondary-text-color, #9e9e9e);
-    }
+      .person-dot.absent {
+        background: var(--secondary-text-color, #9e9e9e);
+      }
 
-    /* ---- Zone status grid ---- */
-    .zone-status-grid {
-      margin-bottom: 12px;
-    }
+      /* ---- Zone status grid ---- */
+      .zone-status-grid {
+        margin-bottom: 12px;
+      }
 
-    .zone-status-header {
-      display: grid;
-      grid-template-columns: 1.2fr 1fr 1fr;
-      gap: 8px;
-      padding-bottom: 4px;
-      border-bottom: 1px solid var(--divider-color);
-      margin-bottom: 2px;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--secondary-text-color);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
+      .zone-status-header {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 1fr;
+        gap: 8px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid var(--divider-color);
+        margin-bottom: 2px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--secondary-text-color);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
 
-    .zone-status-row {
-      display: grid;
-      grid-template-columns: 1.2fr 1fr 1fr;
-      gap: 8px;
-      padding: 5px 0;
-      border-bottom: 1px solid var(--divider-color);
-      font-size: 13px;
-      align-items: center;
-    }
+      .zone-status-row {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 1fr;
+        gap: 8px;
+        padding: 5px 0;
+        border-bottom: 1px solid var(--divider-color);
+        font-size: 13px;
+        align-items: center;
+      }
 
-    .zone-status-grid .zone-status-row:last-child {
-      border-bottom: none;
-    }
+      .zone-status-grid .zone-status-row:last-child {
+        border-bottom: none;
+      }
 
-    .zone-status-name {
-      font-weight: 500;
-    }
+      .zone-status-name {
+        font-weight: 500;
+      }
 
-    .zone-status-name:hover {
-      text-decoration: underline;
-    }
+      .zone-status-name:hover {
+        text-decoration: underline;
+      }
 
-    .zone-status-value {
-      color: var(--secondary-text-color);
-    }
+      .zone-status-value {
+        color: var(--secondary-text-color);
+      }
 
-    /* ---- Temperatures card ---- */
-    .temp-fields {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
+      /* ---- Temperatures card ---- */
+      .temp-fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
 
-    .temp-field {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
+      .temp-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
 
-    .temp-label {
-      display: block;
-      font-size: 12px;
-      color: var(--secondary-text-color);
-    }
+      .temp-label {
+        display: block;
+        font-size: 12px;
+        color: var(--secondary-text-color);
+      }
 
-    .temp-input-row {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
+      .temp-input-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
 
-    .temp-input {
-      width: 100%;
-      padding: 8px 10px;
-      font-size: 15px;
-      font-family: inherit;
-      color: var(--primary-text-color);
-      background-color: var(
-        --card-background-color,
-        var(--secondary-background-color)
-      );
-      border: 1px solid var(--divider-color);
-      border-radius: 4px;
-      outline: none;
-      box-sizing: border-box;
-    }
+      .temp-input {
+        width: 100%;
+        padding: 8px 10px;
+        font-size: 15px;
+        font-family: inherit;
+        color: var(--primary-text-color);
+        background-color: var(
+          --card-background-color,
+          var(--secondary-background-color)
+        );
+        border: 1px solid var(--divider-color);
+        border-radius: 4px;
+        outline: none;
+        box-sizing: border-box;
+      }
 
-    .temp-input:focus {
-      border-color: var(--primary-color);
-      border-width: 2px;
-    }
+      .temp-input:focus {
+        border-color: var(--primary-color);
+        border-width: 2px;
+      }
 
-    .temp-suffix {
-      font-size: 14px;
-      color: var(--secondary-text-color);
-      flex-shrink: 0;
-    }
+      .temp-suffix {
+        font-size: 14px;
+        color: var(--secondary-text-color);
+        flex-shrink: 0;
+      }
 
-    /* Reset button */
-    .reset-btn {
-      margin-top: 16px;
-      padding: 8px 16px;
-      font-size: 14px;
-      font-family: inherit;
-      color: var(--primary-color, #03a9f4);
-      background: none;
-      border: 1px solid var(--primary-color, #03a9f4);
-      border-radius: 4px;
-      cursor: pointer;
-    }
+      /* Reset button */
+      .reset-btn {
+        margin-top: 16px;
+        padding: 8px 16px;
+        font-size: 14px;
+        font-family: inherit;
+        color: var(--primary-color, #03a9f4);
+        background: none;
+        border: 1px solid var(--primary-color, #03a9f4);
+        border-radius: 4px;
+        cursor: pointer;
+      }
 
-    .reset-btn:hover {
-      background: var(--secondary-background-color);
-    }
+      .reset-btn:hover {
+        background: var(--secondary-background-color);
+      }
 
-    /* ---- Options card ---- */
-    .option-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-      font-size: 14px;
-      color: var(--primary-text-color);
-    }
+      /* ---- Options card ---- */
+      .option-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--primary-text-color);
+      }
 
-    .option-label {
-      font-weight: 500;
-      flex: 1;
-      margin-right: 16px;
-    }
+      .option-label {
+        font-weight: 500;
+        flex: 1;
+        margin-right: 16px;
+      }
 
-    /* ---- TRV calibration status table ---- */
-    .calib-table-wrap {
-      margin-top: 16px;
-      overflow-x: auto;
-    }
+      /* ---- TRV calibration status table ---- */
+      .calib-table-wrap {
+        margin-top: 16px;
+        overflow-x: auto;
+      }
 
-    .calib-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-      color: var(--primary-text-color);
-    }
+      .calib-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        color: var(--primary-text-color);
+      }
 
-    .calib-table th {
-      text-align: left;
-      font-weight: 600;
-      padding: 6px 8px;
-      border-bottom: 1px solid var(--divider-color, #e0e0e0);
-      white-space: nowrap;
-    }
+      .calib-table th {
+        text-align: left;
+        font-weight: 600;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--divider-color, #e0e0e0);
+        white-space: nowrap;
+      }
 
-    .calib-table td {
-      padding: 6px 8px;
-      border-bottom: 1px solid var(--divider-color, #e0e0e0);
-      vertical-align: middle;
-    }
+      .calib-table td {
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--divider-color, #e0e0e0);
+        vertical-align: middle;
+      }
 
-    .calib-table tr:last-child td {
-      border-bottom: none;
-    }
+      .calib-table tr:last-child td {
+        border-bottom: none;
+      }
 
-    .calib-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-size: 11px;
-      font-weight: 600;
-    }
+      .calib-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+      }
 
-    .calib-badge.supported {
-      background: rgba(34, 197, 94, 0.15);
-      color: #15803d;
-    }
+      .calib-badge.supported {
+        background: rgba(34, 197, 94, 0.15);
+        color: #15803d;
+      }
 
-    .calib-badge.unsupported {
-      background: rgba(0, 0, 0, 0.06);
-      color: var(--secondary-text-color);
-    }
+      .calib-badge.unsupported {
+        background: rgba(0, 0, 0, 0.06);
+        color: var(--secondary-text-color);
+      }
 
-    .calib-loading {
-      text-align: center;
-      padding: 16px;
-      color: var(--secondary-text-color);
-      font-size: 13px;
-    }
+      .calib-loading {
+        text-align: center;
+        padding: 16px;
+        color: var(--secondary-text-color);
+        font-size: 13px;
+      }
 
-    .calib-empty {
-      text-align: center;
-      padding: 16px;
-      color: var(--secondary-text-color);
-      font-size: 13px;
-    }
+      .calib-empty {
+        text-align: center;
+        padding: 16px;
+        color: var(--secondary-text-color);
+        font-size: 13px;
+      }
 
-    .refresh-btn {
-      margin-top: 8px;
-      background: none;
-      border: 1px solid var(--divider-color, #e0e0e0);
-      border-radius: 4px;
-      padding: 4px 10px;
-      font-size: 12px;
-      cursor: pointer;
-      color: var(--primary-text-color);
-    }
+      .refresh-btn {
+        margin-top: 8px;
+        background: none;
+        border: 1px solid var(--divider-color, #e0e0e0);
+        border-radius: 4px;
+        padding: 4px 10px;
+        font-size: 12px;
+        cursor: pointer;
+        color: var(--primary-text-color);
+      }
 
-    .refresh-btn:hover {
-      background: var(--secondary-background-color, #f5f5f5);
-    }
-  `;
+      .refresh-btn:hover {
+        background: var(--secondary-background-color, #f5f5f5);
+      }
+    `,
+  ];
 
   // -----------------------------------------------------------------------
   // Save handlers — arrow function class fields so `this` is always the
@@ -617,6 +621,16 @@ export class GlobalSettingsTab extends LitElement {
     `;
   }
 
+  private _openEntityMoreInfo(entityId: string) {
+    this.dispatchEvent(
+      new CustomEvent("hass-more-info", {
+        bubbles: true,
+        composed: true,
+        detail: { entityId },
+      }),
+    );
+  }
+
   private _renderTRVTable() {
     if (this._loadingStatuses) {
       return html`<div class="calib-loading">Loading TRV status…</div>`;
@@ -631,7 +645,7 @@ export class GlobalSettingsTab extends LitElement {
             <tr>
               <th>TRV</th>
               <th>Auto-calibration</th>
-              <th>Temp / Offset</th>
+              <th>Offset</th>
               <th>Last adjusted</th>
             </tr>
           </thead>
@@ -639,7 +653,15 @@ export class GlobalSettingsTab extends LitElement {
             ${this._trvStatuses.map(
               (trv) => html`
                 <tr>
-                  <td>${trv.friendly_name}</td>
+                  <td>
+                    <span
+                      class="chip"
+                      @click=${() => this._openEntityMoreInfo(trv.entity_id)}
+                    >
+                      <ha-icon icon="mdi:thermometer"></ha-icon>
+                      ${trv.friendly_name}
+                    </span>
+                  </td>
                   <td>
                     <span
                       class="calib-badge ${trv.supports_calibration
@@ -652,15 +674,12 @@ export class GlobalSettingsTab extends LitElement {
                     </span>
                   </td>
                   <td>
-                    ${trv.current_temperature != null
-                      ? html`${trv.current_temperature.toFixed(1)} °C`
-                      : "—"}
                     ${trv.current_offset != null
-                      ? html`&nbsp;/&nbsp;${trv.current_offset > 0
+                      ? html`${trv.current_offset > 0
                           ? "+"
                           : ""}${trv.current_offset.toFixed(1)}
                         °C`
-                      : ""}
+                      : "—"}
                   </td>
                   <td>
                     ${trv.last_calibrated_at
