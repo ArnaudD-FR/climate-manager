@@ -143,7 +143,7 @@ const {
 Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")),
   L.litPropertyMetadata ??
     (L.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
-let Y = class extends HTMLElement {
+let V = class extends HTMLElement {
   static addInitializer(e) {
     this._$Ei(), (this.l ?? (this.l = [])).push(e);
   }
@@ -441,11 +441,11 @@ let Y = class extends HTMLElement {
   updated(e) {}
   firstUpdated(e) {}
 };
-(Y.elementStyles = []),
-  (Y.shadowRootOptions = { mode: "open" }),
-  (Y[ie("elementProperties")] = /* @__PURE__ */ new Map()),
-  (Y[ie("finalized")] = /* @__PURE__ */ new Map()),
-  xe == null || xe({ ReactiveElement: Y }),
+(V.elementStyles = []),
+  (V.shadowRootOptions = { mode: "open" }),
+  (V[ie("elementProperties")] = /* @__PURE__ */ new Map()),
+  (V[ie("finalized")] = /* @__PURE__ */ new Map()),
+  xe == null || xe({ ReactiveElement: V }),
   (L.reactiveElementVersions ?? (L.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
@@ -483,7 +483,7 @@ const re = globalThis,
     (n) =>
     (e, ...t) => ({ _$litType$: n, strings: e, values: t }),
   d = Et(1),
-  V = Symbol.for("lit-noChange"),
+  Y = Symbol.for("lit-noChange"),
   x = Symbol.for("lit-nothing"),
   nt = /* @__PURE__ */ new WeakMap(),
   W = q.createTreeWalker(q, 129);
@@ -615,7 +615,7 @@ class ce {
 }
 function G(n, e, t = n, o) {
   var r, a;
-  if (e === V) return e;
+  if (e === Y) return e;
   let s = o !== void 0 ? ((r = t._$Co) == null ? void 0 : r[o]) : t._$Cl;
   const i = le(e) ? void 0 : e._$litDirective$;
   return (
@@ -709,7 +709,7 @@ class de {
       le(e)
         ? e === x || e == null || e === ""
           ? (this._$AH !== x && this._$AR(), (this._$AH = x))
-          : e !== this._$AH && e !== V && this._(e)
+          : e !== this._$AH && e !== Y && this._(e)
         : e._$litType$ !== void 0
           ? this.$(e)
           : e.nodeType !== void 0
@@ -805,14 +805,14 @@ class ye {
     let r = !1;
     if (i === void 0)
       (e = G(this, e, t, 0)),
-        (r = !le(e) || (e !== this._$AH && e !== V)),
+        (r = !le(e) || (e !== this._$AH && e !== Y)),
         r && (this._$AH = e);
     else {
       const a = e;
       let l, c;
       for (e = i[0], l = 0; l < i.length - 1; l++)
         (c = G(this, a[o + l], t, l)),
-          c === V && (c = this._$AH[l]),
+          c === Y && (c = this._$AH[l]),
           r || (r = !le(c) || c !== this._$AH[l]),
           c === x ? (e = x) : e !== x && (e += (c ?? "") + i[l + 1]),
           (this._$AH[l] = c);
@@ -846,7 +846,7 @@ class Dt extends ye {
     super(e, t, o, s, i), (this.type = 5);
   }
   _$AI(e, t = this) {
-    if ((e = G(this, e, t, 0) ?? x) === V) return;
+    if ((e = G(this, e, t, 0) ?? x) === Y) return;
     const o = this._$AH,
       s =
         (e === x && o !== x) ||
@@ -901,7 +901,7 @@ const Ot = (n, e, t) => {
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const F = globalThis;
-class C extends Y {
+class C extends V {
   constructor() {
     super(...arguments),
       (this.renderOptions = { host: this }),
@@ -930,7 +930,7 @@ class C extends Y {
     super.disconnectedCallback(), (e = this._$Do) == null || e.setConnected(!1);
   }
   render() {
-    return V;
+    return Y;
   }
 }
 var ct;
@@ -1168,6 +1168,13 @@ class he {
   subscribeStatus(e) {
     return this.hass.connection.subscribeMessage(e, {
       type: "climate_manager/subscribe_status",
+    });
+  }
+  /** Enable or disable TRV offset auto-calibration globally. */
+  setCalibrationConfig(e) {
+    return this.hass.connection.sendMessagePromise({
+      type: "climate_manager/set_calibration_config",
+      enabled: e,
     });
   }
 }
@@ -2282,12 +2289,12 @@ function Xt(n, e) {
   return a;
 }
 const ft = "off",
-  Yt = "time_program",
-  Vt = "time_program_presences",
+  Vt = "time_program",
+  Yt = "time_program_presences",
   Gt = {
     [ft]: "Off",
-    [Yt]: "Time program",
-    [Vt]: "Time program & presences",
+    [Vt]: "Time program",
+    [Yt]: "Time program & presences",
   },
   je = class je extends C {
     constructor() {
@@ -2312,6 +2319,16 @@ const ft = "off",
               this.panel.showToast("Reset to defaults", !1);
           } catch {
             this.panel.showToast("Reset failed — retrying...", !0);
+          }
+        }),
+        (this._onCalibrationToggle = async (e) => {
+          const t = e.target.checked;
+          try {
+            await this.ws.setCalibrationConfig(t),
+              await this.panel.reloadConfig(),
+              this.panel.showToast("Saved", !1);
+          } catch {
+            this.panel.showToast("Save failed", !0);
           }
         });
     }
@@ -2472,9 +2489,29 @@ const ft = "off",
       </ha-card>
     `;
     }
+    _renderOptionsCard() {
+      const e = this.config.calibration_enabled ?? !1;
+      return d`
+      <ha-card>
+        <div class="card-header">Options</div>
+        <div class="card-content">
+          <div class="option-row">
+            <span class="option-label">
+              Auto-calibrate TRV temperature offsets
+            </span>
+            <ha-switch
+              .checked=${e}
+              @change=${this._onCalibrationToggle}
+            ></ha-switch>
+          </div>
+        </div>
+      </ha-card>
+    `;
+    }
     render() {
       return d`
       ${this._renderStatusCard()} ${this._renderTemperaturesCard()}
+      ${this._renderOptionsCard()}
     `;
     }
   };
@@ -2646,6 +2683,22 @@ je.styles = k`
 
     .reset-btn:hover {
       background: var(--secondary-background-color);
+    }
+
+    /* ---- Options card ---- */
+    .option-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: var(--primary-text-color);
+    }
+
+    .option-label {
+      font-weight: 500;
+      flex: 1;
+      margin-right: 16px;
     }
   `;
 let Z = je;
@@ -3912,7 +3965,7 @@ const Be = class Be extends C {
     const r = [...i.keys()]
         .filter((m) => m !== null)
         .sort((m, b) => {
-          var _, $, E, te, Ye, Ve;
+          var _, $, E, te, Ve, Ye;
           return (
             (((E =
               ($ = (_ = this.hass) == null ? void 0 : _.floors) == null
@@ -3920,12 +3973,12 @@ const Be = class Be extends C {
                 : $[b]) == null
               ? void 0
               : E.level) ?? 0) -
-            (((Ve =
-              (Ye = (te = this.hass) == null ? void 0 : te.floors) == null
+            (((Ye =
+              (Ve = (te = this.hass) == null ? void 0 : te.floors) == null
                 ? void 0
-                : Ye[m]) == null
+                : Ve[m]) == null
               ? void 0
-              : Ve.level) ?? 0)
+              : Ye.level) ?? 0)
           );
         }),
       a = i.get(null) ?? [],
