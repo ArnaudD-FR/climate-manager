@@ -61,8 +61,10 @@ from .schedule import compute_occupied_temp, evaluate_schedule, resolve_presence
 from .trv import (
     is_trv_entity,
     set_trv_off,
+    set_trv_offset,
     set_trv_temperature,
     supports_hvac_off,
+    supports_offset_calibration,
 )
 
 if TYPE_CHECKING:
@@ -277,6 +279,96 @@ class ClimateManagerCoordinator:
             f"{DOMAIN}_status_update",
             self._build_status_payload(),
         )
+
+        # Calibration pass — D-01: runs after push pass and status fire.
+        await self._async_calibrate(config)
+
+    async def _async_calibrate(self, config: dict) -> None:
+        """Offset-calibrate all compatible TRVs toward their room sensors.
+
+        D-04: Returns immediately when calibration_enabled is False.
+        D-03: Concurrent gather over all rooms, same pattern as push pass.
+        """
+        if not config.get("calibration_enabled", False):
+            return
+        rooms = self._data.rooms
+        await asyncio.gather(
+            *(
+                self._async_calibrate_room(area_id, entity_id, config)
+                for area_id, entity_ids in rooms.items()
+                for entity_id in entity_ids
+                if is_trv_entity(self._hass, entity_id)
+            )
+        )
+
+    async def _async_calibrate_room(
+        self, area_id: str, entity_id: str, config: dict
+    ) -> None:
+        """Calibrate one TRV toward its room's reference sensor.
+
+        Silently returns when any guard condition fails (CALIB-03/05, D-07/08,
+        Pitfalls 2/5).
+        """
+        # CALIB-05, D-14: manual temperature_sensor config only
+        sensor_entity_id = (
+            config.get("rooms", {}).get(area_id, {}).get("temperature_sensor")
+        )
+        if not sensor_entity_id:
+            return
+
+        # CALIB-03, D-08: capability guard (attribute-first)
+        if not supports_offset_calibration(self._hass, entity_id):
+            return
+
+        # ROOM-03 parity: unavailable TRV
+        state = self._hass.states.get(entity_id)
+        if state is None or state.state == "unavailable":
+            return
+
+        # Pitfall 5: sensor state guard — catches "unavailable"/"unknown"
+        sensor_state = self._hass.states.get(sensor_entity_id)
+        if sensor_state is None or sensor_state.state in (
+            "unavailable",
+            "unknown",
+        ):
+            return
+        try:
+            sensor_temp = float(sensor_state.state)
+        except (ValueError, TypeError):
+            return
+
+        # Pitfall 2: current_temperature may be None on startup
+        current_temp = state.attributes.get("current_temperature")
+        if current_temp is None:
+            return
+        try:
+            current_temp = float(current_temp)
+        except (ValueError, TypeError):
+            return
+
+        # D-05: delta formula
+        delta = sensor_temp - current_temp
+
+        # D-07: jitter guard
+        threshold = config.get("calibration_threshold", 0.5)
+        if abs(delta) <= threshold:
+            return
+
+        # D-06: incremental offset
+        try:
+            existing_offset = float(
+                state.attributes.get("temperature_offset", 0.0)
+            )
+        except (ValueError, TypeError):
+            existing_offset = 0.0
+        new_offset = existing_offset + delta
+
+        try:
+            await set_trv_offset(self._hass, entity_id, new_offset)
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning(
+                "Failed to apply offset %.1f to %s", new_offset, entity_id
+            )
 
     def _resolve_zone_config(
         self, area_id: str, config: dict

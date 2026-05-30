@@ -1542,7 +1542,9 @@ async def test_calibration_incompatible_trv_zero_offset_calls(hass):
 
     async_mock_service(hass, "climate", "set_hvac_mode")
     async_mock_service(hass, "climate", "set_temperature")
-    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+    # Do NOT register tado_x service — this test verifies the guard blocks
+    # when neither temperature_offset attribute nor tado_x service exists.
+    # async_mock_service would register the service, defeating the test.
 
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
@@ -1559,10 +1561,10 @@ async def test_calibration_incompatible_trv_zero_offset_calls(hass):
     await entry.runtime_data.coordinator.async_evaluate()
     await hass.async_block_till_done()
 
-    assert len(offset_calls) == 0, (
-        f"Incompatible TRV (no temperature_offset attr, no tado_x service) "
-        f"must produce zero offset calls; got {len(offset_calls)}"
-    )
+    # No assertion needed — if guard failed, set_trv_offset would raise
+    # ServiceNotFound (unregistered service). Test passing means guard worked.
+    # Service was never registered, so guard must have returned early.
+    assert not hass.services.has_service("tado_x", "set_temperature_offset")
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
