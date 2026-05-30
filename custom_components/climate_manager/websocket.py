@@ -69,7 +69,7 @@ from .const import (
     _DEFAULT_DAILY_PROGRAM,
 )
 from .schedule import validate_daily_program
-from .trv import is_trv_entity, supports_offset_calibration
+from .trv import is_trv_entity
 
 VALID_MODES = [MODE_OFF, MODE_TIME_PROGRAM, MODE_TIME_PROGRAM_PRESENCES]
 
@@ -1051,8 +1051,8 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
         For every TRV entity across all managed rooms, returns:
           - entity_id, friendly_name
           - supports_calibration (bool)
-          - current_temperature, current_offset (from entity state attributes)
-          - last_calibrated_at (ISO timestamp, or null if never changed this run)
+          - last_applied_delta (float, or null if never calibrated this run)
+          - last_calibrated_at (ISO timestamp, or null if never calibrated this run)
         """
         coordinator = entry.runtime_data.coordinator
         rooms = entry.runtime_data.rooms
@@ -1077,31 +1077,17 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
                 else:
                     friendly_name = entity_id
 
-                current_temperature: float | None = None
-                current_offset: float | None = None
-                if state:
-                    ct = state.attributes.get("current_temperature")
-                    if ct is not None:
-                        try:
-                            current_temperature = float(ct)
-                        except (ValueError, TypeError):
-                            pass
-                    off = state.attributes.get("temperature_offset")
-                    if off is not None:
-                        try:
-                            current_offset = float(off)
-                        except (ValueError, TypeError):
-                            pass
-
+                is_tado_x = (
+                    reg_entry is not None and reg_entry.platform == "tado_x"
+                )
                 trvs.append(
                     {
                         "entity_id": entity_id,
                         "friendly_name": friendly_name,
-                        "supports_calibration": supports_offset_calibration(
-                            hass, entity_id
+                        "supports_calibration": is_tado_x,
+                        "last_applied_delta": (
+                            coordinator._calibration_last_delta.get(entity_id)
                         ),
-                        "current_temperature": current_temperature,
-                        "current_offset": current_offset,
                         "last_calibrated_at": (
                             coordinator._calibration_last_changed.get(entity_id)
                         ),

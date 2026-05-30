@@ -645,7 +645,7 @@ export class GlobalSettingsTab extends LitElement {
             <tr>
               <th>TRV</th>
               <th>Auto-calibration</th>
-              <th>Offset</th>
+              <th>Last applied delta</th>
               <th>Last adjusted</th>
             </tr>
           </thead>
@@ -668,16 +668,14 @@ export class GlobalSettingsTab extends LitElement {
                         ? "supported"
                         : "unsupported"}"
                     >
-                      ${trv.supports_calibration
-                        ? "Supported"
-                        : "Not supported"}
+                      ${trv.supports_calibration ? "Tado X" : "Not supported"}
                     </span>
                   </td>
                   <td>
-                    ${trv.current_offset != null
-                      ? html`${trv.current_offset > 0
+                    ${trv.last_applied_delta != null
+                      ? html`${trv.last_applied_delta > 0
                           ? "+"
-                          : ""}${trv.current_offset.toFixed(1)}
+                          : ""}${trv.last_applied_delta.toFixed(2)}
                         °C`
                       : "—"}
                   </td>

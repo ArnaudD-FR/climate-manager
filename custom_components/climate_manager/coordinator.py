@@ -106,6 +106,8 @@ class ClimateManagerCoordinator:
         self._last_room_periods: dict[str, str] = {}
         # Tracks when each TRV's offset was last changed by auto-calibration.
         self._calibration_last_changed: dict[str, str] = {}
+        # Tracks the last delta applied per TRV (sensor_temp - current_temp).
+        self._calibration_last_delta: dict[str, float] = {}
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
@@ -374,6 +376,7 @@ class ClimateManagerCoordinator:
             self._calibration_last_changed[entity_id] = datetime.now(
                 timezone.utc
             ).isoformat(timespec="seconds")
+            self._calibration_last_delta[entity_id] = round(delta, 2)
         except Exception:  # noqa: BLE001
             _LOGGER.warning(
                 "Failed to apply offset %.1f to %s", new_offset, entity_id

@@ -108,8 +108,7 @@ export interface TRVCalibrationEntry {
   entity_id: string;
   friendly_name: string;
   supports_calibration: boolean;
-  current_temperature: number | null;
-  current_offset: number | null;
+  last_applied_delta: number | null;
   last_calibrated_at: string | null;
 }
 
