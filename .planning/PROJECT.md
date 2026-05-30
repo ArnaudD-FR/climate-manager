@@ -45,7 +45,11 @@ and add automatic TRV calibration from room sensors.
 - Phase 6: zone/room assignment UI — dynamic zone tabs, zone-tab component,
   room badge + picker, colored zone dots, 121 tests passing
 
-**In Progress:** v1.2 Presence & Calibration (milestone active)
+**Shipped:** Phase 7 (even/odd week backend — PersonConfig schedule_type, schedule_even/odd, backend
+  parity evaluation) and Phase 8 (even/odd week frontend UI — getWeekParity helpers, schedule-type
+  select, Even/Odd switcher, per-week save/reset, ISO parity default, live panel verified) — v1.2
+
+**In Progress:** v1.2 Presence & Calibration (Phase 9: TRV calibration next)
 
 ## Requirements
 
@@ -67,8 +71,8 @@ and add automatic TRV calibration from room sensors.
 
 ### Active
 
-- [ ] Even/odd week presence scheduling (alternate schedules, ISO week parity) —
-  v1.2
+- ✓ Even/odd week presence scheduling (alternate schedules, ISO week parity) —
+  v1.2 Phase 8
 - [ ] TRV temperature offset auto-calibration from room sensor — v1.2
 
 ### Out of Scope
