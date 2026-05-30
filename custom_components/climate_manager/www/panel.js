@@ -3,17 +3,17 @@
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const ge = globalThis,
-  Ce =
-    ge.ShadowRoot &&
-    (ge.ShadyCSS === void 0 || ge.ShadyCSS.nativeShadow) &&
+const fe = globalThis,
+  Se =
+    fe.ShadowRoot &&
+    (fe.ShadyCSS === void 0 || fe.ShadyCSS.nativeShadow) &&
     "adoptedStyleSheets" in Document.prototype &&
     "replace" in CSSStyleSheet.prototype,
-  Pe = Symbol(),
+  Te = Symbol(),
   Ge = /* @__PURE__ */ new WeakMap();
-let ct = class {
+let dt = class {
   constructor(e, t, o) {
-    if (((this._$cssResult$ = !0), o !== Pe))
+    if (((this._$cssResult$ = !0), o !== Te))
       throw Error(
         "CSSResult is not constructable. Use `unsafeCSS` or `css` instead.",
       );
@@ -22,7 +22,7 @@ let ct = class {
   get styleSheet() {
     let e = this.o;
     const t = this.t;
-    if (Ce && e === void 0) {
+    if (Se && e === void 0) {
       const o = t !== void 0 && t.length === 1;
       o && (e = Ge.get(t)),
         e === void 0 &&
@@ -35,7 +35,7 @@ let ct = class {
     return this.cssText;
   }
 };
-const dt = (n) => new ct(typeof n == "string" ? n : n + "", void 0, Pe),
+const pt = (n) => new dt(typeof n == "string" ? n : n + "", void 0, Te),
   k = (n, ...e) => {
     const t =
       n.length === 1
@@ -55,30 +55,30 @@ const dt = (n) => new ct(typeof n == "string" ? n : n + "", void 0, Pe),
               n[i + 1],
             n[0],
           );
-    return new ct(t, n, Pe);
+    return new dt(t, n, Te);
   },
-  _t = (n, e) => {
-    if (Ce)
+  vt = (n, e) => {
+    if (Se)
       n.adoptedStyleSheets = e.map((t) =>
         t instanceof CSSStyleSheet ? t : t.styleSheet,
       );
     else
       for (const t of e) {
         const o = document.createElement("style"),
-          s = ge.litNonce;
+          s = fe.litNonce;
         s !== void 0 && o.setAttribute("nonce", s),
           (o.textContent = t.cssText),
           n.appendChild(o);
       }
   },
-  Ke = Ce
+  Ke = Se
     ? (n) => n
     : (n) =>
         n instanceof CSSStyleSheet
           ? ((e) => {
               let t = "";
               for (const o of e.cssRules) t += o.cssText;
-              return dt(t);
+              return pt(t);
             })(n)
           : n;
 /**
@@ -87,23 +87,23 @@ const dt = (n) => new ct(typeof n == "string" ? n : n + "", void 0, Pe),
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const {
-    is: bt,
-    defineProperty: vt,
-    getOwnPropertyDescriptor: yt,
-    getOwnPropertyNames: xt,
-    getOwnPropertySymbols: $t,
-    getPrototypeOf: wt,
+    is: yt,
+    defineProperty: xt,
+    getOwnPropertyDescriptor: $t,
+    getOwnPropertyNames: wt,
+    getOwnPropertySymbols: kt,
+    getPrototypeOf: Ct,
   } = Object,
   L = globalThis,
   Je = L.trustedTypes,
-  kt = Je ? Je.emptyScript : "",
-  ye = L.reactiveElementPolyfillSupport,
+  St = Je ? Je.emptyScript : "",
+  xe = L.reactiveElementPolyfillSupport,
   ie = (n, e) => n,
-  fe = {
+  _e = {
     toAttribute(n, e) {
       switch (e) {
         case Boolean:
-          n = n ? kt : null;
+          n = n ? St : null;
           break;
         case Object:
         case Array:
@@ -131,19 +131,19 @@ const {
       return t;
     },
   },
-  Se = (n, e) => !bt(n, e),
+  Pe = (n, e) => !yt(n, e),
   Qe = {
     attribute: !0,
     type: String,
-    converter: fe,
+    converter: _e,
     reflect: !1,
     useDefault: !1,
-    hasChanged: Se,
+    hasChanged: Pe,
   };
 Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")),
   L.litPropertyMetadata ??
     (L.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
-let V = class extends HTMLElement {
+let Y = class extends HTMLElement {
   static addInitializer(e) {
     this._$Ei(), (this.l ?? (this.l = [])).push(e);
   }
@@ -160,11 +160,11 @@ let V = class extends HTMLElement {
     ) {
       const o = Symbol(),
         s = this.getPropertyDescriptor(e, o, t);
-      s !== void 0 && vt(this.prototype, e, s);
+      s !== void 0 && xt(this.prototype, e, s);
     }
   }
   static getPropertyDescriptor(e, t, o) {
-    const { get: s, set: i } = yt(this.prototype, e) ?? {
+    const { get: s, set: i } = $t(this.prototype, e) ?? {
       get() {
         return this[t];
       },
@@ -187,7 +187,7 @@ let V = class extends HTMLElement {
   }
   static _$Ei() {
     if (this.hasOwnProperty(ie("elementProperties"))) return;
-    const e = wt(this);
+    const e = Ct(this);
     e.finalize(),
       e.l !== void 0 && (this.l = [...e.l]),
       (this.elementProperties = new Map(e.elementProperties));
@@ -200,7 +200,7 @@ let V = class extends HTMLElement {
       this.hasOwnProperty(ie("properties")))
     ) {
       const t = this.properties,
-        o = [...xt(t), ...$t(t)];
+        o = [...wt(t), ...kt(t)];
       for (const s of o) this.createProperty(s, t[s]);
     }
     const e = this[Symbol.metadata];
@@ -271,7 +271,7 @@ let V = class extends HTMLElement {
   createRenderRoot() {
     const e =
       this.shadowRoot ?? this.attachShadow(this.constructor.shadowRootOptions);
-    return _t(e, this.constructor.elementStyles), e;
+    return vt(e, this.constructor.elementStyles), e;
   }
   connectedCallback() {
     var e;
@@ -303,7 +303,7 @@ let V = class extends HTMLElement {
       const r = (
         ((i = o.converter) == null ? void 0 : i.toAttribute) !== void 0
           ? o.converter
-          : fe
+          : _e
       ).toAttribute(t, o.type);
       (this._$Em = e),
         r == null ? this.removeAttribute(s) : this.setAttribute(s, r),
@@ -321,7 +321,7 @@ let V = class extends HTMLElement {
             ? { fromAttribute: a.converter }
             : ((i = a.converter) == null ? void 0 : i.fromAttribute) !== void 0
               ? a.converter
-              : fe;
+              : _e;
       this._$Em = s;
       const c = l.fromAttribute(t, a.type);
       (this[s] = c ?? ((r = this._$Ej) == null ? void 0 : r.get(s)) ?? c),
@@ -336,7 +336,7 @@ let V = class extends HTMLElement {
         (s === !1 && (i = this[e]),
         o ?? (o = a.getPropertyOptions(e)),
         !(
-          (o.hasChanged ?? Se)(i, t) ||
+          (o.hasChanged ?? Pe)(i, t) ||
           (o.useDefault &&
             o.reflect &&
             i === ((r = this._$Ej) == null ? void 0 : r.get(e)) &&
@@ -441,11 +441,11 @@ let V = class extends HTMLElement {
   updated(e) {}
   firstUpdated(e) {}
 };
-(V.elementStyles = []),
-  (V.shadowRootOptions = { mode: "open" }),
-  (V[ie("elementProperties")] = /* @__PURE__ */ new Map()),
-  (V[ie("finalized")] = /* @__PURE__ */ new Map()),
-  ye == null || ye({ ReactiveElement: V }),
+(Y.elementStyles = []),
+  (Y.shadowRootOptions = { mode: "open" }),
+  (Y[ie("elementProperties")] = /* @__PURE__ */ new Map()),
+  (Y[ie("finalized")] = /* @__PURE__ */ new Map()),
+  xe == null || xe({ ReactiveElement: Y }),
   (L.reactiveElementVersions ?? (L.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
@@ -454,45 +454,45 @@ let V = class extends HTMLElement {
  */
 const re = globalThis,
   et = (n) => n,
-  _e = re.trustedTypes,
-  tt = _e ? _e.createPolicy("lit-html", { createHTML: (n) => n }) : void 0,
-  pt = "$lit$",
+  be = re.trustedTypes,
+  tt = be ? be.createPolicy("lit-html", { createHTML: (n) => n }) : void 0,
+  ht = "$lit$",
   j = `lit$${Math.random().toFixed(9).slice(2)}$`,
-  ht = "?" + j,
-  Ct = `<${ht}>`,
-  W = document,
-  ne = () => W.createComment(""),
-  ae = (n) => n === null || (typeof n != "object" && typeof n != "function"),
-  Te = Array.isArray,
+  ut = "?" + j,
+  Tt = `<${ut}>`,
+  q = document,
+  ae = () => q.createComment(""),
+  le = (n) => n === null || (typeof n != "object" && typeof n != "function"),
+  Ee = Array.isArray,
   Pt = (n) =>
-    Te(n) || typeof (n == null ? void 0 : n[Symbol.iterator]) == "function",
-  xe = `[ 	
+    Ee(n) || typeof (n == null ? void 0 : n[Symbol.iterator]) == "function",
+  $e = `[ 	
 \f\r]`,
   se = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,
   st = /-->/g,
   ot = />/g,
   B = RegExp(
-    `>|${xe}(?:([^\\s"'>=/]+)(${xe}*=${xe}*(?:[^ 	
+    `>|${$e}(?:([^\\s"'>=/]+)(${$e}*=${$e}*(?:[^ 	
 \f\r"'\`<>=]|("|')|))|$)`,
     "g",
   ),
   it = /'/g,
   rt = /"/g,
-  ut = /^(?:script|style|textarea|title)$/i,
-  St =
+  mt = /^(?:script|style|textarea|title)$/i,
+  Et =
     (n) =>
     (e, ...t) => ({ _$litType$: n, strings: e, values: t }),
-  d = St(1),
-  Y = Symbol.for("lit-noChange"),
+  d = Et(1),
+  V = Symbol.for("lit-noChange"),
   x = Symbol.for("lit-nothing"),
   nt = /* @__PURE__ */ new WeakMap(),
-  F = W.createTreeWalker(W, 129);
-function mt(n, e) {
-  if (!Te(n) || !n.hasOwnProperty("raw"))
+  W = q.createTreeWalker(q, 129);
+function gt(n, e) {
+  if (!Ee(n) || !n.hasOwnProperty("raw"))
     throw Error("invalid template strings array");
   return tt !== void 0 ? tt.createHTML(e) : e;
 }
-const Tt = (n, e) => {
+const zt = (n, e) => {
   const t = n.length - 1,
     o = [];
   let s,
@@ -503,16 +503,16 @@ const Tt = (n, e) => {
     let c,
       p,
       h = -1,
-      g = 0;
-    for (; g < l.length && ((r.lastIndex = g), (p = r.exec(l)), p !== null); )
-      (g = r.lastIndex),
+      f = 0;
+    for (; f < l.length && ((r.lastIndex = f), (p = r.exec(l)), p !== null); )
+      (f = r.lastIndex),
         r === se
           ? p[1] === "!--"
             ? (r = st)
             : p[1] !== void 0
               ? (r = ot)
               : p[2] !== void 0
-                ? (ut.test(p[2]) && (s = RegExp("</" + p[2], "g")), (r = B))
+                ? (mt.test(p[2]) && (s = RegExp("</" + p[2], "g")), (r = B))
                 : p[3] !== void 0 && (r = B)
           : r === B
             ? p[0] === ">"
@@ -527,23 +527,23 @@ const Tt = (n, e) => {
               : r === st || r === ot
                 ? (r = se)
                 : ((r = B), (s = void 0));
-    const b = r === B && n[a + 1].startsWith("/>") ? " " : "";
+    const g = r === B && n[a + 1].startsWith("/>") ? " " : "";
     i +=
       r === se
-        ? l + Ct
+        ? l + Tt
         : h >= 0
-          ? (o.push(c), l.slice(0, h) + pt + l.slice(h) + j + b)
-          : l + j + (h === -2 ? a : b);
+          ? (o.push(c), l.slice(0, h) + ht + l.slice(h) + j + g)
+          : l + j + (h === -2 ? a : g);
   }
   return [
-    mt(
+    gt(
       n,
       i + (n[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : ""),
     ),
     o,
   ];
 };
-class le {
+class ce {
   constructor({ strings: e, _$litType$: t }, o) {
     let s;
     this.parts = [];
@@ -551,55 +551,55 @@ class le {
       r = 0;
     const a = e.length - 1,
       l = this.parts,
-      [c, p] = Tt(e, t);
+      [c, p] = zt(e, t);
     if (
-      ((this.el = le.createElement(c, o)),
-      (F.currentNode = this.el.content),
+      ((this.el = ce.createElement(c, o)),
+      (W.currentNode = this.el.content),
       t === 2 || t === 3)
     ) {
       const h = this.el.content.firstChild;
       h.replaceWith(...h.childNodes);
     }
-    for (; (s = F.nextNode()) !== null && l.length < a; ) {
+    for (; (s = W.nextNode()) !== null && l.length < a; ) {
       if (s.nodeType === 1) {
         if (s.hasAttributes())
           for (const h of s.getAttributeNames())
-            if (h.endsWith(pt)) {
-              const g = p[r++],
-                b = s.getAttribute(h).split(j),
-                v = /([.?@])?(.*)/.exec(g);
+            if (h.endsWith(ht)) {
+              const f = p[r++],
+                g = s.getAttribute(h).split(j),
+                v = /([.?@])?(.*)/.exec(f);
               l.push({
                 type: 1,
                 index: i,
                 name: v[2],
-                strings: b,
+                strings: g,
                 ctor:
                   v[1] === "."
-                    ? Et
+                    ? At
                     : v[1] === "?"
-                      ? Mt
+                      ? Rt
                       : v[1] === "@"
-                        ? At
-                        : ve,
+                        ? Dt
+                        : ye,
               }),
                 s.removeAttribute(h);
             } else
               h.startsWith(j) &&
                 (l.push({ type: 6, index: i }), s.removeAttribute(h));
-        if (ut.test(s.tagName)) {
+        if (mt.test(s.tagName)) {
           const h = s.textContent.split(j),
-            g = h.length - 1;
-          if (g > 0) {
-            s.textContent = _e ? _e.emptyScript : "";
-            for (let b = 0; b < g; b++)
-              s.append(h[b], ne()),
-                F.nextNode(),
+            f = h.length - 1;
+          if (f > 0) {
+            s.textContent = be ? be.emptyScript : "";
+            for (let g = 0; g < f; g++)
+              s.append(h[g], ae()),
+                W.nextNode(),
                 l.push({ type: 2, index: ++i });
-            s.append(h[g], ne());
+            s.append(h[f], ae());
           }
         }
       } else if (s.nodeType === 8)
-        if (s.data === ht) l.push({ type: 2, index: i });
+        if (s.data === ut) l.push({ type: 2, index: i });
         else {
           let h = -1;
           for (; (h = s.data.indexOf(j, h + 1)) !== -1; )
@@ -609,15 +609,15 @@ class le {
     }
   }
   static createElement(e, t) {
-    const o = W.createElement("template");
+    const o = q.createElement("template");
     return (o.innerHTML = e), o;
   }
 }
 function G(n, e, t = n, o) {
   var r, a;
-  if (e === Y) return e;
+  if (e === V) return e;
   let s = o !== void 0 ? ((r = t._$Co) == null ? void 0 : r[o]) : t._$Cl;
-  const i = ae(e) ? void 0 : e._$litDirective$;
+  const i = le(e) ? void 0 : e._$litDirective$;
   return (
     (s == null ? void 0 : s.constructor) !== i &&
       ((a = s == null ? void 0 : s._$AO) == null || a.call(s, !1),
@@ -627,7 +627,7 @@ function G(n, e, t = n, o) {
     e
   );
 }
-class zt {
+class Mt {
   constructor(e, t) {
     (this._$AV = []), (this._$AN = void 0), (this._$AD = e), (this._$AM = t);
   }
@@ -642,9 +642,9 @@ class zt {
         el: { content: t },
         parts: o,
       } = this._$AD,
-      s = ((e == null ? void 0 : e.creationScope) ?? W).importNode(t, !0);
-    F.currentNode = s;
-    let i = F.nextNode(),
+      s = ((e == null ? void 0 : e.creationScope) ?? q).importNode(t, !0);
+    W.currentNode = s;
+    let i = W.nextNode(),
       r = 0,
       a = 0,
       l = o[0];
@@ -652,16 +652,16 @@ class zt {
       if (r === l.index) {
         let c;
         l.type === 2
-          ? (c = new ce(i, i.nextSibling, this, e))
+          ? (c = new de(i, i.nextSibling, this, e))
           : l.type === 1
             ? (c = new l.ctor(i, l.name, l.strings, this, e))
-            : l.type === 6 && (c = new Rt(i, this, e)),
+            : l.type === 6 && (c = new It(i, this, e)),
           this._$AV.push(c),
           (l = o[++a]);
       }
-      r !== (l == null ? void 0 : l.index) && ((i = F.nextNode()), r++);
+      r !== (l == null ? void 0 : l.index) && ((i = W.nextNode()), r++);
     }
-    return (F.currentNode = W), s;
+    return (W.currentNode = q), s;
   }
   p(e) {
     let t = 0;
@@ -673,7 +673,7 @@ class zt {
         t++;
   }
 }
-class ce {
+class de {
   get _$AU() {
     var e;
     return ((e = this._$AM) == null ? void 0 : e._$AU) ?? this._$Cv;
@@ -706,10 +706,10 @@ class ce {
   }
   _$AI(e, t = this) {
     (e = G(this, e, t)),
-      ae(e)
+      le(e)
         ? e === x || e == null || e === ""
           ? (this._$AH !== x && this._$AR(), (this._$AH = x))
-          : e !== this._$AH && e !== Y && this._(e)
+          : e !== this._$AH && e !== V && this._(e)
         : e._$litType$ !== void 0
           ? this.$(e)
           : e.nodeType !== void 0
@@ -725,9 +725,9 @@ class ce {
     this._$AH !== e && (this._$AR(), (this._$AH = this.O(e)));
   }
   _(e) {
-    this._$AH !== x && ae(this._$AH)
+    this._$AH !== x && le(this._$AH)
       ? (this._$AA.nextSibling.data = e)
-      : this.T(W.createTextNode(e)),
+      : this.T(q.createTextNode(e)),
       (this._$AH = e);
   }
   $(e) {
@@ -737,27 +737,27 @@ class ce {
         typeof o == "number"
           ? this._$AC(e)
           : (o.el === void 0 &&
-              (o.el = le.createElement(mt(o.h, o.h[0]), this.options)),
+              (o.el = ce.createElement(gt(o.h, o.h[0]), this.options)),
             o);
     if (((i = this._$AH) == null ? void 0 : i._$AD) === s) this._$AH.p(t);
     else {
-      const r = new zt(s, this),
+      const r = new Mt(s, this),
         a = r.u(this.options);
       r.p(t), this.T(a), (this._$AH = r);
     }
   }
   _$AC(e) {
     let t = nt.get(e.strings);
-    return t === void 0 && nt.set(e.strings, (t = new le(e))), t;
+    return t === void 0 && nt.set(e.strings, (t = new ce(e))), t;
   }
   k(e) {
-    Te(this._$AH) || ((this._$AH = []), this._$AR());
+    Ee(this._$AH) || ((this._$AH = []), this._$AR());
     const t = this._$AH;
     let o,
       s = 0;
     for (const i of e)
       s === t.length
-        ? t.push((o = new ce(this.O(ne()), this.O(ne()), this, this.options)))
+        ? t.push((o = new de(this.O(ae()), this.O(ae()), this, this.options)))
         : (o = t[s]),
         o._$AI(i),
         s++;
@@ -780,7 +780,7 @@ class ce {
       ((this._$Cv = e), (t = this._$AP) == null || t.call(this, e));
   }
 }
-class ve {
+class ye {
   get tagName() {
     return this.element.tagName;
   }
@@ -805,15 +805,15 @@ class ve {
     let r = !1;
     if (i === void 0)
       (e = G(this, e, t, 0)),
-        (r = !ae(e) || (e !== this._$AH && e !== Y)),
+        (r = !le(e) || (e !== this._$AH && e !== V)),
         r && (this._$AH = e);
     else {
       const a = e;
       let l, c;
       for (e = i[0], l = 0; l < i.length - 1; l++)
         (c = G(this, a[o + l], t, l)),
-          c === Y && (c = this._$AH[l]),
-          r || (r = !ae(c) || c !== this._$AH[l]),
+          c === V && (c = this._$AH[l]),
+          r || (r = !le(c) || c !== this._$AH[l]),
           c === x ? (e = x) : e !== x && (e += (c ?? "") + i[l + 1]),
           (this._$AH[l] = c);
     }
@@ -825,7 +825,7 @@ class ve {
       : this.element.setAttribute(this.name, e ?? "");
   }
 }
-class Et extends ve {
+class At extends ye {
   constructor() {
     super(...arguments), (this.type = 3);
   }
@@ -833,7 +833,7 @@ class Et extends ve {
     this.element[this.name] = e === x ? void 0 : e;
   }
 }
-class Mt extends ve {
+class Rt extends ye {
   constructor() {
     super(...arguments), (this.type = 4);
   }
@@ -841,12 +841,12 @@ class Mt extends ve {
     this.element.toggleAttribute(this.name, !!e && e !== x);
   }
 }
-class At extends ve {
+class Dt extends ye {
   constructor(e, t, o, s, i) {
     super(e, t, o, s, i), (this.type = 5);
   }
   _$AI(e, t = this) {
-    if ((e = G(this, e, t, 0) ?? x) === Y) return;
+    if ((e = G(this, e, t, 0) ?? x) === V) return;
     const o = this._$AH,
       s =
         (e === x && o !== x) ||
@@ -868,7 +868,7 @@ class At extends ve {
       : this._$AH.handleEvent(e);
   }
 }
-class Rt {
+class It {
   constructor(e, t, o) {
     (this.element = e),
       (this.type = 6),
@@ -883,15 +883,15 @@ class Rt {
     G(this, e);
   }
 }
-const $e = re.litHtmlPolyfillSupport;
-$e == null || $e(le, ce),
+const we = re.litHtmlPolyfillSupport;
+we == null || we(ce, de),
   (re.litHtmlVersions ?? (re.litHtmlVersions = [])).push("3.3.3");
-const It = (n, e, t) => {
+const Ot = (n, e, t) => {
   const o = (t == null ? void 0 : t.renderBefore) ?? e;
   let s = o._$litPart$;
   if (s === void 0) {
     const i = (t == null ? void 0 : t.renderBefore) ?? null;
-    o._$litPart$ = s = new ce(e.insertBefore(ne(), i), i, void 0, t ?? {});
+    o._$litPart$ = s = new de(e.insertBefore(ae(), i), i, void 0, t ?? {});
   }
   return s._$AI(n), s;
 };
@@ -900,8 +900,8 @@ const It = (n, e, t) => {
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const q = globalThis;
-class C extends V {
+const F = globalThis;
+class C extends Y {
   constructor() {
     super(...arguments),
       (this.renderOptions = { host: this }),
@@ -919,7 +919,7 @@ class C extends V {
     const t = this.render();
     this.hasUpdated || (this.renderOptions.isConnected = this.isConnected),
       super.update(e),
-      (this._$Do = It(t, this.renderRoot, this.renderOptions));
+      (this._$Do = Ot(t, this.renderRoot, this.renderOptions));
   }
   connectedCallback() {
     var e;
@@ -930,29 +930,29 @@ class C extends V {
     super.disconnectedCallback(), (e = this._$Do) == null || e.setConnected(!1);
   }
   render() {
-    return Y;
+    return V;
   }
 }
-var lt;
+var ct;
 (C._$litElement$ = !0),
   (C.finalized = !0),
-  (lt = q.litElementHydrateSupport) == null || lt.call(q, { LitElement: C });
-const we = q.litElementPolyfillSupport;
-we == null || we({ LitElement: C });
-(q.litElementVersions ?? (q.litElementVersions = [])).push("4.2.2");
+  (ct = F.litElementHydrateSupport) == null || ct.call(F, { LitElement: C });
+const ke = F.litElementPolyfillSupport;
+ke == null || ke({ LitElement: C });
+(F.litElementVersions ?? (F.litElementVersions = [])).push("4.2.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Dt = {
+const Nt = {
     attribute: !0,
     type: String,
-    converter: fe,
+    converter: _e,
     reflect: !1,
-    hasChanged: Se,
+    hasChanged: Pe,
   },
-  Nt = (n = Dt, e, t) => {
+  Ht = (n = Nt, e, t) => {
     const { kind: o, metadata: s } = t;
     let i = globalThis.litPropertyMetadata.get(s);
     if (
@@ -985,7 +985,7 @@ const Dt = {
 function u(n) {
   return (e, t) =>
     typeof t == "object"
-      ? Nt(n, e, t)
+      ? Ht(n, e, t)
       : ((o, s, i) => {
           const r = s.hasOwnProperty(i);
           return (
@@ -1007,7 +1007,7 @@ function y(n) {
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Ot = (n, e, t) => (
+const Ut = (n, e, t) => (
   (t.configurable = !0),
   (t.enumerable = !0),
   Reflect.decorate && typeof e != "object" && Object.defineProperty(n, e, t),
@@ -1018,20 +1018,20 @@ const Ot = (n, e, t) => (
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-function Ht(n, e) {
+function jt(n, e) {
   return (t, o, s) => {
     const i = (r) => {
       var a;
       return ((a = r.renderRoot) == null ? void 0 : a.querySelector(n)) ?? null;
     };
-    return Ot(t, o, {
+    return Ut(t, o, {
       get() {
         return i(this);
       },
     });
   };
 }
-class pe {
+class he {
   constructor(e) {
     this.hass = e;
   }
@@ -1189,7 +1189,7 @@ const U = {
     present: "Present",
     absent: "Absent",
   },
-  ke = [
+  Ce = [
     {
       background: "rgba(124, 58, 237, 0.12)",
       color: "#7c3aed",
@@ -1221,17 +1221,17 @@ const U = {
     },
     // rose
   ];
-function be(n) {
-  if (!n) return ke[0];
+function ve(n) {
+  if (!n) return Ce[0];
   let e = 0;
   for (let t = 0; t < n.length; t++) e = (e * 31 + n.charCodeAt(t)) >>> 0;
-  return ke[1 + (e % (ke.length - 1))];
+  return Ce[1 + (e % (Ce.length - 1))];
 }
-var Ut = Object.defineProperty,
-  Ee = (n, e, t, o) => {
+var Lt = Object.defineProperty,
+  Me = (n, e, t, o) => {
     for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
       (r = n[i]) && (s = r(e, t, s) || s);
-    return s && Ut(e, t, s), s;
+    return s && Lt(e, t, s), s;
   };
 const He = class He extends C {
   constructor() {
@@ -1321,19 +1321,19 @@ He.styles = k`
     }
   `;
 let K = He;
-Ee([y()], K.prototype, "_visible");
-Ee([y()], K.prototype, "_message");
-Ee([y()], K.prototype, "_isError");
+Me([y()], K.prototype, "_visible");
+Me([y()], K.prototype, "_message");
+Me([y()], K.prototype, "_isError");
 customElements.define("climate-manager-toast", K);
-var jt = Object.defineProperty,
+var Zt = Object.defineProperty,
   N = (n, e, t, o) => {
     for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
       (r = n[i]) && (s = r(e, t, s) || s);
-    return s && jt(e, t, s), s;
+    return s && Zt(e, t, s), s;
   };
-const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-  Zt = ["frost_protection", "reduced", "normal", "comfort"],
-  Bt = ["present", "absent"],
+const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+  Wt = ["frost_protection", "reduced", "normal", "comfort"],
+  Ft = ["present", "absent"],
   Ue = class Ue extends C {
     constructor() {
       super(...arguments),
@@ -1568,29 +1568,29 @@ const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
           s.startMin + 15,
           Math.min(s.endMin - 15, this._snapToMinutes(r)),
         ),
-        l = this.mode === "presence" ? Bt : Zt,
+        l = this.mode === "presence" ? Ft : Wt,
         c =
           this.mode === "presence"
             ? s.period.state ?? "absent"
             : s.period.mode ?? "frost_protection",
         p = l.indexOf(c),
         h = l[(p + 1) % l.length],
-        g =
+        f =
           this.mode === "presence"
             ? { start: s.period.start, state: c }
             : { start: s.period.start, mode: c },
-        b =
+        g =
           this.mode === "presence"
             ? { start: this._minutesToHHMM(a), state: h }
             : { start: this._minutesToHHMM(a), mode: h },
         v = this.days[e] ?? [],
-        m = v.some((f) => f.start === s.period.start);
-      let _;
+        m = v.some((_) => _.start === s.period.start);
+      let b;
       m
-        ? (_ = v.flatMap((f) => (f.start === s.period.start ? [g, b] : [f])))
-        : (_ = [b, ...v]),
+        ? (b = v.flatMap((_) => (_.start === s.period.start ? [f, g] : [_])))
+        : (b = [g, ...v]),
         this._closePopup(),
-        this._emitChange(e, _);
+        this._emitChange(e, b);
     }
     // -----------------------------------------------------------------------
     // Drag boundary (D-06)
@@ -1631,16 +1631,16 @@ const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         c = l[o],
         p = l[o + 1];
       if (c && p) {
-        const g = c.startMin + 15,
-          b = p.endMin - 15,
-          v = Math.max(g, Math.min(b, a)),
-          m = (this.days[t] ?? []).map((f) =>
-            f.start === p.period.start
-              ? { ...f, start: this._minutesToHHMM(v) }
-              : f,
+        const f = c.startMin + 15,
+          g = p.endMin - 15,
+          v = Math.max(f, Math.min(g, a)),
+          m = (this.days[t] ?? []).map((_) =>
+            _.start === p.period.start
+              ? { ..._, start: this._minutesToHHMM(v) }
+              : _,
           ),
-          _ = this.days.map((f, $) => ($ === t ? m : f));
-        this._dragPreviewDays = _;
+          b = this.days.map((_, $) => ($ === t ? m : _));
+        this._dragPreviewDays = b;
       }
     }
     _onPointerUp(e) {
@@ -1659,18 +1659,18 @@ const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
           p = c[o],
           h = c[o + 1];
         if (p && h) {
-          const g = p.startMin + 15,
-            b = h.endMin - 15,
-            v = Math.max(g, Math.min(b, l)),
-            m = (this.days[t] ?? []).map((f) =>
-              f.start === h.period.start
-                ? { ...f, start: this._minutesToHHMM(v) }
-                : f,
+          const f = p.startMin + 15,
+            g = h.endMin - 15,
+            v = Math.max(f, Math.min(g, l)),
+            m = (this.days[t] ?? []).map((_) =>
+              _.start === h.period.start
+                ? { ..._, start: this._minutesToHHMM(v) }
+                : _,
             ),
-            _ = this.days.map((f, $) => ($ === t ? m : f));
+            b = this.days.map((_, $) => ($ === t ? m : _));
           (this._drag = null),
             (this._dragTooltipMinutes = null),
-            (this._dragPreviewDays = _),
+            (this._dragPreviewDays = b),
             (this._justDragged = !0),
             this._emitChange(t, m);
           return;
@@ -1737,7 +1737,7 @@ const Lt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
       >
         <!-- Time axis above day rows — identical structure to bottom axis -->
         ${this._renderTimeAxis()}
-        ${Lt.map((e, t) => this._renderDayRow(e, t))}
+        ${Bt.map((e, t) => this._renderDayRow(e, t))}
 
         <!-- Shared time axis below day rows -->
         ${this._renderTimeAxis()}
@@ -2254,24 +2254,24 @@ N([y()], z.prototype, "_dragTooltipY");
 N([y()], z.prototype, "_dragPreviewDays");
 N([y()], z.prototype, "_popup");
 customElements.define("climate-manager-time-bar", z);
-var Ft = Object.defineProperty,
-  de = (n, e, t, o) => {
+var qt = Object.defineProperty,
+  pe = (n, e, t, o) => {
     for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
       (r = n[i]) && (s = r(e, t, s) || s);
-    return s && Ft(e, t, s), s;
+    return s && qt(e, t, s), s;
   };
-const Me = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-function Ae(n) {
-  return Me.map((e) => (n != null && n[e] ? [...n[e]] : []));
+const Ae = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+function ne(n) {
+  return Ae.map((e) => (n != null && n[e] ? [...n[e]] : []));
 }
 function Re(n) {
-  return Me[n] ?? "mon";
+  return Ae[n] ?? "mon";
 }
-function qt(n, e) {
+function Xt(n, e) {
   if (!n) return null;
   const t = e.getDay(),
     o = t === 0 ? 6 : t - 1,
-    s = Me[o],
+    s = Ae[o],
     i = n[s] ?? [],
     r = e.getHours() * 60 + e.getMinutes();
   let a = null;
@@ -2281,13 +2281,13 @@ function qt(n, e) {
   }
   return a;
 }
-const gt = "off",
-  Wt = "time_program",
-  Xt = "time_program_presences",
-  Vt = {
-    [gt]: "Off",
-    [Wt]: "Time program",
-    [Xt]: "Time program & presences",
+const ft = "off",
+  Yt = "time_program",
+  Vt = "time_program_presences",
+  Gt = {
+    [ft]: "Off",
+    [Yt]: "Time program",
+    [Vt]: "Time program & presences",
   },
   je = class je extends C {
     constructor() {
@@ -2359,7 +2359,7 @@ const gt = "off",
           id: i,
           name: r.name,
           mode: r.mode,
-          activePeriod: r.mode !== gt ? qt(r.time_program, e) : null,
+          activePeriod: r.mode !== ft ? Xt(r.time_program, e) : null,
         });
       return t;
     }
@@ -2375,15 +2375,15 @@ const gt = "off",
             : d`
             <span class="status-value">
               ${o.map((a, l) => {
-                var h, g, b;
+                var h, f, g;
                 const c =
-                    ((b =
-                      (g = (h = this.hass) == null ? void 0 : h.states[a]) ==
+                    ((g =
+                      (f = (h = this.hass) == null ? void 0 : h.states[a]) ==
                       null
                         ? void 0
-                        : g.attributes) == null
+                        : f.attributes) == null
                       ? void 0
-                      : b.friendly_name) ?? a,
+                      : g.friendly_name) ?? a,
                   p = s.has(a);
                 return d`<span
                     class="person-dot ${p ? "" : "absent"}"
@@ -2403,8 +2403,8 @@ const gt = "off",
               <span>Active period</span>
             </div>
             ${t.map((a) => {
-              const l = be(a.id === "default" ? void 0 : a.id),
-                c = Vt[a.mode] ?? a.mode,
+              const l = ve(a.id === "default" ? void 0 : a.id),
+                c = Gt[a.mode] ?? a.mode,
                 p = a.activePeriod ? ze[a.activePeriod] ?? a.activePeriod : "—";
               return d`
                 <div class="zone-status-row">
@@ -2481,7 +2481,7 @@ const gt = "off",
 je.styles = k`
     :host {
       display: block;
-      --present-color: ${dt(oe.present)};
+      --present-color: ${pt(oe.present)};
     }
 
     ha-card {
@@ -2649,13 +2649,13 @@ je.styles = k`
     }
   `;
 let Z = je;
-de([u({ attribute: !1 })], Z.prototype, "config");
-de([u({ attribute: !1 })], Z.prototype, "status");
-de([u({ attribute: !1 })], Z.prototype, "ws");
-de([u({ attribute: !1 })], Z.prototype, "panel");
-de([u({ attribute: !1 })], Z.prototype, "hass");
+pe([u({ attribute: !1 })], Z.prototype, "config");
+pe([u({ attribute: !1 })], Z.prototype, "status");
+pe([u({ attribute: !1 })], Z.prototype, "ws");
+pe([u({ attribute: !1 })], Z.prototype, "panel");
+pe([u({ attribute: !1 })], Z.prototype, "hass");
 customElements.define("climate-manager-global-settings-tab", Z);
-const Ie = k`
+const De = k`
   .chips {
     display: flex;
     flex-wrap: wrap;
@@ -2729,7 +2729,7 @@ const Ie = k`
     height: 16px;
   }
 `,
-  De = k`
+  Ie = k`
   .section-label {
     font-size: 12px;
     font-weight: 600;
@@ -2739,7 +2739,7 @@ const Ie = k`
     margin-bottom: 8px;
   }
 `,
-  Ne = k`
+  Oe = k`
   .mode-select {
     width: 100%;
     padding: 10px 12px;
@@ -2761,7 +2761,7 @@ const Ie = k`
     border-width: 2px;
   }
 `,
-  Oe = k`
+  Ne = k`
   .schedule-hint {
     font-size: 12px;
     color: var(--secondary-text-color);
@@ -2769,7 +2769,7 @@ const Ie = k`
     line-height: 1.5;
   }
 `,
-  ft = k`
+  _t = k`
   .expand-icon {
     color: var(--secondary-text-color);
     transition: transform 0.2s;
@@ -2779,11 +2779,11 @@ const Ie = k`
     transform: rotate(180deg);
   }
 `;
-var Yt = Object.defineProperty,
+var Kt = Object.defineProperty,
   J = (n, e, t, o) => {
     for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
       (r = n[i]) && (s = r(e, t, s) || s);
-    return s && Yt(e, t, s), s;
+    return s && Kt(e, t, s), s;
   };
 const Le = class Le extends C {
   constructor() {
@@ -3072,19 +3072,19 @@ Le.styles = k`
       text-align: center;
     }
   `;
-let R = Le;
-J([u({ type: Array })], R.prototype, "items");
-J([u({ type: String })], R.prototype, "placeholder");
-J([u({ type: String })], R.prototype, "triggerLabel");
-J([u({ type: String })], R.prototype, "triggerIcon");
-J([y()], R.prototype, "_open");
-J([y()], R.prototype, "_query");
-customElements.define("search-picker", R);
-var Gt = Object.defineProperty,
+let D = Le;
+J([u({ type: Array })], D.prototype, "items");
+J([u({ type: String })], D.prototype, "placeholder");
+J([u({ type: String })], D.prototype, "triggerLabel");
+J([u({ type: String })], D.prototype, "triggerIcon");
+J([y()], D.prototype, "_open");
+J([y()], D.prototype, "_query");
+customElements.define("search-picker", D);
+var Jt = Object.defineProperty,
   A = (n, e, t, o) => {
     for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
       (r = n[i]) && (s = r(e, t, s) || s);
-    return s && Gt(e, t, s), s;
+    return s && Jt(e, t, s), s;
   };
 const Ze = class Ze extends C {
   constructor() {
@@ -3101,7 +3101,7 @@ const Ze = class Ze extends C {
     const e = (t = this.config) == null ? void 0 : t.time_program;
     return (
       e !== this._lastTimeProgram &&
-        ((this._lastTimeProgram = e), (this._cachedDays = Ae(e ?? void 0))),
+        ((this._lastTimeProgram = e), (this._cachedDays = ne(e ?? void 0))),
       this._cachedDays
     );
   }
@@ -3315,7 +3315,7 @@ const Ze = class Ze extends C {
    * Otherwise returns a colored pill: "${name} · ${temp}°C".
    */
   _renderPeriodBadge() {
-    var a, l, c, p, h, g;
+    var a, l, c, p, h, f;
     if (
       (((a = this.config) == null ? void 0 : a.room_mode) ?? "global") ===
       "frost_protection"
@@ -3338,10 +3338,10 @@ const Ze = class Ze extends C {
     if (o == null) return d``;
     const s = ze[o] ?? o,
       i =
-        (g = (h = this.panelConfig) == null ? void 0 : h.period_temperatures) ==
+        (f = (h = this.panelConfig) == null ? void 0 : h.period_temperatures) ==
         null
           ? void 0
-          : g[o],
+          : f[o],
       r = i != null ? `${s} · ${i}°C` : s;
     return d`
       <span
@@ -3352,7 +3352,7 @@ const Ze = class Ze extends C {
     `;
   }
   _renderHeaderStatus() {
-    var b, v, m;
+    var g, v, m;
     const e = this.roomStatus,
       t =
         (e == null ? void 0 : e.temperature) != null
@@ -3361,7 +3361,7 @@ const Ze = class Ze extends C {
       o = t != null && !isNaN(t) ? `${t.toFixed(1)}°C` : "—",
       s = (e == null ? void 0 : e.humidity) != null ? `${e.humidity}%` : "—",
       i =
-        ((b = this.status) == null ? void 0 : b.global_mode) ??
+        ((g = this.status) == null ? void 0 : g.global_mode) ??
         ((v = this.panelConfig) == null ? void 0 : v.global_mode) ??
         "",
       r = i === "time_program_presences",
@@ -3375,7 +3375,7 @@ const Ze = class Ze extends C {
       h = r
         ? ((m = this.roomStatus) == null ? void 0 : m.present_person_count) ?? 0
         : null,
-      g = h != null ? `${h}/${p}` : `${p}`;
+      f = h != null ? `${h}/${p}` : `${p}`;
     return d`
       <div class="card-header-status">
         <span class="status-item" title="Mode: ${l}">
@@ -3391,7 +3391,7 @@ const Ze = class Ze extends C {
           title="${r ? `${h} present / ${p} assigned` : `${p} assigned`}"
         >
           <ha-icon icon="mdi:account-group"></ha-icon>
-          ${g}
+          ${f}
         </span>
       </div>
     `;
@@ -3549,7 +3549,7 @@ const Ze = class Ze extends C {
                 class="zone-badge"
                 style=${(() => {
                   var c;
-                  const l = be((c = this.config) == null ? void 0 : c.zone_id);
+                  const l = ve((c = this.config) == null ? void 0 : c.zone_id);
                   return `background:${l.background};color:${l.color};border-color:${l.border}`;
                 })()}
                 @click=${(l) => {
@@ -3690,11 +3690,11 @@ const Ze = class Ze extends C {
   }
 };
 Ze.styles = [
-  Ie,
   De,
-  Ne,
-  ft,
+  Ie,
   Oe,
+  _t,
+  Ne,
   k`
       :host {
         display: block;
@@ -3840,24 +3840,24 @@ Ze.styles = [
       }
     `,
 ];
-let P = Ze;
-A([u({ type: String })], P.prototype, "roomId");
-A([u({ type: String })], P.prototype, "roomName");
-A([u({ attribute: !1 })], P.prototype, "config");
-A([u({ attribute: !1 })], P.prototype, "roomStatus");
-A([u({ attribute: !1 })], P.prototype, "panelConfig");
-A([u({ attribute: !1 })], P.prototype, "status");
-A([u({ attribute: !1 })], P.prototype, "ws");
-A([u({ attribute: !1 })], P.prototype, "panel");
-A([u({ attribute: !1 })], P.prototype, "hass");
-A([u({ type: Boolean })], P.prototype, "autoExpand");
-A([y()], P.prototype, "_expanded");
-customElements.define("climate-manager-room-card", P);
-var Kt = Object.defineProperty,
+let S = Ze;
+A([u({ type: String })], S.prototype, "roomId");
+A([u({ type: String })], S.prototype, "roomName");
+A([u({ attribute: !1 })], S.prototype, "config");
+A([u({ attribute: !1 })], S.prototype, "roomStatus");
+A([u({ attribute: !1 })], S.prototype, "panelConfig");
+A([u({ attribute: !1 })], S.prototype, "status");
+A([u({ attribute: !1 })], S.prototype, "ws");
+A([u({ attribute: !1 })], S.prototype, "panel");
+A([u({ attribute: !1 })], S.prototype, "hass");
+A([u({ type: Boolean })], S.prototype, "autoExpand");
+A([y()], S.prototype, "_expanded");
+customElements.define("climate-manager-room-card", S);
+var Qt = Object.defineProperty,
   Q = (n, e, t, o) => {
     for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
       (r = n[i]) && (s = r(e, t, s) || s);
-    return s && Kt(e, t, s), s;
+    return s && Qt(e, t, s), s;
   };
 const Be = class Be extends C {
   constructor() {
@@ -3872,7 +3872,7 @@ const Be = class Be extends C {
     );
   }
   render() {
-    var p, h, g, b, v;
+    var p, h, f, g, v;
     const e = ((p = this.config) == null ? void 0 : p.rooms) ?? {},
       t = (((h = this.status) == null ? void 0 : h.rooms_status) ?? []).filter(
         (m) => m.has_trv !== !1,
@@ -3886,59 +3886,59 @@ const Be = class Be extends C {
         </div>
       `;
     const s = (m) => {
-        var _, f, $;
+        var b, _, $;
         return (
           (($ =
-            (f = (_ = this.status) == null ? void 0 : _.rooms_status) == null
+            (_ = (b = this.status) == null ? void 0 : b.rooms_status) == null
               ? void 0
-              : f.find((T) => T.area_id === m)) == null
+              : _.find((E) => E.area_id === m)) == null
             ? void 0
             : $.name) ??
-          m.replace(/_/g, " ").replace(/\b\w/g, (T) => T.toUpperCase())
+          m.replace(/_/g, " ").replace(/\b\w/g, (E) => E.toUpperCase())
         );
       },
       i = /* @__PURE__ */ new Map();
     for (const m of o) {
-      const _ =
+      const b =
         ((v =
-          (b = (g = this.hass) == null ? void 0 : g.areas) == null
+          (g = (f = this.hass) == null ? void 0 : f.areas) == null
             ? void 0
-            : b[m]) == null
+            : g[m]) == null
           ? void 0
           : v.floor_id) ?? null;
-      i.has(_) || i.set(_, []), i.get(_).push(m);
+      i.has(b) || i.set(b, []), i.get(b).push(m);
     }
-    for (const m of i.values()) m.sort((_, f) => s(_).localeCompare(s(f)));
+    for (const m of i.values()) m.sort((b, _) => s(b).localeCompare(s(_)));
     const r = [...i.keys()]
         .filter((m) => m !== null)
-        .sort((m, _) => {
-          var f, $, T, te, Ve, Ye;
+        .sort((m, b) => {
+          var _, $, E, te, Ye, Ve;
           return (
-            (((T =
-              ($ = (f = this.hass) == null ? void 0 : f.floors) == null
+            (((E =
+              ($ = (_ = this.hass) == null ? void 0 : _.floors) == null
                 ? void 0
-                : $[_]) == null
+                : $[b]) == null
               ? void 0
-              : T.level) ?? 0) -
-            (((Ye =
-              (Ve = (te = this.hass) == null ? void 0 : te.floors) == null
+              : E.level) ?? 0) -
+            (((Ve =
+              (Ye = (te = this.hass) == null ? void 0 : te.floors) == null
                 ? void 0
-                : Ve[m]) == null
+                : Ye[m]) == null
               ? void 0
-              : Ye.level) ?? 0)
+              : Ve.level) ?? 0)
           );
         }),
       a = i.get(null) ?? [],
       l = (m) => {
-        const _ = e[m] ?? {},
-          f = this._getRoomStatus(m),
+        const b = e[m] ?? {},
+          _ = this._getRoomStatus(m),
           $ = s(m);
         return d`
         <climate-manager-room-card
           .roomId=${m}
           .roomName=${$}
-          .config=${_}
-          .roomStatus=${f}
+          .config=${b}
+          .roomStatus=${_}
           .panelConfig=${this.config}
           .status=${this.status}
           .ws=${this.ws}
@@ -3949,42 +3949,42 @@ const Be = class Be extends C {
       `;
       },
       c = (m) => {
-        var $, T;
-        const _ =
-          (T = ($ = this.hass) == null ? void 0 : $.floors) == null
+        var $, E;
+        const b =
+          (E = ($ = this.hass) == null ? void 0 : $.floors) == null
             ? void 0
-            : T[m];
-        if (_ != null && _.icon) return _.icon;
-        const f = (_ == null ? void 0 : _.level) ?? 0;
-        return f === -1
+            : E[m];
+        if (b != null && b.icon) return b.icon;
+        const _ = (b == null ? void 0 : b.level) ?? 0;
+        return _ === -1
           ? "mdi:home-floor-negative-1"
-          : f < 0
+          : _ < 0
             ? "mdi:home-floor-b"
-            : f === 1
+            : _ === 1
               ? "mdi:home-floor-1"
-              : f === 2
+              : _ === 2
                 ? "mdi:home-floor-2"
-                : f === 3 || f > 3
+                : _ === 3 || _ > 3
                   ? "mdi:home-floor-3"
                   : "mdi:home-floor-0";
       };
     return d`
       ${r.map((m) => {
-        var $, T, te;
-        const _ =
+        var $, E, te;
+        const b =
             ((te =
-              (T = ($ = this.hass) == null ? void 0 : $.floors) == null
+              (E = ($ = this.hass) == null ? void 0 : $.floors) == null
                 ? void 0
-                : T[m]) == null
+                : E[m]) == null
               ? void 0
               : te.name) ?? m,
-          f = i.get(m) ?? [];
+          _ = i.get(m) ?? [];
         return d`
           <div class="floor-header">
             <ha-icon icon=${c(m)}></ha-icon>
-            ${_}
+            ${b}
           </div>
-          ${f.map(l)}
+          ${_.map(l)}
         `;
       })}
       ${a.map(l)}
@@ -4035,17 +4035,27 @@ Q([u({ attribute: !1 })], I.prototype, "panel");
 Q([u({ attribute: !1 })], I.prototype, "hass");
 Q([u({ attribute: !1 })], I.prototype, "expandRoomId");
 customElements.define("climate-manager-rooms-tab", I);
-var Jt = Object.defineProperty,
-  O = (n, e, t, o) => {
+function bt(n) {
+  const e = new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate())),
+    t = e.getUTCDay() || 7;
+  e.setUTCDate(e.getUTCDate() + 4 - t);
+  const o = new Date(Date.UTC(e.getUTCFullYear(), 0, 1));
+  return Math.ceil(((e.getTime() - o.getTime()) / 864e5 + 1) / 7);
+}
+function at(n) {
+  return bt(n) % 2 === 0 ? "even" : "odd";
+}
+var es = Object.defineProperty,
+  R = (n, e, t, o) => {
     for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
       (r = n[i]) && (s = r(e, t, s) || s);
-    return s && Jt(e, t, s), s;
+    return s && es(e, t, s), s;
   };
 const X = "scheduled",
-  he = "ha",
-  ue = "force_present",
-  me = "force_absent",
-  at = {
+  ue = "ha",
+  me = "force_present",
+  ge = "force_absent",
+  lt = {
     mon: [
       { start: "00:00", state: "present" },
       { start: "08:00", state: "absent" },
@@ -4074,39 +4084,65 @@ const X = "scheduled",
     sat: [{ start: "00:00", state: "present" }],
     sun: [{ start: "00:00", state: "present" }],
   },
-  Fe = class Fe extends C {
+  We = class We extends C {
     constructor() {
       super(...arguments),
         (this.roomChoices = []),
         (this.status = null),
         (this._expanded = !1),
+        (this._activeWeek = "even"),
         (this.autoExpand = !1),
         (this._lastSchedule = void 0),
-        (this._cachedDays = []);
+        (this._cachedDays = []),
+        (this._lastScheduleEven = void 0),
+        (this._cachedDaysEven = []),
+        (this._lastScheduleOdd = void 0),
+        (this._cachedDaysOdd = []);
     }
     get _days() {
       var t;
       const e = (t = this.config) == null ? void 0 : t.schedule;
       return (
         e !== this._lastSchedule &&
-          ((this._lastSchedule = e), (this._cachedDays = Ae(e))),
+          ((this._lastSchedule = e), (this._cachedDays = ne(e))),
         this._cachedDays
+      );
+    }
+    get _daysEven() {
+      var t;
+      const e = (t = this.config) == null ? void 0 : t.schedule_even;
+      return (
+        e !== this._lastScheduleEven &&
+          ((this._lastScheduleEven = e), (this._cachedDaysEven = ne(e))),
+        this._cachedDaysEven
+      );
+    }
+    get _daysOdd() {
+      var t;
+      const e = (t = this.config) == null ? void 0 : t.schedule_odd;
+      return (
+        e !== this._lastScheduleOdd &&
+          ((this._lastScheduleOdd = e), (this._cachedDaysOdd = ne(e))),
+        this._cachedDaysOdd
       );
     }
     connectedCallback() {
       super.connectedCallback(), (this._expanded = !1);
     }
     updated(e) {
-      e.has("autoExpand") &&
-        this.autoExpand &&
-        ((this._expanded = !0),
-        setTimeout(() => {
-          const t = this.getBoundingClientRect();
-          this.scrollIntoView({
-            behavior: "smooth",
-            block: t.height <= window.innerHeight ? "nearest" : "start",
-          });
-        }, 0));
+      e.has("_expanded") &&
+        this._expanded &&
+        (this._activeWeek = at(/* @__PURE__ */ new Date())),
+        e.has("autoExpand") &&
+          this.autoExpand &&
+          ((this._expanded = !0),
+          setTimeout(() => {
+            const t = this.getBoundingClientRect();
+            this.scrollIntoView({
+              behavior: "smooth",
+              block: t.height <= window.innerHeight ? "nearest" : "start",
+            });
+          }, 0));
     }
     // -----------------------------------------------------------------------
     // Save handlers
@@ -4122,7 +4158,7 @@ const X = "scheduled",
           t === X && !s
             ? await this.ws.setPersonConfig(this.personId, {
                 mode: t,
-                schedule: at,
+                schedule: lt,
               })
             : await this.ws.setPersonConfig(this.personId, { mode: t }),
             await this.panel.reloadConfig(),
@@ -4143,21 +4179,44 @@ const X = "scheduled",
         this.panel.showToast("Save failed — retrying...", !0);
       }
     }
-    async _onResetSchedule() {
+    async _onScheduleTypeChange(e) {
+      const t = e.target.value;
       try {
         await this.ws.setPersonConfig(this.personId, {
-          schedule: at,
+          schedule_type: t,
         }),
           await this.panel.reloadConfig(),
-          this.panel.showToast("Reset to defaults", !1);
+          this.panel.showToast("Saved", !1);
+      } catch {
+        this.panel.showToast("Save failed — retrying...", !0);
+      }
+    }
+    async _onResetSchedule() {
+      const t =
+        (this.config.schedule_type ?? "single") === "even_odd"
+          ? this._activeWeek === "even"
+            ? "schedule_even"
+            : "schedule_odd"
+          : "schedule";
+      try {
+        await this.ws.setPersonConfig(this.personId, {
+          [t]: lt,
+        }),
+          await this.panel.reloadConfig(),
+          this.panel.showToast("Reset done", !1);
       } catch {
         this.panel.showToast("Reset failed — retrying...", !0);
       }
     }
     async _onSchedulePeriodsChanged(e) {
       const { dayIndex: t, periods: o } = e.detail,
-        i = {
-          ...(this.config.schedule ?? {
+        s = (this.config.schedule_type ?? "single") === "even_odd",
+        a = {
+          ...((s
+            ? this._activeWeek === "even"
+              ? this.config.schedule_even
+              : this.config.schedule_odd
+            : this.config.schedule) ?? {
             mon: [],
             tue: [],
             wed: [],
@@ -4166,11 +4225,17 @@ const X = "scheduled",
             sat: [],
             sun: [],
           }),
-        },
-        r = Re(t);
-      i[r] = o;
+        };
+      a[Re(t)] = o;
+      const l = s
+        ? this._activeWeek === "even"
+          ? "schedule_even"
+          : "schedule_odd"
+        : "schedule";
       try {
-        await this.ws.setPersonConfig(this.personId, { schedule: i }),
+        await this.ws.setPersonConfig(this.personId, {
+          [l]: a,
+        }),
           await this.panel.reloadConfig(),
           this.panel.showToast("Saved", !1);
       } catch {
@@ -4195,23 +4260,30 @@ const X = "scheduled",
     _getBadgeInfo() {
       var t;
       switch (((t = this.config) == null ? void 0 : t.mode) ?? X) {
-        case ue:
-          return { cls: "force-present", text: "Force Present" };
         case me:
+          return { cls: "force-present", text: "Force Present" };
+        case ge:
           return { cls: "force-absent", text: "Force Absent" };
-        case he:
+        case ue:
           return { cls: "ha", text: "HA home tracking" };
         default:
           return { cls: "scheduled", text: "Scheduled" };
       }
     }
     render() {
-      var a, l;
+      var p, h, f;
       const { cls: e, text: t } = this._getBadgeInfo(),
-        o = ((a = this.config) == null ? void 0 : a.mode) ?? X,
+        o = ((p = this.config) == null ? void 0 : p.mode) ?? X,
         s = o === X,
-        i = ((l = this.config) == null ? void 0 : l.room_ids) ?? [],
-        r = this.roomChoices.filter((c) => !i.includes(c.id));
+        i = ((h = this.config) == null ? void 0 : h.schedule_type) ?? "single",
+        r = i === "even_odd",
+        a = r
+          ? this._activeWeek === "even"
+            ? "Reset Even week to default"
+            : "Reset Odd week to default"
+          : "Reset to default",
+        l = ((f = this.config) == null ? void 0 : f.room_ids) ?? [],
+        c = this.roomChoices.filter((g) => !l.includes(g.id));
       return d`
       <ha-card>
         <div
@@ -4259,20 +4331,20 @@ const X = "scheduled",
                       Scheduled
                     </option>
                     <option
-                      value=${he}
-                      ?selected=${o === he}
+                      value=${ue}
+                      ?selected=${o === ue}
                     >
                       HA home tracking
                     </option>
                     <option
-                      value=${ue}
-                      ?selected=${o === ue}
+                      value=${me}
+                      ?selected=${o === me}
                     >
                       Force Present
                     </option>
                     <option
-                      value=${me}
-                      ?selected=${o === me}
+                      value=${ge}
+                      ?selected=${o === ge}
                     >
                       Force Absent
                     </option>
@@ -4280,11 +4352,11 @@ const X = "scheduled",
                 </div>
                 <p class="schedule-hint">
                   ${
-                    o === ue
+                    o === me
                       ? "Always considered present, regardless of schedule."
-                      : o === me
+                      : o === ge
                         ? "Always absent. Rooms are not heated for presence."
-                        : o === he
+                        : o === ue
                           ? "Presence mirrors Home Assistant home/away tracking."
                           : "Presence follows a weekly schedule."
                   }
@@ -4298,20 +4370,20 @@ const X = "scheduled",
                   Room associations
                 </div>
                 <div class="chips">
-                  ${i.map((c) => {
-                    const p = this.roomChoices.find((h) => h.id === c);
-                    return p
+                  ${l.map((g) => {
+                    const v = this.roomChoices.find((m) => m.id === g);
+                    return v
                       ? d`
                       <span
                         class="chip"
-                        @click=${() => void this.panel.navigateToRoom(c)}
+                        @click=${() => void this.panel.navigateToRoom(g)}
                       >
                         <ha-icon icon="mdi:home-outline"></ha-icon>
-                        ${p.name}
+                        ${v.name}
                         <button
                           class="chip-remove"
-                          @click=${(h) => {
-                            h.stopPropagation(), this._onRoomToggle(c, !1);
+                          @click=${(m) => {
+                            m.stopPropagation(), this._onRoomToggle(g, !1);
                           }}
                         >
                           ×
@@ -4321,21 +4393,21 @@ const X = "scheduled",
                       : "";
                   })}
                   ${
-                    r.length > 0
+                    c.length > 0
                       ? d`
                         <search-picker
-                          .items=${r.map((c) => ({
-                            id: c.id,
-                            label: c.name,
-                            secondary: c.secondary,
+                          .items=${c.map((g) => ({
+                            id: g.id,
+                            label: g.name,
+                            secondary: g.secondary,
                             icon: "mdi:home-outline",
                           }))}
                           triggerLabel="Add room"
                           triggerIcon="mdi:plus"
                           placeholder="Search rooms…"
-                          @picked=${(c) => {
-                            const { id: p } = c.detail;
-                            this._onRoomToggle(p, !0);
+                          @picked=${(g) => {
+                            const { id: v } = g.detail;
+                            this._onRoomToggle(v, !0);
                           }}
                         ></search-picker>
                       `
@@ -4353,10 +4425,70 @@ const X = "scheduled",
                       >
                         Presence schedule
                       </div>
+                      <div class="section-label">Schedule type</div>
+                      <div class="select-wrapper">
+                        <select
+                          class="mode-select"
+                          @change=${this._onScheduleTypeChange}
+                        >
+                          <option
+                            value="single"
+                            ?selected=${i === "single"}
+                          >
+                            Single week
+                          </option>
+                          <option
+                            value="even_odd"
+                            ?selected=${i === "even_odd"}
+                          >
+                            Even / Odd weeks
+                          </option>
+                        </select>
+                      </div>
+                      ${
+                        r
+                          ? d`
+                            <div class="week-switcher">
+                              <button
+                                class="tab-btn ${
+                                  this._activeWeek === "even" ? "active" : ""
+                                }"
+                                @click=${() => {
+                                  this._activeWeek = "even";
+                                }}
+                              >
+                                Even
+                              </button>
+                              <button
+                                class="tab-btn ${
+                                  this._activeWeek === "odd" ? "active" : ""
+                                }"
+                                @click=${() => {
+                                  this._activeWeek = "odd";
+                                }}
+                              >
+                                Odd
+                              </button>
+                            </div>
+                            <p class="schedule-hint">
+                              Week ${bt(
+                                /* @__PURE__ */ new Date(),
+                              )} is currently
+                              active (${at(/* @__PURE__ */ new Date())} week).
+                            </p>
+                          `
+                          : ""
+                      }
                       <div class="schedule-section">
                         <climate-manager-time-bar
                           mode="presence"
-                          .days=${this._days}
+                          .days=${
+                            r
+                              ? this._activeWeek === "even"
+                                ? this._daysEven
+                                : this._daysOdd
+                              : this._days
+                          }
                           @periods-changed=${this._onSchedulePeriodsChanged}
                         ></climate-manager-time-bar>
                       </div>
@@ -4364,7 +4496,7 @@ const X = "scheduled",
                         class="reset-btn"
                         @click=${() => void this._onResetSchedule()}
                       >
-                        Reset to default
+                        ${a}
                       </button>
                     `
                     : ""
@@ -4377,12 +4509,12 @@ const X = "scheduled",
     `;
     }
   };
-Fe.styles = [
-  Ie,
+We.styles = [
   De,
-  Ne,
-  ft,
+  Ie,
   Oe,
+  _t,
+  Ne,
   k`
       :host {
         display: block;
@@ -4487,26 +4619,54 @@ Fe.styles = [
       .reset-btn:hover {
         background: var(--secondary-background-color);
       }
+
+      /* Even/Odd week switcher (D-06, D-07) */
+      .week-switcher {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 8px;
+      }
+
+      .week-switcher .tab-btn {
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--secondary-text-color);
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        font-family: inherit;
+        outline: none;
+      }
+
+      .week-switcher .tab-btn.active {
+        border-bottom-color: var(--primary-color);
+        color: var(--primary-color);
+      }
     `,
 ];
-let E = Fe;
-O([u({ type: String })], E.prototype, "personId");
-O([u({ type: String })], E.prototype, "personName");
-O([u({ attribute: !1 })], E.prototype, "config");
-O([u({ attribute: !1 })], E.prototype, "roomChoices");
-O([u({ attribute: !1 })], E.prototype, "ws");
-O([u({ attribute: !1 })], E.prototype, "panel");
-O([u({ attribute: !1 })], E.prototype, "status");
-O([y()], E.prototype, "_expanded");
-O([u({ type: Boolean })], E.prototype, "autoExpand");
-customElements.define("climate-manager-person-card", E);
-var Qt = Object.defineProperty,
+let T = We;
+R([u({ type: String })], T.prototype, "personId");
+R([u({ type: String })], T.prototype, "personName");
+R([u({ attribute: !1 })], T.prototype, "config");
+R([u({ attribute: !1 })], T.prototype, "roomChoices");
+R([u({ attribute: !1 })], T.prototype, "ws");
+R([u({ attribute: !1 })], T.prototype, "panel");
+R([u({ attribute: !1 })], T.prototype, "status");
+R([y()], T.prototype, "_expanded");
+R([y()], T.prototype, "_activeWeek");
+R([u({ type: Boolean })], T.prototype, "autoExpand");
+customElements.define("climate-manager-person-card", T);
+var ts = Object.defineProperty,
   ee = (n, e, t, o) => {
     for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
       (r = n[i]) && (s = r(e, t, s) || s);
-    return s && Qt(e, t, s), s;
+    return s && ts(e, t, s), s;
   };
-const qe = class qe extends C {
+const Fe = class Fe extends C {
   constructor() {
     super(...arguments), (this.status = null), (this.expandPersonId = null);
   }
@@ -4518,7 +4678,7 @@ const qe = class qe extends C {
     ).filter((s) => s.has_trv !== !1);
     return [.../* @__PURE__ */ new Set([...e.map((s) => s.area_id)])].map(
       (s) => {
-        var l, c, p, h, g, b, v;
+        var l, c, p, h, f, g, v;
         const i =
             ((l = e.find((m) => m.area_id === s)) == null ? void 0 : l.name) ??
             s.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase()),
@@ -4531,9 +4691,9 @@ const qe = class qe extends C {
               : h.floor_id) ?? null,
           a = r
             ? ((v =
-                (b = (g = this.hass) == null ? void 0 : g.floors) == null
+                (g = (f = this.hass) == null ? void 0 : f.floors) == null
                   ? void 0
-                  : b[r]) == null
+                  : g[r]) == null
                 ? void 0
                 : v.name) ?? void 0
             : void 0;
@@ -4593,7 +4753,7 @@ const qe = class qe extends C {
     `;
   }
 };
-qe.styles = k`
+Fe.styles = k`
     :host {
       display: block;
     }
@@ -4606,21 +4766,21 @@ qe.styles = k`
       line-height: 1.5;
     }
   `;
-let D = qe;
-ee([u({ attribute: !1 })], D.prototype, "config");
-ee([u({ attribute: !1 })], D.prototype, "status");
-ee([u({ attribute: !1 })], D.prototype, "ws");
-ee([u({ attribute: !1 })], D.prototype, "panel");
-ee([u({ attribute: !1 })], D.prototype, "hass");
-ee([u({ attribute: !1 })], D.prototype, "expandPersonId");
-customElements.define("climate-manager-persons-tab", D);
-var es = Object.defineProperty,
+let O = Fe;
+ee([u({ attribute: !1 })], O.prototype, "config");
+ee([u({ attribute: !1 })], O.prototype, "status");
+ee([u({ attribute: !1 })], O.prototype, "ws");
+ee([u({ attribute: !1 })], O.prototype, "panel");
+ee([u({ attribute: !1 })], O.prototype, "hass");
+ee([u({ attribute: !1 })], O.prototype, "expandPersonId");
+customElements.define("climate-manager-persons-tab", O);
+var ss = Object.defineProperty,
   H = (n, e, t, o) => {
     for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
       (r = n[i]) && (s = r(e, t, s) || s);
-    return s && es(e, t, s), s;
+    return s && ss(e, t, s), s;
   };
-const We = class We extends C {
+const qe = class qe extends C {
   constructor() {
     super(...arguments),
       (this.isDefault = !1),
@@ -4686,7 +4846,7 @@ const We = class We extends C {
     const e = (t = this.zoneConfig) == null ? void 0 : t.time_program;
     return (
       e !== this._lastProgram &&
-        ((this._lastProgram = e), (this._cachedDays = Ae(e))),
+        ((this._lastProgram = e), (this._cachedDays = ne(e))),
       this._cachedDays
     );
   }
@@ -4825,33 +4985,33 @@ const We = class We extends C {
     const s = [...t.keys()]
         .filter((c) => c !== null)
         .sort((c, p) => {
-          var h, g, b, v, m, _;
+          var h, f, g, v, m, b;
           return (
-            (((b =
-              (g = (h = this.hass) == null ? void 0 : h.floors) == null
+            (((g =
+              (f = (h = this.hass) == null ? void 0 : h.floors) == null
                 ? void 0
-                : g[p]) == null
+                : f[p]) == null
               ? void 0
-              : b.level) ?? 0) -
-            (((_ =
+              : g.level) ?? 0) -
+            (((b =
               (m = (v = this.hass) == null ? void 0 : v.floors) == null
                 ? void 0
                 : m[c]) == null
               ? void 0
-              : _.level) ?? 0)
+              : b.level) ?? 0)
           );
         })
         .map((c) => {
-          var p, h, g;
+          var p, h, f;
           return {
             floorId: c,
             floorName:
-              ((g =
+              ((f =
                 (h = (p = this.hass) == null ? void 0 : p.floors) == null
                   ? void 0
                   : h[c]) == null
                 ? void 0
-                : g.name) ?? c,
+                : f.name) ?? c,
             roomIds: t.get(c),
           };
         }),
@@ -5060,11 +5220,11 @@ const We = class We extends C {
     `;
   }
 };
-We.styles = [
-  Ie,
+qe.styles = [
   De,
-  Ne,
+  Ie,
   Oe,
+  Ne,
   k`
       :host {
         display: block;
@@ -5176,7 +5336,7 @@ We.styles = [
       }
     `,
 ];
-let M = We;
+let M = qe;
 H([u({ attribute: !1 })], M.prototype, "config");
 H([u({ attribute: !1 })], M.prototype, "zoneId");
 H([u({ attribute: !1 })], M.prototype, "zoneConfig");
@@ -5187,11 +5347,11 @@ H([u({ attribute: !1 })], M.prototype, "hass");
 H([u({ attribute: !1 })], M.prototype, "status");
 H([y()], M.prototype, "_confirmingDelete");
 customElements.define("climate-manager-zone-tab", M);
-var ts = Object.defineProperty,
-  S = (n, e, t, o) => {
+var os = Object.defineProperty,
+  P = (n, e, t, o) => {
     for (var s = void 0, i = n.length - 1, r; i >= 0; i--)
       (r = n[i]) && (s = r(e, t, s) || s);
-    return s && ts(e, t, s), s;
+    return s && os(e, t, s), s;
   };
 const Xe = class Xe extends C {
   constructor() {
@@ -5212,7 +5372,7 @@ const Xe = class Xe extends C {
   }
   connectedCallback() {
     super.connectedCallback(),
-      (this._ws = new pe(this.hass)),
+      (this._ws = new he(this.hass)),
       this._loadConfig(),
       this._loadStatus(),
       this._subscribeStatus();
@@ -5245,7 +5405,7 @@ const Xe = class Xe extends C {
     }
   }
   async _loadConfig() {
-    this._ws || (this._ws = new pe(this.hass));
+    this._ws || (this._ws = new he(this.hass));
     try {
       (this._config = await this._ws.getConfig()), this._validateActiveTab();
     } catch {
@@ -5253,13 +5413,13 @@ const Xe = class Xe extends C {
     }
   }
   async _loadStatus() {
-    this._ws || (this._ws = new pe(this.hass));
+    this._ws || (this._ws = new he(this.hass));
     try {
       this._status = await this._ws.getStatus();
     } catch {}
   }
   _subscribeStatus() {
-    this._ws || (this._ws = new pe(this.hass)),
+    this._ws || (this._ws = new he(this.hass)),
       (this._unsubStatus = this._ws
         .subscribeStatus((e) => {
           (this._status = e), (this._wsError = !1);
@@ -5411,7 +5571,7 @@ const Xe = class Xe extends C {
               />`
               : d`<span
                   class="zone-dot"
-                  style="background:${be(void 0).color}"
+                  style="background:${ve(void 0).color}"
                 ></span
                 >${this._config.default_zone_name}`
           }
@@ -5436,7 +5596,7 @@ const Xe = class Xe extends C {
                   />`
                   : d`<span
                       class="zone-dot"
-                      style="background:${be(e).color}"
+                      style="background:${ve(e).color}"
                     ></span
                     >${t.name}`
               }
@@ -5650,18 +5810,18 @@ Xe.styles = k`
     }
   `;
 let w = Xe;
-S([u({ attribute: !1 })], w.prototype, "hass");
-S([u({ type: Boolean })], w.prototype, "narrow");
-S([u({ attribute: !1 })], w.prototype, "panel");
-S([y()], w.prototype, "_config");
-S([y()], w.prototype, "_status");
-S([y()], w.prototype, "_activeTab");
-S([y()], w.prototype, "_unsubStatus");
-S([y()], w.prototype, "_wsError");
-S([y()], w.prototype, "_editingTabId");
-S([y()], w.prototype, "_tabNameInput");
-S([y()], w.prototype, "_expandRoomId");
-S([y()], w.prototype, "_expandPersonId");
-S([Ht("climate-manager-toast")], w.prototype, "_toast");
+P([u({ attribute: !1 })], w.prototype, "hass");
+P([u({ type: Boolean })], w.prototype, "narrow");
+P([u({ attribute: !1 })], w.prototype, "panel");
+P([y()], w.prototype, "_config");
+P([y()], w.prototype, "_status");
+P([y()], w.prototype, "_activeTab");
+P([y()], w.prototype, "_unsubStatus");
+P([y()], w.prototype, "_wsError");
+P([y()], w.prototype, "_editingTabId");
+P([y()], w.prototype, "_tabNameInput");
+P([y()], w.prototype, "_expandRoomId");
+P([y()], w.prototype, "_expandPersonId");
+P([jt("climate-manager-toast")], w.prototype, "_toast");
 customElements.define("climate-manager-panel", w);
 export { w as ClimateManagerPanel };
