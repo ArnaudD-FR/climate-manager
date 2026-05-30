@@ -4715,38 +4715,41 @@ const Fe = class Fe extends C {
     return o || s || i;
   }
   render() {
-    var i;
-    const e = ((i = this.config) == null ? void 0 : i.persons) ?? {},
-      t = Object.keys(e);
-    if (t.length === 0)
+    var r, a;
+    const e = ((r = this.config) == null ? void 0 : r.persons) ?? {},
+      t = Object.keys(
+        ((a = this.hass) == null ? void 0 : a.states) ?? {},
+      ).filter((l) => l.startsWith("person.")),
+      o = [.../* @__PURE__ */ new Set([...t, ...Object.keys(e)])];
+    if (o.length === 0)
       return d`
         <div class="empty-state">
           No persons found. Add person entities in Home Assistant.
         </div>
       `;
-    const o = [...t].sort((r, a) => {
-        const l = this._isNonDefault(r),
-          c = this._isNonDefault(a);
-        return l && !c ? -1 : !l && c ? 1 : r.localeCompare(a);
+    const s = [...o].sort((l, c) => {
+        const p = this._isNonDefault(l),
+          h = this._isNonDefault(c);
+        return p && !h ? -1 : !p && h ? 1 : l.localeCompare(c);
       }),
-      s = this._getRoomChoices();
+      i = this._getRoomChoices();
     return d`
-      ${o.map((r) => {
-        const a = e[r] ?? {},
-          l = r
+      ${s.map((l) => {
+        const c = e[l] ?? {},
+          p = l
             .replace(/^person\./, "")
             .replace(/_/g, " ")
-            .replace(/\b\w/g, (c) => c.toUpperCase());
+            .replace(/\b\w/g, (h) => h.toUpperCase());
         return d`
           <climate-manager-person-card
-            .personId=${r}
-            .personName=${l}
-            .config=${a}
-            .roomChoices=${s}
+            .personId=${l}
+            .personName=${p}
+            .config=${c}
+            .roomChoices=${i}
             .ws=${this.ws}
             .panel=${this.panel}
             .status=${this.status}
-            .autoExpand=${this.expandPersonId === r}
+            .autoExpand=${this.expandPersonId === l}
           ></climate-manager-person-card>
         `;
       })}

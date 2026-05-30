@@ -86,7 +86,14 @@ export class PersonsTab extends LitElement {
 
   render() {
     const persons = this.config?.persons ?? {};
-    const allPersonIds = Object.keys(persons);
+    // Discovery-first: union of all hass person.* entities with any
+    // already-configured persons so newly added HA persons appear immediately.
+    const hassPersonIds = Object.keys(this.hass?.states ?? {}).filter((k) =>
+      k.startsWith("person."),
+    );
+    const allPersonIds = [
+      ...new Set([...hassPersonIds, ...Object.keys(persons)]),
+    ];
 
     if (allPersonIds.length === 0) {
       return html`
