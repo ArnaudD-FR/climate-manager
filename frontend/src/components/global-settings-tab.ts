@@ -283,6 +283,22 @@ export class GlobalSettingsTab extends LitElement {
     .reset-btn:hover {
       background: var(--secondary-background-color);
     }
+
+    /* ---- Options card ---- */
+    .option-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: var(--primary-text-color);
+    }
+
+    .option-label {
+      font-weight: 500;
+      flex: 1;
+      margin-right: 16px;
+    }
   `;
 
   // -----------------------------------------------------------------------
@@ -340,6 +356,17 @@ export class GlobalSettingsTab extends LitElement {
       this.panel.showToast("Reset to defaults", false);
     } catch {
       this.panel.showToast("Reset failed — retrying...", true);
+    }
+  };
+
+  private _onCalibrationToggle = async (e: Event) => {
+    const enabled = (e.target as HTMLInputElement).checked;
+    try {
+      await this.ws.setCalibrationConfig(enabled);
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed", true);
     }
   };
 
@@ -495,9 +522,30 @@ export class GlobalSettingsTab extends LitElement {
     `;
   }
 
+  private _renderOptionsCard() {
+    const enabled = this.config.calibration_enabled ?? false;
+    return html`
+      <ha-card>
+        <div class="card-header">Options</div>
+        <div class="card-content">
+          <div class="option-row">
+            <span class="option-label">
+              Auto-calibrate TRV temperature offsets
+            </span>
+            <ha-switch
+              .checked=${enabled}
+              @change=${this._onCalibrationToggle}
+            ></ha-switch>
+          </div>
+        </div>
+      </ha-card>
+    `;
+  }
+
   render() {
     return html`
       ${this._renderStatusCard()} ${this._renderTemperaturesCard()}
+      ${this._renderOptionsCard()}
     `;
   }
 }
