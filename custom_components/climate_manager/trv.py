@@ -114,3 +114,54 @@ async def set_trv_off(hass: HomeAssistant, entity_id: str) -> None:
         {"entity_id": entity_id, "hvac_mode": HVACMode.OFF.value},
         blocking=True,
     )
+
+
+def supports_offset_calibration(hass: HomeAssistant, entity_id: str) -> bool:
+    """Return True if the TRV entity supports temperature offset adjustment.
+
+    Uses an attribute-first, service-second guard order (D-08, Pitfall 3):
+    1. Attribute check (brand-agnostic): True if the entity exposes a
+       temperature_offset attribute in its state.
+    2. Service check (Tado X-specific): True if the tado_x domain has a
+       set_temperature_offset service registered in the HA service registry.
+
+    Returns False when:
+    - The entity state is missing (None) — ROOM-03 parity (no unavailable
+      check: capability can still be detected while the TRV is unavailable,
+      matching the supports_hvac_off pattern)
+    - The temperature_offset attribute is absent AND the tado_x service is
+      not registered
+
+    Never raises.
+    """
+    state = hass.states.get(entity_id)
+    if state is None:
+        return False
+    if "temperature_offset" in state.attributes:
+        return True
+    return hass.services.has_service("tado_x", "set_temperature_offset")
+
+
+async def set_trv_offset(
+    hass: HomeAssistant, entity_id: str, offset: float
+) -> None:
+    """Issue a single tado_x.set_temperature_offset call to apply a new offset.
+
+    Caller (coordinator) is responsible for the capability guard before calling
+    this function — use supports_offset_calibration to check first.
+
+    Silently skips the entity if its state is None or "unavailable"
+    (ROOM-03 parity / T-01-08), matching the set_trv_off / set_trv_temperature
+    guard pattern.
+    """
+    # Availability guard (ROOM-03, T-01-08): skip missing or unavailable TRVs
+    state = hass.states.get(entity_id)
+    if state is None or state.state == "unavailable":
+        return
+
+    await hass.services.async_call(
+        "tado_x",
+        "set_temperature_offset",
+        {"entity_id": entity_id, "offset": offset},
+        blocking=True,
+    )

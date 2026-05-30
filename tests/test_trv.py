@@ -10,8 +10,10 @@ from pytest_homeassistant_custom_component.common import async_mock_service
 
 from custom_components.climate_manager.trv import (
     set_trv_off,
+    set_trv_offset,
     set_trv_temperature,
     supports_hvac_off,
+    supports_offset_calibration,
 )
 
 CLIMATE_ENTITY = "climate.living_room_trv"
@@ -143,3 +145,84 @@ async def test_set_trv_off_skips_unavailable_entity(hass):
 
     assert len(hvac_calls) == 0
     assert len(temp_calls) == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests 9-15: supports_offset_calibration and set_trv_offset (CALIB-02/03)
+# ---------------------------------------------------------------------------
+
+
+def test_supports_offset_calibration_true_when_attribute_present(hass):
+    """Test 9: supports_offset_calibration returns True when the TRV state has
+    a temperature_offset attribute present (attribute-first guard, D-08).
+    """
+    hass.states.async_set(CLIMATE_ENTITY, "heat", {"temperature_offset": 0.5})
+    assert supports_offset_calibration(hass, CLIMATE_ENTITY) is True
+
+
+def test_supports_offset_calibration_true_when_service_registered(hass):
+    """Test 10: supports_offset_calibration returns True when the attribute is
+    absent but the tado_x.set_temperature_offset service is registered (service
+    registry fallback guard, D-08).
+    """
+    hass.states.async_set(CLIMATE_ENTITY, "heat", {})
+    # Register the tado_x service to simulate Tado X compatibility
+    async_mock_service(hass, "tado_x", "set_temperature_offset")
+    assert supports_offset_calibration(hass, CLIMATE_ENTITY) is True
+
+
+def test_supports_offset_calibration_false_when_neither_present(hass):
+    """Test 11: supports_offset_calibration returns False when neither the
+    temperature_offset attribute nor the tado_x.set_temperature_offset service
+    is present (D-08, Pitfall 3).
+    """
+    hass.states.async_set(CLIMATE_ENTITY, "heat", {})
+    # No attribute, no service registered
+    assert supports_offset_calibration(hass, CLIMATE_ENTITY) is False
+
+
+def test_supports_offset_calibration_false_when_state_none(hass):
+    """Test 12: supports_offset_calibration returns False when
+    hass.states.get returns None (ROOM-03 parity).
+    """
+    # No state set for the entity
+    assert supports_offset_calibration(hass, "climate.nonexistent_trv") is False
+
+
+async def test_set_trv_offset_issues_single_service_call(hass):
+    """Test 13: set_trv_offset issues exactly one tado_x.set_temperature_offset
+    call with the correct entity_id and offset value (CALIB-02).
+    """
+    hass.states.async_set(CLIMATE_ENTITY, "heat", {"temperature_offset": 0.0})
+
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    await set_trv_offset(hass, CLIMATE_ENTITY, 1.5)
+
+    assert len(offset_calls) == 1
+    assert offset_calls[0].data["entity_id"] == CLIMATE_ENTITY
+    assert offset_calls[0].data["offset"] == 1.5
+
+
+async def test_set_trv_offset_skips_unavailable_entity(hass):
+    """Test 14: set_trv_offset silently skips (zero calls) when the entity
+    state is "unavailable" (ROOM-03 parity).
+    """
+    hass.states.async_set(CLIMATE_ENTITY, "unavailable", {})
+
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    await set_trv_offset(hass, CLIMATE_ENTITY, 1.0)
+
+    assert len(offset_calls) == 0
+
+
+async def test_set_trv_offset_skips_missing_entity(hass):
+    """Test 15: set_trv_offset silently skips (zero calls) when
+    hass.states.get returns None (ROOM-03 parity).
+    """
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    await set_trv_offset(hass, "climate.nonexistent_trv", 1.0)
+
+    assert len(offset_calls) == 0
