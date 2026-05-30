@@ -1116,3 +1116,53 @@ async def test_ws_set_person_config_revert_preserves_week_schedules(
     # D-02: week schedules silently preserved — user can switch back later
     assert "schedule_even" in stored
     assert "schedule_odd" in stored
+
+
+# ---------------------------------------------------------------------------
+# Tests: set_calibration_config WS command (Plan 09-03, CALIB-01)
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_set_calibration_config_enabled_true(hass, hass_ws_client):
+    """set_calibration_config {enabled: true} persists calibration_enabled=True.
+
+    Verifies CALIB-01 happy path:
+    - WS result is success
+    - runtime_config["calibration_enabled"] is True after the call
+    - No async_evaluate triggered (Pitfall 4: calibration config is not a
+      mode change — it takes effect on the next scheduled cycle).
+    """
+    entry = await _setup_entry(hass)
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/set_calibration_config", "enabled": True}
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+    assert entry.runtime_data.runtime_config["calibration_enabled"] is True
+
+
+async def test_ws_set_calibration_config_enabled_false(hass, hass_ws_client):
+    """set_calibration_config {enabled: false} persists calibration_enabled=False.
+
+    Verifies CALIB-01 disable path:
+    - WS result is success
+    - runtime_config["calibration_enabled"] is False after the call
+    """
+    entry = await _setup_entry(hass)
+
+    # Pre-seed calibration_enabled=True to confirm the command can flip it
+    entry.runtime_data.runtime_config["calibration_enabled"] = True
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/set_calibration_config", "enabled": False}
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+    assert entry.runtime_data.runtime_config["calibration_enabled"] is False
