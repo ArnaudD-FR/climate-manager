@@ -271,6 +271,33 @@ export class PersonCard extends LitElement {
       .reset-btn:hover {
         background: var(--secondary-background-color);
       }
+
+      /* Even/Odd week switcher (D-06, D-07) */
+      .week-switcher {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 8px;
+      }
+
+      .week-switcher .tab-btn {
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--secondary-text-color);
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        font-family: inherit;
+        outline: none;
+      }
+
+      .week-switcher .tab-btn.active {
+        border-bottom-color: var(--primary-color);
+        color: var(--primary-color);
+      }
     `,
   ];
 
@@ -422,6 +449,14 @@ export class PersonCard extends LitElement {
     const { cls: badgeCls, text: badgeText } = this._getBadgeInfo();
     const currentMode = this.config?.mode ?? PRESENCE_MODE_SCHEDULED;
     const isScheduled = currentMode === PRESENCE_MODE_SCHEDULED;
+    // Even/odd week rendering locals (D-01..D-15)
+    const scheduleType = this.config?.schedule_type ?? "single";
+    const isEvenOdd = scheduleType === "even_odd";
+    const resetLabel = isEvenOdd
+      ? this._activeWeek === "even"
+        ? "Reset Even week to default"
+        : "Reset Odd week to default"
+      : "Reset to default";
     const currentRoomIds = this.config?.room_ids ?? [];
     const unassignedRooms = this.roomChoices.filter(
       (r) => !currentRoomIds.includes(r.id),
@@ -562,10 +597,64 @@ export class PersonCard extends LitElement {
                       >
                         Presence schedule
                       </div>
+                      <div class="section-label">Schedule type</div>
+                      <div class="select-wrapper">
+                        <select
+                          class="mode-select"
+                          @change=${this._onScheduleTypeChange}
+                        >
+                          <option
+                            value="single"
+                            ?selected=${scheduleType === "single"}
+                          >
+                            Single week
+                          </option>
+                          <option
+                            value="even_odd"
+                            ?selected=${scheduleType === "even_odd"}
+                          >
+                            Even / Odd weeks
+                          </option>
+                        </select>
+                      </div>
+                      ${isEvenOdd
+                        ? html`
+                            <div class="week-switcher">
+                              <button
+                                class="tab-btn ${this._activeWeek === "even"
+                                  ? "active"
+                                  : ""}"
+                                @click=${() => {
+                                  this._activeWeek = "even";
+                                }}
+                              >
+                                Even
+                              </button>
+                              <button
+                                class="tab-btn ${this._activeWeek === "odd"
+                                  ? "active"
+                                  : ""}"
+                                @click=${() => {
+                                  this._activeWeek = "odd";
+                                }}
+                              >
+                                Odd
+                              </button>
+                            </div>
+                            <p class="schedule-hint">
+                              Week ${getISOWeekNumber(new Date())} is currently
+                              active (${getWeekParity(new Date())} week).
+                            </p>
+                          `
+                        : ""}
                       <div class="schedule-section">
                         <climate-manager-time-bar
                           mode="presence"
-                          .days=${this._days}
+                          .days=${isEvenOdd
+                            ? this._activeWeek === "even"
+                              ? this._daysEven
+                              : this._daysOdd
+                            : this._days}
                           @periods-changed=${this._onSchedulePeriodsChanged}
                         ></climate-manager-time-bar>
                       </div>
@@ -573,7 +662,7 @@ export class PersonCard extends LitElement {
                         class="reset-btn"
                         @click=${() => void this._onResetSchedule()}
                       >
-                        Reset to default
+                        ${resetLabel}
                       </button>
                     `
                   : ""}
