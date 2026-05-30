@@ -1008,12 +1008,20 @@ def _make_ws_set_calibration_config(entry: ClimateManagerConfigEntry):
         No async_evaluate trigger — calibration runs on the next scheduled
         cycle (RESEARCH Pitfall 4).
         """
+        old_value = entry.runtime_data.runtime_config.get("calibration_enabled")
         entry.runtime_data.runtime_config["calibration_enabled"] = msg[
             "enabled"
         ]
-        await entry.runtime_data.store.async_save(
-            entry.runtime_data.runtime_config
-        )
+        try:
+            await entry.runtime_data.store.async_save(
+                entry.runtime_data.runtime_config
+            )
+        except Exception as exc:  # noqa: BLE001
+            entry.runtime_data.runtime_config["calibration_enabled"] = old_value
+            connection.send_error(
+                msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+            )
+            return
         connection.send_result(msg["id"], {"success": True})
         # NOTE: no async_evaluate trigger — calibration runs on the
         # next scheduled cycle (RESEARCH Pitfall 4)
