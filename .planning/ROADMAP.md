@@ -41,7 +41,7 @@ their temperature offset against the room's reference sensor.
       parity
 - [ ] **Phase 8: Even/Odd Week Scheduling — Frontend** — Week-switcher toggle
       in the persons time-bar, visible only for even/odd persons
-- [ ] **Phase 9: TRV Temperature Offset Auto-Calibration** — Periodic offset
+- [x] **Phase 9: TRV Temperature Offset Auto-Calibration** — Periodic offset (completed 2026-05-30)
       calibration from room sensor, guarded by TRV capability, configurable in
       Global Settings
 
@@ -137,9 +137,9 @@ jittery over-correction.
 **Wave 2 (sequential):** 09-02 (coordinator, depends on 09-01), 09-04 (frontend, depends on 09-03)
 
 - [x] 09-01-PLAN.md — trv.py: supports_offset_calibration + set_trv_offset (TDD)
-- [ ] 09-02-PLAN.md — coordinator.py + const.py: calibration pass, DEFAULT_CONFIG keys (TDD)
+- [x] 09-02-PLAN.md — coordinator.py + const.py: calibration pass, DEFAULT_CONFIG keys (TDD)
 - [x] 09-03-PLAN.md — websocket.py: set_calibration_config WS command (TDD)
-- [ ] 09-04-PLAN.md — frontend Options card toggle + build/deploy + manual acceptance
+- [x] 09-04-PLAN.md — frontend Options card toggle + build/deploy + manual acceptance
 
 ## Progress
 
@@ -157,4 +157,4 @@ Phases execute in numeric order: 7 → 8 → 9 (Phase 9 may run in parallel with
 | 6. Zone & Room Assignment UI         | v1.1      | 4/4            | Complete    | 2026-05-28 |
 | 7. Even/Odd Week Scheduling — Backend | v1.2     | 2/2 | Complete   | 2026-05-29 |
 | 8. Even/Odd Week Scheduling — Frontend | v1.2    | 2/3 | In Progress|  |
-| 9. TRV Temperature Offset Auto-Calibration | v1.2 | 2/4 | In Progress|  |
+| 9. TRV Temperature Offset Auto-Calibration | v1.2 | 4/4 | Complete   | 2026-05-30 |
