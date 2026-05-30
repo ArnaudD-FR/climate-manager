@@ -73,6 +73,8 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 POLL_INTERVAL = timedelta(minutes=1)
+# Hardware-safe maximum for TRV temperature offset (±5°C for Tado X and most brands).
+_OFFSET_CLAMP = 5.0
 
 
 class ClimateManagerCoordinator:
@@ -361,7 +363,9 @@ class ClimateManagerCoordinator:
             )
         except (ValueError, TypeError):
             existing_offset = 0.0
-        new_offset = existing_offset + delta
+        new_offset = max(
+            -_OFFSET_CLAMP, min(_OFFSET_CLAMP, existing_offset + delta)
+        )
 
         try:
             await set_trv_offset(self._hass, entity_id, new_offset)
