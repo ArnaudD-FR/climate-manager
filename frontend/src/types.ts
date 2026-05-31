@@ -113,6 +113,12 @@ export interface TRVCalibrationEntry {
   supports_calibration: boolean;
   trv_temperature: number | null;
   room_temperature: number | null;
+  /**
+   * Current offset applied on the device. For Tado X: climate_manager
+   * session value if set, otherwise read from sensor.*_temperature_offset.
+   * Null for non-Tado-X TRVs.
+   */
+  current_offset: number | null;
   last_applied_delta: number | null;
   last_calibrated_at: string | null;
 }

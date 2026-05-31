@@ -1113,6 +1113,34 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
             # Emit one row per physical Radiator Valve X device
             for device in valve_devices:
                 dev_id = device["device_id"]
+
+                # Determine current offset on the device:
+                # - climate_manager session value wins when present
+                # - otherwise read from sensor.*_temperature_offset entity
+                current_offset: float | None = None
+                if dev_id in coordinator._calibration_last_offset:
+                    current_offset = coordinator._calibration_last_offset[
+                        dev_id
+                    ]
+                else:
+                    offset_entry = next(
+                        (
+                            e
+                            for e in entity_reg.entities.values()
+                            if e.device_id == dev_id
+                            and e.platform == "tado_x"
+                            and e.translation_key == "temperature_offset"
+                        ),
+                        None,
+                    )
+                    if offset_entry:
+                        os = hass.states.get(offset_entry.entity_id)
+                        if os and os.state not in ("unavailable", "unknown"):
+                            try:
+                                current_offset = float(os.state)
+                            except (ValueError, TypeError):
+                                pass
+
                 trvs.append(
                     {
                         "entity_id": zone_entity_id,
@@ -1122,6 +1150,7 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
                         "supports_calibration": True,
                         "trv_temperature": zone_trv_temp,
                         "room_temperature": room_temperature,
+                        "current_offset": current_offset,
                         "last_applied_delta": (
                             coordinator._calibration_last_delta.get(dev_id)
                         ),
@@ -1166,6 +1195,7 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
                         "supports_calibration": False,
                         "trv_temperature": trv_temperature,
                         "room_temperature": room_temperature,
+                        "current_offset": None,
                         "last_applied_delta": (
                             coordinator._calibration_last_delta.get(entity_id)
                         ),

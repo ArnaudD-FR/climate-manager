@@ -724,6 +724,14 @@ export class GlobalSettingsTab extends LitElement {
             </span>
           </td>
           <td>
+            ${trv.current_offset != null
+              ? html`${trv.current_offset > 0
+                  ? "+"
+                  : ""}${trv.current_offset.toFixed(1)}
+                °C`
+              : "—"}
+          </td>
+          <td>
             ${trv.trv_temperature != null
               ? html`${trv.trv_temperature.toFixed(1)} °C`
               : "—"}
@@ -838,6 +846,7 @@ export class GlobalSettingsTab extends LitElement {
             <tr>
               <th>TRV</th>
               <th>Auto-calibration</th>
+              <th>Current offset</th>
               <th>TRV temp</th>
               <th>Room temp</th>
               <th>Last applied delta</th>
@@ -849,7 +858,7 @@ export class GlobalSettingsTab extends LitElement {
             return html`
               <tbody>
                 <tr>
-                  <td colspan="6" class="calib-floor-header">
+                  <td colspan="7" class="calib-floor-header">
                     <ha-icon icon=${this._getFloorIcon(fid)}></ha-icon>
                     ${floorName}
                   </td>

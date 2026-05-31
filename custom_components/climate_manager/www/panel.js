@@ -94,10 +94,10 @@ const {
     getOwnPropertySymbols: kt,
     getPrototypeOf: Ct,
   } = Object,
-  F = globalThis,
-  Je = F.trustedTypes,
+  Z = globalThis,
+  Je = Z.trustedTypes,
   St = Je ? Je.emptyScript : "",
-  $e = F.reactiveElementPolyfillSupport,
+  $e = Z.reactiveElementPolyfillSupport,
   re = (a, e) => a,
   _e = {
     toAttribute(a, e) {
@@ -141,8 +141,8 @@ const {
     hasChanged: Ee,
   };
 Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")),
-  F.litPropertyMetadata ??
-    (F.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
+  Z.litPropertyMetadata ??
+    (Z.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
 let Y = class extends HTMLElement {
   static addInitializer(e) {
     this._$Ei(), (this.l ?? (this.l = [])).push(e);
@@ -446,7 +446,7 @@ let Y = class extends HTMLElement {
   (Y[re("elementProperties")] = /* @__PURE__ */ new Map()),
   (Y[re("finalized")] = /* @__PURE__ */ new Map()),
   $e == null || $e({ ReactiveElement: Y }),
-  (F.reactiveElementVersions ?? (F.reactiveElementVersions = [])).push("2.1.2");
+  (Z.reactiveElementVersions ?? (Z.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
@@ -457,8 +457,8 @@ const ae = globalThis,
   be = ae.trustedTypes,
   tt = be ? be.createPolicy("lit-html", { createHTML: (a) => a }) : void 0,
   ht = "$lit$",
-  Z = `lit$${Math.random().toFixed(9).slice(2)}$`,
-  ut = "?" + Z,
+  F = `lit$${Math.random().toFixed(9).slice(2)}$`,
+  ut = "?" + F,
   Tt = `<${ut}>`,
   V = document,
   le = () => V.createComment(""),
@@ -532,8 +532,8 @@ const zt = (a, e) => {
       r === oe
         ? l + Tt
         : h >= 0
-          ? (o.push(d), l.slice(0, h) + ht + l.slice(h) + Z + g)
-          : l + Z + (h === -2 ? n : g);
+          ? (o.push(d), l.slice(0, h) + ht + l.slice(h) + F + g)
+          : l + F + (h === -2 ? n : g);
   }
   return [
     gt(
@@ -566,7 +566,7 @@ class de {
           for (const h of s.getAttributeNames())
             if (h.endsWith(ht)) {
               const f = p[r++],
-                g = s.getAttribute(h).split(Z),
+                g = s.getAttribute(h).split(F),
                 v = /([.?@])?(.*)/.exec(f);
               l.push({
                 type: 1,
@@ -584,10 +584,10 @@ class de {
               }),
                 s.removeAttribute(h);
             } else
-              h.startsWith(Z) &&
+              h.startsWith(F) &&
                 (l.push({ type: 6, index: i }), s.removeAttribute(h));
         if (mt.test(s.tagName)) {
-          const h = s.textContent.split(Z),
+          const h = s.textContent.split(F),
             f = h.length - 1;
           if (f > 0) {
             s.textContent = be ? be.emptyScript : "";
@@ -602,8 +602,8 @@ class de {
         if (s.data === ut) l.push({ type: 2, index: i });
         else {
           let h = -1;
-          for (; (h = s.data.indexOf(Z, h + 1)) !== -1; )
-            l.push({ type: 7, index: i }), (h += Z.length - 1);
+          for (; (h = s.data.indexOf(F, h + 1)) !== -1; )
+            l.push({ type: 7, index: i }), (h += F.length - 1);
         }
       i++;
     }
@@ -1338,13 +1338,13 @@ Me([y()], J.prototype, "_visible");
 Me([y()], J.prototype, "_message");
 Me([y()], J.prototype, "_isError");
 customElements.define("climate-manager-toast", J);
-var Zt = Object.defineProperty,
+var Ft = Object.defineProperty,
   H = (a, e, t, o) => {
     for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
       (r = a[i]) && (s = r(e, t, s) || s);
-    return s && Zt(e, t, s), s;
+    return s && Ft(e, t, s), s;
   };
-const Ft = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+const Zt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
   Bt = ["frost_protection", "reduced", "normal", "comfort"],
   Wt = ["present", "absent"],
   Le = class Le extends C {
@@ -1750,7 +1750,7 @@ const Ft = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
       >
         <!-- Time axis above day rows — identical structure to bottom axis -->
         ${this._renderTimeAxis()}
-        ${Ft.map((e, t) => this._renderDayRow(e, t))}
+        ${Zt.map((e, t) => this._renderDayRow(e, t))}
 
         <!-- Shared time axis below day rows -->
         ${this._renderTimeAxis()}
@@ -2691,6 +2691,15 @@ const _t = "off",
           </td>
           <td>
             ${
+              t.current_offset != null
+                ? c`${
+                    t.current_offset > 0 ? "+" : ""
+                  }${t.current_offset.toFixed(1)} °C`
+                : "—"
+            }
+          </td>
+          <td>
+            ${
               t.trv_temperature != null
                 ? c`${t.trv_temperature.toFixed(1)} °C`
                 : "—"
@@ -2817,6 +2826,7 @@ const _t = "off",
             <tr>
               <th>TRV</th>
               <th>Auto-calibration</th>
+              <th>Current offset</th>
               <th>TRV temp</th>
               <th>Room temp</th>
               <th>Last applied delta</th>
@@ -2835,7 +2845,7 @@ const _t = "off",
             return c`
               <tbody>
                 <tr>
-                  <td colspan="6" class="calib-floor-header">
+                  <td colspan="7" class="calib-floor-header">
                     <ha-icon icon=${this._getFloorIcon(p)}></ha-icon>
                     ${h}
                   </td>
@@ -3523,7 +3533,7 @@ var Jt = Object.defineProperty,
       (r = a[i]) && (s = r(e, t, s) || s);
     return s && Jt(e, t, s), s;
   };
-const Ze = class Ze extends C {
+const Fe = class Fe extends C {
   constructor() {
     super(...arguments),
       (this.roomStatus = null),
@@ -4126,7 +4136,7 @@ const Ze = class Ze extends C {
     `;
   }
 };
-Ze.styles = [
+Fe.styles = [
   xe,
   Ae,
   De,
@@ -4277,7 +4287,7 @@ Ze.styles = [
       }
     `,
 ];
-let S = Ze;
+let S = Fe;
 A([u({ type: String })], S.prototype, "roomId");
 A([u({ type: String })], S.prototype, "roomName");
 A([u({ attribute: !1 })], S.prototype, "config");
@@ -4296,7 +4306,7 @@ var Qt = Object.defineProperty,
       (r = a[i]) && (s = r(e, t, s) || s);
     return s && Qt(e, t, s), s;
   };
-const Fe = class Fe extends C {
+const Ze = class Ze extends C {
   constructor() {
     super(...arguments), (this.status = null), (this.expandRoomId = null);
   }
@@ -4428,7 +4438,7 @@ const Fe = class Fe extends C {
     `;
   }
 };
-Fe.styles = k`
+Ze.styles = k`
     :host {
       display: block;
     }
@@ -4464,7 +4474,7 @@ Fe.styles = k`
       flex-shrink: 0;
     }
   `;
-let O = Fe;
+let O = Ze;
 ee([u({ attribute: !1 })], O.prototype, "config");
 ee([u({ attribute: !1 })], O.prototype, "status");
 ee([u({ attribute: !1 })], O.prototype, "ws");
