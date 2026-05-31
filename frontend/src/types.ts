@@ -119,7 +119,6 @@ export interface TRVCalibrationEntry {
    * Null for non-Tado-X TRVs.
    */
   current_offset: number | null;
-  last_applied_delta: number | null;
   last_calibrated_at: string | null;
 }
 

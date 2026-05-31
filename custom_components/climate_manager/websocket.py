@@ -1051,7 +1051,6 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
         For every TRV entity across all managed rooms, returns:
           - entity_id, friendly_name
           - supports_calibration (bool)
-          - last_applied_delta (float, or null if never calibrated this run)
           - last_calibrated_at (ISO timestamp, or null if never calibrated this run)
         """
         coordinator = entry.runtime_data.coordinator
@@ -1151,9 +1150,6 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
                         "trv_temperature": zone_trv_temp,
                         "room_temperature": room_temperature,
                         "current_offset": current_offset,
-                        "last_applied_delta": (
-                            coordinator._calibration_last_delta.get(dev_id)
-                        ),
                         "last_calibrated_at": (
                             coordinator._calibration_last_changed.get(dev_id)
                         ),
@@ -1196,9 +1192,6 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
                         "trv_temperature": trv_temperature,
                         "room_temperature": room_temperature,
                         "current_offset": None,
-                        "last_applied_delta": (
-                            coordinator._calibration_last_delta.get(entity_id)
-                        ),
                         "last_calibrated_at": (
                             coordinator._calibration_last_changed.get(entity_id)
                         ),
