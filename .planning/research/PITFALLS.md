@@ -1,431 +1,633 @@
-# Pitfalls
+# Domain Pitfalls — v1.3 Calendar Presence & Pre-heat
 
-**Project:** Climate Manager — v1.1 Heating Zones (adding zone layer to existing
-global + per-room system) **Researched:** 2026-05-26 **Confidence:** HIGH for
-storage/migration pitfalls (codebase directly inspected); HIGH for
-evaluation-order pitfalls (coordinator logic reviewed); MEDIUM for UI complexity
-pitfalls (pattern-based, not empirically tested)
-
----
-
-## Critical Pitfalls (rewrites or silent failures if missed)
-
-### C1 — Evaluation order not explicitly defined → inconsistent behaviour under edge cases
-
-**What goes wrong:** Zone mode is supposed to override global, and per-room mode
-is supposed to override zone. But this three-level hierarchy (global → zone →
-room) is only correct if the coordinator implements it as a strict, explicitly
-coded chain — not as a series of independent checks. If zone evaluation and room
-override evaluation are written as separate conditional branches rather than a
-single resolution pass, edge cases will produce wrong temperatures: e.g. a room
-in a zone with mode `off` but also `room_mode=custom` — which wins? If the code
-isn't explicit, the answer depends on iteration order.
-
-**Why it happens:** The v1.0 coordinator has two modes that already compose
-global and per-room. Adding a third level is tempting to bolt on as "check zone
-first, then fall through" without defining every combination formally.
-
-**Consequences:** Some rooms heat when they shouldn't (zone=off, room=custom
-wins incorrectly). Silent — no error, no log, just wrong temperature.
-
-**Prevention:** Define the full resolution matrix before writing code. The
-correct v1.1 contract is:
-
-1. If room has `room_mode=frost_protection` → frost always (room wins over
-   everything)
-2. Else if room is in a zone → use zone's mode and zone's time_program (zone
-   overrides global)
-3. Else → use global mode and global time_program (unzoned rooms, existing v1.0
-   path)
-4. Presence overrides apply after schedule resolution, but only if the effective
-   mode includes presences
-
-Encode this as a single `_resolve_room_program(room_id, config)` helper that
-returns `(mode, daily_program)` — never inline the resolution across multiple
-branches.
-
-**Detection:** Write a unit test for each combination: room=frost in a zone with
-mode=off; room=custom in a zone with mode=time_program; unzoned room with global
-mode=off.
-
-**Phase:** Backend evaluation (zone evaluation phase)
+**Project:** Climate Manager
+**Milestone:** v1.3 Calendar Presence, iCal, Pre-heat, Matter Sensor Mapping
+**Researched:** 2026-05-31
+**Overall confidence:** HIGH (integration patterns from HA docs + confirmed
+  issues from pronotepy issue tracker + icalendar RFC + HA core source)
 
 ---
 
-### C2 — Data migration: existing rooms have no `zone_id` → silent KeyError or wrong fallback
+## Critical Pitfalls
 
-**What goes wrong:** The v1.0 storage schema has no `zones` key and no `zone_id`
-on rooms. When v1.1 first loads, `config["zones"]` raises `KeyError` or returns
-`None` unless the load path seeds the key. If code does `room_config["zone_id"]`
-anywhere without a `.get()` default, it crashes on every existing room on first
-upgrade load.
+Mistakes that cause silent failures, IP bans, corrupted learning models,
+or ghost listeners that survive integration reload.
 
-**Why it happens:** The sparse-merge loader in `storage.py` overlays stored
-values onto `DEFAULT_CONFIG`. If `DEFAULT_CONFIG` is not updated to include
-`"zones": {}`, existing installs load without the key. Any code that relies on
-the key existing (even a `.get()` on the wrong dict) will fail.
+---
 
-**Consequences:** Integration fails to load on upgrade. User sees integration
-broken on first HA restart after update. Recovery requires manual `.storage`
-file editing.
+### CRIT-01: pronotepy IP suspension from over-frequent login
+
+**What goes wrong:** Pronote servers ban the integration's IP address when
+it logs in too frequently. The error is
+`PronoteAPIError: Your IP address is suspended` (error code 25: "Exceeded
+max authorisation requests"). Confirmed in the pronotepy issue tracker (#291)
+and the hass-pronote project.
+
+**Why it happens:** pronotepy creates a fresh session per `Client()` call.
+If the integration creates a new `Client` on every coordinator tick (every
+minute) to fetch the timetable, it hammers the Pronote login endpoint at
+60 logins/hour — well above the threshold.
+
+**Consequences:** The IP of the HA instance is suspended for an unspecified
+period. All Pronote-sourced persons fall back to manual schedule silently.
+The user may not notice until they realise presence detection stopped updating.
 
 **Prevention:**
+- Cache the `Client` object; reconnect only on `PronoteAPIError` or
+  `ExpiredObject`.
+- Use `client.session_check()` to renew the session cheaply without a full
+  re-login.
+- Fetch the timetable at most once per day at a random morning offset (school
+  timetables change at semester boundaries, not minute by minute). Store the
+  fetched timetable in-memory with a TTL of at least 6 hours.
+- On `PronoteAPIError` (login failure), back off exponentially; do not retry
+  within the same minute.
 
-- Add `"zones": {}` to `DEFAULT_CONFIG` in `const.py` before writing any
-  zone-aware coordinator code
-- `async_load` in `storage.py` already deep-copies `DEFAULT_CONFIG` and overlays
-  stored values — no changes to the merge logic are needed, but the key must
-  exist in the default
-- Rooms do not need a `zone_id` field — zone membership is stored on the zone
-  object (`zone["room_ids"]`), not on the room. This avoids needing to migrate
-  every room entry.
-- Add an `async_load` migration block (like the existing person mode migration)
-  that detects `"zones" not in stored` and seeds it as `{}`
+**Detection:** `PronoteAPIError: Your IP address is suspended` in HA logs.
+Monitor login frequency in the coordinator — log every login attempt at
+DEBUG level.
 
-**Detection:** Load the current v1.0 `.storage` file in a test with the v1.1
-`ClimateManagerStore`. Assert that `config["zones"]` is `{}` and no rooms have a
-`zone_id` key.
-
-**Phase:** Storage schema update (first task of zone milestone)
+**Phase:** Pronote source implementation phase.
 
 ---
 
-### C3 — Zone deletion leaves orphaned room references → rooms silently revert to global with no warning
+### CRIT-02: pronotepy API breakage from Pronote server updates
 
-**What goes wrong:** If a zone is deleted and its `room_ids` list is not cleaned
-up from the zone object (already gone), or if rooms internally stored a
-`zone_id` reference, those rooms would silently fall back to global — with no
-indication in the UI that their zone association was removed. The user has no
-way to know their zone schedule is no longer active.
+**What goes wrong:** Pronote regularly updates their internal (undocumented)
+protocol. pronotepy reverse-engineers this protocol and each Pronote server
+update can silently break authentication or timetable parsing. The library
+entered maintenance-only mode (bug fixes, no new features). A 2025 update
+broke QR-code login and required a pronotepy patch release (v2.14.5).
 
-**Why it happens:** Deletion handlers often remove the primary object but skip
-reference cleanup. If zone membership is stored on rooms (`room["zone_id"]`),
-deleting the zone leaves stale `zone_id` values in every affected room's config.
+**Why it happens:** pronotepy has no stable contract with Pronote — it
+reverse-engineers encrypted API calls. When Pronote updates their crypto
+or session flow, all existing integrations fail simultaneously.
 
-**Consequences:** Rooms that were zone-controlled silently revert to the global
-schedule. No error. User notices rooms heating differently but has no
-diagnostic.
+**Consequences:** All Pronote-sourced persons silently fall back to manual
+schedule. If fallback is not implemented, persons show wrong presence state.
 
 **Prevention:**
+- Always wrap `Client()` and all `.lessons()` / `.timetable()` calls in
+  `try/except (PronoteAPIError, CryptoError, Exception)` — the exception
+  surface from a reverse-engineered protocol is wide.
+- Implement the fallback-to-manual-schedule explicitly: if timetable fetch
+  fails, `schedule_source` degrades to `"manual"` until the next successful
+  fetch. Log at `_LOGGER.warning` level, not DEBUG.
+- Pin pronotepy to a minor version in `manifest.json` (e.g.
+  `pronotepy>=2.14,<3`) to avoid automatically pulling a breaking major.
+- Document the maintenance risk in the UI tooltip for the Pronote config.
 
-- Store zone membership exclusively on the zone object
-  (`zone["room_ids"] = [...]`), never on the room. This means zone deletion is
-  self-contained: delete the zone dict, no room config needs touching.
-- On zone delete, trigger `coordinator.async_evaluate()` immediately so affected
-  rooms adopt the correct fallback temperature at once — not on the next minute
-  tick.
-- UI: after zone delete, display a toast "Zone deleted — X rooms now follow
-  global schedule" listing the affected room names.
+**Detection:** Any exception from pronotepy in logs. Absence of timetable
+updates over 24+ hours when school is in session.
 
-**Detection:** Test: create zone with 2 rooms, delete zone, assert rooms
-evaluate against global program on next tick.
-
-**Phase:** Zone CRUD backend + UI
-
----
-
-### C4 — Presence + zone mode interaction: zone `off` silently disables presence heating
-
-**What goes wrong:** If a zone's mode is `off`, presence-based heating should
-also be suppressed for rooms in that zone (otherwise a present person re-heats a
-room that the zone owner explicitly turned off). But if the presence override is
-applied after zone mode in the evaluation chain without an explicit zone-off
-guard, present persons will keep heating zone-off rooms.
-
-Conversely: if zone mode is `time_program` (not `time_program_presences`),
-presence overrides should NOT apply to that zone's rooms even if the global mode
-is `time_program_presences`. A zone defines its own independent mode — including
-whether presence heating applies.
-
-**Why it happens:** The v1.0 coordinator applies presence overrides in a second
-pass over all rooms without inspecting the room's governing mode. Adding zones
-without updating that pass creates a gap.
-
-**Consequences:**
-
-- Zone `off` rooms heat for present persons (privacy/energy violation)
-- Zone `time_program` rooms heat unexpectedly when global mode is
-  `time_program_presences`
-
-**Prevention:** The zone's own mode field governs presence behaviour for its
-rooms, independently of global mode. The resolution must be: "what mode governs
-this room?" and then "does that mode include presences?" — not "does the global
-mode include presences?"
-
-Presence override pass must check effective mode per room, not global mode.
-
-**Detection:** Test: global mode=`time_program_presences`, zone mode=`off`,
-person present in zone room. Assert frost protection temperature, not
-presence-elevated temperature.
-
-**Phase:** Backend evaluation
+**Phase:** Pronote source implementation phase.
 
 ---
 
-### C5 — Storage schema version not bumped → corrupted config on rollback
+### CRIT-03: iCal DTSTART DATE vs DATETIME type collision
 
-**What goes wrong:** If zones are added to `DEFAULT_CONFIG` without bumping
-`STORAGE_VERSION`, a user who rolls back to v1.0 will load a config with an
-unexpected `zones` key. v1.0's loader does a shallow merge — it won't crash, but
-the `zones` key will persist in storage silently. More critically: if v1.1 makes
-a breaking schema change (e.g. renames a key) without a version bump, the v1.0
-migration path in `async_load` won't run.
+**What goes wrong:** All-day events use `DTSTART;VALUE=DATE:20260601`
+(a `datetime.date` object) while timed events use
+`DTSTART;TZID=Europe/Paris:20260601T090000` (a `datetime.datetime`). Code
+that compares `event.start >= now` crashes with
+`TypeError: can't compare datetime.datetime to datetime.date` unless both
+sides are normalised first.
 
-**Why it happens:** `STORAGE_VERSION = 2` in `const.py`. If v1.1 adds zones as
-purely additive (new key, existing keys unchanged), there is an argument for not
-bumping. But any rename or structural change without a bump silently breaks
-existing installs.
+**Why it happens:** RFC 5545 allows both value types. Calendar exports from
+Google Calendar, Outlook, and Apple Calendar mix both types in the same feed.
+The Python `icalendar` library faithfully returns the raw type without
+coercion.
 
-**Consequences:** Silent data corruption. Wrong temperatures applied. Difficult
-to diagnose.
+**Consequences:** An `AttributeError` or `TypeError` inside the timetable
+evaluation function causes the entire person's presence to fail, typically
+raising an unhandled exception in `async_evaluate` that silently aborts the
+calibration pass too.
 
 **Prevention:**
+- Normalize at parse time: if `isinstance(event.start, datetime.date) and
+  not isinstance(event.start, datetime.datetime)`, convert to
+  `datetime.datetime(d.year, d.month, d.day, tzinfo=<local_tz>)`.
+- Use a helper function `_to_aware_datetime(val, local_tz)` called on every
+  event start/end before any comparison.
+- Unit-test with a fixture ICS file that contains both all-day and timed
+  events in the same feed.
 
-- If zone addition is purely additive (new `zones: {}` key only), do not bump
-  the version — the sparse merge loader handles new keys gracefully
-- If any existing key is renamed or restructured, bump to `STORAGE_VERSION = 3`
-  and add a migration block in `async_load`
-- Never rename existing schema keys without a version bump + migration block
+**Detection:** `TypeError: can't compare datetime.datetime to datetime.date`
+in HA logs during presence evaluation.
 
-**Detection:** Load a v1.0 `.storage` JSON with a v1.1 store. Assert all
-existing fields round-trip correctly. Assert `zones` appears with default value.
-
-**Phase:** Storage schema update
-
----
-
-## Moderate Pitfalls (quality gate or logic bugs)
-
-### M1 — Zone mode `off` vs global mode `off` — same string, different semantics, same coordinator branch
-
-**What goes wrong:** Both global mode and zone mode use `"off"` as the string
-value. The coordinator `MODE_OFF` branch in v1.0 sends frost protection to ALL
-rooms. If zone mode is naively stored as the same `"off"` string, code like
-`if zone_config.get("mode") == MODE_OFF` works — but the handling must be
-different: global `off` → all rooms get frost; zone `off` → only that zone's
-rooms get frost, other rooms unaffected.
-
-If the coordinator's `MODE_OFF` top-level branch is reused for zones without
-narrowing to zone-specific rooms, zones with mode `off` will accidentally freeze
-rooms in other zones.
-
-**Prevention:** Keep the global-mode `MODE_OFF` branch as-is for all-rooms
-frost. Zone `off` must be handled inside the per-room resolution loop, not as a
-top-level early exit. Use a `_resolve_room_program` helper that returns
-`(mode, daily_program)` per room — zone mode `off` returns `(MODE_OFF, None)`
-for that room's entry, handled locally.
-
-**Phase:** Backend evaluation
+**Phase:** iCal source implementation phase.
 
 ---
 
-### M2 — WebSocket command proliferation — zone CRUD adds 4+ new commands on top of 11 existing
+### CRIT-04: iCal timezone-naive datetime vs aware datetime comparison
 
-**What goes wrong:** v1.0 has 11 WebSocket commands. Zone CRUD needs at minimum:
-`create_zone`, `update_zone`, `delete_zone`, `set_zone_room_assignments`. That
-is 15+ commands. If zone config is also editable (zone mode, zone time program),
-add `set_zone_mode` and `set_zone_time_program`. At 17+ commands the
-`async_register_commands` function and the WS schema become hard to maintain and
-the panel's `ClimateManagerWS` client class grows proportionally.
+**What goes wrong:** Some ICS producers emit `DTSTART:20260601T090000`
+(no `Z`, no `TZID`) — a timezone-naive datetime. Comparing this to
+`dt_util.now()` (which is always timezone-aware) raises
+`TypeError: can't compare offset-naive and offset-aware datetimes`.
 
-**Why it happens:** Each feature gets its own bespoke command because copy-paste
-from existing patterns is easy.
+**Why it happens:** RFC 5545 §3.3.5 calls a DTSTART without TZID or Z suffix
+"floating time" — intended to mean "local time, whatever the locale". Many
+real-world ICS feeds (especially from French platforms like ENT portals)
+emit floating times. The `icalendar` library returns them as naive
+`datetime.datetime` objects.
+
+**Consequences:** Same as CRIT-03 — exception terminates presence evaluation.
 
 **Prevention:**
+- In `_to_aware_datetime`, also handle the naive case: if
+  `event_dt.tzinfo is None`, attach the HA-configured timezone by calling
+  `dt_util.as_local(naive_dt)` (never use `dt.replace(tzinfo=...)` which
+  ignores DST transitions).
+- Test with a fixture ICS file from a French ENT portal that emits floating
+  times.
 
-- Consider a single `set_zone_config` command (analogous to `set_room_config`)
-  that sparse-merges into `zones[zone_id]` — covers mode, time_program,
-  room_ids, name in one handler
-- Consider a `delete_zone` command that also accepts a list of `room_ids` to
-  reassign (or simply removes the zone and lets rooms fall back to global)
-- Resist adding `get_zone_config` if `get_config` already returns the full
-  `zones` dict — it does, as it returns `runtime_config` wholesale
+**Detection:** `TypeError: can't compare offset-naive and offset-aware` in
+HA logs.
 
-**Phase:** Zone CRUD backend
-
----
-
-### M3 — `_last_room_periods` status tracking misses zone-governed rooms — incorrect active period shown in UI
-
-**What goes wrong:** The coordinator's `_last_room_periods` dict tracks the
-active period per room for the status push. In v1.0, a room not in
-`_last_room_periods` falls back to `self._last_active_period` (the global
-period). After v1.1, a room governed by a zone has its own period (from the
-zone's time program), which may differ from the global period. If the zone
-evaluation doesn't write into `_last_room_periods`, the UI will show the wrong
-period label for zone-governed rooms.
-
-**Prevention:** Zone evaluation must write
-`room_periods[area_id] = zone_period_mode` for every zone-governed room, just as
-per-room custom programs do in v1.0. The status build loop in
-`_build_status_payload` already uses
-`_last_room_periods.get(area_id, self._last_active_period)` — no change needed
-there, only the evaluation write path needs updating.
-
-**Phase:** Backend evaluation
+**Phase:** iCal source implementation phase.
 
 ---
 
-### M4 — Zone time program reset copies global program — user expects zone default, gets global program
+### CRIT-05: RRULE recurring event expansion producing unbounded results
 
-**What goes wrong:** v1.0 has a `reset_room_to_global_program` command that
-deep-copies the global time program into the room. For zones, a "reset zone to
-defaults" button would logically copy the global time program. But if the user
-has customised the global program heavily, the zone inherits a non-neutral
-schedule. The user might expect a "fresh" default weekday/weekend schedule (the
-backend constant), not a copy of whatever the global is.
+**What goes wrong:** Expanding RRULE recurring events with no UNTIL or COUNT
+clause (e.g. `RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR`) generates an
+infinite sequence. Calling `list(rruleset)` on such an event hangs the event
+loop or consumes all memory.
 
-**Prevention:** A zone's "reset" command should copy `_DEFAULT_DAILY_PROGRAM`
-(the module constant), not the current `global_time_program`. Clearly label the
-button "Reset to factory default" not "Copy global program". This is the
-opposite of the room reset UX — rooms explicitly inherit from global, zones are
-independent.
+**Why it happens:** A work calendar "every weekday forever" is a valid and
+common pattern. Naive RRULE expansion code does not bound the query window.
 
-**Phase:** Zone CRUD UI + backend
-
----
-
-### M5 — Person room associations span zones — presence heating bypasses zone mode
-
-**What goes wrong:** A person has `room_ids = ["bedroom", "kitchen"]`. Bedroom
-is in Zone A (mode=`time_program`), kitchen is unzoned. In
-`MODE_TIME_PROGRAM_PRESENCES`, the coordinator's presence pass iterates over
-person room_ids without inspecting zone mode. Zone A has no presence mode — so
-bedroom gets presence-heated even though Zone A was configured as `time_program`
-(not `time_program_presences`).
-
-**Why it happens:** The person room_ids list and the zone membership list are
-independently keyed — no join is performed in v1.0 because zones don't exist.
-
-**Prevention:** Same fix as C4 — the resolution must be per-room, asking "does
-the governing mode for this room include presences?" before applying
-`compute_occupied_temp`. The presence pass (Step 2 in
-`_evaluate_time_program_presences`) must gate on the room's effective mode, not
-the global mode.
-
-**Phase:** Backend evaluation
-
----
-
-### M6 — Zone deletion + person room associations → stale room_ids cause no-op presence heating
-
-**What goes wrong:** A person has `room_ids = ["bedroom"]`. Bedroom was in Zone
-A. Zone A is deleted, bedroom still exists (falls back to global). The person's
-`room_ids` is untouched — presence heating for bedroom continues normally. This
-is actually correct behaviour, but: if bedroom's HA area was also deleted (user
-cleaned up HA areas), the person's `room_ids` contains a stale area_id. The
-coordinator already silently skips unknown area_ids
-(`if area_id not in rooms: continue`), so no crash — but the person appears to
-have a room association that does nothing.
-
-**Prevention:** This is a v1.0 issue too, not introduced by zones. Log a debug
-warning when a person's `room_ids` contains an area_id not in
-`self._data.rooms`. No correction needed at runtime, but the warning surfaces
-the stale config.
-
-**Phase:** Backend evaluation (low priority — existing behaviour, zones don't
-worsen it)
-
----
-
-### M7 — UI: three-level config hierarchy causes cognitive overload if zones tab is a peer of Global/Rooms/Persons
-
-**What goes wrong:** The current panel has three tabs: Global Settings, Rooms,
-Persons. Adding a fourth Zones tab that is a peer of Rooms creates confusion
-about what controls what. A user seeing a room in the Rooms tab with its own
-custom schedule, and the same room in the Zones tab with a zone schedule, will
-not understand which one applies.
-
-**Why it happens:** Tabs are the simplest UI extension — just add one more. But
-the hierarchy (zone governs room unless room overrides) is not visible in a flat
-tab structure.
+**Consequences:** HA event loop blocked; integration appears frozen; watchdog
+may restart HA.
 
 **Prevention:**
+- Use `recurring-ical-events` library (PyPI: `recurring-ical-events`), which
+  takes an explicit `(start, end)` window and only materialises events in that
+  range. Query a 7-day rolling window around `now`.
+- Never call `rrule.between()` without explicit `dtstart`/`until` bounds.
+- Add `recurring-ical-events` and `icalendar` to `manifest.json` requirements.
 
-- Zones tab shows zone config (mode, time program) and the list of rooms
-  assigned to the zone
-- Room card in the Rooms tab shows the badge "In zone: [Zone Name]" when a room
-  is zone-governed, making the override hierarchy visible at the room level
-- Room card's time-program section shows "Governed by zone [Name]" when the room
-  inherits the zone schedule, with an option to override at room level
-  (room_mode=custom) — same pattern as "Governed by global" in v1.0
-- Do not show both zone schedule and room schedule simultaneously — only show
-  the applicable one with a clear label
+**Detection:** Integration becomes unresponsive during iCal timetable parsing.
 
-**Phase:** Zone UI
+**Phase:** iCal source implementation phase.
 
 ---
 
-## Minor Pitfalls (correctness / maintainability)
+### CRIT-06: PyPI requirements not installed on first boot (Docker / venv)
 
-### m1 — `zone_id` as UUID vs user-readable slug
+**What goes wrong:** `pronotepy`, `icalendar`, and `recurring-ical-events`
+are declared in `manifest.json` requirements. On a fresh Docker-based HA
+install, HA attempts pip installation during `async_setup_entry`. If the
+container network is slow or pip fails (SSL, mirror outage), the integration
+fails to load with `ModuleNotFoundError` at import time.
 
-Zone IDs that are UUIDs (`"a3f2b1..."`) are opaque in `.storage` files and in
-WebSocket payloads — hard to debug. User-assigned names as IDs
-(`"zone_kitchen"`) clash if the user renames. Use a short random slug (e.g.
-`"zone_abc123"`) or a sequential integer string (`"zone_1"`, `"zone_2"`)
-generated on create. Keep it stable — never derive from the name.
+**Why it happens:** HA installs requirements asynchronously before calling
+`async_setup_entry`, but import of the requirement happens at module import
+time (top-level `import pronotepy`) — before the install attempt completes
+in some edge cases. There is also a confirmed HA 2026.3 regression where
+custom integration requirements fail after the Python 3.14 upgrade.
 
-### m2 — Zones with empty `room_ids` are valid but confusing
+**Consequences:** Integration silently fails to load. User sees "Failed to
+set up Climate Manager" in the UI. No climate control.
 
-A zone can exist with no rooms assigned yet. The coordinator must not crash on
-an empty `room_ids` list. The UI should show an "empty zone" badge and not hide
-the zone. Empty zones are a normal transient state (create zone, then assign
-rooms).
+**Prevention:**
+- Import optional dependencies inside the function that uses them
+  (`from pronotepy import ...` inside the async coroutine, not at module top
+  level). This converts an import-time crash into a graceful runtime error.
+- Catch `ImportError` around these deferred imports and raise
+  `ConfigEntryNotReady` so HA retries setup after a delay.
+- Test in a Docker environment before shipping — do not rely on venv-only
+  testing.
+- Add a user-facing warning if pronotepy is unavailable: "Pronote source
+  requires the pronotepy package. Ensure HA can reach PyPI on startup."
 
-### m3 — Zone `time_program` not seeded with defaults on creation → evaluates as frost on first tick
+**Detection:** `ModuleNotFoundError: No module named 'pronotepy'` in logs.
+Integration shows "Failed to set up" in the UI.
 
-When a zone is created, its `time_program` is `{}` if not seeded.
-`evaluate_schedule({}, now)` returns `PERIOD_FROST_PROTECTION` (T-03-01
-fallback). A newly created zone will immediately push frost protection to its
-rooms until the user configures the schedule. Mitigation: seed new zones with a
-copy of `_DEFAULT_DAILY_PROGRAM` on creation, or set zone `mode=off` by default
-until the user activates it.
+**Phase:** First phase to introduce any external PyPI dependency.
 
-### m4 — `reset_room_to_global_program` WS command needs equivalent for zones
+---
 
-The existing `reset_room_to_global_program` command deep-copies
-global_time_program into a room. Zone users will expect a "reset zone to
-default" command. This should copy `_DEFAULT_DAILY_PROGRAM`, not
-`global_time_program` (see M4 above). Document this asymmetry in code comments.
+### CRIT-07: Inertia learning model corruption from atypical heating samples
 
-### m5 — Zone name stored in zone config, not HA area registry
+**What goes wrong:** A window-open day, a maintenance visit (door open for
+hours), or a guest-heavy day produces a much faster heat-up than normal
+(extra heat sources, different thermal mass). The `inertia_factor` is updated
+with this outlier and the model permanently over-estimates heating speed,
+causing the room to pre-heat too late on subsequent normal days.
 
-Zone names are custom strings chosen by the user, not HA area names. Unlike
-rooms (which reuse HA area names from the registry), zones are a Climate Manager
-concept with no HA registry counterpart. Store the name in the zone config dict
-(`zone["name"]`). Do not attempt to create HA areas for zones — the integration
-does not own the area registry.
+**Why it happens:** The learning algorithm has no mechanism to distinguish
+atypical from typical samples. A single outlier in a small sample set (3-5
+samples) has disproportionate influence.
+
+**Consequences:** Rooms miss their target temperature at period start. The
+model degrades silently — users see pre-heat failing but do not know why.
+
+**Prevention:**
+- Implement `did_not_converge` flag (already specified in the todo) — but
+  also implement an outlier flag for the opposite case: if actual heat-up
+  time was more than 2x faster than the running mean of prior samples, mark
+  the sample as `is_outlier = true` and exclude it from `inertia_factor`
+  computation.
+- Use a rolling median (not mean) over the last N valid samples to reduce
+  outlier sensitivity.
+- Cap the maximum per-cycle adjustment to the `inertia_factor` (e.g. ±30%)
+  to prevent a single sample from drastically shifting the model.
+- Expose `inertia_samples` count and `inertia_factor` in the status payload
+  so the panel can show "Learning (3/5 samples)" for user observability.
+
+**Detection:** `inertia_factor` shifting by >50% between two consecutive
+samples; actual room heat-up time deviating greatly from predicted.
+
+**Phase:** Pre-heat implementation phase.
+
+---
+
+### CRIT-08: Pre-heat target overwritten by frost/reduced pass
+
+**What goes wrong:** A pre-heat window computed backward from a period start
+may overlap with a frost or reduced period. If the pre-heat starts during a
+frost period (e.g. 05:30 frost, 07:00 normal — pre-heat starts at 06:00),
+the coordinator's `_compute_desired_temps` pushes frost temperature at 06:00
+instead of the pre-heat target, cancelling the pre-heat silently.
+
+**Why it happens:** Pre-heat is a separate pass from the main schedule
+evaluation. If pre-heat target injection is not applied after the main
+desired-temp resolution, the main pass overwrites it.
+
+**Consequences:** Pre-heat never works in the most common case (heating up
+from overnight frost). Inertia samples always show `did_not_converge = true`.
+
+**Prevention:**
+- Inject pre-heat targets as a final pass after `_compute_desired_temps` and
+  `_apply_presence_overrides`. Pre-heat targets must override frost/reduced
+  — they are the intentional early-start.
+- The todo already specifies "pre-heat window extends into frost/reduced
+  period: start from the boundary" — implement this as: if the backward
+  window from period start reaches into a frost period, clamp pre-heat start
+  to the frost→normal boundary. The window shortens but does not start inside
+  a frost period.
+- Write a unit test: 05:30 frost, 07:00 normal, 60 min default lead time →
+  pre-heat starts at 06:00 (clamped from 05:30 boundary), target is Normal
+  temperature, not frost.
+
+**Detection:** Pre-heat never reaches target; `did_not_converge` always true
+for rooms whose schedule starts after an overnight frost period.
+
+**Phase:** Pre-heat implementation phase.
+
+---
+
+## Moderate Pitfalls
+
+---
+
+### MOD-01: Matter entity not in state machine at subscription time
+
+**What goes wrong:** `async_track_state_change_event` is registered for a
+Matter TRV entity during `async_setup_entry`. If the Matter integration loads
+after Climate Manager (common — HA loads integrations in parallel), the entity
+does not yet exist in `hass.states`. The subscription itself succeeds (it is
+event-bus-based), but any synchronous read of
+`hass.states.get(matter_entity_id)` at setup time returns `None`.
+
+**Why it happens:** HA's integration loading is concurrent. Climate Manager
+subscribes to state changes before Matter registers its entities.
+
+**Consequences:** Coordinator startup calibration pass logs "state is None,
+skipping" for every Matter entity. The initial calibration baseline is missing.
+
+**Prevention:**
+- Always guard with `hass.states.get(entity_id)` returning `None` before
+  processing a `state_changed` callback — this is already the pattern in
+  the existing calibration code.
+- Do not read entity state synchronously in `async_setup_entry`. Let the
+  `state_changed` subscription drive calibration triggers.
+- Consider registering the subscription only after `EVENT_HOMEASSISTANT_STARTED`
+  fires if sub-minute calibration responsiveness is not needed at boot.
+
+**Detection:** `state is None` log warnings for Matter entities on startup.
+
+**Phase:** Matter sensor mapping phase.
+
+---
+
+### MOD-02: state_changed subscription not cancelled on integration unload
+
+**What goes wrong:** `async_track_state_change_event` returns an unsubscribe
+callable. If it is not stored and called in `async_unload_entry`, the
+subscription survives integration reload. After reload, a second subscription
+is registered, resulting in double-firing of the calibration trigger for
+every Matter temperature change.
+
+**Why it happens:** The existing code in `__init__.py` correctly stores
+`cancel_scheduler` and `cancel_registry_listeners`, but a new Matter
+subscription list must be added to `ClimateManagerData` if Matter subscriptions
+are registered at setup time.
+
+**Consequences:** After each reload, one more calibration call fires per
+Matter state change. After 5 reloads, 5 calibration calls fire per update.
+Tado X API rate limit hit; offset oscillates.
+
+**Prevention:**
+- Append Matter subscription cancel callbacks to
+  `entry.runtime_data.cancel_registry_listeners` (the existing list) or
+  create a new `cancel_matter_subscriptions` field on `ClimateManagerData`.
+- Call all cancel callbacks in `async_unload_entry` before returning.
+- Pattern already established: follow the same structure as
+  `cancel_registry_listeners` in `__init__.py`.
+
+**Detection:** Duplicate `_async_calibrate_tado_device` log entries on the
+same tick after integration reload.
+
+**Phase:** Matter sensor mapping phase.
+
+---
+
+### MOD-03: iCal URL returning stale content due to HTTP caching
+
+**What goes wrong:** Some calendar servers (Google Calendar, Nextcloud) set
+aggressive HTTP cache headers (`Cache-Control: max-age=3600`). If the iCal
+fetcher uses `aiohttp` without explicit cache-busting, the same stale ICS
+content is returned for hours, and event changes (cancelled lesson, new
+holiday) are not reflected.
+
+**Why it happens:** Python `aiohttp` respects HTTP `Cache-Control` headers by
+default when using a connector with connection reuse. Some proxies also cache
+ICS responses.
+
+**Prevention:**
+- Use `headers={"Cache-Control": "no-cache", "Pragma": "no-cache"}` on the
+  aiohttp request.
+- Use `hass.helpers.aiohttp_client.async_get_clientsession(hass)` to get the
+  shared HA aiohttp session (correct pattern for HA integrations).
+- Fetch at most once per hour regardless — store the last-fetched ICS body
+  in-memory with a TTL.
+
+**Detection:** Calendar changes not reflected after 24h; timetable shows old
+events.
+
+**Phase:** iCal source implementation phase.
+
+---
+
+### MOD-04: Credentials stored in Store helper as plain text
+
+**What goes wrong:** Pronote credentials (URL, username, password) and iCal
+URLs with embedded auth tokens stored in `ClimateManagerStore` are plain-text
+JSON in `.storage/`. If the HA config directory is exposed (backup,
+misconfiguration), all credentials are leaked.
+
+**Why it happens:** `Store` is the correct HA pattern for structured data but
+provides no encryption. `ConfigEntry.data` is also plain text. HA has no
+built-in secret encryption for third-party integrations.
+
+**Consequences:** Pronote credentials leaked. Attacker can impersonate the
+student's account on the school platform.
+
+**Prevention:**
+- Store Pronote credentials in `ConfigEntry.data` via `ConfigFlow` — this is
+  the HA-recommended location for credentials because the HA reauth flow is
+  designed around it.
+- Document clearly in the UI: "Credentials are stored in the HA configuration
+  directory. Secure your HA instance and backups."
+- For iCal URLs with embedded tokens (Google private ICS URLs), treat the URL
+  itself as a secret — same guidance applies.
+- Never log credentials at any level, including DEBUG.
+
+**Detection:** `.storage/core.config_entries` readable on filesystem.
+
+**Phase:** Pronote/iCal config flow implementation.
+
+---
+
+### MOD-05: Pre-heat cap exceeded silently without user notification
+
+**What goes wrong:** The `preheat_max_duration` cap is applied and the room
+does not reach target before the period starts. The `did_not_converge` sample
+is excluded from learning (correct). But if this happens every day (undersized
+radiator, very cold room), the inertia model never converges and the default
+60-minute lead time is used forever — the user never knows why pre-heat
+appears to be doing nothing.
+
+**Why it happens:** The todo specifies a warning should be surfaced, but the
+warning is easy to miss if only written to the coordinator log. The panel UI
+may not have a clear path to display it.
+
+**Prevention:**
+- Expose `preheat_status: "ok" | "did_not_converge" | "cap_exceeded"` in the
+  room status payload (WebSocket `get_status` / `subscribe_status`).
+- The panel should show a visible warning badge on the room card when
+  `cap_exceeded` has been true for 3+ consecutive cycles.
+- Log at `_LOGGER.warning` (not debug) when `did_not_converge = true`.
+
+**Detection:** `inertia_samples` list filled entirely with
+`did_not_converge: true` entries.
+
+**Phase:** Pre-heat implementation phase.
+
+---
+
+### MOD-06: Tado X serial number matching ambiguity in device registry
+
+**What goes wrong:** The Matter→Tado X mapping uses "Matter entity → Tado X
+device serial" as described in the todo. If two rooms contain the same Tado X
+model, matching by model name alone hits multiple devices. Serial number
+lookup in the device registry requires reading `device.identifiers` — which
+is not guaranteed to be present across all firmware versions.
+
+**Why it happens:** `get_tado_valve_devices` currently matches by
+`device.model == "Radiator Valve X"` and `device.area_id`. Serial number
+matching requires reading from `device.identifiers` (a set of
+`(domain, identifier)` tuples).
+
+**Prevention:**
+- Use `device.identifiers` to build the serial→device mapping. For Tado X,
+  the identifier is the serial number from the `tado_x` domain.
+- Fall back to matching by area and model only if `device.identifiers` is
+  missing; log a warning if multiple matches exist with no serial to
+  disambiguate.
+- Unit-test the matching logic with a fixture device registry containing two
+  Tado X devices in the same area.
+
+**Detection:** Calibration applied to wrong TRV; offset diverges between two
+TRVs in the same room.
+
+**Phase:** Matter sensor mapping phase.
+
+---
+
+### MOD-07: iCal EXDATE and modified-occurrence events ignored
+
+**What goes wrong:** When a recurring event has a cancellation
+(`EXDATE:20260610T090000Z`) or a moved instance (`VEVENT` with
+`RECURRENCE-ID`), naive RRULE expansion ignores these overrides. A cancelled
+lesson still appears as "at school" on the cancelled day.
+
+**Why it happens:** The Python `icalendar` library's raw RRULE expansion does
+not handle `EXDATE` or `RECURRENCE-ID` overrides. These require post-processing
+to remove cancelled instances and substitute modified ones.
+
+**Prevention:**
+- Use `recurring-ical-events` library which handles `EXDATE`, `EXRULE`, and
+  `RECURRENCE-ID` correctly per RFC 5545 §3.8.5.
+- Do not implement RRULE expansion manually.
+
+**Detection:** Child present on school holiday / cancelled lesson days.
+
+**Phase:** iCal source implementation phase.
+
+---
+
+### MOD-08: Hide HA presence mode — empty vs absent device_trackers attribute
+
+**What goes wrong:** The feature "hide HA presence mode when person has no
+tracked device" infers tracker availability from the `device_trackers`
+attribute of the `person.*` entity. The `person` integration always emits
+`device_trackers` as a list (possibly empty). Checking
+`if attributes.get("device_trackers") is None` misses the empty list case —
+HA mode option remains visible for persons with no trackers assigned.
+
+**Why it happens:** `dict.get("device_trackers")` returns `None` only when
+the key is absent, not when the value is `[]`. Both cases mean "no trackers
+configured" but require different checks.
+
+**Prevention:**
+- Use `not attributes.get("device_trackers", [])` — evaluates to `True` when
+  the attribute is absent, `None`, or an empty list.
+- Unit-test with a fixture person entity with `device_trackers: []` and with
+  `device_trackers: ["device_tracker.phone"]`.
+
+**Detection:** HA presence mode option visible in UI for persons who have no
+device trackers configured.
+
+**Phase:** Hide HA presence mode feature phase.
+
+---
+
+## Minor Pitfalls
+
+---
+
+### MIN-01: iCal URL auth token expiry returns 403 silently
+
+**What goes wrong:** Google Calendar and similar providers rotate the private
+token in the ICS URL when the user revokes or regenerates calendar access.
+After rotation, the ICS fetch returns 403 or an empty calendar, and all events
+disappear from the timetable, showing the person as permanently absent.
+
+**Prevention:** Detect 403 / empty-calendar responses explicitly; surface a
+user-facing error in the panel ("iCal URL may have expired — please update
+it"). Do not silently fall back to an empty presence schedule.
+
+**Phase:** iCal source implementation phase.
+
+---
+
+### MIN-02: pronotepy ExpiredObject on cached lesson references
+
+**What goes wrong:** `pronotepy` raises `ExpiredObject` (error 22) when code
+holds a reference to a lesson object across a session renewal. The Pronote
+server invalidates all object IDs each session.
+
+**Prevention:** Never cache individual `Lesson` objects. Cache only the raw
+timetable data (start/end times, subject name) derived from them. Re-fetch
+and re-derive on each session renewal.
+
+**Phase:** Pronote source implementation phase.
+
+---
+
+### MIN-03: Boiler entity unavailable degrades to fallback silently
+
+**What goes wrong:** If `boiler_entity` is configured for a zone but the
+boiler integration is unavailable (boiler off, integration error), the pre-heat
+calculation falls back to `preheat_flow_temp_ref`. This is correct per the
+todo spec, but if not logged the user cannot distinguish "no boiler
+configured" from "boiler unavailable".
+
+**Prevention:** Log at DEBUG when falling back from a configured but unavailable
+boiler entity. Surface `flow_temp_source: "actual" | "fallback"` in the
+pre-heat status payload.
+
+**Phase:** Pre-heat implementation phase.
+
+---
+
+### MIN-04: Using deprecated async_track_state_change (without _event suffix)
+
+**What goes wrong:** The older `async_track_state_change` (without `_event`
+suffix) was deprecated in HA 2024.4 because it creates a top-level
+`EVENT_STATE_CHANGED` listener that fires for every state change in HA,
+causing performance issues at scale.
+
+**Prevention:** Always use `async_track_state_change_event` (with `_event`
+suffix). This is already the project's established practice — apply the same
+pattern to the new Matter sensor subscriptions.
+
+**Phase:** Matter sensor mapping phase.
+
+---
+
+### MIN-05: requirements version pinning too tight vs too loose
+
+**What goes wrong:** Pinning `pronotepy==2.14.5` blocks security fixes.
+Pinning `pronotepy>=2` allows a future breaking major version. The `icalendar`
+library is on v6.x with a v7 in progress — a `>=6` pin would pull v7 if it
+introduces breaking API changes.
+
+**Prevention:**
+- Use compatible-release or upper-bounded pins. Recommended:
+  `pronotepy>=2.14,<3`, `icalendar>=6.0,<7`, `recurring-ical-events>=3.0,<4`.
+- Revisit pins at each HA version bump.
+
+**Phase:** First phase to introduce external PyPI dependencies.
 
 ---
 
 ## Phase-Specific Warnings
 
-| Phase Topic           | Likely Pitfall                                             | Mitigation                                                                       |
-| --------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Storage schema update | C2 — missing `zones: {}` in DEFAULT_CONFIG                 | Add to DEFAULT_CONFIG first, before any coordinator changes                      |
-| Storage schema update | C5 — version bump decision                                 | Additive-only → no bump; any rename → bump to v3 + migration                     |
-| Zone CRUD backend     | C3 — room references on zone delete                        | Store membership on zone, not room; trigger evaluate on delete                   |
-| Zone CRUD backend     | M2 — WebSocket command proliferation                       | One `set_zone_config` + `delete_zone` + `create_zone` — avoid per-field commands |
-| Backend evaluation    | C1 — evaluation order not explicit                         | Write `_resolve_room_program()` helper first, test the full matrix               |
-| Backend evaluation    | C4 / M5 — presence ignores zone mode                       | Presence pass gates on effective mode, not global mode                           |
-| Backend evaluation    | M1 — zone off vs global off same string                    | Zone off handled inside per-room loop, not as top-level branch                   |
-| Backend evaluation    | M3 — `_last_room_periods` not updated for zone rooms       | Zone evaluation writes `room_periods[area_id]` same as custom room evaluation    |
-| Zone CRUD UI          | M4 — zone reset copies wrong program                       | "Reset" copies `_DEFAULT_DAILY_PROGRAM`, not current global                      |
-| Zone CRUD UI          | m3 — new zone has empty schedule                           | Seed with `_DEFAULT_DAILY_PROGRAM` or default to `mode=off` on creation          |
-| Zone UI               | M7 — three-level hierarchy invisible in flat tab structure | Room card shows "In zone: X" badge; room schedule section shows governing source |
+| Phase Topic | Likely Pitfall | Mitigation |
+|---|---|---|
+| Pronote source | CRIT-01 IP ban from over-polling | Cache Client; fetch timetable once per 6h max |
+| Pronote source | CRIT-02 pronotepy API breakage | Broad exception handling; fallback to manual |
+| Pronote source | MOD-04 credentials in plain text | Use ConfigEntry.data; document security |
+| Pronote source | MIN-02 ExpiredObject on lesson refs | Cache derived data, not Lesson objects |
+| iCal source | CRIT-03 DATE vs DATETIME collision | `_to_aware_datetime()` helper with unit tests |
+| iCal source | CRIT-04 naive vs aware comparison | `dt_util.as_local()` for floating times |
+| iCal source | CRIT-05 unbounded RRULE expansion | Use `recurring-ical-events` with windowed query |
+| iCal source | MOD-03 stale HTTP cache | `Cache-Control: no-cache` header; in-memory TTL |
+| iCal source | MOD-07 EXDATE/RECURRENCE-ID ignored | Use `recurring-ical-events`, not raw rrule |
+| iCal source | MIN-01 token rotation gives 403 | Detect 403, surface user error, no silent empty |
+| External deps (first) | CRIT-06 requirements not installed | Deferred import; ConfigEntryNotReady; Docker test |
+| External deps (first) | MIN-05 version pin strategy | Compatible-release pins; revisit on HA bump |
+| Pre-heat algorithm | CRIT-07 inertia model pollution | Outlier detection; rolling median; per-cycle cap |
+| Pre-heat algorithm | CRIT-08 pre-heat overwritten by frost pass | Clamp window to frost boundary; inject as final pass |
+| Pre-heat algorithm | MOD-05 cap exceeded silently | preheat_status in WS payload; panel warning badge |
+| Pre-heat algorithm | MIN-03 boiler unavailable silent fallback | Log at DEBUG; surface flow_temp_source in payload |
+| Matter sensor mapping | MOD-01 entity missing at subscription time | Null-guard in place; no synchronous startup read |
+| Matter sensor mapping | MOD-02 subscription not cancelled on unload | Extend cancel_registry_listeners; call in unload |
+| Matter sensor mapping | MOD-06 serial number matching ambiguity | Use device.identifiers; warn on multiple matches |
+| Matter sensor mapping | MIN-04 deprecated state_change API | Use async_track_state_change_event (project standard) |
+| Hide HA presence mode | MOD-08 empty vs absent device_trackers | `not attributes.get("device_trackers", [])` |
 
 ---
 
-## Open Questions
+## Sources
 
-- Should zone mode include a `time_program_presences` option independently of
-  global mode? If yes, the person presence pass becomes significantly more
-  complex — every room needs its own effective mode lookup. If no, zone presence
-  behaviour always mirrors global. Simpler to start: zone mode =
-  `off | time_program | time_program_presences`, same enum as global.
-- Can a room be in multiple zones? Almost certainly not in v1.1 — one zone per
-  room, or no zone (global). Enforce at save time in `set_zone_config`.
-- Should unzoned rooms be visible in the Zones tab as "Global (unassigned)" or
-  only in the Rooms tab? Answer affects whether the Zones tab needs to list all
-  rooms or only assigned ones.
+- [pronotepy GitHub issues — IP suspension (#291)](https://github.com/bain3/pronotepy/issues/291)
+- [pronotepy exceptions documentation](https://pronotepy.readthedocs.io/en/v2.12.1/api/exceptions.html)
+- [hass-pronote IP suspension issue (#128)](https://github.com/delphiki/hass-pronote/issues/128)
+- [HA manifest.json — requirements](https://developers.home-assistant.io/docs/creating_integration_manifest/)
+- [HA custom integration requirements not installed after 2026.3 (#166255)](https://github.com/home-assistant/core/issues/166255)
+- [HA handling setup failures](https://developers.home-assistant.io/docs/integration_setup_failures/)
+- [HA entity event subscription lifecycle rules](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/entity-event-setup/)
+- [async_track_state_change deprecation (2024-04-13)](https://developers.home-assistant.io/blog/2024/04/13/deprecate_async_track_state_change/)
+- [recurring-ical-events PyPI](https://pypi.org/project/recurring-ical-events/)
+- [RFC 5545 — RRULE](https://icalendar.org/iCalendar-RFC-5545/3-8-5-3-recurrence-rule.html)
+- [icalendar Python library documentation](https://icalendar.readthedocs.io/en/stable/usage.html)
+- [Nylas — The Deceptively Complex World of Calendar Events and RRULEs](https://www.nylas.com/blog/calendar-events-rrules/)
+- [HA Person integration documentation](https://www.home-assistant.io/integrations/person/)
+- [async_register_static_paths migration (HA 2025.7)](https://developers.home-assistant.io/blog/2024/06/18/async_register_static_paths/)
