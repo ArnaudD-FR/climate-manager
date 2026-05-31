@@ -1306,7 +1306,7 @@ async def test_zone_mode_time_program_uses_zone_schedule(hass):
     Proves divergence: same global_mode=time_program, different temperatures.
     """
     hass.states.async_set("climate.z_trv", "heat", {"temperature": 20.0})
-    hass.states.async_set("climate.d_trv", "heat", {"temperature": 20.0})
+    hass.states.async_set("climate.d_trv", "heat", {"temperature": 18.0})
     async_mock_service(hass, "climate", "set_hvac_mode")
     temp_calls = async_mock_service(hass, "climate", "set_temperature")
 
