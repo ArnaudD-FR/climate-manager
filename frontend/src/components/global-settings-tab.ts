@@ -118,6 +118,7 @@ export class GlobalSettingsTab extends LitElement {
 
   @state() private _trvStatuses: TRVCalibrationEntry[] = [];
   @state() private _loadingStatuses = false;
+  @state() private _calibrationFetchedAt: Date | null = null;
 
   static styles = [
     chipStyles,
@@ -385,6 +386,37 @@ export class GlobalSettingsTab extends LitElement {
         background: var(--secondary-background-color, #f5f5f5);
       }
 
+      /* ---- Tado X info banner ---- */
+      .calib-info-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 8px 10px;
+        margin-bottom: 10px;
+        border-radius: 4px;
+        background: rgba(3, 169, 244, 0.08);
+        border: 1px solid rgba(3, 169, 244, 0.25);
+        font-size: 12px;
+        color: var(--secondary-text-color);
+        line-height: 1.5;
+      }
+
+      .calib-info-banner ha-icon {
+        --mdc-icon-size: 16px;
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        color: #0288d1;
+        margin-top: 1px;
+      }
+
+      .calib-info-fetched {
+        margin-top: 2px;
+        font-size: 11px;
+        color: var(--secondary-text-color);
+        opacity: 0.75;
+      }
+
       /* ---- TRV floor section headers ---- */
       .calib-floor-header {
         display: flex;
@@ -483,6 +515,7 @@ export class GlobalSettingsTab extends LitElement {
     try {
       const result = await this.ws.getCalibrationStatus();
       this._trvStatuses = result.trvs;
+      this._calibrationFetchedAt = new Date();
     } catch {
       this._trvStatuses = [];
     } finally {
@@ -758,6 +791,11 @@ export class GlobalSettingsTab extends LitElement {
 
     const floorlessTrvs = floorGroups.get(null) ?? [];
 
+    const hasTadoX = this._trvStatuses.some((t) => t.supports_calibration);
+    const fetchedLabel = this._calibrationFetchedAt
+      ? this._calibrationFetchedAt.toLocaleTimeString()
+      : null;
+
     // Refresh button is placed ABOVE the table so it remains accessible
     // regardless of table length. During a subsequent refresh, the table
     // stays visible (no layout jump) and the button shows "Refreshing…".
@@ -771,6 +809,22 @@ export class GlobalSettingsTab extends LitElement {
         >
           ${this._loadingStatuses ? "Refreshing…" : "Refresh"}
         </button>
+        ${hasTadoX
+          ? html`
+              <div class="calib-info-banner">
+                <ha-icon icon="mdi:information-outline"></ha-icon>
+                <div>
+                  Tado X data is fetched from the cloud every ~30 s — displayed
+                  temperatures may lag slightly behind actual values.
+                  ${fetchedLabel
+                    ? html`<div class="calib-info-fetched">
+                        Last fetched: ${fetchedLabel}
+                      </div>`
+                    : ""}
+                </div>
+              </div>
+            `
+          : ""}
         <table class="calib-table">
           <thead>
             <tr>
