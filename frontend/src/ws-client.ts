@@ -208,9 +208,13 @@ export class WsClient {
   }
 
   /** Return per-TRV calibration status for the TRV Auto-Calibration card. */
-  getCalibrationStatus(): Promise<{ trvs: TRVCalibrationEntry[] }> {
+  getCalibrationStatus(): Promise<{
+    trvs: TRVCalibrationEntry[];
+    tado_x_scan_interval: number | null;
+  }> {
     return this.hass.connection.sendMessagePromise<{
       trvs: TRVCalibrationEntry[];
+      tado_x_scan_interval: number | null;
     }>({
       type: "climate_manager/get_calibration_status",
     });

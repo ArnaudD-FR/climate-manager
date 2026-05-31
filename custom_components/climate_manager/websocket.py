@@ -1170,6 +1170,20 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
                     }
                 )
 
-        connection.send_result(msg["id"], {"trvs": trvs})
+        # Read tado_x scan interval from its coordinator
+        # (stored in hass.data["tado_x"][entry_id] — standard hass.data pattern)
+        tado_x_scan_interval: int | None = None
+        tado_x_entries = list(hass.config_entries.async_entries("tado_x"))
+        if tado_x_entries:
+            tado_x_coord = hass.data.get("tado_x", {}).get(
+                tado_x_entries[0].entry_id
+            )
+            if tado_x_coord and hasattr(tado_x_coord, "_scan_interval"):
+                tado_x_scan_interval = int(tado_x_coord._scan_interval)
+
+        connection.send_result(
+            msg["id"],
+            {"trvs": trvs, "tado_x_scan_interval": tado_x_scan_interval},
+        )
 
     return ws_get_calibration_status

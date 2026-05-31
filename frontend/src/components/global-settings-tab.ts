@@ -119,6 +119,7 @@ export class GlobalSettingsTab extends LitElement {
   @state() private _trvStatuses: TRVCalibrationEntry[] = [];
   @state() private _loadingStatuses = false;
   @state() private _calibrationFetchedAt: Date | null = null;
+  @state() private _tadoXScanInterval: number | null = null;
 
   static styles = [
     chipStyles,
@@ -515,6 +516,7 @@ export class GlobalSettingsTab extends LitElement {
     try {
       const result = await this.ws.getCalibrationStatus();
       this._trvStatuses = result.trvs;
+      this._tadoXScanInterval = result.tado_x_scan_interval;
       this._calibrationFetchedAt = new Date();
     } catch {
       this._trvStatuses = [];
@@ -795,6 +797,12 @@ export class GlobalSettingsTab extends LitElement {
     const fetchedLabel = this._calibrationFetchedAt
       ? this._calibrationFetchedAt.toLocaleTimeString()
       : null;
+    const scanLabel =
+      this._tadoXScanInterval != null
+        ? this._tadoXScanInterval >= 60
+          ? `${Math.round(this._tadoXScanInterval / 60)} min`
+          : `${this._tadoXScanInterval} s`
+        : "~30 s";
 
     // Refresh button is placed ABOVE the table so it remains accessible
     // regardless of table length. During a subsequent refresh, the table
@@ -814,8 +822,8 @@ export class GlobalSettingsTab extends LitElement {
               <div class="calib-info-banner">
                 <ha-icon icon="mdi:information-outline"></ha-icon>
                 <div>
-                  Tado X data is fetched from the cloud every ~30 s — displayed
-                  temperatures may lag slightly behind actual values.
+                  Tado X data is fetched from the cloud every ${scanLabel} —
+                  displayed temperatures may lag behind actual values.
                   ${fetchedLabel
                     ? html`<div class="calib-info-fetched">
                         Last fetched: ${fetchedLabel}
