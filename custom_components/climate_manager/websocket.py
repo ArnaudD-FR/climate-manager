@@ -1063,7 +1063,6 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
         room_auto_sensors = entry.runtime_data.room_auto_sensors
 
         trvs = []
-        tado_x_last_fetched: str | None = None
         for area_id, entity_ids in rooms.items():
             # Mirror ws_get_status sensor resolution
             _area = area_reg.async_get_area(area_id)
@@ -1103,10 +1102,6 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
                                 zone_trv_temp = float(ct)
                             except (ValueError, TypeError):
                                 pass
-                        # last_updated reflects when the coordinator last pushed
-                        # data to this entity — i.e., the last cloud fetch time.
-                        if tado_x_last_fetched is None:
-                            tado_x_last_fetched = zs.last_updated.isoformat()
                     break
 
             # Emit one row per physical Radiator Valve X device
@@ -1214,7 +1209,6 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
             {
                 "trvs": trvs,
                 "tado_x_scan_interval": tado_x_scan_interval,
-                "tado_x_last_fetched": tado_x_last_fetched,
             },
         )
 
