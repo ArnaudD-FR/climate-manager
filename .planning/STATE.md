@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Presence & Calibration
-status: Awaiting next milestone
-last_updated: "2026-05-31T13:12:42.469Z"
-last_activity: 2026-05-31 — Milestone v1.2 completed and archived
+milestone: v1.3
+milestone_name: Calendar Presence & Pre-heat
+status: planning
+last_updated: "2026-05-31T13:27:21.064Z"
+last_activity: 2026-05-31
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -26,10 +26,10 @@ presence schedules + TRV offset auto-calibration.
 
 ## Current Position
 
-Phase: Milestone v1.2 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-05-31 — Milestone v1.2 completed and archived
+Status: Defining requirements
+Last activity: 2026-05-31 — Milestone v1.3 started
 
 ## Performance Metrics
 

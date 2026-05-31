@@ -13,6 +13,23 @@ configurable through a full Lovelace dashboard panel without touching YAML.
 A household's rooms are always at the right temperature at the right time,
 without manual intervention — driven by schedules and who is actually home.
 
+## Current Milestone: v1.3 Calendar Presence & Pre-heat
+
+**Goal:** Presence can be driven from external calendars (Pronote school
+timetable, iCal work/holidays), rooms pre-heat automatically before occupied
+periods using adaptive inertia learning, and calibration becomes sub-minute
+via Matter→Tado X sensor mapping.
+
+**Target features:**
+
+- Pronote presence source — child's school timetable maps to absent/present
+- iCal presence source — work/holiday calendar maps to absent/present
+- Predictive pre-heat — adaptive lead time with learned inertia factor; fixed
+  flow temp fallback (no boiler entity required)
+- Matter→Tado X sensor mapping — sub-minute calibration on Tado X free tier
+- Hide HA presence mode when person has no tracked device in HA
+- Rename HA presence mode label for clarity
+
 ## Current State
 
 **Shipped:** v1.0 MVP (2026-05-26)
