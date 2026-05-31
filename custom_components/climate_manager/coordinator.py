@@ -449,8 +449,9 @@ class ClimateManagerCoordinator:
             return
 
         existing_offset = self._calibration_last_offset.get(device_id, 0.0)
-        new_offset = max(
-            -_OFFSET_CLAMP, min(_OFFSET_CLAMP, existing_offset + delta)
+        new_offset = round(
+            max(-_OFFSET_CLAMP, min(_OFFSET_CLAMP, existing_offset + delta)),
+            1,
         )
 
         try:
