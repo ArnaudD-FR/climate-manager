@@ -135,13 +135,57 @@ class ClimateManagerCoordinator:
         # Presence list computed once — used for PASS 2 and status reporting.
         self._last_present_persons = self._compute_present_persons(config, now)
 
+        desired_temps, room_periods, frost_locked_rooms, mode_off_rooms = (
+            self._compute_desired_temps(config, rooms, period_temperatures, now)
+        )
+
+        self._apply_presence_overrides(
+            config,
+            rooms,
+            desired_temps,
+            room_periods,
+            frost_locked_rooms,
+            period_temperatures,
+            now,
+        )
+
+        self._last_room_periods = room_periods
+
+        # Pitfall 7: _last_active_period reflects Default Zone for backward-compat.
+        global_mode = config["global_mode"]
+        self._last_active_period = (
+            evaluate_schedule(config["global_time_program"], now)
+            if global_mode != MODE_OFF
+            else None
+        )
+
+        await self._push_temperatures(rooms, desired_temps, mode_off_rooms)
+
+        self._hass.bus.async_fire(
+            f"{DOMAIN}_status_update",
+            self._build_status_payload(),
+        )
+
+        # Calibration pass — D-01: runs after push pass and status fire.
+        await self._async_calibrate(config)
+
+    def _compute_desired_temps(
+        self,
+        config: dict,
+        rooms: dict[str, list[str]],
+        period_temperatures: dict[str, float],
+        now: datetime,
+    ) -> tuple[dict[str, float], dict[str, str], set[str], set[str]]:
+        """PASS 1 — baseline temperature per room.
+
+        Returns (desired_temps, room_periods, frost_locked_rooms, mode_off_rooms).
+        Room-mode short-circuits (frost/custom) are applied before zone resolution.
+        """
         desired_temps: dict[str, float] = {}
         room_periods: dict[str, str] = {}
-        present_locked_rooms: set[str] = set()
         frost_locked_rooms: set[str] = set()
         mode_off_rooms: set[str] = set()
 
-        # PASS 1: baseline temperature per room via zone resolution + room_mode short-circuit.
         for area_id in rooms:
             room_config = config.get("rooms", {}).get(area_id, {})
             room_mode = room_config.get("room_mode", "global")
@@ -189,7 +233,7 @@ class ClimateManagerCoordinator:
                 mode_off_rooms.add(area_id)
 
             elif zone_mode in (MODE_TIME_PROGRAM, MODE_TIME_PROGRAM_PRESENCES):
-                # EVAL-02 baseline (or EVAL-03 baseline before PASS 2 presence override)
+                # EVAL-02 baseline (or EVAL-03 baseline before PASS 2)
                 period_mode = evaluate_schedule(zone_time_program, now)
                 temp = period_temperatures.get(period_mode)
                 if temp is None:
@@ -209,9 +253,26 @@ class ClimateManagerCoordinator:
                     area_id,
                 )
 
-        # PASS 2: presence override for zones with mode=time_program_presences (EVAL-03).
-        # All configured persons considered — not scoped to zone members (D-11).
-        for person_id, person_config in config.get("persons", {}).items():
+        return desired_temps, room_periods, frost_locked_rooms, mode_off_rooms
+
+    def _apply_presence_overrides(
+        self,
+        config: dict,
+        rooms: dict[str, list[str]],
+        desired_temps: dict[str, float],
+        room_periods: dict[str, str],
+        frost_locked_rooms: set[str],
+        period_temperatures: dict[str, float],
+        now: datetime,
+    ) -> None:
+        """PASS 2 — presence override for time_program_presences zones (EVAL-03).
+
+        Mutates desired_temps and room_periods in place.
+        All configured persons are considered — not scoped to zone members (D-11).
+        """
+        present_locked_rooms: set[str] = set()
+
+        for _person_id, person_config in config.get("persons", {}).items():
             room_ids: list[str] = person_config.get("room_ids", [])
             if not room_ids:
                 continue
@@ -238,7 +299,10 @@ class ClimateManagerCoordinator:
                     continue
 
                 occupied_temp, occupied_period = compute_occupied_temp(
-                    zone_program_for_room, now, is_present, period_temperatures
+                    zone_program_for_room,
+                    now,
+                    is_present,
+                    period_temperatures,
                 )
 
                 if is_present:
@@ -255,17 +319,13 @@ class ClimateManagerCoordinator:
                         desired_temps[area_id] = occupied_temp
                         room_periods[area_id] = occupied_period
 
-        self._last_room_periods = room_periods
-
-        # Pitfall 7: _last_active_period reflects Default Zone for backward-compat with status payload.
-        global_mode = config["global_mode"]
-        self._last_active_period = (
-            evaluate_schedule(config["global_time_program"], now)
-            if global_mode != MODE_OFF
-            else None
-        )
-
-        # Push pass — off-capable TRVs in mode_off_rooms use _push_off_safely.
+    async def _push_temperatures(
+        self,
+        rooms: dict[str, list[str]],
+        desired_temps: dict[str, float],
+        mode_off_rooms: set[str],
+    ) -> None:
+        """Push pass — off-capable TRVs in mode_off_rooms use _push_off_safely."""
         await asyncio.gather(
             *(
                 (
@@ -286,14 +346,6 @@ class ClimateManagerCoordinator:
             )
         )
 
-        self._hass.bus.async_fire(
-            f"{DOMAIN}_status_update",
-            self._build_status_payload(),
-        )
-
-        # Calibration pass — D-01: runs after push pass and status fire.
-        await self._async_calibrate(config)
-
     async def _async_calibrate(self, config: dict) -> None:
         """Offset-calibrate all compatible TRVs toward their room sensors.
 
@@ -306,9 +358,19 @@ class ClimateManagerCoordinator:
         """
         if not config.get("calibration_enabled", False):
             return
+        from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
+
+        area_reg = ar.async_get(self._hass)
         rooms = self._data.rooms
         tasks = []
         for area_id, entity_ids in rooms.items():
+            # Resolve room sensor: area registry (HA 2026.5+) → auto-discovered
+            _area = area_reg.async_get_area(area_id)
+            sensor_entity_id = getattr(
+                _area, "temperature_entity_id", None
+            ) or self._data.room_auto_sensors.get(area_id, {}).get(
+                "temperature"
+            )
             valve_devices = get_tado_valve_devices(self._hass, area_id)
             if valve_devices:
                 # Find zone climate entity for temperature reading
@@ -326,6 +388,7 @@ class ClimateManagerCoordinator:
                             area_id,
                             device["device_id"],
                             zone_entity,
+                            sensor_entity_id,
                             config,
                         )
                     )
@@ -334,7 +397,7 @@ class ClimateManagerCoordinator:
                     if is_trv_entity(self._hass, entity_id):
                         tasks.append(
                             self._async_calibrate_room(
-                                area_id, entity_id, config
+                                area_id, entity_id, sensor_entity_id, config
                             )
                         )
         await asyncio.gather(*tasks)
@@ -344,6 +407,7 @@ class ClimateManagerCoordinator:
         area_id: str,
         device_id: str,
         zone_entity_id: str | None,
+        sensor_entity_id: str | None,
         config: dict,
     ) -> None:
         """Calibrate one Tado X Radiator Valve X device toward its room sensor.
@@ -353,9 +417,6 @@ class ClimateManagerCoordinator:
         Tracks offset increments in _calibration_last_offset so successive
         calls accumulate correctly despite the device not exposing its offset.
         """
-        sensor_entity_id = (
-            config.get("rooms", {}).get(area_id, {}).get("temperature_sensor")
-        )
         if not sensor_entity_id or not zone_entity_id:
             return
 
@@ -407,17 +468,17 @@ class ClimateManagerCoordinator:
             )
 
     async def _async_calibrate_room(
-        self, area_id: str, entity_id: str, config: dict
+        self,
+        area_id: str,
+        entity_id: str,
+        sensor_entity_id: str | None,
+        config: dict,
     ) -> None:
         """Calibrate one TRV toward its room's reference sensor.
 
         Silently returns when any guard condition fails (CALIB-03/05, D-07/08,
         Pitfalls 2/5).
         """
-        # CALIB-05, D-14: manual temperature_sensor config only
-        sensor_entity_id = (
-            config.get("rooms", {}).get(area_id, {}).get("temperature_sensor")
-        )
         if not sensor_entity_id:
             return
 
