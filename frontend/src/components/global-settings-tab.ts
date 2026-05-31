@@ -717,11 +717,21 @@ export class GlobalSettingsTab extends LitElement {
   }
 
   private _renderTRVTable() {
-    if (this._loadingStatuses) {
-      return html`<div class="calib-loading">Loading TRV status…</div>`;
-    }
+    // Initial load: no data yet
     if (this._trvStatuses.length === 0) {
-      return html`<div class="calib-empty">No managed TRVs found.</div>`;
+      if (this._loadingStatuses) {
+        return html`<div class="calib-loading">Loading TRV status…</div>`;
+      }
+      return html`
+        <button
+          class="refresh-btn"
+          @click=${this._loadCalibrationStatuses}
+          style="margin-top: 8px;"
+        >
+          Refresh
+        </button>
+        <div class="calib-empty">No managed TRVs found.</div>
+      `;
     }
 
     // Group by floor (mirrors rooms-tab floor grouping logic)
@@ -737,7 +747,7 @@ export class GlobalSettingsTab extends LitElement {
       group.sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
     }
 
-    // Sort floor IDs by level ascending
+    // Sort floor IDs by level descending (top floor first)
     const sortedFloorIds = [...floorGroups.keys()]
       .filter((fid): fid is string => fid !== null)
       .sort(
@@ -748,8 +758,19 @@ export class GlobalSettingsTab extends LitElement {
 
     const floorlessTrvs = floorGroups.get(null) ?? [];
 
+    // Refresh button is placed ABOVE the table so it remains accessible
+    // regardless of table length. During a subsequent refresh, the table
+    // stays visible (no layout jump) and the button shows "Refreshing…".
     return html`
       <div class="calib-table-wrap">
+        <button
+          class="refresh-btn"
+          style="margin-top: 8px; margin-bottom: 8px;"
+          ?disabled=${this._loadingStatuses}
+          @click=${this._loadCalibrationStatuses}
+        >
+          ${this._loadingStatuses ? "Refreshing…" : "Refresh"}
+        </button>
         <table class="calib-table">
           <thead>
             <tr>
@@ -781,9 +802,6 @@ export class GlobalSettingsTab extends LitElement {
               </tbody>`
             : ""}
         </table>
-        <button class="refresh-btn" @click=${this._loadCalibrationStatuses}>
-          Refresh
-        </button>
       </div>
     `;
   }

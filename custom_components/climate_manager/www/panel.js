@@ -2722,10 +2722,19 @@ const _t = "off",
     }
     _renderTRVTable() {
       var s, i, r;
-      if (this._loadingStatuses)
-        return d`<div class="calib-loading">Loading TRV status…</div>`;
       if (this._trvStatuses.length === 0)
-        return d`<div class="calib-empty">No managed TRVs found.</div>`;
+        return this._loadingStatuses
+          ? d`<div class="calib-loading">Loading TRV status…</div>`
+          : d`
+        <button
+          class="refresh-btn"
+          @click=${this._loadCalibrationStatuses}
+          style="margin-top: 8px;"
+        >
+          Refresh
+        </button>
+        <div class="calib-empty">No managed TRVs found.</div>
+      `;
       const e = /* @__PURE__ */ new Map();
       for (const a of this._trvStatuses) {
         const l =
@@ -2761,6 +2770,14 @@ const _t = "off",
         o = e.get(null) ?? [];
       return d`
       <div class="calib-table-wrap">
+        <button
+          class="refresh-btn"
+          style="margin-top: 8px; margin-bottom: 8px;"
+          ?disabled=${this._loadingStatuses}
+          @click=${this._loadCalibrationStatuses}
+        >
+          ${this._loadingStatuses ? "Refreshing…" : "Refresh"}
+        </button>
         <table class="calib-table">
           <thead>
             <tr>
@@ -2801,9 +2818,6 @@ const _t = "off",
               : ""
           }
         </table>
-        <button class="refresh-btn" @click=${this._loadCalibrationStatuses}>
-          Refresh
-        </button>
       </div>
     `;
     }
