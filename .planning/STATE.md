@@ -111,6 +111,9 @@ None yet.
 | 260529-g8p | add editorconfig with 80 line length, reformat sources  | 2026-05-29 | e0eea90 | [260529-g8p-add-editorconfig-80-line-length](./quick/260529-g8p-add-editorconfig-80-line-length/) |
 | 260530-m8u | TRV Auto-Calibration card: rename, per-TRV status table | 2026-05-30 | e52c674 | [260530-m8u-trv-calibration-card-enhancement](./quick/260530-m8u-trv-calibration-card-enhancement/) |
 | 260530-p4r | TRV calibration table: floor grouping + name sort       | 2026-05-30 | 8123a22 | [260530-p4r-trv-table-floor-grouping](./quick/260530-p4r-trv-table-floor-grouping/)               |
+| 260531-w9z | Tado X refresh-rate info banner on calibration table    | 2026-05-31 | b656fd7 | [260531-w9z-tado-x-calibration-refresh-warning](./quick/260531-w9z-tado-x-calibration-refresh-warning/) |
+| 260531-r6t | Show current TRV offset for Tado X in calibration table | 2026-05-31 | 68e61f0 | [260531-r6t-tado-x-show-current-offset](./quick/260531-r6t-tado-x-show-current-offset/) |
+| 260531-any | Remove "Last applied delta" column from calibration table | 2026-05-31 | 392e8e4 | [260531-any-remove-last-applied-delta-column](./quick/260531-any-remove-last-applied-delta-column/) |
 
 Last activity: 2026-05-29 - Created v1.2 roadmap (Phases 7-9); 11 requirements
 mapped (SCHED-01..06, CALIB-01..05)
