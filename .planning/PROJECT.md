@@ -4,28 +4,14 @@
 
 A Home Assistant custom integration that manages home climate controls through
 smart radiator thermostats. It provides global heating modes, weekday-based time
-programs, per-room schedule overrides, and person presence tracking — all
+programs, per-room schedule overrides, person presence tracking with even/odd
+week scheduling, and automatic TRV temperature offset calibration — all
 configurable through a full Lovelace dashboard panel without touching YAML.
 
 ## Core Value
 
 A household's rooms are always at the right temperature at the right time,
 without manual intervention — driven by schedules and who is actually home.
-
-## Current Milestone: v1.2 Presence & Calibration
-
-**Goal:** Support alternate-week presence schedules for shared-custody households
-and add automatic TRV calibration from room sensors.
-
-**Target features:**
-
-- Even/odd week presence scheduling — person gains `schedule_type`
-  ("single"|"even_odd") + `schedule_even`/`schedule_odd`; backend picks
-  schedule by ISO week parity; UI shows a week-switcher toggle in the time-bar
-- TRV temperature offset auto-calibration — global option to periodically adjust
-  TRV offset using the delta between the room sensor and the TRV's reported
-  temperature; Tado X first (`set_temperature_offset`), guarded by
-  service/attribute detection
 
 ## Current State
 
@@ -45,11 +31,18 @@ and add automatic TRV calibration from room sensors.
 - Phase 6: zone/room assignment UI — dynamic zone tabs, zone-tab component,
   room badge + picker, colored zone dots, 121 tests passing
 
-**Shipped:** Phase 7 (even/odd week backend — PersonConfig schedule_type, schedule_even/odd, backend
-  parity evaluation) and Phase 8 (even/odd week frontend UI — getWeekParity helpers, schedule-type
-  select, Even/Odd switcher, per-week save/reset, ISO parity default, live panel verified) — v1.2
+**Shipped:** v1.2 Presence & Calibration (2026-05-31)
 
-**Shipped:** Phase 9 (TRV temperature offset auto-calibration — capability guard, calibration engine, set_calibration_config WS command, Options card toggle in Global Settings) — v1.2
+- ~3,389 LOC Python + ~6,288 LOC TypeScript; 103 files changed, 93 commits
+- Phase 7: even/odd week scheduling backend — additive person schema
+  (`schedule_type`/`schedule_even`/`schedule_odd`), ISO week parity selection
+  in `resolve_presence()`, `copy.deepcopy` auto-seeding on switch
+- Phase 8: even/odd week scheduling UI — schedule-type select, Even/Odd
+  button-tab switcher, memoized dual day-array getters, week-scoped save/reset;
+  pure `getISOWeekNumber`/`getWeekParity` helpers unit-tested with `node --test`
+- Phase 9: TRV auto-calibration — capability guard, delta threshold (0.5°C),
+  periodic coordinator pass, `set_calibration_config` WS command, Global
+  Settings toggle; 9 quick-task calibration UI improvements post-phase
 
 ## Requirements
 
@@ -68,12 +61,16 @@ and add automatic TRV calibration from room sensors.
 - ✓ HACS-compatible integration structure, persistent storage, two-call TRV
   control — v1.0
 - ✓ Startup push + DST-safe scheduling — v1.0
+- ✓ Heating zones with per-zone mode and time programs — v1.1
+- ✓ Zone/room assignment UI with color palette — v1.1
+- ✓ Even/odd week presence scheduling (alternate schedules, ISO week parity) —
+  v1.2 (SCHED-01..06)
+- ✓ TRV temperature offset auto-calibration from room sensor — v1.2
+  (CALIB-01..05)
 
 ### Active
 
-- ✓ Even/odd week presence scheduling (alternate schedules, ISO week parity) —
-  v1.2 Phase 8
-- ✓ TRV temperature offset auto-calibration from room sensor — v1.2 Phase 9
+*(none — planning next milestone)*
 
 ### Out of Scope
 
@@ -81,8 +78,12 @@ and add automatic TRV calibration from room sensors.
 - Calendar-based presence detection (iCal, Pronote) — deferred to v2
 - GPS / HA zone-based presence detection — deferred to v2
 - Predictive pre-heat — deferred to v2
+- Per-zone temperature setpoints — deferred to v2
+- Boiler demand control — deferred to v2
 - Custom card UI — using full Lovelace panel instead
 - HACS store publishing — development deploy only
+- Multi-language support — deferred
+- Matter/Tado X sensor mapping for real-time calibration — deferred to v2
 
 ## Context
 
@@ -92,8 +93,9 @@ and add automatic TRV calibration from room sensors.
   Tado X)
 - Controls TRVs via two sequential calls: `set_hvac_mode(heat)` →
   `set_temperature` — auto mode never used (broken on Tado X via Matter)
-- TRV push is concurrent via `asyncio.gather` — mode-change latency ~<1s vs ~10s
-  sequential
+- TRV push is concurrent via `asyncio.gather` — mode-change latency ~<1s vs
+  ~10s sequential
+- ha-switch confirmed working in HA 2026.x (used for calibration toggle)
 
 ## Constraints
 
@@ -114,6 +116,12 @@ and add automatic TRV calibration from room sensors.
 | SSH deploy; no HACS publishing        | Dev tool, not distribution mechanism           | ✓ Good — fast iteration with `make deploy`                                             |
 | Concurrent TRV push (asyncio.gather)  | Sequential push ~10s for multi-TRV homes       | ✓ Good — latency dropped to <1s                                                        |
 | {mon..sun} schema for time programs   | Per-day granularity needed for user config     | ✓ Good — maps cleanly to UI and weekly patterns                                        |
+| Even/odd schema as additive fields    | No storage migration; absent = single          | ✓ Good — zero-downgrade path for existing persons                                      |
+| copy.deepcopy for week-schedule seed  | Prevents shared-reference mutation bugs        | ✓ Good — W2/W4 tests confirmed isolation                                               |
+| ISO week parity (week % 2)            | Matches Python isocalendar().week exactly      | ✓ Good — frontend/backend parity verified by 8 unit tests                              |
+| TRV calibration via attribute guard   | Avoids service-call errors on non-Tado TRVs    | ✓ Good — incompatible rooms silently skipped, no log spam                              |
+| 0.5°C delta threshold for calibration | Prevents jitter from minor sensor fluctuation  | ✓ Good — smooths out calibration cycles in production                                  |
+| ha-switch for calibration toggle      | Standard HA component; simpler than native     | ✓ Good — confirmed visible and functional in HA 2026.x                                 |
 
 ## Evolution
 
@@ -136,4 +144,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-_Last updated: 2026-05-30 — Phase 9 complete, Milestone v1.2 all phases done_
+*Last updated: 2026-05-31 after v1.2 milestone*

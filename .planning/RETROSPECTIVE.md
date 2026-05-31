@@ -101,24 +101,89 @@ future planning.*
 
 ---
 
+## Milestone: v1.2 — Presence & Calibration
+
+**Shipped:** 2026-05-31
+**Phases:** 3 (Phases 7-9) | **Plans:** 9
+
+### What Was Built
+
+- Even/odd week scheduling backend: additive person schema, ISO week parity
+  selection in `resolve_presence()`, `copy.deepcopy` auto-seeding
+- Pure `getISOWeekNumber`/`getWeekParity` TypeScript helpers matching Python
+  exactly; 8 `node --test` assertions including year-boundary (WR-03)
+- Even/odd week scheduling UI: schedule-type select, Even/Odd button-tab
+  switcher, memoized dual day-array getters, week-scoped save/reset
+- TRV calibration capability guard + `set_trv_offset` Tado X service helper
+- TRV auto-calibration engine: delta threshold (0.5°C), periodic coordinator
+  pass, silent skip for incompatible/sensor-less rooms
+- `set_calibration_config` WS command + Global Settings Options card toggle
+- 9 post-phase quick tasks: calibration table enhancements, floor grouping,
+  Tado X refresh-rate banner, current offset display
+
+### What Worked
+
+- Additive schema pattern (again): absent `schedule_type` defaults to `single`,
+  zero migration needed — same approach as zone sparse model in v1.1
+- TDD with `node --experimental-strip-types` for frontend pure functions:
+  separating helpers into `week-parity.ts` (no Lit deps) made them directly
+  testable without a browser
+- Phase 9 (calibration) ran independently of Phases 7-8 (scheduling) with
+  no shared files — genuine parallelization opportunity
+- ha-switch confirmed working in HA 2026.x despite prior uncertainty (Pitfall 6
+  from PLAN turned out to be a non-issue)
+
+### What Was Inefficient
+
+- Verification files (08-VERIFICATION.md, 09-VERIFICATION.md) were left in
+  `human_needed` state after human verification was completed in plan summaries
+  — required manual close at milestone boundary
+- Phase 8 progress table in ROADMAP.md showed "2/3" after Plan 03 completed
+  — stale tracking not updated at plan completion
+
+### Patterns Established
+
+- Pure utility module pattern: extract node-testable logic from Lit components
+  into a sibling `.ts` file with no browser/Lit dependencies
+- TDD for frontend pure functions with `node --test --experimental-strip-types`
+- Capability guard pattern for TRV features: attribute-first, service fallback,
+  silent skip — avoids log spam for incompatible devices
+
+### Key Lessons
+
+1. Close VERIFICATION.md immediately after the human-verification plan
+   completes — don't leave it as `human_needed` for the milestone close to fix
+2. Pure TypeScript utilities that need unit testing must be in separate modules
+   away from Lit component files (Lit decorators block Node's strip-types)
+3. Test HA component behavior optimistically — ha-switch worked fine in 2026.x
+   even though earlier components (ha-select, ha-textfield, ha-tabs) did not
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
 
-| Milestone | Phases | Plans | Key Change                                  |
-| --------- | ------ | ----- | ------------------------------------------- |
-| v1.0      | 3      | 14    | Initial workflow established                |
-| v1.1      | 3      | 9     | Snapshot-rollback pattern, zone sparse model |
+| Milestone | Phases | Plans | Key Change                                          |
+| --------- | ------ | ----- | --------------------------------------------------- |
+| v1.0      | 3      | 14    | Initial workflow established                        |
+| v1.1      | 3      | 9     | Snapshot-rollback pattern, zone sparse model        |
+| v1.2      | 3      | 9     | Pure module TDD, parallel phase execution, cap guard |
 
 ### Cumulative Quality
 
-| Milestone | Tests | Notes                                      |
-| --------- | ----- | ------------------------------------------ |
-| v1.0      | ~90   | Backend + frontend unit/integration        |
-| v1.1      | 121   | Added zone CRUD + coordinator zone tests   |
+| Milestone | Tests | Notes                                              |
+| --------- | ----- | -------------------------------------------------- |
+| v1.0      | ~90   | Backend + frontend unit/integration                |
+| v1.1      | 121   | Added zone CRUD + coordinator zone tests           |
+| v1.2      | ~140  | Added schedule parity, WS seeding, calibration TDD |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Always complete the previous milestone archive before starting the next one
 2. HA web component APIs change between releases — verify against real HA early
 3. Additive schema changes with DEFAULT_CONFIG fallback avoid all migration work
+4. Close verification files immediately after human sign-off — don't leave
+   them open for the milestone close to chase down
+5. Pure utility modules (no Lit deps) make frontend logic unit-testable with
+   Node — a pattern worth establishing from the start in future phases

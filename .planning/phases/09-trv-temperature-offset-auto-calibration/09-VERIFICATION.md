@@ -1,8 +1,8 @@
 ---
 phase: 09-trv-temperature-offset-auto-calibration
 verified: 2026-05-30T14:00:00Z
-status: human_needed
-score: 4/5 must-haves verified
+status: passed
+score: 5/5 must-haves verified
 overrides_applied: 0
 human_verification:
   - test: "Confirm Options card (ha-switch) is visible in HA 2026.x and calibration toggle persists across page reload"
@@ -17,7 +17,9 @@ temperature offset so its readings track the room's reference sensor, while sile
 incompatible or sensor-less rooms untouched and avoiding jittery over-correction.
 
 **Verified:** 2026-05-30T14:00:00Z
-**Status:** human_needed
+**Status:** passed
+**Human verification:** 2026-05-31 — ha-switch toggle confirmed visible and
+functional in live HA 2026.x panel; calibration toggle persists across reload
 **Re-verification:** No — initial verification
 
 ---

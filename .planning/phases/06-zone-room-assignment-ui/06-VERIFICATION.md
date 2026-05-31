@@ -1,7 +1,7 @@
 ---
 phase: 06-zone-room-assignment-ui
 verified: 2026-05-28T17:21:20Z
-status: human_needed
+status: passed
 score: 5/5 must-haves verified
 overrides_applied: 0
 re_verification:

@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Presence & Calibration
-status: completed
-last_updated: "2026-05-30T20:29:21.541Z"
-last_activity: 2026-05-30
+status: Awaiting next milestone
+last_updated: "2026-05-31T13:12:42.469Z"
+last_activity: 2026-05-31 — Milestone v1.2 completed and archived
 progress:
   total_phases: 3
   completed_phases: 3
@@ -26,10 +26,10 @@ presence schedules + TRV offset auto-calibration.
 
 ## Current Position
 
-Phase: 09
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-05-30
+Phase: Milestone v1.2 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-05-31 — Milestone v1.2 completed and archived
 
 ## Performance Metrics
 
@@ -93,13 +93,23 @@ None yet.
 
 ## Deferred Items
 
-| Category | Item                                    | Status   |
-| -------- | --------------------------------------- | -------- |
-| v2       | Holiday / specific period overrides     | Deferred |
-| v2       | Calendar-based presence (iCal, Pronote) | Deferred |
-| v2       | GPS / zone-based presence               | Deferred |
-| v2       | Predictive pre-heat                     | Deferred |
-| v2       | Per-zone temperature setpoints          | Deferred |
+Items acknowledged and deferred at milestone close on 2026-05-31:
+
+| Category    | Item                                              | Status              |
+| ----------- | ------------------------------------------------- | ------------------- |
+| v2          | Holiday / specific period overrides               | Deferred            |
+| v2          | Calendar-based presence (iCal, Pronote)           | Deferred            |
+| v2          | GPS / zone-based presence                         | Deferred            |
+| v2          | Predictive pre-heat                               | Deferred            |
+| v2          | Per-zone temperature setpoints                    | Deferred            |
+| v2          | Boiler demand control                             | Deferred            |
+| v2          | Multi-zone heating                                | Deferred            |
+| v2          | Multi-language support                            | Deferred            |
+| v2          | Hide HA presence mode when no devices tracked     | Deferred            |
+| v2          | Matter/Tado X sensor mapping for calibration      | Deferred            |
+| v2          | Pronote presence source                           | Deferred            |
+| v2          | Rename person HA presence mode                    | Deferred            |
+| quick_task  | 34 quick task directories missing status marker   | Work done; tracking |
 
 ## Quick Tasks Completed
 
@@ -122,3 +132,7 @@ mapped (SCHED-01..06, CALIB-01..05)
 
 Last session: 2026-05-30T20:29:21.539Z
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
