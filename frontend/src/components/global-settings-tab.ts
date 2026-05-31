@@ -118,7 +118,7 @@ export class GlobalSettingsTab extends LitElement {
 
   @state() private _trvStatuses: TRVCalibrationEntry[] = [];
   @state() private _loadingStatuses = false;
-  @state() private _calibrationFetchedAt: Date | null = null;
+  @state() private _tadoXLastFetched: string | null = null;
   @state() private _tadoXScanInterval: number | null = null;
 
   static styles = [
@@ -517,7 +517,7 @@ export class GlobalSettingsTab extends LitElement {
       const result = await this.ws.getCalibrationStatus();
       this._trvStatuses = result.trvs;
       this._tadoXScanInterval = result.tado_x_scan_interval;
-      this._calibrationFetchedAt = new Date();
+      this._tadoXLastFetched = result.tado_x_last_fetched;
     } catch {
       this._trvStatuses = [];
     } finally {
@@ -794,8 +794,8 @@ export class GlobalSettingsTab extends LitElement {
     const floorlessTrvs = floorGroups.get(null) ?? [];
 
     const hasTadoX = this._trvStatuses.some((t) => t.supports_calibration);
-    const fetchedLabel = this._calibrationFetchedAt
-      ? this._calibrationFetchedAt.toLocaleTimeString()
+    const fetchedLabel = this._tadoXLastFetched
+      ? new Date(this._tadoXLastFetched).toLocaleTimeString()
       : null;
     const scanLabel =
       this._tadoXScanInterval != null

@@ -1007,7 +1007,7 @@ function y(a) {
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Ut = (a, e, t) => (
+const Lt = (a, e, t) => (
   (t.configurable = !0),
   (t.enumerable = !0),
   Reflect.decorate && typeof e != "object" && Object.defineProperty(a, e, t),
@@ -1018,13 +1018,13 @@ const Ut = (a, e, t) => (
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-function Lt(a, e) {
+function Ut(a, e) {
   return (t, o, s) => {
     const i = (r) => {
       var n;
       return ((n = r.renderRoot) == null ? void 0 : n.querySelector(a)) ?? null;
     };
-    return Ut(t, o, {
+    return Lt(t, o, {
       get() {
         return i(this);
       },
@@ -1347,7 +1347,7 @@ var Zt = Object.defineProperty,
 const Ft = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
   Bt = ["frost_protection", "reduced", "normal", "comfort"],
   Wt = ["present", "absent"],
-  Ue = class Ue extends C {
+  Le = class Le extends C {
     constructor() {
       super(...arguments),
         (this.days = Array.from({ length: 7 }, () => [])),
@@ -1984,7 +1984,7 @@ const Ft = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
       return c``;
     }
   };
-Ue.styles = k`
+Le.styles = k`
     :host {
       display: block;
       user-select: none;
@@ -2256,7 +2256,7 @@ Ue.styles = k`
       color: var(--error-color, #db4437);
     }
   `;
-let z = Ue;
+let z = Le;
 H([u({ type: Array })], z.prototype, "days");
 H([u({ type: String })], z.prototype, "mode");
 H([y()], z.prototype, "_clipboard");
@@ -2392,7 +2392,7 @@ const xe = k`
   }
 `;
 var Xt = Object.defineProperty,
-  U = (a, e, t, o) => {
+  L = (a, e, t, o) => {
     for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
       (r = a[i]) && (s = r(e, t, s) || s);
     return s && Xt(e, t, s), s;
@@ -2426,13 +2426,13 @@ const _t = "off",
     [qt]: "Time program",
     [Yt]: "Time program & presences",
   },
-  Le = class Le extends C {
+  Ue = class Ue extends C {
     constructor() {
       super(...arguments),
         (this.status = null),
         (this._trvStatuses = []),
         (this._loadingStatuses = !1),
-        (this._calibrationFetchedAt = null),
+        (this._tadoXLastFetched = null),
         (this._tadoXScanInterval = null),
         (this._tempSaveTimer = null),
         (this._onTemperatureInput = () => {
@@ -2472,7 +2472,7 @@ const _t = "off",
             const e = await this.ws.getCalibrationStatus();
             (this._trvStatuses = e.trvs),
               (this._tadoXScanInterval = e.tado_x_scan_interval),
-              (this._calibrationFetchedAt = /* @__PURE__ */ new Date());
+              (this._tadoXLastFetched = e.tado_x_last_fetched);
           } catch {
             this._trvStatuses = [];
           } finally {
@@ -2773,8 +2773,8 @@ const _t = "off",
           }),
         o = e.get(null) ?? [],
         s = this._trvStatuses.some((p) => p.supports_calibration),
-        i = this._calibrationFetchedAt
-          ? this._calibrationFetchedAt.toLocaleTimeString()
+        i = this._tadoXLastFetched
+          ? new Date(this._tadoXLastFetched).toLocaleTimeString()
           : null,
         r =
           this._tadoXScanInterval != null
@@ -2886,7 +2886,7 @@ const _t = "off",
     `;
     }
   };
-Le.styles = [
+Ue.styles = [
   xe,
   k`
       :host {
@@ -3205,16 +3205,16 @@ Le.styles = [
       }
     `,
 ];
-let R = Le;
-U([u({ attribute: !1 })], R.prototype, "config");
-U([u({ attribute: !1 })], R.prototype, "status");
-U([u({ attribute: !1 })], R.prototype, "ws");
-U([u({ attribute: !1 })], R.prototype, "panel");
-U([u({ attribute: !1 })], R.prototype, "hass");
-U([y()], R.prototype, "_trvStatuses");
-U([y()], R.prototype, "_loadingStatuses");
-U([y()], R.prototype, "_calibrationFetchedAt");
-U([y()], R.prototype, "_tadoXScanInterval");
+let R = Ue;
+L([u({ attribute: !1 })], R.prototype, "config");
+L([u({ attribute: !1 })], R.prototype, "status");
+L([u({ attribute: !1 })], R.prototype, "ws");
+L([u({ attribute: !1 })], R.prototype, "panel");
+L([u({ attribute: !1 })], R.prototype, "hass");
+L([y()], R.prototype, "_trvStatuses");
+L([y()], R.prototype, "_loadingStatuses");
+L([y()], R.prototype, "_tadoXLastFetched");
+L([y()], R.prototype, "_tadoXScanInterval");
 customElements.define("climate-manager-global-settings-tab", R);
 var Kt = Object.defineProperty,
   Q = (a, e, t, o) => {
@@ -5215,7 +5215,7 @@ te([u({ attribute: !1 })], N.prototype, "hass");
 te([u({ attribute: !1 })], N.prototype, "expandPersonId");
 customElements.define("climate-manager-persons-tab", N);
 var ss = Object.defineProperty,
-  L = (a, e, t, o) => {
+  U = (a, e, t, o) => {
     for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
       (r = a[i]) && (s = r(e, t, s) || s);
     return s && ss(e, t, s), s;
@@ -5777,15 +5777,15 @@ Xe.styles = [
     `,
 ];
 let M = Xe;
-L([u({ attribute: !1 })], M.prototype, "config");
-L([u({ attribute: !1 })], M.prototype, "zoneId");
-L([u({ attribute: !1 })], M.prototype, "zoneConfig");
-L([u({ type: Boolean })], M.prototype, "isDefault");
-L([u({ attribute: !1 })], M.prototype, "ws");
-L([u({ attribute: !1 })], M.prototype, "panel");
-L([u({ attribute: !1 })], M.prototype, "hass");
-L([u({ attribute: !1 })], M.prototype, "status");
-L([y()], M.prototype, "_confirmingDelete");
+U([u({ attribute: !1 })], M.prototype, "config");
+U([u({ attribute: !1 })], M.prototype, "zoneId");
+U([u({ attribute: !1 })], M.prototype, "zoneConfig");
+U([u({ type: Boolean })], M.prototype, "isDefault");
+U([u({ attribute: !1 })], M.prototype, "ws");
+U([u({ attribute: !1 })], M.prototype, "panel");
+U([u({ attribute: !1 })], M.prototype, "hass");
+U([u({ attribute: !1 })], M.prototype, "status");
+U([y()], M.prototype, "_confirmingDelete");
 customElements.define("climate-manager-zone-tab", M);
 var os = Object.defineProperty,
   P = (a, e, t, o) => {
@@ -6262,6 +6262,6 @@ P([y()], w.prototype, "_editingTabId");
 P([y()], w.prototype, "_tabNameInput");
 P([y()], w.prototype, "_expandRoomId");
 P([y()], w.prototype, "_expandPersonId");
-P([Lt("climate-manager-toast")], w.prototype, "_toast");
+P([Ut("climate-manager-toast")], w.prototype, "_toast");
 customElements.define("climate-manager-panel", w);
 export { w as ClimateManagerPanel };

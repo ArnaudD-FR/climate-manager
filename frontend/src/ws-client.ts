@@ -211,10 +211,12 @@ export class WsClient {
   getCalibrationStatus(): Promise<{
     trvs: TRVCalibrationEntry[];
     tado_x_scan_interval: number | null;
+    tado_x_last_fetched: string | null;
   }> {
     return this.hass.connection.sendMessagePromise<{
       trvs: TRVCalibrationEntry[];
       tado_x_scan_interval: number | null;
+      tado_x_last_fetched: string | null;
     }>({
       type: "climate_manager/get_calibration_status",
     });
