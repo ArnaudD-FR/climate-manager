@@ -154,7 +154,10 @@ def supports_offset_calibration(hass: HomeAssistant, entity_id: str) -> bool:
     state = hass.states.get(entity_id)
     if state is None:
         return False
-    return "temperature_offset" in state.attributes
+    return (
+        "temperature_offset" in state.attributes
+        or hass.services.has_service("tado_x", "set_temperature_offset")
+    )
 
 
 def get_tado_valve_devices(hass: HomeAssistant, area_id: str) -> list[dict]:

@@ -379,11 +379,16 @@ class ClimateManagerCoordinator:
         tasks = []
         for area_id, entity_ids in rooms.items():
             # Resolve room sensor: area registry (HA 2026.5+) → auto-discovered
+            # → rooms_config explicit override (used in tests and manual config)
             _area = area_reg.async_get_area(area_id)
-            sensor_entity_id = getattr(
-                _area, "temperature_entity_id", None
-            ) or self._data.room_auto_sensors.get(area_id, {}).get(
-                "temperature"
+            sensor_entity_id = (
+                getattr(_area, "temperature_entity_id", None)
+                or self._data.room_auto_sensors.get(area_id, {}).get(
+                    "temperature"
+                )
+                or config.get("rooms", {})
+                .get(area_id, {})
+                .get("temperature_sensor")
             )
             valve_devices = get_tado_valve_devices(self._hass, area_id)
             if valve_devices:
