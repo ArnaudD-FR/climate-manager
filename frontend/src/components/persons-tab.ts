@@ -23,6 +23,8 @@ import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import type { RoomChoice } from "./person-card.js";
 
+import { computeHasDeviceTrackers } from "./presence-mode.js";
+
 import "./person-card.js";
 
 export class PersonsTab extends LitElement {
@@ -131,6 +133,18 @@ export class PersonsTab extends LitElement {
 
     const roomChoices = this._getRoomChoices();
 
+    // Compute hasDeviceTrackers per person from hass.states attributes.
+    // Treats absent attribute AND empty array both as false (D-02).
+    const hasDeviceTrackersMap = new Map<string, boolean>();
+    for (const personId of allPersonIds) {
+      hasDeviceTrackersMap.set(
+        personId,
+        computeHasDeviceTrackers(
+          this.hass?.states[personId]?.attributes?.device_trackers,
+        ),
+      );
+    }
+
     return html`
       ${sortedIds.map((personId) => {
         const personConfig = persons[personId] ?? {};
@@ -150,6 +164,7 @@ export class PersonsTab extends LitElement {
             .panel=${this.panel}
             .status=${this.status}
             .autoExpand=${this.expandPersonId === personId}
+            .hasDeviceTrackers=${hasDeviceTrackersMap.get(personId) ?? false}
           ></climate-manager-person-card>
         `;
       })}
