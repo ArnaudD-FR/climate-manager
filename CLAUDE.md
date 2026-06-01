@@ -138,7 +138,11 @@ dependencies in v1
 
 ### Release
 
-Before completing a milestone or creating a release git tag, always run
+When **starting** a new milestone, bump `manifest.json` `"version"` to the new
+SemVer immediately (e.g. `"1.2.0"` → `"1.3.0"`). This keeps HACS version
+detection and `make release` archive naming correct throughout the milestone.
+
+Before **completing** a milestone or creating a release git tag, always run
 `make screenshots` first to capture up-to-date panel screenshots.
 
 ### Code Style
