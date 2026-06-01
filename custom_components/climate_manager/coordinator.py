@@ -136,6 +136,9 @@ class ClimateManagerCoordinator:
         # Presence list computed once — used for PASS 2 and status reporting.
         self._last_present_persons = self._compute_present_persons(config, now)
 
+        # Warn via persistent notification when an ha-mode person has no tracker.
+        self._check_ha_tracker_warnings(config)
+
         desired_temps, room_periods, frost_locked_rooms, mode_off_rooms = (
             self._compute_desired_temps(config, rooms, period_temperatures, now)
         )
@@ -612,6 +615,56 @@ class ClimateManagerCoordinator:
                 if resolve_presence(person_config, now):
                     present.append(person_id)
         return present
+
+    def _check_ha_tracker_warnings(self, config: dict) -> None:
+        """Create or dismiss persistent notifications for ha-mode persons (tick-based).
+
+        For each configured person:
+        - mode=ha + no device_trackers → create notification (idempotent).
+        - mode=ha + device_trackers present → dismiss notification.
+        - mode≠ha → dismiss notification (cleans up if mode was switched away).
+
+        Called once per evaluation tick so the notification state converges
+        within one minute of any tracker or mode change.
+        """
+        from homeassistant.components.persistent_notification import (  # noqa: PLC0415
+            async_create,
+            async_dismiss,
+        )
+
+        for person_id, person_cfg in config.get("persons", {}).items():
+            notif_id = f"{DOMAIN}_ha_no_tracker_{person_id.replace('.', '_')}"
+            if person_cfg.get("mode") != PRESENCE_HA:
+                async_dismiss(self._hass, notif_id)
+                continue
+
+            state_obj = self._hass.states.get(person_id)
+            trackers = (
+                state_obj.attributes.get("device_trackers", [])
+                if state_obj is not None
+                else []
+            )
+            has_trackers = isinstance(trackers, list) and len(trackers) > 0
+
+            if has_trackers:
+                async_dismiss(self._hass, notif_id)
+            else:
+                name = (
+                    state_obj.attributes.get("friendly_name", person_id)
+                    if state_obj is not None
+                    else person_id
+                )
+                async_create(
+                    self._hass,
+                    (
+                        f"**{name}** is set to *HA home tracking* but has no "
+                        f"device tracker linked in Home Assistant. Presence "
+                        f"detection will not work until a device tracker is "
+                        f"added to this person."
+                    ),
+                    title="Climate Manager — HA Tracking",
+                    notification_id=notif_id,
+                )
 
     def _build_status_payload(self) -> dict:
         """Build the status dict pushed to subscribed panel connections after each evaluation.
