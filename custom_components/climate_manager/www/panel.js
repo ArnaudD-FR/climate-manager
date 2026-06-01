@@ -5951,7 +5951,9 @@ const Ve = class Ve extends C {
   }
   /** Open the HA sidebar — fired by the hamburger button on narrow viewports. */
   _toggleMenu() {
-    window.dispatchEvent(new CustomEvent("hass-toggle-menu"));
+    this.dispatchEvent(
+      new Event("hass-toggle-menu", { bubbles: !0, composed: !0 }),
+    );
   }
   render() {
     return this._config

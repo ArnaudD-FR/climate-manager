@@ -366,7 +366,9 @@ export class ClimateManagerPanel extends LitElement {
 
   /** Open the HA sidebar — fired by the hamburger button on narrow viewports. */
   private _toggleMenu() {
-    window.dispatchEvent(new CustomEvent("hass-toggle-menu"));
+    this.dispatchEvent(
+      new Event("hass-toggle-menu", { bubbles: true, composed: true }),
+    );
   }
 
   render() {
