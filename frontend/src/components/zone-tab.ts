@@ -40,6 +40,7 @@ import {
   sectionLabelStyles,
   selectStyles,
   scheduleHintStyles,
+  floorGroupLabelStyles,
 } from "../shared-styles.js";
 
 import "./time-bar.js";
@@ -115,6 +116,7 @@ export class ZoneTab extends LitElement {
     sectionLabelStyles,
     selectStyles,
     scheduleHintStyles,
+    floorGroupLabelStyles,
     css`
       :host {
         display: block;
@@ -181,25 +183,6 @@ export class ZoneTab extends LitElement {
 
       .section-divider {
         margin: 16px 0 8px;
-      }
-
-      .floor-group-label {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.5px;
-        text-transform: uppercase;
-        color: var(--secondary-text-color);
-        margin: 8px 0 4px;
-      }
-
-      .floor-group-label ha-icon {
-        --mdc-icon-size: 14px;
-        width: 14px;
-        height: 14px;
-        flex-shrink: 0;
       }
 
       .reset-row {

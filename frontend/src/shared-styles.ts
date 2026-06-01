@@ -139,3 +139,25 @@ export const expandIconStyles = css`
     transform: rotate(180deg);
   }
 `;
+
+/** Floor group label row — used by zone-tab and person-card. */
+export const floorGroupLabelStyles = css`
+  .floor-group-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--secondary-text-color);
+    margin: 8px 0 4px;
+  }
+
+  .floor-group-label ha-icon {
+    --mdc-icon-size: 14px;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+`;

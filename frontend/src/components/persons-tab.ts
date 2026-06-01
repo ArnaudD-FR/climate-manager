@@ -86,7 +86,7 @@ export class PersonsTab extends LitElement {
       return a.name.localeCompare(b.name);
     });
 
-    return choices.map(({ id, name, secondary }) => ({ id, name, secondary }));
+    return choices;
   }
 
   /** Determine if a person config has any non-default setting (D-15). */

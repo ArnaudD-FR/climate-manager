@@ -31,6 +31,7 @@ import {
   selectStyles,
   expandIconStyles,
   scheduleHintStyles,
+  floorGroupLabelStyles,
 } from "../shared-styles.js";
 
 import "./time-bar.js";
@@ -82,6 +83,8 @@ export { getISOWeekNumber, getWeekParity };
 export interface RoomChoice {
   id: string;
   name: string;
+  /** Floor ID from hass.areas — used for grouping chips by floor. */
+  floorId: string | null;
   /** Optional floor name shown as secondary text in the room search-picker. */
   secondary?: string;
 }
@@ -167,6 +170,7 @@ export class PersonCard extends LitElement {
     selectStyles,
     expandIconStyles,
     scheduleHintStyles,
+    floorGroupLabelStyles,
     css`
       :host {
         display: block;
@@ -427,6 +431,71 @@ export class PersonCard extends LitElement {
     return this.status?.present_persons?.includes(this.personId) ?? false;
   }
 
+  /**
+   * Map floor ID to an MDI icon — same logic as zone-tab._getFloorIcon.
+   * Uses panel.hass for floor metadata lookup.
+   */
+  private _getFloorIcon(fid: string): string {
+    const floor = this.panel.hass?.floors?.[fid];
+    if (floor?.icon) return floor.icon;
+    const level = floor?.level ?? 0;
+    if (level === -1) return "mdi:home-floor-negative-1";
+    if (level < 0) return "mdi:home-floor-b";
+    if (level === 1) return "mdi:home-floor-1";
+    if (level === 2) return "mdi:home-floor-2";
+    if (level === 3) return "mdi:home-floor-3";
+    if (level > 3) return "mdi:home-floor-3";
+    return "mdi:home-floor-0";
+  }
+
+  /**
+   * Group assigned room choices by floor, floors sorted descending by level,
+   * rooms alpha-sorted within each group. Floorless rooms go last.
+   */
+  private _getAssignedRoomGroups(
+    currentRoomIds: string[],
+  ): Array<{ floorId: string | null; floorName: string; rooms: RoomChoice[] }> {
+    const assigned = this.roomChoices.filter((r) =>
+      currentRoomIds.includes(r.id),
+    );
+    const floorGroups = new Map<
+      string | null,
+      { floorName: string; rooms: RoomChoice[] }
+    >();
+    for (const room of assigned) {
+      if (!floorGroups.has(room.floorId)) {
+        floorGroups.set(room.floorId, {
+          floorName: room.secondary ?? "",
+          rooms: [],
+        });
+      }
+      floorGroups.get(room.floorId)!.rooms.push(room);
+    }
+    for (const entry of floorGroups.values()) {
+      entry.rooms.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    const sortedFloorIds = [...floorGroups.keys()]
+      .filter((fid): fid is string => fid !== null)
+      .sort(
+        (a, b) =>
+          (this.panel.hass?.floors?.[b]?.level ?? 0) -
+          (this.panel.hass?.floors?.[a]?.level ?? 0),
+      );
+    const result: Array<{
+      floorId: string | null;
+      floorName: string;
+      rooms: RoomChoice[];
+    }> = sortedFloorIds.map((fid) => ({
+      floorId: fid,
+      floorName: floorGroups.get(fid)!.floorName,
+      rooms: floorGroups.get(fid)!.rooms,
+    }));
+    const floorless = floorGroups.get(null);
+    if (floorless?.rooms.length)
+      result.push({ floorId: null, floorName: "", rooms: floorless.rooms });
+    return result;
+  }
+
   // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
@@ -458,9 +527,29 @@ export class PersonCard extends LitElement {
         : "Reset Odd week to default"
       : "Reset to default";
     const currentRoomIds = this.config?.room_ids ?? [];
+    const assignedGroups = this._getAssignedRoomGroups(currentRoomIds);
     const unassignedRooms = this.roomChoices.filter(
       (r) => !currentRoomIds.includes(r.id),
     );
+
+    const renderChip = (room: RoomChoice) => html`
+      <span
+        class="chip"
+        @click=${() => void this.panel.navigateToRoom(room.id)}
+      >
+        <ha-icon icon="mdi:home-outline"></ha-icon>
+        ${room.name}
+        <button
+          class="chip-remove"
+          @click=${(e: Event) => {
+            e.stopPropagation();
+            void this._onRoomToggle(room.id, false);
+          }}
+        >
+          ×
+        </button>
+      </span>
+    `;
 
     return html`
       <ha-card>
@@ -537,39 +626,32 @@ export class PersonCard extends LitElement {
                         : "Presence follows a weekly schedule."}
                 </p>
 
-                <!-- Room associations as chips -->
+                <!-- Room associations grouped by floor -->
                 <div
                   class="section-label"
                   title="Rooms heated by this person's presence"
                 >
                   Room associations
                 </div>
-                <div class="chips">
-                  ${this.roomChoices
-                    .filter((r) => currentRoomIds.includes(r.id))
-                    .map((room) => {
-                      const roomId = room.id;
-                      return html`
-                        <span
-                          class="chip"
-                          @click=${() => void this.panel.navigateToRoom(roomId)}
-                        >
-                          <ha-icon icon="mdi:home-outline"></ha-icon>
-                          ${room.name}
-                          <button
-                            class="chip-remove"
-                            @click=${(e: Event) => {
-                              e.stopPropagation();
-                              void this._onRoomToggle(roomId, false);
-                            }}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      `;
-                    })}
-                  ${unassignedRooms.length > 0
-                    ? html`
+                ${assignedGroups.map(
+                  (group) => html`
+                    ${group.floorId !== null
+                      ? html`<div class="floor-group-label">
+                          <ha-icon
+                            icon=${this._getFloorIcon(group.floorId)}
+                          ></ha-icon
+                          >${group.floorName}
+                        </div>`
+                      : ""}
+                    <div class="chips">${group.rooms.map(renderChip)}</div>
+                  `,
+                )}
+                ${assignedGroups.length === 0
+                  ? html`<div class="chips"></div>`
+                  : ""}
+                ${unassignedRooms.length > 0
+                  ? html`
+                      <div class="chips">
                         <search-picker
                           .items=${unassignedRooms.map((r) => ({
                             id: r.id,
@@ -585,9 +667,9 @@ export class PersonCard extends LitElement {
                             void this._onRoomToggle(id, true);
                           }}
                         ></search-picker>
-                      `
-                    : ""}
-                </div>
+                      </div>
+                    `
+                  : ""}
 
                 <!-- Presence schedule (only in Scheduled mode) -->
                 ${isScheduled
