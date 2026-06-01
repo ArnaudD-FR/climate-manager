@@ -1,6 +1,6 @@
 ---
 created: 2026-06-01T00:00:00.000Z
-title: Evaluate removing room custom scheduling (duplicated by zones)
+title: Remove room custom scheduling — superseded by zones
 area: ui
 files:
   - custom_components/climate_manager/const.py
@@ -11,18 +11,20 @@ files:
 ## Problem
 
 Room-level custom scheduling (`room_mode: custom` + per-room `time_program`)
-was introduced before zones existed. Now that every room belongs to a zone
-with its own weekly program, the custom schedule per room feels redundant:
-users can achieve the same result by creating a dedicated zone for that room.
-Having both paths adds UI surface, coordinator complexity, and test coverage
-burden for a feature that may no longer earn its keep.
+was introduced before zones existed. It no longer makes sense: zones already
+allow defining different schedules and associating rooms to them. A user who
+wants a room on a different schedule just creates a zone for it — which is
+cleaner, named, and visible in the panel. The custom-schedule path is now a
+parallel mechanism that does the same thing with more hidden complexity.
+
+Having both paths adds UI surface, coordinator branching, and test burden for
+no additional capability.
 
 ## Solution
 
-1. Audit whether any meaningful use case exists that zones cannot cover
-   (e.g. a single-room zone is functionally identical to a custom schedule)
-2. If no unique value: deprecate `room_mode: custom` — remove the custom
-   schedule editor from the Rooms tab, simplify coordinator branching, and
-   add a migration that converts existing custom-scheduled rooms to a
-   dedicated single-room zone
-3. If there is a unique use case: document it and close this todo
+Remove `room_mode: custom` entirely:
+1. Drop the custom schedule editor from the Rooms tab
+2. Simplify coordinator: remove the `ROOM_MODE_CUSTOM` branch
+3. Storage migration: convert any existing custom-scheduled rooms to a new
+   dedicated single-room zone with the same schedule
+4. Update requirements docs and tests accordingly
