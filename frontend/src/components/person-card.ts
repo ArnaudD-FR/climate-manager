@@ -78,6 +78,15 @@ const DEFAULT_SCHEDULE: DailyProgram = {
 // node --experimental-strip-types tests without Lit decorator transforms.
 // Re-exported here so callers can import from person-card.ts directly.
 import { getISOWeekNumber, getWeekParity } from "./week-parity.js";
+
+// Presence-mode display helpers (Phase 10 / UI-01, UI-02).
+// Pure functions — no Lit deps — imported for consistent labels and
+// conditional option rendering (D-04) and stuck-mode hint (D-05).
+import {
+  MODE_LABEL_HA,
+  shouldShowHaOption,
+  presenceModeHint,
+} from "./presence-mode.js";
 export { getISOWeekNumber, getWeekParity };
 
 export interface RoomChoice {
@@ -103,6 +112,9 @@ export class PersonCard extends LitElement {
   // Recalculated from ISO week parity each time the card expands (D-09).
   @state() private _activeWeek: "even" | "odd" = "even";
   @property({ type: Boolean }) autoExpand = false;
+  // Whether the person has ≥1 device tracker in HA (D-04).
+  // Forwarded from PersonsTab; gates the "HA home tracking" option.
+  @property({ type: Boolean }) hasDeviceTrackers = false;
 
   // Memoize days array — same pattern as global-settings-tab to prevent
   // time-bar drag-preview from clearing on status-only re-renders.
@@ -508,7 +520,7 @@ export class PersonCard extends LitElement {
       case PRESENCE_MODE_FORCE_ABSENT:
         return { cls: "force-absent", text: "Force Absent" };
       case PRESENCE_MODE_HA:
-        return { cls: "ha", text: "HA home tracking" };
+        return { cls: "ha", text: MODE_LABEL_HA };
       default:
         return { cls: "scheduled", text: "Scheduled" };
     }
@@ -596,12 +608,14 @@ export class PersonCard extends LitElement {
                     >
                       Scheduled
                     </option>
-                    <option
-                      value=${PRESENCE_MODE_HA}
-                      ?selected=${currentMode === PRESENCE_MODE_HA}
-                    >
-                      HA home tracking
-                    </option>
+                    ${shouldShowHaOption(this.hasDeviceTrackers)
+                      ? html`<option
+                          value=${PRESENCE_MODE_HA}
+                          ?selected=${currentMode === PRESENCE_MODE_HA}
+                        >
+                          ${MODE_LABEL_HA}
+                        </option>`
+                      : ""}
                     <option
                       value=${PRESENCE_MODE_FORCE_PRESENT}
                       ?selected=${currentMode === PRESENCE_MODE_FORCE_PRESENT}
@@ -617,13 +631,7 @@ export class PersonCard extends LitElement {
                   </select>
                 </div>
                 <p class="schedule-hint">
-                  ${currentMode === PRESENCE_MODE_FORCE_PRESENT
-                    ? "Always considered present, regardless of schedule."
-                    : currentMode === PRESENCE_MODE_FORCE_ABSENT
-                      ? "Always absent. Rooms are not heated for presence."
-                      : currentMode === PRESENCE_MODE_HA
-                        ? "Presence mirrors Home Assistant home/away tracking."
-                        : "Presence follows a weekly schedule."}
+                  ${presenceModeHint(currentMode, this.hasDeviceTrackers)}
                 </p>
 
                 <!-- Room associations grouped by floor -->
