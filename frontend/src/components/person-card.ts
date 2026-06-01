@@ -84,7 +84,7 @@ import { getISOWeekNumber, getWeekParity } from "./week-parity.js";
 // conditional option rendering (D-04) and stuck-mode hint (D-05).
 import {
   MODE_LABEL_HA,
-  shouldShowHaOption,
+  haOptionLabel,
   presenceModeHint,
 } from "./presence-mode.js";
 export { getISOWeekNumber, getWeekParity };
@@ -608,14 +608,12 @@ export class PersonCard extends LitElement {
                     >
                       Scheduled
                     </option>
-                    ${shouldShowHaOption(this.hasDeviceTrackers)
-                      ? html`<option
-                          value=${PRESENCE_MODE_HA}
-                          ?selected=${currentMode === PRESENCE_MODE_HA}
-                        >
-                          ${MODE_LABEL_HA}
-                        </option>`
-                      : ""}
+                    <option
+                      value=${PRESENCE_MODE_HA}
+                      ?selected=${currentMode === PRESENCE_MODE_HA}
+                    >
+                      ${haOptionLabel(this.hasDeviceTrackers)}
+                    </option>
                     <option
                       value=${PRESENCE_MODE_FORCE_PRESENT}
                       ?selected=${currentMode === PRESENCE_MODE_FORCE_PRESENT}
@@ -632,6 +630,26 @@ export class PersonCard extends LitElement {
                 </div>
                 <p class="schedule-hint">
                   ${presenceModeHint(currentMode, this.hasDeviceTrackers)}
+                  ${currentMode === PRESENCE_MODE_HA && !this.hasDeviceTrackers
+                    ? html`<ha-icon-button
+                        title="Edit person in HA"
+                        .label=${"Edit person in HA"}
+                        @click=${() => {
+                          history.pushState(
+                            null,
+                            "",
+                            `/config/person/edit/${this.personId}`,
+                          );
+                          window.dispatchEvent(
+                            new CustomEvent("location-changed", {
+                              composed: true,
+                            }),
+                          );
+                        }}
+                      >
+                        <ha-icon icon="mdi:account-edit"></ha-icon>
+                      </ha-icon-button>`
+                    : ""}
                 </p>
 
                 <!-- Room associations grouped by floor -->

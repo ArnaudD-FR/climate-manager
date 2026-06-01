@@ -10,7 +10,7 @@
  * Encodes all Phase 10 UI decisions:
  *   D-01 / UI-02 — "HA home tracking" label for the "ha" presence mode
  *   D-02 / UI-01 — device-tracker detection (absent/empty → false)
- *   D-04 / UI-01 — "ha" option only shown when trackers exist
+ *   D-04 / UI-01 — "ha" option always shown; ⚠ appended when no trackers
  *   D-05 / UI-01 — stuck-mode warning when ha + no trackers
  *
  * Plan 02 wires these helpers into the Lit components.
@@ -34,14 +34,21 @@ export function computeHasDeviceTrackers(trackers: unknown): boolean {
 }
 
 /**
- * Return true if the "HA home tracking" option should be rendered in
- * the presence-mode selector (D-04).
- *
- * The option is hidden when no device trackers are linked to the person
- * in HA, preventing the user from selecting a mode that cannot function.
+ * Return true — the "HA home tracking" option is always rendered (D-04).
+ * When no trackers exist the option label carries a ⚠ suffix instead of
+ * being hidden, so the user understands why the mode is unavailable.
  */
-export function shouldShowHaOption(hasDeviceTrackers: boolean): boolean {
-  return hasDeviceTrackers;
+export function shouldShowHaOption(_hasDeviceTrackers: boolean): boolean {
+  return true;
+}
+
+/**
+ * Return the display label for the "HA home tracking" select option (D-04).
+ * Appends ⚠ when no device trackers are linked so the user sees the issue
+ * directly in the dropdown without needing to select the option first.
+ */
+export function haOptionLabel(hasDeviceTrackers: boolean): string {
+  return hasDeviceTrackers ? MODE_LABEL_HA : `${MODE_LABEL_HA} ⚠`;
 }
 
 /**
