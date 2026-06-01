@@ -114,13 +114,11 @@ class ClimateManagerCoordinator:
         # Tracks the last absolute offset written per Radiator Valve X device_id
         # (enables incremental adjustment — device doesn't expose current offset).
         self._calibration_last_offset: dict[str, float] = {}
-        # Notification IDs currently shown for ha-mode persons with no tracker.
-        # Guards against recreating (and thus updating) the notification every tick.
-        self._ha_tracker_notif_active: set[str] = set()
         # Cancel callbacks for active ha-tracker watchers, keyed by notif_id.
-        # Each entry holds [person_state_cancel, pn_entity_cancel]:
-        #   person_state_cancel — dismisses notification when trackers are restored.
-        #   pn_entity_cancel    — recreates notification when user tries to dismiss.
+        # One entry per person: person_state_cancel — dismisses the notification
+        # immediately when device_trackers becomes non-empty again.
+        # User dismissal is detected on the next tick by querying hass.data
+        # directly (no event listener needed — more robust across HA versions).
         self._ha_tracker_listeners: dict[str, list] = {}
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
@@ -625,29 +623,25 @@ class ClimateManagerCoordinator:
         return present
 
     def _dismiss_ha_tracker_notif(self, notif_id: str) -> None:
-        """Dismiss a ha-tracker notification and cancel its watchers.
-
-        Active set is cleared BEFORE async_dismiss so the persistent_notification
-        entity watcher can distinguish this programmatic call from a user dismissal
-        (user dismissal finds the ID still in the active set and recreates).
-        """
+        """Cancel the tracker-restored watcher and dismiss the notification."""
         from homeassistant.components.persistent_notification import (  # noqa: PLC0415
             async_dismiss,
         )
 
-        self._ha_tracker_notif_active.discard(notif_id)
         for cancel in self._ha_tracker_listeners.pop(notif_id, []):
             cancel()
         async_dismiss(self._hass, notif_id)
 
     def _check_ha_tracker_warnings(self, config: dict) -> None:
-        """Create or dismiss persistent notifications for ha-mode persons (tick-based).
+        """Create or dismiss persistent notifications for ha-mode persons.
 
-        Creation: fires once when the condition is first detected (guarded by
-        _ha_tracker_notif_active to avoid re-creating every tick).
-        Dismissal: immediate via a per-person state-change listener that fires
-        as soon as device_trackers becomes non-empty; the tick also cleans up
-        if the mode is switched away from ha.
+        Runs on every tick. Notification existence is checked directly against
+        hass.data["persistent_notification"] so user dismissals are detected
+        on the next tick (≤1 min) and the notification is recreated — no event
+        listener needed for dismissal detection.
+
+        Tracker restoration: immediate via a per-person state-change listener
+        registered once when the notification is first shown.
         """
         from homeassistant.components.persistent_notification import (  # noqa: PLC0415
             async_create,
@@ -656,13 +650,11 @@ class ClimateManagerCoordinator:
             async_track_state_change_event,
         )
 
+        pn_data = self._hass.data.get("persistent_notification", {})
+
         for person_id, person_cfg in config.get("persons", {}).items():
             notif_id = f"{DOMAIN}_ha_no_tracker_{person_id.replace('.', '_')}"
-            if person_cfg.get("mode") != PRESENCE_HA:
-                if notif_id in self._ha_tracker_notif_active:
-                    self._dismiss_ha_tracker_notif(notif_id)
-                continue
-
+            mode_is_ha = person_cfg.get("mode") == PRESENCE_HA
             state_obj = self._hass.states.get(person_id)
             trackers = (
                 state_obj.attributes.get("device_trackers", [])
@@ -670,11 +662,20 @@ class ClimateManagerCoordinator:
                 else []
             )
             has_trackers = isinstance(trackers, list) and len(trackers) > 0
+            should_notify = mode_is_ha and not has_trackers
 
-            if has_trackers:
-                if notif_id in self._ha_tracker_notif_active:
+            if not should_notify:
+                # Dismiss if shown and cancel any watcher.
+                if isinstance(pn_data, dict) and notif_id in pn_data:
                     self._dismiss_ha_tracker_notif(notif_id)
-            elif notif_id not in self._ha_tracker_notif_active:
+                elif notif_id in self._ha_tracker_listeners:
+                    for cancel in self._ha_tracker_listeners.pop(notif_id):
+                        cancel()
+                continue
+
+            # Create or recreate when user dismissed (not in pn_data anymore).
+            notif_present = isinstance(pn_data, dict) and notif_id in pn_data
+            if not notif_present:
                 name = (
                     state_obj.attributes.get("friendly_name", person_id)
                     if state_obj is not None
@@ -693,9 +694,10 @@ class ClimateManagerCoordinator:
                     title="Climate Manager — HA Tracking",
                     notification_id=notif_id,
                 )
-                self._ha_tracker_notif_active.add(notif_id)
 
-                # Watcher 1: dismiss immediately when trackers are restored.
+            # Register the tracker-restored watcher only once per person.
+            if notif_id not in self._ha_tracker_listeners:
+
                 @callback
                 def _on_tracker_restored(
                     event: object,
@@ -708,49 +710,9 @@ class ClimateManagerCoordinator:
                     if isinstance(t, list) and len(t) > 0:
                         self._dismiss_ha_tracker_notif(_notif_id)
 
-                # Watcher 2: recreate immediately if the user dismisses.
-                # HA stores notifications in hass.data["persistent_notification"]
-                # and fires "persistent_notifications_updated" on the bus — no
-                # state entity is created, so async_track_state_change_event on
-                # persistent_notification.* would never fire.
-                @callback
-                def _on_notifications_updated(
-                    event: object,
-                    _notif_id: str = notif_id,
-                    _msg: str = (
-                        f"**{name}** is set to *HA home tracking* but has no "
-                        f"device tracker linked in Home Assistant. Presence "
-                        f"detection will not work until a device tracker is "
-                        f"added.\n\n"
-                        f"[Edit {name} in HA](/config/person/edit/{slug})"
-                    ),
-                ) -> None:
-                    from homeassistant.components.persistent_notification import (  # noqa: PLC0415
-                        async_create,
-                    )
-
-                    pn_data = self._hass.data.get("persistent_notification", {})
-                    notif_exists = (
-                        isinstance(pn_data, dict) and _notif_id in pn_data
-                    )
-                    if notif_exists:
-                        return  # Still present — nothing to do
-                    if _notif_id not in self._ha_tracker_notif_active:
-                        return  # Programmatic dismiss — don't recreate
-                    async_create(
-                        self._hass,
-                        _msg,
-                        title="Climate Manager — HA Tracking",
-                        notification_id=_notif_id,
-                    )
-
                 self._ha_tracker_listeners[notif_id] = [
                     async_track_state_change_event(
                         self._hass, person_id, _on_tracker_restored
-                    ),
-                    self._hass.bus.async_listen(
-                        "persistent_notifications_updated",
-                        _on_notifications_updated,
                     ),
                 ]
 
