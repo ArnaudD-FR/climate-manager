@@ -631,13 +631,12 @@ export class PersonCard extends LitElement {
                         title="Edit person in HA"
                         .label=${"Edit person in HA"}
                         @click=${() => {
+                          const slug = this.personId.replace(/^person\./, "");
+                          if (!/^[\w-]+$/.test(slug)) return;
                           history.pushState(
                             null,
                             "",
-                            `/config/person/edit/${this.personId.replace(
-                              /^person\./,
-                              "",
-                            )}`,
+                            `/config/person/edit/${slug}`,
                           );
                           window.dispatchEvent(
                             new CustomEvent("location-changed", {

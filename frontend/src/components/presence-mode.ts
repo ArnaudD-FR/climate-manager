@@ -38,7 +38,7 @@ export function computeHasDeviceTrackers(trackers: unknown): boolean {
  * When no trackers exist the option label carries a ⚠ suffix instead of
  * being hidden, so the user understands why the mode is unavailable.
  */
-export function shouldShowHaOption(_hasDeviceTrackers: boolean): boolean {
+export function shouldShowHaOption(hasDeviceTrackers: boolean): boolean {
   return true;
 }
 
