@@ -117,10 +117,11 @@ class ClimateManagerCoordinator:
         # Notification IDs currently shown for ha-mode persons with no tracker.
         # Guards against recreating (and thus updating) the notification every tick.
         self._ha_tracker_notif_active: set[str] = set()
-        # State-change listener cancel callbacks keyed by notif_id.
-        # Each listener watches the person entity and dismisses immediately when
-        # device_trackers becomes non-empty.
-        self._ha_tracker_listeners: dict[str, callback] = {}
+        # Cancel callbacks for active ha-tracker watchers, keyed by notif_id.
+        # Each entry holds [person_state_cancel, pn_entity_cancel]:
+        #   person_state_cancel — dismisses notification when trackers are restored.
+        #   pn_entity_cancel    — recreates notification when user tries to dismiss.
+        self._ha_tracker_listeners: dict[str, list] = {}
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
@@ -624,15 +625,20 @@ class ClimateManagerCoordinator:
         return present
 
     def _dismiss_ha_tracker_notif(self, notif_id: str) -> None:
-        """Dismiss a ha-tracker notification and cancel its state listener."""
+        """Dismiss a ha-tracker notification and cancel its watchers.
+
+        Active set is cleared BEFORE async_dismiss so the persistent_notification
+        entity watcher can distinguish this programmatic call from a user dismissal
+        (user dismissal finds the ID still in the active set and recreates).
+        """
         from homeassistant.components.persistent_notification import (  # noqa: PLC0415
             async_dismiss,
         )
 
-        async_dismiss(self._hass, notif_id)
         self._ha_tracker_notif_active.discard(notif_id)
-        if cancel := self._ha_tracker_listeners.pop(notif_id, None):
+        for cancel in self._ha_tracker_listeners.pop(notif_id, []):
             cancel()
+        async_dismiss(self._hass, notif_id)
 
     def _check_ha_tracker_warnings(self, config: dict) -> None:
         """Create or dismiss persistent notifications for ha-mode persons (tick-based).
@@ -689,14 +695,12 @@ class ClimateManagerCoordinator:
                 )
                 self._ha_tracker_notif_active.add(notif_id)
 
-                # Dismiss immediately when trackers are restored — don't wait
-                # for the next tick.
+                # Watcher 1: dismiss immediately when trackers are restored.
                 @callback
                 def _on_tracker_restored(
                     event: object,
                     _notif_id: str = notif_id,
                 ) -> None:
-
                     new_state = getattr(event, "data", {}).get("new_state")
                     if new_state is None:
                         return
@@ -704,10 +708,47 @@ class ClimateManagerCoordinator:
                     if isinstance(t, list) and len(t) > 0:
                         self._dismiss_ha_tracker_notif(_notif_id)
 
-                cancel = async_track_state_change_event(
-                    self._hass, person_id, _on_tracker_restored
-                )
-                self._ha_tracker_listeners[notif_id] = cancel
+                # Watcher 2: recreate immediately if the user dismisses.
+                # The persistent_notification.<notif_id> entity is removed when
+                # the notification is dismissed. If the ID is still in the active
+                # set at that point, the dismissal was by the user → recreate.
+                @callback
+                def _on_user_dismissed(
+                    event: object,
+                    _notif_id: str = notif_id,
+                    _msg: str = (
+                        f"**{name}** is set to *HA home tracking* but has no "
+                        f"device tracker linked in Home Assistant. Presence "
+                        f"detection will not work until a device tracker is "
+                        f"added.\n\n"
+                        f"[Edit {name} in HA](/config/person/edit/{slug})"
+                    ),
+                ) -> None:
+                    from homeassistant.components.persistent_notification import (  # noqa: PLC0415
+                        async_create,
+                    )
+
+                    if getattr(event, "data", {}).get("new_state") is not None:
+                        return  # Entity created/updated, not removed
+                    if _notif_id not in self._ha_tracker_notif_active:
+                        return  # Programmatic dismiss — don't recreate
+                    async_create(
+                        self._hass,
+                        _msg,
+                        title="Climate Manager — HA Tracking",
+                        notification_id=_notif_id,
+                    )
+
+                self._ha_tracker_listeners[notif_id] = [
+                    async_track_state_change_event(
+                        self._hass, person_id, _on_tracker_restored
+                    ),
+                    async_track_state_change_event(
+                        self._hass,
+                        f"persistent_notification.{notif_id}",
+                        _on_user_dismissed,
+                    ),
+                ]
 
     def _build_status_payload(self) -> dict:
         """Build the status dict pushed to subscribed panel connections after each evaluation.
