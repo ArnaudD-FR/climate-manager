@@ -108,6 +108,8 @@ the existing Scheduled mode, allowing mixed schedules (e.g., "weekdays 8h–18h
   `"present"` (active event → person present).
 - **D-09:** Additive schema — `calendar_config` is absent on persons not using
   Calendar mode. No migration needed for existing persons.
+- **D-09b:** Each person has exactly one `calendar_config` (one calendar entity).
+  Multiple calendar sources per person are not supported in Phase 11.
 
 ### Pre-Heat Lead Time
 
@@ -281,9 +283,8 @@ the existing Scheduled mode, allowing mixed schedules (e.g., "weekdays 8h–18h
   one separately, not our concern.
 - **Per-room or per-zone lead time** — D-10 specifies per-person only;
   per-room granularity deferred to Phase 12 pre-heat engine.
-- **Multiple calendar sources per person** — Phase 11 supports one
-  `calendar_entity_id` per person (or per period). Multiple sources
-  (logical OR/AND) deferred to a future phase.
+- **Multiple calendar sources per person** — explicitly out of scope (D-09b).
+  One calendar entity per person, period.
 
 ### Reviewed Todos (not folded)
 
