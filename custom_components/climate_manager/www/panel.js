@@ -575,7 +575,7 @@ class de {
                 strings: g,
                 ctor:
                   v[1] === "."
-                    ? Mt
+                    ? Rt
                     : v[1] === "?"
                       ? At
                       : v[1] === "@"
@@ -627,7 +627,7 @@ function K(a, e, t = a, o) {
     e
   );
 }
-class Rt {
+class Mt {
   constructor(e, t) {
     (this._$AV = []), (this._$AN = void 0), (this._$AD = e), (this._$AM = t);
   }
@@ -741,7 +741,7 @@ class pe {
             o);
     if (((i = this._$AH) == null ? void 0 : i._$AD) === s) this._$AH.p(t);
     else {
-      const r = new Rt(s, this),
+      const r = new Mt(s, this),
         n = r.u(this.options);
       r.p(t), this.T(n), (this._$AH = r);
     }
@@ -825,7 +825,7 @@ class ye {
       : this.element.setAttribute(this.name, e ?? "");
   }
 }
-class Mt extends ye {
+class Rt extends ye {
   constructor() {
     super(...arguments), (this.type = 3);
   }
@@ -1194,7 +1194,7 @@ const j = {
     present: "#2E7D32",
     absent: "#9E9E9E",
   },
-  Re = {
+  Me = {
     frost_protection: "Frost protection",
     reduced: "Reduced",
     normal: "Normal",
@@ -1241,7 +1241,7 @@ function ve(a) {
   return Se[1 + (e % (Se.length - 1))];
 }
 var Lt = Object.defineProperty,
-  Me = (a, e, t, o) => {
+  Re = (a, e, t, o) => {
     for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
       (r = a[i]) && (s = r(e, t, s) || s);
     return s && Lt(e, t, s), s;
@@ -1334,9 +1334,9 @@ He.styles = k`
     }
   `;
 let J = He;
-Me([y()], J.prototype, "_visible");
-Me([y()], J.prototype, "_message");
-Me([y()], J.prototype, "_isError");
+Re([y()], J.prototype, "_visible");
+Re([y()], J.prototype, "_message");
+Re([y()], J.prototype, "_isError");
 customElements.define("climate-manager-toast", J);
 var Zt = Object.defineProperty,
   H = (a, e, t, o) => {
@@ -1399,7 +1399,7 @@ const Bt = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         this.mode === "presence"
           ? e.state ?? "absent"
           : e.mode ?? "frost_protection";
-      return Re[t] ?? t;
+      return Me[t] ?? t;
     }
     /**
      * Convert a periods array to renderable segments with computed widths.
@@ -2568,7 +2568,7 @@ const _t = "off",
             ${t.map((n) => {
               const l = ve(n.id === "default" ? void 0 : n.id),
                 c = Gt[n.mode] ?? n.mode,
-                p = n.activePeriod ? Re[n.activePeriod] ?? n.activePeriod : "—";
+                p = n.activePeriod ? Me[n.activePeriod] ?? n.activePeriod : "—";
               return d`
                 <div class="zone-status-row">
                   <span
@@ -3193,16 +3193,16 @@ je.styles = [
       }
     `,
 ];
-let M = je;
-B([u({ attribute: !1 })], M.prototype, "config");
-B([u({ attribute: !1 })], M.prototype, "status");
-B([u({ attribute: !1 })], M.prototype, "ws");
-B([u({ attribute: !1 })], M.prototype, "panel");
-B([u({ attribute: !1 })], M.prototype, "hass");
-B([y()], M.prototype, "_trvStatuses");
-B([y()], M.prototype, "_loadingStatuses");
-B([y()], M.prototype, "_tadoXScanInterval");
-customElements.define("climate-manager-global-settings-tab", M);
+let R = je;
+B([u({ attribute: !1 })], R.prototype, "config");
+B([u({ attribute: !1 })], R.prototype, "status");
+B([u({ attribute: !1 })], R.prototype, "ws");
+B([u({ attribute: !1 })], R.prototype, "panel");
+B([u({ attribute: !1 })], R.prototype, "hass");
+B([y()], R.prototype, "_trvStatuses");
+B([y()], R.prototype, "_loadingStatuses");
+B([y()], R.prototype, "_tadoXScanInterval");
+customElements.define("climate-manager-global-settings-tab", R);
 var Kt = Object.defineProperty,
   Q = (a, e, t, o) => {
     for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
@@ -3760,7 +3760,7 @@ const Ze = class Ze extends C {
     const o =
       ((p = this.roomStatus) == null ? void 0 : p.active_period) ?? null;
     if (o == null) return d``;
-    const s = Re[o] ?? o,
+    const s = Me[o] ?? o,
       i =
         (f = (h = this.panelConfig) == null ? void 0 : h.period_temperatures) ==
         null
@@ -5763,17 +5763,17 @@ Xe.styles = [
       }
     `,
 ];
-let R = Xe;
-U([u({ attribute: !1 })], R.prototype, "config");
-U([u({ attribute: !1 })], R.prototype, "zoneId");
-U([u({ attribute: !1 })], R.prototype, "zoneConfig");
-U([u({ type: Boolean })], R.prototype, "isDefault");
-U([u({ attribute: !1 })], R.prototype, "ws");
-U([u({ attribute: !1 })], R.prototype, "panel");
-U([u({ attribute: !1 })], R.prototype, "hass");
-U([u({ attribute: !1 })], R.prototype, "status");
-U([y()], R.prototype, "_confirmingDelete");
-customElements.define("climate-manager-zone-tab", R);
+let M = Xe;
+U([u({ attribute: !1 })], M.prototype, "config");
+U([u({ attribute: !1 })], M.prototype, "zoneId");
+U([u({ attribute: !1 })], M.prototype, "zoneConfig");
+U([u({ type: Boolean })], M.prototype, "isDefault");
+U([u({ attribute: !1 })], M.prototype, "ws");
+U([u({ attribute: !1 })], M.prototype, "panel");
+U([u({ attribute: !1 })], M.prototype, "hass");
+U([u({ attribute: !1 })], M.prototype, "status");
+U([y()], M.prototype, "_confirmingDelete");
+customElements.define("climate-manager-zone-tab", M);
 var os = Object.defineProperty,
   P = (a, e, t, o) => {
     for (var s = void 0, i = a.length - 1, r; i >= 0; i--)
@@ -5949,10 +5949,27 @@ const Ve = class Ve extends C {
   _setTab(e) {
     (this._activeTab = e), localStorage.setItem("climate-manager-tab", e);
   }
+  /** Open the HA sidebar — fired by the hamburger button on narrow viewports. */
+  _toggleMenu() {
+    window.dispatchEvent(new CustomEvent("hass-toggle-menu"));
+  }
   render() {
     return this._config
       ? d`
-      <div class="panel-header">Climate Manager</div>
+      <div class="panel-header">
+        ${
+          this.narrow
+            ? d`<ha-icon-button
+              class="menu-btn"
+              label="Menu"
+              @click=${this._toggleMenu}
+            >
+              <ha-icon icon="mdi:menu"></ha-icon>
+            </ha-icon-button>`
+            : ""
+        }
+        Climate Manager
+      </div>
 
       ${
         this._wsError
@@ -6044,7 +6061,20 @@ const Ve = class Ve extends C {
       <climate-manager-toast></climate-manager-toast>
     `
       : d`
-        <div class="panel-header">Climate Manager</div>
+        <div class="panel-header">
+          ${
+            this.narrow
+              ? d`<ha-icon-button
+                class="menu-btn"
+                label="Menu"
+                @click=${this._toggleMenu}
+              >
+                <ha-icon icon="mdi:menu"></ha-icon>
+              </ha-icon-button>`
+              : ""
+          }
+          Climate Manager
+        </div>
         ${
           this._wsError
             ? d`<div class="error-banner">Connection lost. Reconnecting…</div>`
@@ -6141,6 +6171,14 @@ Ve.styles = k`
         var(--primary-background-color)
       );
       border-bottom: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+    }
+
+    .menu-btn {
+      --mdc-icon-button-size: 40px;
+      margin-right: 8px;
+      margin-left: -8px;
+      flex-shrink: 0;
+      color: var(--app-header-text-color, var(--primary-text-color));
     }
 
     .loading {

@@ -80,6 +80,14 @@ export class ClimateManagerPanel extends LitElement {
       border-bottom: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
     }
 
+    .menu-btn {
+      --mdc-icon-button-size: 40px;
+      margin-right: 8px;
+      margin-left: -8px;
+      flex-shrink: 0;
+      color: var(--app-header-text-color, var(--primary-text-color));
+    }
+
     .loading {
       display: flex;
       justify-content: center;
@@ -356,10 +364,26 @@ export class ClimateManagerPanel extends LitElement {
     localStorage.setItem("climate-manager-tab", tab);
   }
 
+  /** Open the HA sidebar — fired by the hamburger button on narrow viewports. */
+  private _toggleMenu() {
+    window.dispatchEvent(new CustomEvent("hass-toggle-menu"));
+  }
+
   render() {
     if (!this._config) {
       return html`
-        <div class="panel-header">Climate Manager</div>
+        <div class="panel-header">
+          ${this.narrow
+            ? html`<ha-icon-button
+                class="menu-btn"
+                label="Menu"
+                @click=${this._toggleMenu}
+              >
+                <ha-icon icon="mdi:menu"></ha-icon>
+              </ha-icon-button>`
+            : ""}
+          Climate Manager
+        </div>
         ${this._wsError
           ? html`<div class="error-banner">Connection lost. Reconnecting…</div>`
           : ""}
@@ -371,7 +395,18 @@ export class ClimateManagerPanel extends LitElement {
     }
 
     return html`
-      <div class="panel-header">Climate Manager</div>
+      <div class="panel-header">
+        ${this.narrow
+          ? html`<ha-icon-button
+              class="menu-btn"
+              label="Menu"
+              @click=${this._toggleMenu}
+            >
+              <ha-icon icon="mdi:menu"></ha-icon>
+            </ha-icon-button>`
+          : ""}
+        Climate Manager
+      </div>
 
       ${this._wsError
         ? html`<div class="error-banner">Connection lost. Reconnecting…</div>`
