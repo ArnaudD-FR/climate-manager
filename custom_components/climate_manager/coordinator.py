@@ -114,6 +114,9 @@ class ClimateManagerCoordinator:
         # Tracks the last absolute offset written per Radiator Valve X device_id
         # (enables incremental adjustment — device doesn't expose current offset).
         self._calibration_last_offset: dict[str, float] = {}
+        # Notification IDs currently shown for ha-mode persons with no tracker.
+        # Guards against recreating (and thus updating) the notification every tick.
+        self._ha_tracker_notif_active: set[str] = set()
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
@@ -620,7 +623,8 @@ class ClimateManagerCoordinator:
         """Create or dismiss persistent notifications for ha-mode persons (tick-based).
 
         For each configured person:
-        - mode=ha + no device_trackers → create notification (idempotent).
+        - mode=ha + no device_trackers → create notification once (skipped if
+          already active to avoid re-creating every tick).
         - mode=ha + device_trackers present → dismiss notification.
         - mode≠ha → dismiss notification (cleans up if mode was switched away).
 
@@ -635,7 +639,9 @@ class ClimateManagerCoordinator:
         for person_id, person_cfg in config.get("persons", {}).items():
             notif_id = f"{DOMAIN}_ha_no_tracker_{person_id.replace('.', '_')}"
             if person_cfg.get("mode") != PRESENCE_HA:
-                async_dismiss(self._hass, notif_id)
+                if notif_id in self._ha_tracker_notif_active:
+                    async_dismiss(self._hass, notif_id)
+                    self._ha_tracker_notif_active.discard(notif_id)
                 continue
 
             state_obj = self._hass.states.get(person_id)
@@ -647,24 +653,29 @@ class ClimateManagerCoordinator:
             has_trackers = isinstance(trackers, list) and len(trackers) > 0
 
             if has_trackers:
-                async_dismiss(self._hass, notif_id)
-            else:
+                if notif_id in self._ha_tracker_notif_active:
+                    async_dismiss(self._hass, notif_id)
+                    self._ha_tracker_notif_active.discard(notif_id)
+            elif notif_id not in self._ha_tracker_notif_active:
                 name = (
                     state_obj.attributes.get("friendly_name", person_id)
                     if state_obj is not None
                     else person_id
                 )
+                slug = person_id.removeprefix("person.")
                 async_create(
                     self._hass,
                     (
                         f"**{name}** is set to *HA home tracking* but has no "
                         f"device tracker linked in Home Assistant. Presence "
                         f"detection will not work until a device tracker is "
-                        f"added to this person."
+                        f"added.\n\n"
+                        f"[Edit {name} in HA](/config/person/edit/{slug})"
                     ),
                     title="Climate Manager — HA Tracking",
                     notification_id=notif_id,
                 )
+                self._ha_tracker_notif_active.add(notif_id)
 
     def _build_status_payload(self) -> dict:
         """Build the status dict pushed to subscribed panel connections after each evaluation.
