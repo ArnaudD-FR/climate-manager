@@ -695,6 +695,121 @@ async def test_room_mode_frost_wins_over_presence(hass):
 
 
 # ---------------------------------------------------------------------------
+# Regression tests: zone MODE_OFF overrides room_mode=custom (EVAL-01 fix)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.freeze_time(
+    "2026-01-05 12:00:00"
+)  # Monday 12:00 UTC -- Comfort active in custom program
+async def test_zone_off_overrides_room_mode_custom_default_zone(hass):
+    """EVAL-01 / Bug fix: zone MODE_OFF must override room_mode=custom.
+
+    Regression: when global_mode=off, a room with room_mode=custom and a
+    Comfort-all-day time_program was previously pushed 22.0 (custom schedule
+    temperature) instead of 7.0 (frost protection). Zone OFF must win.
+
+    Setup:
+    - Global mode: off (Default Zone)
+    - Room: area_y with room_mode=custom and Comfort-all-day time_program
+    - Expected: TRV receives frost-protection temperature (7.0), NOT 22.0
+    """
+    hass.states.async_set(
+        "climate.custom_off_trv", "heat", {"temperature": 22.0}
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_OFF,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config={
+            "area_y": {
+                "room_mode": ROOM_MODE_CUSTOM,
+                "time_program": ALL_DAYS_COMFORT_PROGRAM,
+            }
+        },
+    )
+    entry.runtime_data.rooms = {"area_y": ["climate.custom_off_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    calls = [
+        c
+        for c in temp_calls
+        if c.data.get("entity_id") == "climate.custom_off_trv"
+    ]
+    assert len(calls) >= 1, "Expected set_temperature call for custom_off_trv"
+    pushed = calls[-1].data["temperature"]
+    assert pushed == DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION], (
+        f"Zone MODE_OFF must override room_mode=custom -- expected 7.0, got {pushed}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")  # Monday 12:00 UTC
+async def test_zone_off_overrides_room_mode_custom_custom_zone(hass):
+    """EVAL-01 / Bug fix: custom zone MODE_OFF overrides room_mode=custom.
+
+    Same as above but the room is in a named custom zone (not the Default Zone).
+    Zone OFF must still win over the room's custom schedule.
+    """
+    hass.states.async_set(
+        "climate.zone_custom_off_trv", "heat", {"temperature": 22.0}
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    zone_id = "zone-abc"
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,  # Default Zone is active
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config={
+            "area_custom": {
+                "room_mode": ROOM_MODE_CUSTOM,
+                "time_program": ALL_DAYS_COMFORT_PROGRAM,
+                "zone_id": zone_id,
+            }
+        },
+        zones_config={
+            zone_id: {
+                "name": "Night Zone",
+                "mode": MODE_OFF,
+                "time_program": ALL_DAYS_NORMAL_PROGRAM,
+            }
+        },
+    )
+    entry.runtime_data.rooms = {"area_custom": ["climate.zone_custom_off_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    calls = [
+        c
+        for c in temp_calls
+        if c.data.get("entity_id") == "climate.zone_custom_off_trv"
+    ]
+    assert len(calls) >= 1, (
+        "Expected set_temperature call for zone_custom_off_trv"
+    )
+    pushed = calls[-1].data["temperature"]
+    assert pushed == DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION], (
+        f"Custom zone MODE_OFF must override room_mode=custom -- "
+        f"expected 7.0, got {pushed}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Tests 13-19: HA-mode branch in _compute_present_persons (D-21)
 #
 # These tests directly instantiate ClimateManagerCoordinator (bypassing
@@ -1356,11 +1471,12 @@ async def test_global_mode_off_does_not_affect_custom_zones(hass):
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")  # Monday noon
-async def test_room_mode_custom_wins_over_zone(hass):
-    """EVAL-05: room with room_mode=custom always uses room.time_program, ignoring zone resolution.
+async def test_room_mode_custom_wins_over_active_zone_schedule(hass):
+    """EVAL-05: room with room_mode=custom uses room.time_program when zone is active.
 
-    Zone has mode=off (would push frost). Room has room_mode=custom with Comfort schedule.
-    room_mode=custom must short-circuit zone evaluation and push Comfort (22.0).
+    Zone has mode=time_program (Normal schedule). Room has room_mode=custom with
+    Comfort schedule. room_mode=custom must win over the zone schedule and push
+    Comfort (22.0) when the zone is active (not off).
     """
     hass.states.async_set("climate.z_trv", "heat", {"temperature": 20.0})
     async_mock_service(hass, "climate", "set_hvac_mode")
@@ -1377,7 +1493,7 @@ async def test_room_mode_custom_wins_over_zone(hass):
         zones_config={
             "z1": {
                 "name": "Z1",
-                "mode": MODE_OFF,
+                "mode": MODE_TIME_PROGRAM,  # zone is active -- room custom wins
                 "time_program": ALL_DAYS_NORMAL_PROGRAM,
             }
         },
@@ -1402,7 +1518,8 @@ async def test_room_mode_custom_wins_over_zone(hass):
         calls[-1].data["temperature"]
         == DEFAULT_PERIOD_TEMPERATURES[PERIOD_COMFORT]
     ), (
-        f"room_mode=custom should win over zone mode=off and push Comfort (22.0), got {calls[-1].data['temperature']}"
+        f"room_mode=custom should win over active zone schedule and push Comfort (22.0), "
+        f"got {calls[-1].data['temperature']}"
     )
 
 

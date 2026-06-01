@@ -21,7 +21,8 @@ Requirements addressed:
 - GLOBAL-01: Default Zone branches on global_mode (Off / Time program / Presences)
 - GLOBAL-02: Default Zone MODE_OFF → frost protection; custom zones unaffected (D-08)
 - GLOBAL-03: period_temperatures dict provides configurable temps per period mode
-- SCHED-05: per-room time program override (room_mode=custom) wins over zone schedule
+- SCHED-05: per-room time program override (room_mode=custom) wins over zone
+            schedule when zone is active; zone MODE_OFF always overrides custom
 - EVAL-01..05: per-zone independent evaluation via _resolve_zone_config
 - PERSON-06: persons have associated room_ids
 - PERSON-07: present person → heat from first Normal/Comfort period to end of last
@@ -179,7 +180,13 @@ class ClimateManagerCoordinator:
         """PASS 1 — baseline temperature per room.
 
         Returns (desired_temps, room_periods, frost_locked_rooms, mode_off_rooms).
-        Room-mode short-circuits (frost/custom) are applied before zone resolution.
+
+        Priority order (highest to lowest):
+        1. frost_protection room_mode — wins unconditionally (EVAL-05 / D-20)
+        2. Zone MODE_OFF — always overrides, even custom room schedules (EVAL-01)
+        3. Custom room schedule (room_mode=custom) — wins over zone schedule
+           when the zone is active (SCHED-05 / EVAL-05)
+        4. Zone schedule (time_program / time_program_presences) — baseline
         """
         desired_temps: dict[str, float] = {}
         room_periods: dict[str, str] = {}
@@ -199,8 +206,27 @@ class ClimateManagerCoordinator:
                 frost_locked_rooms.add(area_id)
                 continue
 
+            # Resolve zone mode for this room — needed for both custom and
+            # global room modes (EVAL-01: zone OFF always wins).
+            zone_mode, zone_time_program = self._resolve_zone_config(
+                area_id, config
+            )
+
+            if zone_mode == MODE_OFF:
+                # EVAL-01: zone off → frost protection for all rooms in the
+                # zone, including those with a custom schedule (SCHED-05 only
+                # overrides the schedule selection, not the zone power state).
+                desired_temps[area_id] = period_temperatures[
+                    PERIOD_FROST_PROTECTION
+                ]
+                room_periods[area_id] = PERIOD_FROST_PROTECTION
+                frost_locked_rooms.add(area_id)
+                mode_off_rooms.add(area_id)
+                continue
+
             if room_mode == ROOM_MODE_CUSTOM:
-                # EVAL-05 / D-20: custom room schedule wins over zone resolution
+                # EVAL-05 / SCHED-05: custom room schedule wins over the zone
+                # schedule when the zone is active (zone OFF is handled above).
                 room_program = (
                     room_config.get("time_program")
                     or config["global_time_program"]
@@ -218,21 +244,8 @@ class ClimateManagerCoordinator:
                 room_periods[area_id] = period_mode
                 continue
 
-            # Room follows its zone (D-09)
-            zone_mode, zone_time_program = self._resolve_zone_config(
-                area_id, config
-            )
-
-            if zone_mode == MODE_OFF:
-                # EVAL-01: zone off → frost protection
-                desired_temps[area_id] = period_temperatures[
-                    PERIOD_FROST_PROTECTION
-                ]
-                room_periods[area_id] = PERIOD_FROST_PROTECTION
-                frost_locked_rooms.add(area_id)
-                mode_off_rooms.add(area_id)
-
-            elif zone_mode in (MODE_TIME_PROGRAM, MODE_TIME_PROGRAM_PRESENCES):
+            # Room follows its zone schedule (D-09)
+            if zone_mode in (MODE_TIME_PROGRAM, MODE_TIME_PROGRAM_PRESENCES):
                 # EVAL-02 baseline (or EVAL-03 baseline before PASS 2)
                 period_mode = evaluate_schedule(zone_time_program, now)
                 temp = period_temperatures.get(period_mode)
