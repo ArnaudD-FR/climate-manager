@@ -82,11 +82,7 @@ import { getISOWeekNumber, getWeekParity } from "./week-parity.js";
 // Presence-mode display helpers (Phase 10 / UI-01, UI-02).
 // Pure functions — no Lit deps — imported for consistent labels and
 // conditional option rendering (D-04) and stuck-mode hint (D-05).
-import {
-  MODE_LABEL_HA,
-  haOptionLabel,
-  presenceModeHint,
-} from "./presence-mode.js";
+import { haOptionLabel, presenceModeHint } from "./presence-mode.js";
 export { getISOWeekNumber, getWeekParity };
 
 export interface RoomChoice {
@@ -520,7 +516,7 @@ export class PersonCard extends LitElement {
       case PRESENCE_MODE_FORCE_ABSENT:
         return { cls: "force-absent", text: "Force Absent" };
       case PRESENCE_MODE_HA:
-        return { cls: "ha", text: MODE_LABEL_HA };
+        return { cls: "ha", text: haOptionLabel(this.hasDeviceTrackers) };
       default:
         return { cls: "scheduled", text: "Scheduled" };
     }
