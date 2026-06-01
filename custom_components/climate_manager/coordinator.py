@@ -709,11 +709,12 @@ class ClimateManagerCoordinator:
                         self._dismiss_ha_tracker_notif(_notif_id)
 
                 # Watcher 2: recreate immediately if the user dismisses.
-                # The persistent_notification.<notif_id> entity is removed when
-                # the notification is dismissed. If the ID is still in the active
-                # set at that point, the dismissal was by the user → recreate.
+                # HA stores notifications in hass.data["persistent_notification"]
+                # and fires "persistent_notifications_updated" on the bus — no
+                # state entity is created, so async_track_state_change_event on
+                # persistent_notification.* would never fire.
                 @callback
-                def _on_user_dismissed(
+                def _on_notifications_updated(
                     event: object,
                     _notif_id: str = notif_id,
                     _msg: str = (
@@ -728,8 +729,12 @@ class ClimateManagerCoordinator:
                         async_create,
                     )
 
-                    if getattr(event, "data", {}).get("new_state") is not None:
-                        return  # Entity created/updated, not removed
+                    pn_data = self._hass.data.get("persistent_notification", {})
+                    notif_exists = (
+                        isinstance(pn_data, dict) and _notif_id in pn_data
+                    )
+                    if notif_exists:
+                        return  # Still present — nothing to do
                     if _notif_id not in self._ha_tracker_notif_active:
                         return  # Programmatic dismiss — don't recreate
                     async_create(
@@ -743,10 +748,9 @@ class ClimateManagerCoordinator:
                     async_track_state_change_event(
                         self._hass, person_id, _on_tracker_restored
                     ),
-                    async_track_state_change_event(
-                        self._hass,
-                        f"persistent_notification.{notif_id}",
-                        _on_user_dismissed,
+                    self._hass.bus.async_listen(
+                        "persistent_notifications_updated",
+                        _on_notifications_updated,
                     ),
                 ]
 
