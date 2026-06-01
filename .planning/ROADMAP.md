@@ -84,7 +84,7 @@ renamed to "Live tracking" everywhere it appears.
 **Plans**: 2 plans
 - [x] 10-01-PLAN.md — Lit-free presence-mode helpers + unit tests (UI-01,
       UI-02)
-- [ ] 10-02-PLAN.md — wire helpers into person-card/persons-tab: label
+- [x] 10-02-PLAN.md — wire helpers into person-card/persons-tab: label
       rename, conditional option, stuck-mode warning
 
 ### Phase 11: Calendar Presence Backend
@@ -106,7 +106,17 @@ to the manual schedule without log spam.
    recurring events expand correctly; DATE-only and timezone-naive events are
    handled without exceptions
 
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 11-01-PLAN.md — backend calendar presence logic + pure unit tests
+      (const.py, schedule.py, tests/test_calendar.py)
+- [ ] 11-02-PLAN.md — coordinator per-cycle calendar cache + prefetch +
+      presence routing (CAL-01, CAL-02)
+- [ ] 11-03-PLAN.md — WebSocket persistence for calendar_config +
+      preheat_lead_minutes; types.ts (CAL-01, CAL-04)
+- [ ] 11-04-PLAN.md — frontend person-card Calendar mode UI + layout reorder
+      + period calendar state (CAL-01, CAL-03, CAL-04)
+- [ ] 11-05-PLAN.md — rewrite CAL-01..04 + ROADMAP success criteria to the
+      HA-native design
 
 ### Phase 12: Predictive Pre-heat
 
@@ -160,7 +170,7 @@ sub-minute responsiveness without waiting for the polling interval.
 | 7. Even/Odd Week Scheduling — Backend      | v1.2      | 2/2            | Complete | 2026-05-29 |
 | 8. Even/Odd Week Scheduling — Frontend     | v1.2      | 3/3            | Complete | 2026-05-30 |
 | 9. TRV Temperature Offset Auto-Calibration | v1.2      | 4/4            | Complete | 2026-05-30 |
-| 10. Presence Mode UI                        | v1.3      | 1/2 | In Progress|  |
-| 11. Calendar Presence Backend               | v1.3      | 0/?            | Pending  | —          |
+| 10. Presence Mode UI                        | v1.3      | 2/2            | Complete | 2026-06-01 |
+| 11. Calendar Presence Backend               | v1.3      | 0/5            | Pending  | —          |
 | 12. Predictive Pre-heat                     | v1.3      | 0/?            | Pending  | —          |
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 0/?            | Pending  | —          |
