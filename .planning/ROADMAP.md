@@ -82,7 +82,7 @@ renamed to "Live tracking" everywhere it appears.
    the person entity has at least one device tracker
 
 **Plans**: 2 plans
-- [ ] 10-01-PLAN.md — Lit-free presence-mode helpers + unit tests (UI-01,
+- [x] 10-01-PLAN.md — Lit-free presence-mode helpers + unit tests (UI-01,
       UI-02)
 - [ ] 10-02-PLAN.md — wire helpers into person-card/persons-tab: label
       rename, conditional option, stuck-mode warning
@@ -160,7 +160,7 @@ sub-minute responsiveness without waiting for the polling interval.
 | 7. Even/Odd Week Scheduling — Backend      | v1.2      | 2/2            | Complete | 2026-05-29 |
 | 8. Even/Odd Week Scheduling — Frontend     | v1.2      | 3/3            | Complete | 2026-05-30 |
 | 9. TRV Temperature Offset Auto-Calibration | v1.2      | 4/4            | Complete | 2026-05-30 |
-| 10. Presence Mode UI                        | v1.3      | 0/2            | Planned  | —          |
+| 10. Presence Mode UI                        | v1.3      | 1/2 | In Progress|  |
 | 11. Calendar Presence Backend               | v1.3      | 0/?            | Pending  | —          |
 | 12. Predictive Pre-heat                     | v1.3      | 0/?            | Pending  | —          |
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 0/?            | Pending  | —          |
