@@ -204,6 +204,7 @@ class ClimateManagerCoordinator:
                 ]
                 room_periods[area_id] = PERIOD_FROST_PROTECTION
                 frost_locked_rooms.add(area_id)
+                mode_off_rooms.add(area_id)
                 continue
 
             # Resolve zone mode for this room — needed for both custom and

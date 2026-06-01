@@ -545,28 +545,29 @@ export class PersonCard extends LitElement {
                   Room associations
                 </div>
                 <div class="chips">
-                  ${currentRoomIds.map((roomId) => {
-                    const room = this.roomChoices.find((r) => r.id === roomId);
-                    if (!room) return "";
-                    return html`
-                      <span
-                        class="chip"
-                        @click=${() => void this.panel.navigateToRoom(roomId)}
-                      >
-                        <ha-icon icon="mdi:home-outline"></ha-icon>
-                        ${room.name}
-                        <button
-                          class="chip-remove"
-                          @click=${(e: Event) => {
-                            e.stopPropagation();
-                            void this._onRoomToggle(roomId, false);
-                          }}
+                  ${this.roomChoices
+                    .filter((r) => currentRoomIds.includes(r.id))
+                    .map((room) => {
+                      const roomId = room.id;
+                      return html`
+                        <span
+                          class="chip"
+                          @click=${() => void this.panel.navigateToRoom(roomId)}
                         >
-                          ×
-                        </button>
-                      </span>
-                    `;
-                  })}
+                          <ha-icon icon="mdi:home-outline"></ha-icon>
+                          ${room.name}
+                          <button
+                            class="chip-remove"
+                            @click=${(e: Event) => {
+                              e.stopPropagation();
+                              void this._onRoomToggle(roomId, false);
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      `;
+                    })}
                   ${unassignedRooms.length > 0
                     ? html`
                         <search-picker

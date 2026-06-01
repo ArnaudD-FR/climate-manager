@@ -56,7 +56,7 @@ export class PersonsTab extends LitElement {
 
     const allRoomIds = new Set([...statusRooms.map((r) => r.area_id)]);
 
-    return [...allRoomIds].map((roomId) => {
+    const choices = [...allRoomIds].map((roomId) => {
       const name =
         (
           statusRooms.find((r) => r.area_id === roomId) as
@@ -68,8 +68,25 @@ export class PersonsTab extends LitElement {
       const secondary = floorId
         ? this.hass?.floors?.[floorId]?.name ?? undefined
         : undefined;
-      return { id: roomId, name, secondary };
+      return { id: roomId, name, secondary, floorId };
     });
+
+    // Sort by floor level descending (higher floor first), then room name
+    // ascending — mirrors the floor-grouped sort in zone-tab.ts.
+    choices.sort((a, b) => {
+      const levelA =
+        a.floorId != null
+          ? this.hass?.floors?.[a.floorId]?.level ?? 0
+          : -Infinity;
+      const levelB =
+        b.floorId != null
+          ? this.hass?.floors?.[b.floorId]?.level ?? 0
+          : -Infinity;
+      if (levelB !== levelA) return levelB - levelA;
+      return a.name.localeCompare(b.name);
+    });
+
+    return choices.map(({ id, name, secondary }) => ({ id, name, secondary }));
   }
 
   /** Determine if a person config has any non-default setting (D-15). */
