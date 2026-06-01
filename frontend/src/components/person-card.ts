@@ -638,7 +638,10 @@ export class PersonCard extends LitElement {
                           history.pushState(
                             null,
                             "",
-                            `/config/person/edit/${this.personId}`,
+                            `/config/person/edit/${this.personId.replace(
+                              /^person\./,
+                              "",
+                            )}`,
                           );
                           window.dispatchEvent(
                             new CustomEvent("location-changed", {
