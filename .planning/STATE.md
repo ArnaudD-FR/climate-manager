@@ -124,6 +124,7 @@ Items acknowledged and deferred at milestone close on 2026-05-31:
 | 260531-w9z | Tado X refresh-rate info banner on calibration table    | 2026-05-31 | b656fd7 | [260531-w9z-tado-x-calibration-refresh-warning](./quick/260531-w9z-tado-x-calibration-refresh-warning/) |
 | 260531-r6t | Show current TRV offset for Tado X in calibration table | 2026-05-31 | 68e61f0 | [260531-r6t-tado-x-show-current-offset](./quick/260531-r6t-tado-x-show-current-offset/) |
 | 260531-any | Remove "Last applied delta" column from calibration table | 2026-05-31 | 392e8e4 | [260531-any-remove-last-applied-delta-column](./quick/260531-any-remove-last-applied-delta-column/) |
+| 260601-d04 | D-04: HA option always visible; ⚠ label + edit link when no trackers | 2026-06-01 | 44ebcdd | [260601-d04-ha-option-always-visible](./quick/260601-d04-ha-option-always-visible/) |
 
 Last activity: 2026-05-29 - Created v1.2 roadmap (Phases 7-9); 11 requirements
 mapped (SCHED-01..06, CALIB-01..05)
