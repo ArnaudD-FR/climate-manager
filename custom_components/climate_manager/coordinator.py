@@ -45,7 +45,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -117,6 +117,10 @@ class ClimateManagerCoordinator:
         # Notification IDs currently shown for ha-mode persons with no tracker.
         # Guards against recreating (and thus updating) the notification every tick.
         self._ha_tracker_notif_active: set[str] = set()
+        # State-change listener cancel callbacks keyed by notif_id.
+        # Each listener watches the person entity and dismisses immediately when
+        # device_trackers becomes non-empty.
+        self._ha_tracker_listeners: dict[str, callback] = {}
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
@@ -619,29 +623,38 @@ class ClimateManagerCoordinator:
                     present.append(person_id)
         return present
 
+    def _dismiss_ha_tracker_notif(self, notif_id: str) -> None:
+        """Dismiss a ha-tracker notification and cancel its state listener."""
+        from homeassistant.components.persistent_notification import (  # noqa: PLC0415
+            async_dismiss,
+        )
+
+        async_dismiss(self._hass, notif_id)
+        self._ha_tracker_notif_active.discard(notif_id)
+        if cancel := self._ha_tracker_listeners.pop(notif_id, None):
+            cancel()
+
     def _check_ha_tracker_warnings(self, config: dict) -> None:
         """Create or dismiss persistent notifications for ha-mode persons (tick-based).
 
-        For each configured person:
-        - mode=ha + no device_trackers → create notification once (skipped if
-          already active to avoid re-creating every tick).
-        - mode=ha + device_trackers present → dismiss notification.
-        - mode≠ha → dismiss notification (cleans up if mode was switched away).
-
-        Called once per evaluation tick so the notification state converges
-        within one minute of any tracker or mode change.
+        Creation: fires once when the condition is first detected (guarded by
+        _ha_tracker_notif_active to avoid re-creating every tick).
+        Dismissal: immediate via a per-person state-change listener that fires
+        as soon as device_trackers becomes non-empty; the tick also cleans up
+        if the mode is switched away from ha.
         """
         from homeassistant.components.persistent_notification import (  # noqa: PLC0415
             async_create,
-            async_dismiss,
+        )
+        from homeassistant.helpers.event import (  # noqa: PLC0415
+            async_track_state_change_event,
         )
 
         for person_id, person_cfg in config.get("persons", {}).items():
             notif_id = f"{DOMAIN}_ha_no_tracker_{person_id.replace('.', '_')}"
             if person_cfg.get("mode") != PRESENCE_HA:
                 if notif_id in self._ha_tracker_notif_active:
-                    async_dismiss(self._hass, notif_id)
-                    self._ha_tracker_notif_active.discard(notif_id)
+                    self._dismiss_ha_tracker_notif(notif_id)
                 continue
 
             state_obj = self._hass.states.get(person_id)
@@ -654,8 +667,7 @@ class ClimateManagerCoordinator:
 
             if has_trackers:
                 if notif_id in self._ha_tracker_notif_active:
-                    async_dismiss(self._hass, notif_id)
-                    self._ha_tracker_notif_active.discard(notif_id)
+                    self._dismiss_ha_tracker_notif(notif_id)
             elif notif_id not in self._ha_tracker_notif_active:
                 name = (
                     state_obj.attributes.get("friendly_name", person_id)
@@ -676,6 +688,26 @@ class ClimateManagerCoordinator:
                     notification_id=notif_id,
                 )
                 self._ha_tracker_notif_active.add(notif_id)
+
+                # Dismiss immediately when trackers are restored — don't wait
+                # for the next tick.
+                @callback
+                def _on_tracker_restored(
+                    event: object,
+                    _notif_id: str = notif_id,
+                ) -> None:
+
+                    new_state = getattr(event, "data", {}).get("new_state")
+                    if new_state is None:
+                        return
+                    t = new_state.attributes.get("device_trackers", [])
+                    if isinstance(t, list) and len(t) > 0:
+                        self._dismiss_ha_tracker_notif(_notif_id)
+
+                cancel = async_track_state_change_event(
+                    self._hass, person_id, _on_tracker_restored
+                )
+                self._ha_tracker_listeners[notif_id] = cancel
 
     def _build_status_payload(self) -> dict:
         """Build the status dict pushed to subscribed panel connections after each evaluation.
