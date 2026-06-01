@@ -114,6 +114,33 @@
       });
     }
   });
+
+  customElements.define('ha-switch', class extends HTMLElement {
+    constructor() {
+      super();
+      const root = this.attachShadow({ mode: 'open' });
+      root.innerHTML = `
+        <style>
+          :host{display:inline-flex;align-items:center;
+                cursor:pointer;vertical-align:middle}
+          .track{position:relative;width:36px;height:14px;
+                 background:#bdbdbd;border-radius:7px;
+                 transition:background .2s}
+          :host([checked]) .track{background:#90caf9}
+          .thumb{position:absolute;top:-3px;left:-1px;width:20px;
+                 height:20px;border-radius:50%;background:#fafafa;
+                 box-shadow:0 2px 4px rgba(0,0,0,.4);
+                 transition:transform .15s,background .15s}
+          :host([checked]) .thumb{transform:translateX(18px);
+                                  background:var(--primary-color,#03a9f4)}
+        </style>
+        <div class="track"><div class="thumb"></div></div>`;
+    }
+    get checked() { return this.hasAttribute('checked'); }
+    set checked(v) {
+      v ? this.setAttribute('checked', '') : this.removeAttribute('checked');
+    }
+  });
 </script>
 
 <!-- panel.js is a module; it runs before the sibling inline module below -->

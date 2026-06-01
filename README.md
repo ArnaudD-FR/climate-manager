@@ -11,35 +11,54 @@ configurable through a full Lovelace dashboard panel.
 
 ---
 
-## Screenshots
+## Table of Contents
 
-### Overview tab
+- [Prerequisites](#prerequisites)
+- [Features](#features)
+- [Installation](#installation)
+- [How it works](#how-it-works)
+- [Configuration](#configuration)
+- [Requirements](#requirements)
+- [Development](#development)
+- [License](#license)
 
-![Overview tab](docs/screenshots/overview.png)
+---
 
-### Rooms tab
+## Prerequisites
 
-![Rooms tab](docs/screenshots/rooms.png)
+### Home Assistant Areas with Climate Entities and Temperature Sensors
 
-### Zone tab (Home — default zone)
+Climate Manager discovers rooms automatically from the HA **Area registry**. For
+a room to appear in the panel, two conditions must be met:
 
-![Zone tab](docs/screenshots/zone.png)
+1. **At least one `climate` entity** (TRV / thermostat) must be assigned to the
+   area — either directly on the entity, or via the device it belongs to.
+2. **A temperature sensor** in the same area is strongly recommended. Without
+   one, calibration is disabled and the Overview tab cannot show live room
+   temperatures. Climate Manager auto-discovers the first `sensor` entity with
+   `device_class: temperature` in the area; you can also override this manually
+   in each room's settings.
 
-### Zone tab (Upstairs — Time program & presences)
+**How to set up an area in Home Assistant:**
 
-![Zone Upstairs tab](docs/screenshots/zone-upstairs.png)
+1. Go to **Settings → Areas & Zones** and create an area for each physical room
+   (e.g. "Living Room", "Bedroom").
+2. Open each TRV device (**Settings → Devices & Services → Devices**), find the
+   target device, and assign it to the matching area.
+3. Open each temperature sensor device and assign it to the same area. If the
+   sensor is a standalone entity without a device, set its area directly via
+   **Settings → Devices & Services → Entities**.
+4. After assigning all devices, restart Home Assistant (or reload the
+   integration) — Climate Manager picks up area assignments automatically.
 
-### Persons tab
-
-![Persons tab](docs/screenshots/persons.png)
-
-### Global Settings tab
-
-![Global Settings tab](docs/screenshots/global-settings.png)
+> **Tip:** Room names shown in the panel are the HA area names. Rename areas in
+> **Settings → Areas & Zones** to control what appears in the panel.
 
 ---
 
 ## Features
+
+![Overview tab](docs/screenshots/overview.png)
 
 - **Zone-based scheduling** — Group rooms into zones, each with its own weekly
   heating program (Normal, Comfort, Reduced, Frost Protection periods)
@@ -56,6 +75,8 @@ configurable through a full Lovelace dashboard panel.
   Normal/Comfort temperature
 - **Live status** — Overview tab shows current period, temperature, and humidity
   for every room
+- **TRV calibration** — Optional auto-calibration of TRV offsets toward a room
+  temperature sensor (Tado X supported)
 - **TRV control** — Works with any HA `climate` entity; no brand-specific APIs
 
 ---
@@ -72,10 +93,43 @@ configurable through a full Lovelace dashboard panel.
 
 ### Manual
 
-1. Copy `custom_components/climate_manager/` into your HA
+Two methods are available depending on whether you have SSH access to your HA
+host.
+
+#### Method 1 — File copy (no SSH required)
+
+1. Download or clone this repository
+2. Copy `custom_components/climate_manager/` into your HA
    `config/custom_components/` directory
-2. Restart Home Assistant
-3. Go to Settings → Integrations → Add Integration → **Climate Manager**
+3. Restart Home Assistant
+4. Go to Settings → Integrations → Add Integration → **Climate Manager**
+
+#### Method 2 — `make deploy` (requires SSH access)
+
+Builds the frontend and deploys everything over SSH in one command.
+
+1. Clone this repository and install dependencies:
+
+   ```bash
+   uv sync
+   cd frontend && npm install
+   ```
+
+2. Optionally create `Makefile.local` to override the HA host or user:
+
+   ```make
+   HA_HOST = your-ha-hostname.local
+   HA_USER = root
+   ```
+
+3. Deploy:
+
+   ```bash
+   make deploy
+   ```
+
+   This builds the frontend bundle, copies all integration files to your HA
+   instance via SCP, and restarts HA core automatically.
 
 ---
 
@@ -91,6 +145,8 @@ Rooms are grouped into **zones**. Each zone has a **mode**:
 | **Time program**             | Rooms follow the zone's weekly schedule                           |
 | **Time program & presences** | Rooms follow the schedule only when an assigned person is present |
 
+![Zone tab](docs/screenshots/zone.png)
+
 ### Time program
 
 A weekly schedule divided into days (Mon–Sun). Each day has periods with a start
@@ -105,6 +161,8 @@ time and a mode:
 
 Each period is active from its start time until the next period's start. The
 last period of the day runs until midnight.
+
+![Zone Upstairs tab](docs/screenshots/zone-upstairs.png)
 
 ### Presence & scheduling
 
@@ -122,15 +180,19 @@ When a zone is in _Time program & presences_ mode:
 If present all day: room heats 06:00–22:00, holding Normal during the
 09:00–17:00 Reduced gap. If absent: room stays at Reduced all day.
 
+![Persons tab](docs/screenshots/persons.png)
+
 ### Per-room overrides
 
 Each room has a **mode** that can override its zone:
 
-| Room mode          | Behaviour                                     |
-| ------------------ | --------------------------------------------- |
-| **Zone program**   | Follows the zone's schedule and mode          |
-| **Custom program** | Uses its own schedule; zone Off still applies |
-| **Off**            | Frost protection only, regardless of zone     |
+| Room mode          | Behaviour                                                        |
+| ------------------ | ---------------------------------------------------------------- |
+| **Zone program**   | Follows the zone's schedule and mode                             |
+| **Custom program** | Uses its own schedule; zone Off still applies (frost protection) |
+| **Off**            | Frost protection only, regardless of zone                        |
+
+![Rooms tab](docs/screenshots/rooms.png)
 
 ---
 
@@ -141,8 +203,11 @@ No YAML editing required.
 
 ### Global settings
 
+![Global Settings tab](docs/screenshots/global-settings.png)
+
 - Period temperatures (Normal, Comfort, Reduced, Frost Protection)
 - Default zone name
+- TRV auto-calibration (enable/disable; Tado X offset calibration)
 
 ### Zones
 
