@@ -12,7 +12,10 @@ build:
 
 deploy: build
 	ssh $(HA_USER)@$(HA_HOST) "mkdir -p $(HA_COMPONENT_DIR)"
-	scp -r $(SRC_DIR)/. $(HA_USER)@$(HA_HOST):$(HA_COMPONENT_DIR)/
+	tar -C $(SRC_DIR) \
+		--exclude='__pycache__' \
+		--exclude='*.pyc' --exclude='*.pyo' \
+		-czf - . | ssh $(HA_USER)@$(HA_HOST) "tar -C $(HA_COMPONENT_DIR) -xzf -"
 	ssh $(HA_USER)@$(HA_HOST) "ha core restart"
 
 release: build
