@@ -7,6 +7,23 @@
  */
 
 /**
+ * Calendar-based presence configuration shared by PersonConfig and per-period
+ * calendar state periods. Defines which HA calendar entity to watch, what an
+ * active event means for presence, and how gaps between events are treated.
+ */
+export interface CalendarConfig {
+  entity_id: string;
+  event_means: "absent" | "present";
+  /** How gaps between consecutive events are treated. Default: "exact". */
+  gap_handling?: "exact" | "day_span" | "threshold";
+  /**
+   * Only relevant when gap_handling="threshold". Gaps shorter than this
+   * many minutes keep the person absent; longer gaps let them return home.
+   */
+  gap_threshold_minutes?: number;
+}
+
+/**
  * A single period entry in a daily program.
  * Discriminated union: exactly one of `mode` (schedule bar) or `state`
  * (presence bar) must be present. TypeScript will flag access to
@@ -24,12 +41,7 @@ export type Period =
       mode?: never;
       // Phase 11 (D-06): per-period calendar config (only used when
       // state === "calendar")
-      calendar_config?: {
-        entity_id: string;
-        event_means: "absent" | "present";
-        gap_handling?: "exact" | "day_span" | "threshold";
-        gap_threshold_minutes?: number;
-      };
+      calendar_config?: CalendarConfig;
     };
 
 /** Seven-day program map keyed by lowercase day abbreviation. */
@@ -63,12 +75,7 @@ export interface PersonConfig {
   schedule_even?: DailyProgram;
   schedule_odd?: DailyProgram;
   // Phase 11: calendar presence mode (D-08, D-09)
-  calendar_config?: {
-    entity_id: string;
-    event_means: "absent" | "present";
-    gap_handling?: "exact" | "day_span" | "threshold";
-    gap_threshold_minutes?: number;
-  };
+  calendar_config?: CalendarConfig;
   // Phase 11: wake-up advance in minutes (D-10); absent = 60
   preheat_lead_minutes?: number;
 }

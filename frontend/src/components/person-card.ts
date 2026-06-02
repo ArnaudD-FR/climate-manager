@@ -17,6 +17,7 @@ import { LitElement, html, css, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import type {
+  CalendarConfig,
   PersonConfig,
   DailyProgram,
   Period,
@@ -468,16 +469,10 @@ export class PersonCard extends LitElement {
 
   // Calendar config save handlers (D-09 auto-save pattern, no Save button)
 
-  private async _onCalendarEntityChange(e: Event) {
-    const entityId = (e.target as HTMLSelectElement).value;
-    const existing = this.config?.calendar_config ?? {};
+  private async _saveCalendarConfig(newCfg: CalendarConfig) {
     try {
       await this.ws.setPersonConfig(this.personId, {
-        calendar_config: {
-          ...existing,
-          entity_id: entityId,
-          event_means: existing.event_means ?? "absent",
-        },
+        calendar_config: newCfg,
       });
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
@@ -486,63 +481,143 @@ export class PersonCard extends LitElement {
     }
   }
 
-  private async _onEventMeansChange(e: Event) {
-    const means = (e.target as HTMLSelectElement).value as "absent" | "present";
-    const existing = this.config?.calendar_config ?? {};
-    // Cannot save event_means without a calendar entity selected — the
-    // backend T-11-06 guard would silently discard the update (CR-02).
-    if (!existing.entity_id) {
-      this.panel.showToast(
-        "Select a calendar entity first before changing event meaning.",
-        true,
-      );
-      return;
-    }
-    try {
-      await this.ws.setPersonConfig(this.personId, {
-        calendar_config: { ...existing, event_means: means },
-      });
-      await this.panel.reloadConfig();
-      this.panel.showToast("Saved", false);
-    } catch {
-      this.panel.showToast("Save failed — retrying...", true);
-    }
-  }
+  /**
+   * Render the shared calendar configuration block (entity select, event
+   * means, gap handling, threshold). Used both for the person-level Calendar
+   * mode and for per-period calendar state periods in the schedule.
+   *
+   * @param cfg     Current CalendarConfig value (undefined = nothing saved yet)
+   * @param entityIds  Available calendar.* entity IDs from hass.states
+   * @param onChange   Called with the merged config whenever any field changes
+   */
+  private _renderCalendarConfigBlock(
+    cfg: CalendarConfig | undefined,
+    entityIds: string[],
+    onChange: (newCfg: CalendarConfig) => void,
+  ) {
+    const entityId = cfg?.entity_id ?? "";
+    const eventMeans = cfg?.event_means ?? "absent";
+    const gapHandling = cfg?.gap_handling ?? "exact";
+    const gapThreshold = cfg?.gap_threshold_minutes ?? 30;
 
-  private async _onGapHandlingChange(e: Event) {
-    const gap = (e.target as HTMLSelectElement).value as
-      | "exact"
-      | "day_span"
-      | "threshold";
-    const existing = this.config?.calendar_config ?? {};
-    if (!existing.entity_id) return;
-    const update = { ...existing, gap_handling: gap };
-    if (gap !== "threshold") delete update.gap_threshold_minutes;
-    try {
-      await this.ws.setPersonConfig(this.personId, {
-        calendar_config: update,
-      });
-      await this.panel.reloadConfig();
-      this.panel.showToast("Saved", false);
-    } catch {
-      this.panel.showToast("Save failed — retrying...", true);
-    }
-  }
+    const guardedChange = (patch: Partial<CalendarConfig>) => {
+      if (!entityId && !("entity_id" in patch)) {
+        this.panel.showToast(
+          "Select a calendar entity first before changing this setting.",
+          true,
+        );
+        return;
+      }
+      const merged: CalendarConfig = {
+        ...(cfg ?? { entity_id: "", event_means: "absent" }),
+        ...patch,
+      };
+      if (merged.gap_handling !== "threshold") {
+        delete merged.gap_threshold_minutes;
+      }
+      onChange(merged);
+    };
 
-  private async _onGapThresholdChange(e: Event) {
-    const val = parseInt((e.target as HTMLInputElement).value, 10);
-    if (isNaN(val) || val < 0 || val > 480) return;
-    const existing = this.config?.calendar_config ?? {};
-    if (!existing.entity_id) return;
-    try {
-      await this.ws.setPersonConfig(this.personId, {
-        calendar_config: { ...existing, gap_threshold_minutes: val },
-      });
-      await this.panel.reloadConfig();
-      this.panel.showToast("Saved", false);
-    } catch {
-      this.panel.showToast("Save failed — retrying...", true);
-    }
+    return html`
+      <div class="section-label" title="Calendar entity for presence">
+        Calendar source
+      </div>
+      <div class="select-wrapper">
+        <select
+          class="mode-select"
+          @change=${(e: Event) => {
+            const newId = (e.target as HTMLSelectElement).value;
+            onChange({
+              ...(cfg ?? { event_means: "absent" }),
+              entity_id: newId,
+            });
+          }}
+        >
+          ${entityIds.length === 0
+            ? html`<option value="" disabled selected>
+                No calendar entities found in Home Assistant.
+              </option>`
+            : html`
+                <option value="" disabled ?selected=${!entityId}>
+                  — Select a calendar —
+                </option>
+                ${entityIds.map(
+                  (id) => html`
+                    <option value=${id} ?selected=${entityId === id}>
+                      ${(this.panel.hass?.states[id]?.attributes
+                        ?.friendly_name as string | undefined) ?? id}
+                    </option>
+                  `,
+                )}
+              `}
+        </select>
+      </div>
+      <div class="section-label">Event means</div>
+      <div class="select-wrapper">
+        <select
+          class="mode-select"
+          @change=${(e: Event) => {
+            const means = (e.target as HTMLSelectElement).value as
+              | "absent"
+              | "present";
+            guardedChange({ event_means: means });
+          }}
+        >
+          <option value="absent" ?selected=${eventMeans === "absent"}>
+            Absent during events
+          </option>
+          <option value="present" ?selected=${eventMeans === "present"}>
+            Present during events
+          </option>
+        </select>
+      </div>
+      <div class="section-label">Gap handling</div>
+      <div class="select-wrapper">
+        <select
+          class="mode-select"
+          @change=${(e: Event) => {
+            const gap = (e.target as HTMLSelectElement).value as
+              | "exact"
+              | "day_span"
+              | "threshold";
+            guardedChange({ gap_handling: gap });
+          }}
+        >
+          <option value="exact" ?selected=${gapHandling === "exact"}>
+            Return home between events
+          </option>
+          <option value="day_span" ?selected=${gapHandling === "day_span"}>
+            Absent all day (first to last event)
+          </option>
+          <option value="threshold" ?selected=${gapHandling === "threshold"}>
+            Return home in long gaps only
+          </option>
+        </select>
+      </div>
+      ${gapHandling === "threshold"
+        ? html`
+            <div class="section-label">Minimum gap to return home</div>
+            <div class="preheat-row">
+              <input
+                type="number"
+                min="0"
+                max="480"
+                step="5"
+                .value=${String(gapThreshold)}
+                @change=${(e: Event) => {
+                  const val = parseInt(
+                    (e.target as HTMLInputElement).value,
+                    10,
+                  );
+                  if (isNaN(val) || val < 0 || val > 480) return;
+                  guardedChange({ gap_threshold_minutes: val });
+                }}
+              />
+              <span>min</span>
+            </div>
+          `
+        : ""}
+    `;
   }
 
   private async _onPreheatChange(e: Event) {
@@ -567,10 +642,7 @@ export class PersonCard extends LitElement {
   private async _onPeriodCalendarConfigChange(
     dayIndex: number,
     periodStart: string,
-    newCalendarConfig: {
-      entity_id: string;
-      event_means: "absent" | "present";
-    },
+    newCalendarConfig: CalendarConfig,
   ) {
     const scheduleType = this.config?.schedule_type ?? "single";
     const isEvenOdd = scheduleType === "even_odd";
@@ -850,120 +922,11 @@ export class PersonCard extends LitElement {
                 <!-- 3. Calendar config block (Calendar mode only) -->
                 ${isCalendar
                   ? html`
-                      <div
-                        class="section-label"
-                        title="Calendar entity for presence"
-                      >
-                        Calendar source
-                      </div>
-                      <div class="select-wrapper">
-                        <select
-                          class="mode-select"
-                          @change=${this._onCalendarEntityChange}
-                        >
-                          ${calendarEntityIds.length === 0
-                            ? html`<option value="" disabled selected>
-                                No calendar entities found in Home Assistant.
-                              </option>`
-                            : html`
-                                <option
-                                  value=""
-                                  disabled
-                                  ?selected=${!this.config?.calendar_config
-                                    ?.entity_id}
-                                >
-                                  — Select a calendar —
-                                </option>
-                                ${calendarEntityIds.map(
-                                  (id) => html`
-                                    <option
-                                      value=${id}
-                                      ?selected=${this.config?.calendar_config
-                                        ?.entity_id === id}
-                                    >
-                                      ${(this.panel.hass?.states[id]?.attributes
-                                        ?.friendly_name as
-                                        | string
-                                        | undefined) ?? id}
-                                    </option>
-                                  `,
-                                )}
-                              `}
-                        </select>
-                      </div>
-                      <div class="section-label">Event means</div>
-                      <div class="select-wrapper">
-                        <select
-                          class="mode-select"
-                          @change=${this._onEventMeansChange}
-                        >
-                          <option
-                            value="absent"
-                            ?selected=${(this.config?.calendar_config
-                              ?.event_means ?? "absent") === "absent"}
-                          >
-                            Absent during events
-                          </option>
-                          <option
-                            value="present"
-                            ?selected=${this.config?.calendar_config
-                              ?.event_means === "present"}
-                          >
-                            Present during events
-                          </option>
-                        </select>
-                      </div>
-                      <div class="section-label">Gap handling</div>
-                      <div class="select-wrapper">
-                        <select
-                          class="mode-select"
-                          @change=${this._onGapHandlingChange}
-                        >
-                          <option
-                            value="exact"
-                            ?selected=${(this.config?.calendar_config
-                              ?.gap_handling ?? "exact") === "exact"}
-                          >
-                            Return home between events
-                          </option>
-                          <option
-                            value="day_span"
-                            ?selected=${this.config?.calendar_config
-                              ?.gap_handling === "day_span"}
-                          >
-                            Absent all day (first to last event)
-                          </option>
-                          <option
-                            value="threshold"
-                            ?selected=${this.config?.calendar_config
-                              ?.gap_handling === "threshold"}
-                          >
-                            Return home in long gaps only
-                          </option>
-                        </select>
-                      </div>
-                      ${this.config?.calendar_config?.gap_handling ===
-                      "threshold"
-                        ? html`
-                            <div class="section-label">
-                              Minimum gap to return home
-                            </div>
-                            <div class="preheat-row">
-                              <input
-                                type="number"
-                                min="0"
-                                max="480"
-                                step="5"
-                                .value=${String(
-                                  this.config?.calendar_config
-                                    ?.gap_threshold_minutes ?? 30,
-                                )}
-                                @change=${this._onGapThresholdChange}
-                              />
-                              <span>min</span>
-                            </div>
-                          `
-                        : ""}
+                      ${this._renderCalendarConfigBlock(
+                        this.config?.calendar_config,
+                        calendarEntityIds,
+                        (newCfg) => void this._saveCalendarConfig(newCfg),
+                      )}
                       <div class="section-label">Wake-up advance</div>
                       <div class="preheat-row">
                         <input
@@ -1090,99 +1053,27 @@ export class PersonCard extends LitElement {
                               "calendar_config" in period
                                 ? period.calendar_config
                                 : undefined;
-                            const currentEntityId = cfg?.entity_id ?? "";
-                            const currentMeans = cfg?.event_means ?? "absent";
-                            const friendlyName = currentEntityId
-                              ? (this.panel.hass?.states[currentEntityId]
+                            const friendlyName = cfg?.entity_id
+                              ? (this.panel.hass?.states[cfg.entity_id]
                                   ?.attributes?.friendly_name as
                                   | string
-                                  | undefined) ?? currentEntityId
+                                  | undefined) ?? cfg.entity_id
                               : "";
                             return html`
                               <div class="section-label">
                                 Calendar: ${friendlyName || "—"}
                                 (${DAY_NAMES[dayIndex]} ${period.start})
                               </div>
-                              <div class="select-wrapper">
-                                <select
-                                  class="mode-select"
-                                  @change=${(e: Event) => {
-                                    const newId = (
-                                      e.target as HTMLSelectElement
-                                    ).value;
-                                    void this._onPeriodCalendarConfigChange(
-                                      dayIndex,
-                                      period.start,
-                                      {
-                                        entity_id: newId,
-                                        event_means: currentMeans,
-                                      },
-                                    );
-                                  }}
-                                >
-                                  <option
-                                    value=""
-                                    disabled
-                                    ?selected=${!currentEntityId}
-                                  >
-                                    — Select a calendar —
-                                  </option>
-                                  ${calendarEntityIds.map(
-                                    (id) => html`
-                                      <option
-                                        value=${id}
-                                        ?selected=${currentEntityId === id}
-                                      >
-                                        ${(this.panel.hass?.states[id]
-                                          ?.attributes?.friendly_name as
-                                          | string
-                                          | undefined) ?? id}
-                                      </option>
-                                    `,
-                                  )}
-                                </select>
-                              </div>
-                              <div class="select-wrapper">
-                                <select
-                                  class="mode-select"
-                                  @change=${(e: Event) => {
-                                    const newMeans = (
-                                      e.target as HTMLSelectElement
-                                    ).value as "absent" | "present";
-                                    // Guard: no entity selected → save would
-                                    // be silently discarded by T-11-06 (CR-02)
-                                    if (!currentEntityId) {
-                                      this.panel.showToast(
-                                        "Select a calendar entity first" +
-                                          " before changing event meaning.",
-                                        true,
-                                      );
-                                      return;
-                                    }
-                                    void this._onPeriodCalendarConfigChange(
-                                      dayIndex,
-                                      period.start,
-                                      {
-                                        entity_id: currentEntityId,
-                                        event_means: newMeans,
-                                      },
-                                    );
-                                  }}
-                                >
-                                  <option
-                                    value="absent"
-                                    ?selected=${currentMeans === "absent"}
-                                  >
-                                    Absent during events
-                                  </option>
-                                  <option
-                                    value="present"
-                                    ?selected=${currentMeans === "present"}
-                                  >
-                                    Present during events
-                                  </option>
-                                </select>
-                              </div>
+                              ${this._renderCalendarConfigBlock(
+                                cfg,
+                                calendarEntityIds,
+                                (newCfg) =>
+                                  void this._onPeriodCalendarConfigChange(
+                                    dayIndex,
+                                    period.start,
+                                    newCfg,
+                                  ),
+                              )}
                             `;
                           })}
                         `;
