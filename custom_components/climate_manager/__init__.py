@@ -42,6 +42,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er, device_registry as dr
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.storage import Store
 
 from .coordinator import ClimateManagerCoordinator
 from .discovery import discover_persons, discover_room_sensors, discover_rooms
@@ -93,6 +94,12 @@ class ClimateManagerData:
     cancel_registry_listeners: "list[Callable[[], None]]" = field(
         default_factory=list
     )
+    # Phase 12 pre-heat store + in-memory samples (D-06).
+    # preheat_store: the Store instance for persisting inertia samples.
+    # preheat_samples: per-room sample lists {area_id: [{duration_minutes,
+    #   timestamp}, ...]} loaded at setup and written only on sample change.
+    preheat_store: "Store | None" = field(default=None)
+    preheat_samples: dict = field(default_factory=dict)
 
 
 # Modern typed ConfigEntry alias (Pattern 2 — entry.runtime_data pattern).
@@ -137,6 +144,14 @@ async def async_setup_entry(
         persons=persons,
         room_auto_sensors=room_auto_sensors,
     )
+
+    # Phase 12: wire preheat Store and load sample data (D-06).
+    # key="climate_manager_preheat" — separate from main Store to keep
+    # sample data isolated from room/person config (RESEARCH Open Q2).
+    preheat_store = Store(hass, version=1, key="climate_manager_preheat")
+    preheat_samples: dict = await preheat_store.async_load() or {}
+    entry.runtime_data.preheat_store = preheat_store
+    entry.runtime_data.preheat_samples = preheat_samples
 
     # Phase 2: wire coordinator and scheduler
     coordinator = ClimateManagerCoordinator(hass, entry.runtime_data)

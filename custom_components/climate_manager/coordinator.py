@@ -50,11 +50,16 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    DEFAULT_PREHEAT_LEAD_MINUTES,
+    DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
     DOMAIN,
     MODE_OFF,
     MODE_TIME_PROGRAM,
     MODE_TIME_PROGRAM_PRESENCES,
     PERIOD_FROST_PROTECTION,
+    PREHEAT_CONVERGENCE_THRESHOLD,
+    PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD,
+    PREHEAT_MAX_SAMPLES,
     PRESENCE_CALENDAR,
     PRESENCE_HA,
     ROOM_MODE_FROST,
@@ -63,6 +68,7 @@ from .const import (
 from .schedule import (
     compute_occupied_temp,
     evaluate_schedule,
+    next_occupied_at,
     resolve_calendar_presence,
     resolve_presence,
 )
@@ -135,6 +141,19 @@ class ClimateManagerCoordinator:
         # already been issued. Entry is added on first failure and removed
         # on the next successful fetch so the warning re-fires after recovery.
         self._calendar_warn_issued: set[str] = set()
+        # Phase 12 pre-heat state (D-09, D-10).
+        # _preheat_in_progress: active pre-heat entries per room.
+        #   {area_id: {start_time: datetime, target_temp: float}}
+        # _preheat_active: True while a pre-heat is in progress.
+        # _preheat_target: temperature the room is pre-heating toward.
+        # _preheat_suppressed: True when all persons are ha-mode (no schedule).
+        # _frost_locked_rooms: snapshot from last _compute_desired_temps call
+        #   (stored so _async_preheat_room can guard against it — T-12-03).
+        self._preheat_in_progress: dict[str, dict] = {}
+        self._preheat_active: dict[str, bool] = {}
+        self._preheat_target: dict[str, float | None] = {}
+        self._preheat_suppressed: dict[str, bool] = {}
+        self._frost_locked_rooms: set[str] = set()
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
@@ -170,6 +189,8 @@ class ClimateManagerCoordinator:
         desired_temps, room_periods, frost_locked_rooms, mode_off_rooms = (
             self._compute_desired_temps(config, rooms, period_temperatures, now)
         )
+        # T-12-03: snapshot frost_locked_rooms for the pre-heat pass guard.
+        self._frost_locked_rooms = frost_locked_rooms
 
         self._apply_presence_overrides(
             config,
@@ -193,13 +214,20 @@ class ClimateManagerCoordinator:
 
         await self._push_temperatures(rooms, desired_temps, mode_off_rooms)
 
+        # Calibration pass — D-01: runs after push pass.
+        await self._async_calibrate(config)
+
+        # Pre-heat pass (PREHEAT-02/03/04) — runs after calibrate so frost
+        # lock state is stable; status fire AFTER so preheat_active is current.
+        await self._async_preheat(config)
+
+        # RESEARCH Open Question 1: fire status AFTER preheat pass so the
+        # panel receives up-to-date preheat_active / preheat_suppressed in
+        # the same cycle that triggered the preheat (avoids one-cycle lag).
         self._hass.bus.async_fire(
             f"{DOMAIN}_status_update",
             self._build_status_payload(),
         )
-
-        # Calibration pass — D-01: runs after push pass and status fire.
-        await self._async_calibrate(config)
 
     async def _prefetch_calendars(self, config: dict, now: datetime) -> None:
         """Fetch get_events for all unique calendar entity IDs in config.
@@ -411,7 +439,16 @@ class ClimateManagerCoordinator:
                 cal_cfg = person_config.get("calendar_config") or {}
                 eid = cal_cfg.get("entity_id", "")
                 events = self._calendar_cache.get(eid, [])
-                preheat = person_config.get("preheat_lead_minutes", 60)
+                # D-02: read wakeup_advance_minutes (renamed from
+                # preheat_lead_minutes); fallback chain supports both old
+                # and new key names during migration window.
+                preheat = person_config.get(
+                    "wakeup_advance_minutes",
+                    person_config.get(
+                        "preheat_lead_minutes",
+                        DEFAULT_PREHEAT_LEAD_MINUTES,
+                    ),
+                )
                 is_present = resolve_calendar_presence(
                     events,
                     cal_cfg.get("event_means", "absent"),
@@ -497,6 +534,220 @@ class ClimateManagerCoordinator:
                 and is_trv_entity(self._hass, entity_id)
             )
         )
+
+    async def _async_preheat(self, config: dict) -> None:
+        """Pre-heat pass — trigger early heating for enabled rooms (PREHEAT-02/03).
+
+        Mirrors _async_calibrate: concurrent gather over all rooms, each room
+        handled by _async_preheat_room. Each room persists its own sample on
+        convergence (T-12-05 — bounded write rate; save only when a sample
+        is added).
+        """
+        rooms = self._data.rooms
+        now = dt_util.now()
+        tasks = [
+            self._async_preheat_room(area_id, config, now) for area_id in rooms
+        ]
+        await asyncio.gather(*tasks)
+
+    async def _async_preheat_room(
+        self,
+        area_id: str,
+        config: dict,
+        now: datetime,
+    ) -> None:
+        """Pre-heat logic for a single room (D-04, D-07, D-08, D-09).
+
+        Guard order (D-09):
+        1. If not preheat_enabled → clear state and return.
+        2. CONVERGENCE check: in-progress entry exists and TRV
+           current_temperature has reached target → record sample.
+        3. DISCARD check: in-progress entry exists and now >= next_occupied
+           (or no next_occupied) → discard without recording.
+        4. TRIGGER: compute next_occupied_at (earliest non-None across
+           assigned persons), determine learned lead, fire set_temperature
+           if inside the lead window and room is not already warm
+           (T-12-03: skip if frost-locked).
+
+        Security T-12-03: _frost_locked_rooms checked before any
+        set_temperature call.
+        """
+        room_config = (config.get("rooms") or {}).get(area_id, {})
+        preheat_enabled = room_config.get("preheat_enabled", False)
+
+        if not preheat_enabled:
+            self._preheat_active[area_id] = False
+            self._preheat_suppressed[area_id] = False
+            self._preheat_in_progress.pop(area_id, None)
+            return
+
+        preheat_max_lead = room_config.get(
+            "preheat_max_lead_minutes", DEFAULT_PREHEAT_MAX_LEAD_MINUTES
+        )
+
+        # Read current_temperature from the first TRV in the room.
+        # Pitfall 5: use attributes["current_temperature"] (measured temp),
+        # NOT attributes["temperature"] (setpoint).
+        entity_ids = self._data.rooms.get(area_id, [])
+        trv_entity_id: str | None = next(
+            (eid for eid in entity_ids if is_trv_entity(self._hass, eid)),
+            None,
+        )
+        current_temp: float | None = None
+        if trv_entity_id:
+            state = self._hass.states.get(trv_entity_id)
+            if state is not None and state.state not in (
+                "unavailable",
+                "unknown",
+            ):
+                raw = state.attributes.get("current_temperature")
+                if raw is not None:
+                    try:
+                        current_temp = float(raw)
+                    except (ValueError, TypeError):
+                        pass
+
+        # ----------------------------------------------------------------
+        # Step 1: CONVERGENCE check (D-09)
+        # ----------------------------------------------------------------
+        in_progress = self._preheat_in_progress.get(area_id)
+        if in_progress is not None and current_temp is not None:
+            target_temp: float = in_progress["target_temp"]
+            if current_temp >= target_temp - PREHEAT_CONVERGENCE_THRESHOLD:
+                # Target reached — record valid sample (D-07)
+                start_time: datetime = in_progress["start_time"]
+                duration_min = int((now - start_time).total_seconds() / 60)
+                samples = self._data.preheat_samples.setdefault(area_id, [])
+                samples.append(
+                    {
+                        "duration_minutes": duration_min,
+                        "timestamp": now.isoformat(),
+                    }
+                )
+                # Keep only last PREHEAT_MAX_SAMPLES (D-06)
+                if len(samples) > PREHEAT_MAX_SAMPLES:
+                    self._data.preheat_samples[area_id] = samples[
+                        -PREHEAT_MAX_SAMPLES:
+                    ]
+                del self._preheat_in_progress[area_id]
+                self._preheat_active[area_id] = False
+                # Persist on sample change (T-12-05 — bounded write rate).
+                if self._data.preheat_store is not None:
+                    await self._data.preheat_store.async_save(
+                        self._data.preheat_samples
+                    )
+                # Return; trigger logic not needed this cycle.
+                return
+
+        # ----------------------------------------------------------------
+        # Step 2: compute next_occupied_at (earliest non-None across
+        #         assigned persons — D-04)
+        # ----------------------------------------------------------------
+        persons_config: dict = config.get("persons", {})
+        next_occupied: datetime | None = None
+        assigned_persons = [
+            (pid, pc)
+            for pid, pc in persons_config.items()
+            if area_id in pc.get("room_ids", [])
+        ]
+
+        for _pid, person_config in assigned_persons:
+            candidate = next_occupied_at(
+                person_config,
+                now,
+                self._calendar_cache,
+                dt_util.start_of_local_day,
+            )
+            if candidate is not None:
+                if next_occupied is None or candidate < next_occupied:
+                    next_occupied = candidate
+
+        # ----------------------------------------------------------------
+        # Step 3: DISCARD check (D-07 / D-09)
+        # ----------------------------------------------------------------
+        in_progress = self._preheat_in_progress.get(area_id)
+        if in_progress is not None:
+            if next_occupied is None or now >= next_occupied:
+                # Period started before convergence → discard (D-07)
+                del self._preheat_in_progress[area_id]
+                self._preheat_active[area_id] = False
+                # Fall through to suppressed/inactive reporting below
+
+        # ----------------------------------------------------------------
+        # Step 4: TRIGGER (D-08, T-12-03)
+        # ----------------------------------------------------------------
+        # Suppressed: preheat enabled but ALL persons are ha/force mode
+        # (no next_occupied determinable from any of them).
+        preheat_suppressed = bool(assigned_persons) and all(
+            next_occupied_at(
+                pc, now, self._calendar_cache, dt_util.start_of_local_day
+            )
+            is None
+            for _pid, pc in assigned_persons
+        )
+        self._preheat_suppressed[area_id] = preheat_suppressed
+
+        if next_occupied is None or area_id in self._frost_locked_rooms:
+            self._preheat_active[area_id] = False
+            return
+
+        # D-08: compute learned lead
+        samples = self._data.preheat_samples.get(area_id, [])
+        if len(samples) >= PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD:
+            import statistics  # noqa: PLC0415
+
+            avg = statistics.mean(s["duration_minutes"] for s in samples)
+            learned_lead = min(avg, preheat_max_lead)
+        else:
+            learned_lead = DEFAULT_PREHEAT_LEAD_MINUTES
+
+        trigger_start = next_occupied - timedelta(minutes=learned_lead)
+
+        if not (trigger_start <= now < next_occupied):
+            # Outside lead window
+            self._preheat_active[area_id] = False
+            return
+
+        # Determine the upcoming setpoint (the period's temperature at
+        # next_occupied, which is the Normal/Comfort/etc. setpoint).
+        # Use evaluate_schedule on the zone's time_program at next_occupied.
+        _zone_mode, zone_time_program = self._resolve_zone_config(
+            area_id, config
+        )
+        period_temperatures: dict[str, float] = config.get(
+            "period_temperatures", {}
+        )
+        upcoming_period = evaluate_schedule(zone_time_program, next_occupied)
+        upcoming_setpoint = period_temperatures.get(upcoming_period)
+        if upcoming_setpoint is None:
+            self._preheat_active[area_id] = False
+            return
+
+        # Guard: if room already warm, no need to pre-heat
+        if (
+            current_temp is not None
+            and current_temp
+            >= upcoming_setpoint - PREHEAT_CONVERGENCE_THRESHOLD
+        ):
+            self._preheat_active[area_id] = False
+            return
+
+        # Fire set_temperature for all TRVs in the room
+        if area_id not in self._preheat_in_progress:
+            for entity_id in entity_ids:
+                if is_trv_entity(self._hass, entity_id):
+                    await self._push_safely(
+                        entity_id,
+                        upcoming_setpoint,
+                        "PREHEAT",
+                    )
+            self._preheat_in_progress[area_id] = {
+                "start_time": now,
+                "target_temp": upcoming_setpoint,
+            }
+
+        self._preheat_active[area_id] = True
+        self._preheat_target[area_id] = upcoming_setpoint
 
     async def _async_calibrate(self, config: dict) -> None:
         """Offset-calibrate all compatible TRVs toward their room sensors.
@@ -750,7 +1001,16 @@ class ClimateManagerCoordinator:
                 cal_cfg = person_config.get("calendar_config") or {}
                 eid = cal_cfg.get("entity_id", "")
                 events = self._calendar_cache.get(eid, [])
-                preheat = person_config.get("preheat_lead_minutes", 60)
+                # D-02: read wakeup_advance_minutes (renamed from
+                # preheat_lead_minutes); fallback chain supports both old
+                # and new key names during migration window.
+                preheat = person_config.get(
+                    "wakeup_advance_minutes",
+                    person_config.get(
+                        "preheat_lead_minutes",
+                        DEFAULT_PREHEAT_LEAD_MINUTES,
+                    ),
+                )
                 if resolve_calendar_presence(
                     events,
                     cal_cfg.get("event_means", "absent"),
@@ -902,6 +1162,17 @@ class ClimateManagerCoordinator:
                 for person_id, person_config in persons_config.items()
                 if area_id in person_config.get("room_ids", [])
                 and person_id in present_set
+            )
+
+            # D-10 / PREHEAT-04: per-room pre-heat status fields.
+            room_entry["preheat_active"] = self._preheat_active.get(
+                area_id, False
+            )
+            room_entry["preheat_target"] = self._preheat_target.get(
+                area_id, None
+            )
+            room_entry["preheat_suppressed"] = self._preheat_suppressed.get(
+                area_id, False
             )
 
             auto = self._data.room_auto_sensors.get(area_id, {})
