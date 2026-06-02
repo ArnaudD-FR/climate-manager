@@ -5,7 +5,7 @@ area: docs
 files:
   - docs/screenshot.js
   - docs/test-harness.html
-  - docs/screenshots/
+  - docs/use-cases/
 ---
 
 ## Problem
@@ -17,12 +17,35 @@ screenshot set doesn't cover these scenarios.
 
 ## Solution
 
-Write a use-case guide (README or docs page) and extend `screenshot.js`
-to capture each scenario. Screenshots must be committed alongside the
-docs. Every use case needs:
-- A short description of the persona
+Each use case lives in its own folder under `docs/use-cases/`:
+
+```
+docs/use-cases/
+  01-simple-schedule/
+    README.md
+    screenshots/
+  02-business-calendar/
+    README.md
+    screenshots/
+  03-student-mixed-schedule/
+    README.md
+    screenshots/
+  04-rotating-shift-worker/
+    README.md
+    screenshots/
+  05-shared-custody-odd-even-weeks/
+    README.md
+    screenshots/
+```
+
+Each `README.md` contains:
+- Persona description
 - Panel configuration steps
-- A screenshot of the resulting persons config
+- References to the screenshots in its own `screenshots/` subfolder
+
+Extend `screenshot.js` to capture each scenario into the matching
+`screenshots/` subfolder. `make screenshots` must produce all of them
+cleanly before the docs are merged.
 
 ---
 
@@ -78,8 +101,28 @@ HA calendar that changes every cycle.
 
 ---
 
+### Use case 5 — Shared custody (odd/even weeks)
+
+**Persona:** Child alternating between two households on a weekly basis.
+Custody switches every Friday evening — odd weeks with one parent, even
+weeks with the other.
+
+- Odd ISO weeks: child is present (home parent)
+- Even ISO weeks: child is absent (other parent's home)
+- Switch happens Friday evening (configurable handover time)
+- Pairs naturally with the even/odd week scheduling feature
+- Screenshot: persons panel showing odd/even week toggle + Friday
+  handover time configured
+
+Note: document alongside the even/odd week presence scheduling todo
+(`2026-05-27-even-odd-week-presence-scheduling.md`) — the two features
+are designed for exactly this scenario.
+
+---
+
 ### Screenshot requirement
 
-Each use case must have a corresponding screenshot captured by
-`docs/screenshot.js` and committed. `make screenshots` must pass
-cleanly before the docs are merged.
+Each use case folder has its own `screenshots/` subfolder. Screenshots
+are captured by `docs/screenshot.js` into the matching subfolder and
+committed alongside the `README.md`. `make screenshots` must produce
+all of them cleanly before the docs are merged.
