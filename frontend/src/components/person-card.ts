@@ -834,6 +834,7 @@ export class PersonCard extends LitElement {
                             : html`
                                 <option
                                   value=""
+                                  disabled
                                   ?selected=${!this.config?.calendar_config
                                     ?.entity_id}
                                 >
@@ -1032,6 +1033,7 @@ export class PersonCard extends LitElement {
                                 >
                                   <option
                                     value=""
+                                    disabled
                                     ?selected=${!currentEntityId}
                                   >
                                     — Select a calendar —
