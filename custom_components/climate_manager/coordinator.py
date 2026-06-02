@@ -63,6 +63,7 @@ from .const import (
 from .schedule import (
     compute_occupied_temp,
     evaluate_schedule,
+    resolve_calendar_presence,
     resolve_presence,
 )
 from .trv import (
@@ -386,7 +387,31 @@ class ClimateManagerCoordinator:
             if not room_ids:
                 continue
 
-            is_present = resolve_presence(person_config, now)
+            # Landmine 5: _apply_presence_overrides also drives room temps —
+            # must resolve presence the same way as _compute_present_persons
+            # so calendar-mode persons and calendar period states are consistent.
+            if person_config.get("mode") == PRESENCE_HA:
+                state_obj = self._hass.states.get(_person_id)
+                is_present = state_obj is not None and state_obj.state == "home"
+            elif person_config.get("mode") == PRESENCE_CALENDAR:
+                cal_cfg = person_config.get("calendar_config") or {}
+                eid = cal_cfg.get("entity_id", "")
+                events = self._calendar_cache.get(eid, [])
+                preheat = person_config.get("preheat_lead_minutes", 60)
+                is_present = resolve_calendar_presence(
+                    events,
+                    cal_cfg.get("event_means", "absent"),
+                    now,
+                    preheat_lead_minutes=preheat,
+                    start_of_local_day=dt_util.start_of_local_day,
+                )
+            else:
+                is_present = resolve_presence(
+                    person_config,
+                    now,
+                    calendar_cache=self._calendar_cache,
+                    start_of_local_day=dt_util.start_of_local_day,
+                )
 
             for area_id in room_ids:
                 if area_id not in rooms:
@@ -702,9 +727,30 @@ class ClimateManagerCoordinator:
                 state_obj = self._hass.states.get(person_id)
                 if state_obj is not None and state_obj.state == "home":
                     present.append(person_id)
+            elif person_config.get("mode") == PRESENCE_CALENDAR:
+                # CAL-01: calendar-mode — resolve from prefetched cache (D-05)
+                cal_cfg = person_config.get("calendar_config") or {}
+                eid = cal_cfg.get("entity_id", "")
+                events = self._calendar_cache.get(eid, [])
+                preheat = person_config.get("preheat_lead_minutes", 60)
+                if resolve_calendar_presence(
+                    events,
+                    cal_cfg.get("event_means", "absent"),
+                    now,
+                    preheat_lead_minutes=preheat,
+                    start_of_local_day=dt_util.start_of_local_day,
+                ):
+                    present.append(person_id)
             else:
-                # scheduled, force_present, force_absent, or unknown → delegate to resolve_presence
-                if resolve_presence(person_config, now):
+                # scheduled, force_present, force_absent, or unknown →
+                # delegate to resolve_presence; pass calendar_cache so period
+                # state "calendar" periods resolve correctly (D-05, Landmine 5)
+                if resolve_presence(
+                    person_config,
+                    now,
+                    calendar_cache=self._calendar_cache,
+                    start_of_local_day=dt_util.start_of_local_day,
+                ):
                     present.append(person_id)
         return present
 

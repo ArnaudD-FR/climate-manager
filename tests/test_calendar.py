@@ -526,8 +526,11 @@ async def test_calendar_fallback_on_error(hass, caplog):
 async def test_calendar_mode_person_present_in_evaluate(hass):
     """Calendar-mode person: event active → absent; no event → present.
 
-    With event covering now (event_means=absent) → NOT in _last_present_persons.
-    With no events → IS in _last_present_persons.
+    Two async_evaluate calls on the same coordinator with different mock
+    responses confirm cache-driven presence resolution each cycle.
+
+    Cycle 1: event active (event_means=absent) → person NOT in present list.
+    Cycle 2: no events (event_means=absent) → person IS in present list.
     """
     cal_id = "calendar.person_cal"
     active_event = {
@@ -536,8 +539,8 @@ async def test_calendar_mode_person_present_in_evaluate(hass):
         "summary": "Away",
     }
 
-    # First test: event active → person absent
-    calendar_calls_active = async_mock_service(
+    # Cycle 1: mocked response has one active event → person absent
+    calendar_calls = async_mock_service(
         hass,
         "calendar",
         "get_events",
@@ -559,20 +562,20 @@ async def test_calendar_mode_person_present_in_evaluate(hass):
         persons_config
     )
 
+    # Cycle 1: active event → person is absent
     await entry.runtime_data.coordinator.async_evaluate()
     await hass.async_block_till_done()
 
-    # Active absent-event → person NOT in present list
     assert (
         "person.alice"
         not in entry.runtime_data.coordinator._last_present_persons
-    )
-    _ = calendar_calls_active  # consumed
+    ), "Active absent-event → person must NOT be in present list"
 
-    # Unload and re-setup with no events → person present
-    await hass.config_entries.async_unload(entry.entry_id)
-    await hass.async_block_till_done()
-
+    # Cycle 2: swap the mock to return no events → person becomes present
+    # Re-register the service with an empty event list. async_mock_service
+    # replaces the existing handler for the same domain/service.
+    calendar_calls.clear()
+    hass.services._services.pop("calendar", None)  # noqa: SLF001
     async_mock_service(
         hass,
         "calendar",
@@ -580,25 +583,14 @@ async def test_calendar_mode_person_present_in_evaluate(hass):
         response={cal_id: {"events": []}},
         supports_response=SupportsResponse.ONLY,
     )
-    async_mock_service(hass, "climate", "set_hvac_mode")
-    async_mock_service(hass, "climate", "set_temperature")
 
-    entry2 = MockConfigEntry(domain=DOMAIN, data={})
-    entry2.add_to_hass(hass)
-    await hass.config_entries.async_setup(entry2.entry_id)
-    await hass.async_block_till_done()
-
-    entry2.runtime_data.runtime_config = _make_calendar_runtime_config(
-        persons_config
-    )
-
-    await entry2.runtime_data.coordinator.async_evaluate()
+    await entry.runtime_data.coordinator.async_evaluate()
     await hass.async_block_till_done()
 
     # No events → event_means=absent → not absent → person IS present
     assert (
-        "person.alice" in entry2.runtime_data.coordinator._last_present_persons
-    )
+        "person.alice" in entry.runtime_data.coordinator._last_present_persons
+    ), "No events + event_means=absent → person must be present"
 
 
 @pytest.mark.freeze_time("2026-06-01 12:00:00 UTC")
