@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
-status: planning
-last_updated: "2026-06-01T21:44:18.073Z"
-last_activity: 2026-06-01 -- Phase 10 UAT complete (9/9 passed)
+status: executing
+last_updated: "2026-06-02T06:15:53.790Z"
+last_activity: 2026-06-02 -- Phase 11 planning complete
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
+  total_plans: 7
   completed_plans: 2
   percent: 25
 ---
@@ -28,8 +28,8 @@ presence schedules + TRV offset auto-calibration.
 
 Phase: Phase 10 complete — Phase 11 not started
 Plan: —
-Status: Ready to plan Phase 11
-Last activity: 2026-06-01 -- Phase 10 UAT complete (9/9 passed)
+Status: Ready to execute
+Last activity: 2026-06-02 -- Phase 11 planning complete
 
 ## Performance Metrics
 
@@ -132,8 +132,8 @@ mapped (SCHED-01..06, CALIB-01..05)
 
 ## Session Continuity
 
-Last session: 2026-06-01T21:44:18.065Z
-Resume file: .planning/phases/11-calendar-presence-backend/11-CONTEXT.md
+Last session: 2026-06-01T21:49:45.929Z
+Resume file: .planning/phases/11-calendar-presence-backend/11-UI-SPEC.md
 
 ## Operator Next Steps
 
