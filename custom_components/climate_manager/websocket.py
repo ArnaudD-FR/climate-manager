@@ -508,7 +508,16 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
                 if isinstance(cal_cfg, dict)
                 else ""
             )
+            event_means = (
+                cal_cfg.get("event_means", "absent")
+                if isinstance(cal_cfg, dict)
+                else "absent"
+            )
             if not (isinstance(eid, str) and eid.startswith("calendar.")):
+                incoming.pop("calendar_config")
+            elif event_means not in ("absent", "present"):
+                # T-11-06 (WR-03): reject invalid event_means values to
+                # prevent silent inversion of presence logic in schedule.py.
                 incoming.pop("calendar_config")
         # T-11-07: clamp preheat_lead_minutes to 0-480 (drops if invalid).
         if "preheat_lead_minutes" in incoming:
