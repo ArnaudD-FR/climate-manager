@@ -57,7 +57,7 @@ hidden.
 
 - [ ] **Phase 10: Presence Mode UI** — Rename "HA" mode to "Live tracking"
       and hide it when no device trackers are linked to the person entity
-- [ ] **Phase 11: Calendar Presence Backend** — Calendar mode backed by
+- [x] **Phase 11: Calendar Presence Backend** — Calendar mode backed by (completed 2026-06-02)
       `calendar.*` HA entities; per-cycle cache, pre-heat lead time
 - [ ] **Phase 12: Predictive Pre-heat** — Inertia-learning pre-heat engine,
       per-room toggle, panel status display
@@ -176,6 +176,6 @@ sub-minute responsiveness without waiting for the polling interval.
 | 8. Even/Odd Week Scheduling — Frontend     | v1.2      | 3/3            | Complete | 2026-05-30 |
 | 9. TRV Temperature Offset Auto-Calibration | v1.2      | 4/4            | Complete | 2026-05-30 |
 | 10. Presence Mode UI                        | v1.3      | 2/2            | Complete | 2026-06-01 |
-| 11. Calendar Presence Backend               | v1.3      | 3/5 | In Progress|  |
+| 11. Calendar Presence Backend               | v1.3      | 5/5 | Complete   | 2026-06-02 |
 | 12. Predictive Pre-heat                     | v1.3      | 0/?            | Pending  | —          |
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 0/?            | Pending  | —          |
