@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
 status: executing
-last_updated: "2026-06-02T18:17:00.625Z"
-last_activity: 2026-06-02 -- Phase 12 planning complete
+last_updated: "2026-06-02T18:18:40.643Z"
+last_activity: 2026-06-02 -- Phase 12 execution started
 progress:
   total_phases: 4
   completed_phases: 2
@@ -21,15 +21,15 @@ See: .planning/PROJECT.md (updated 2026-05-29)
 
 **Core value:** A household's rooms are always at the right temperature at the
 right time, without manual intervention — driven by schedules and who is
-actually home. **Current focus:** Phase 11 — calendar-presence-backend
+actually home. **Current focus:** Phase 12 — predictive-pre-heat
 presence schedules + TRV offset auto-calibration.
 
 ## Current Position
 
-Phase: 11 (calendar-presence-backend) — EXECUTING
-Plan: 1 of 5
-Status: Ready to execute
-Last activity: 2026-06-02 -- Phase 12 planning complete
+Phase: 12 (predictive-pre-heat) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 12
+Last activity: 2026-06-02 -- Phase 12 execution started
 
 ## Performance Metrics
 
