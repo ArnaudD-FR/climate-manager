@@ -368,7 +368,7 @@ def _calendar_person_config(
             "entity_id": entity_id,
             "event_means": event_means,
         },
-        "preheat_lead_minutes": DEFAULT_PREHEAT_LEAD_MINUTES,
+        "wakeup_advance_minutes": DEFAULT_PREHEAT_LEAD_MINUTES,
     }
 
 
@@ -653,7 +653,7 @@ async def test_calendar_period_overrides_rooms(hass):
             "mode": "scheduled",
             "room_ids": ["bedroom"],
             "schedule": calendar_period_schedule,
-            "preheat_lead_minutes": DEFAULT_PREHEAT_LEAD_MINUTES,
+            "wakeup_advance_minutes": DEFAULT_PREHEAT_LEAD_MINUTES,
         }
     }
     runtime_config = _make_calendar_runtime_config(persons_config)

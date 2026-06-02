@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import statistics
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
@@ -614,9 +615,14 @@ class ClimateManagerCoordinator:
         if in_progress is not None and current_temp is not None:
             target_temp: float = in_progress["target_temp"]
             if current_temp >= target_temp - PREHEAT_CONVERGENCE_THRESHOLD:
-                # Target reached — record valid sample (D-07)
+                # Target reached — record valid sample (D-07).
+                # WR-03: skip zero-duration samples (same-tick convergence)
+                # to avoid biasing the learned-lead average toward zero.
                 start_time: datetime = in_progress["start_time"]
                 duration_min = int((now - start_time).total_seconds() / 60)
+                if duration_min < 1:
+                    del self._preheat_in_progress[area_id]
+                    return
                 samples = self._data.preheat_samples.setdefault(area_id, [])
                 samples.append(
                     {
@@ -694,8 +700,6 @@ class ClimateManagerCoordinator:
         # D-08: compute learned lead
         samples = self._data.preheat_samples.get(area_id, [])
         if len(samples) >= PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD:
-            import statistics  # noqa: PLC0415
-
             avg = statistics.mean(s["duration_minutes"] for s in samples)
             learned_lead = min(avg, preheat_max_lead)
         else:
@@ -709,15 +713,22 @@ class ClimateManagerCoordinator:
             return
 
         # Determine the upcoming setpoint (the period's temperature at
-        # next_occupied, which is the Normal/Comfort/etc. setpoint).
-        # Use evaluate_schedule on the zone's time_program at next_occupied.
-        _zone_mode, zone_time_program = self._resolve_zone_config(
-            area_id, config
-        )
+        # next_occupied). CR-02: for room_mode=custom rooms, use the room's
+        # own time_program rather than the zone program so the pre-heat target
+        # matches what _compute_desired_temps will push after the period starts.
+        room_cfg = config.get("rooms", {}).get(area_id, {})
+        if room_cfg.get("room_mode") == ROOM_MODE_CUSTOM:
+            time_program = room_cfg.get("time_program") or config.get(
+                "global_time_program", {}
+            )
+        else:
+            _zone_mode, time_program = self._resolve_zone_config(
+                area_id, config
+            )
         period_temperatures: dict[str, float] = config.get(
             "period_temperatures", {}
         )
-        upcoming_period = evaluate_schedule(zone_time_program, next_occupied)
+        upcoming_period = evaluate_schedule(time_program, next_occupied)
         upcoming_setpoint = period_temperatures.get(upcoming_period)
         if upcoming_setpoint is None:
             self._preheat_active[area_id] = False

@@ -352,7 +352,10 @@ def resolve_presence(
         entity_id = cal_cfg.get("entity_id", "")
         event_means = cal_cfg.get("event_means", "absent")
         events = (calendar_cache or {}).get(entity_id, [])
-        preheat = person_config.get("preheat_lead_minutes", 60)
+        preheat = person_config.get(
+            "wakeup_advance_minutes",
+            person_config.get("preheat_lead_minutes", 60),
+        )
         return resolve_calendar_presence(
             events,
             event_means,

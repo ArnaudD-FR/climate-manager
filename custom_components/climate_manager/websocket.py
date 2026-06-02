@@ -443,7 +443,11 @@ def _make_ws_set_room_config(entry: ClimateManagerConfigEntry):
         # preheat_max_lead_minutes must be an int in [0, 480]; drop otherwise.
         if "preheat_max_lead_minutes" in incoming_config:
             val = incoming_config["preheat_max_lead_minutes"]
-            if not (isinstance(val, int) and 0 <= val <= 480):
+            if not (
+                isinstance(val, int)
+                and not isinstance(val, bool)
+                and 0 <= val <= 480
+            ):
                 incoming_config.pop("preheat_max_lead_minutes")
         # preheat_enabled: coerce truthy value to Python bool.
         if "preheat_enabled" in incoming_config and not isinstance(
@@ -574,7 +578,11 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
         # T-12-07: clamp wakeup_advance_minutes to [0, 480]; drop if invalid.
         if "wakeup_advance_minutes" in incoming:
             val = incoming["wakeup_advance_minutes"]
-            if isinstance(val, int) and 0 <= val <= 480:
+            if (
+                isinstance(val, int)
+                and not isinstance(val, bool)
+                and 0 <= val <= 480
+            ):
                 pass  # valid — keep
             else:
                 incoming.pop("wakeup_advance_minutes")
