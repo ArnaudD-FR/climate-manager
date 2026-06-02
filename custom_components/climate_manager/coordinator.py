@@ -131,6 +131,10 @@ class ClimateManagerCoordinator:
         # dicts. Reset at the start of every async_evaluate cycle. Never
         # persisted — populated fresh from calendar.get_events each cycle.
         self._calendar_cache: dict[str, list] = {}
+        # D-04: tracks entity IDs for which the "unavailable" WARNING has
+        # already been issued. Entry is added on first failure and removed
+        # on the next successful fetch so the warning re-fires after recovery.
+        self._calendar_warn_issued: set[str] = set()
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
@@ -204,9 +208,10 @@ class ClimateManagerCoordinator:
         Called at the top of each async_evaluate cycle after the cache reset.
 
         D-13: one get_events call per unique entity_id per cycle (dedup via
-        set). D-04: HomeAssistantError → single WARNING + empty-list fallback
-        (no log spam on repeated failures). D-05: keeps async HA service call
-        here (coordinator) so schedule.py stays pure Python.
+        set). D-04: HomeAssistantError → WARNING issued once per unavailable
+        entity (suppressed on subsequent failures; re-fires after recovery).
+        Empty-list fallback keeps the person as absent. D-05: keeps async
+        HA service call here (coordinator) so schedule.py stays pure Python.
 
         Security — T-11-03: entity_id must start with 'calendar.' before
         being used as a service target (ASVS V5 input validation).
@@ -256,12 +261,21 @@ class ClimateManagerCoordinator:
                 # Landmine 2: entity service response is keyed by entity_id
                 events = (result or {}).get(eid, {}).get("events", [])
                 self._calendar_cache[eid] = events
+                # D-04: clear warn-issued flag so the warning re-fires if
+                # the entity becomes unavailable again after recovery.
+                self._calendar_warn_issued.discard(eid)
             except HomeAssistantError:
-                # D-04: log once at WARNING, fall back to absent (empty list)
-                _LOGGER.warning(
-                    "Calendar entity %s unavailable — falling back to absent",
-                    eid,
-                )
+                # D-04: log WARNING once per unavailable entity; suppress
+                # repeated failures to avoid log spam (one WARNING per minute
+                # with a 1-minute poll interval). Re-fires after recovery.
+                if eid not in self._calendar_warn_issued:
+                    _LOGGER.warning(
+                        "Calendar entity %s unavailable — falling back to"
+                        " absent (further failures will be suppressed"
+                        " until recovery)",
+                        eid,
+                    )
+                    self._calendar_warn_issued.add(eid)
                 self._calendar_cache[eid] = []
 
         await asyncio.gather(*[_fetch_one(eid) for eid in entity_ids])
