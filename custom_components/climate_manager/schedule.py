@@ -77,6 +77,116 @@ def _parse_time(value: str) -> datetime.time:
     return datetime.time(h, m)
 
 
+def _local_day_fallback(d: datetime.date) -> datetime.datetime:
+    """Fallback for start_of_local_day when no callable is provided.
+
+    Returns a UTC-midnight aware datetime for the given date.
+    This fallback is only used in pure unit tests where dt_util is
+    unavailable. Production callers MUST pass dt_util.start_of_local_day.
+    """
+    return datetime.datetime(
+        d.year, d.month, d.day, tzinfo=datetime.timezone.utc
+    )
+
+
+def _parse_calendar_dt(
+    s: str,
+    start_of_local_day,
+) -> datetime.datetime:
+    """Parse an ISO calendar event start/end string to an aware datetime.
+
+    Handles two formats from HA calendar.get_events:
+    - Timed event: "2026-06-01T08:00:00+02:00" → datetime with offset
+    - All-day event: "2026-06-01" → local-midnight aware datetime via
+      start_of_local_day callable (Landmine 3: never compare naive vs aware)
+
+    Args:
+        s: ISO date or datetime string from the event dict.
+        start_of_local_day: Callable(date) → aware datetime. Production
+            callers pass dt_util.start_of_local_day. Tests may pass
+            the same or the _local_day_fallback.
+    """
+    if "T" in s:
+        return datetime.datetime.fromisoformat(s)
+    d = datetime.date.fromisoformat(s)
+    return start_of_local_day(d)
+
+
+def resolve_calendar_presence(
+    events: list[dict],
+    event_means: str,
+    now: datetime.datetime,
+    preheat_lead_minutes: int = 60,
+    start_of_local_day=None,
+) -> bool:
+    """Return True if the person should be considered present.
+
+    Implements the calendar-driven presence resolution with pre-heat
+    lead time (CAL-01, CAL-04, D-10 fixed offset).
+
+    Algorithm:
+    - Walk all events from the pre-fetched list.
+    - For each event, skip if start or end is missing.
+    - Parse start/end via _parse_calendar_dt (handles DATE and DATETIME).
+    - event_active = event_start <= now < event_end
+    - If event_means == "absent" and event is active:
+        - If event ends within preheat_lead_minutes → True (pre-heat,
+          person returns soon — start heating now, D-10, D-12).
+        - Otherwise → False (person is absent).
+    - If event_means == "present" and event is active:
+        - → True (person is present).
+    - After all events (no active event found):
+        - event_means == "absent" → True (no event = not absent = present)
+        - event_means == "present" → False (no event = not present)
+
+    Args:
+        events: List of event dicts from _calendar_cache[entity_id].
+            Each dict has at least "start" and "end" ISO strings.
+        event_means: "absent" | "present" — what an active event means.
+        now: Current timezone-aware datetime (from dt_util.now()).
+        preheat_lead_minutes: Minutes before absence ends to start
+            pre-heating (D-10). Default 60.
+        start_of_local_day: Callable(date) → aware datetime, used by
+            _parse_calendar_dt for all-day events. Defaults to
+            _local_day_fallback for pure unit tests; production callers
+            MUST pass dt_util.start_of_local_day.
+
+    Returns:
+        True if the person should be considered present, False if absent.
+    """
+    _sol = (
+        start_of_local_day
+        if start_of_local_day is not None
+        else _local_day_fallback
+    )
+    lead = datetime.timedelta(minutes=preheat_lead_minutes)
+
+    for event in events:
+        start_s = event.get("start", "")
+        end_s = event.get("end", "")
+        if not start_s or not end_s:
+            continue  # T-11-01: skip malformed events (missing start/end)
+        event_start = _parse_calendar_dt(start_s, _sol)
+        event_end = _parse_calendar_dt(end_s, _sol)
+
+        event_active = event_start <= now < event_end
+
+        if event_means == "absent":
+            if event_active:
+                # Pre-heat: event ends within lead window → heat now (D-10)
+                if event_end <= now + lead:
+                    return True
+                return False  # still absent, not pre-heating yet
+        else:  # event_means == "present"
+            if event_active:
+                return True
+
+    # No active event found
+    if event_means == "absent":
+        return True  # no event = not absent = present
+    return False  # no event = not present
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -123,6 +233,8 @@ def evaluate_schedule(
 def resolve_presence(
     person_config: dict,
     now: datetime.datetime,
+    calendar_cache: dict | None = None,
+    start_of_local_day=None,
 ) -> bool:
     """Return True if the person is currently present.
 
@@ -133,6 +245,17 @@ def resolve_presence(
 
     Missing 'mode' key defaults to PRESENCE_AUTOMATIC.
     The 'schedule' value is a per-day dict (D-01): {"mon": [...], ..., "sun": [...]}.
+
+    Args:
+        person_config: Person configuration dict.
+        now: Current timezone-aware datetime.
+        calendar_cache: Optional pre-fetched calendar event cache keyed by
+            entity_id (D-13). Required when any period has state="calendar".
+            If None or missing key, falls back to empty events list.
+            Production callers (coordinator.py) populate this before calling.
+        start_of_local_day: Callable(date) → aware datetime for all-day
+            event parsing (Landmine 3). Passed through to
+            resolve_calendar_presence(). Defaults to _local_day_fallback.
     """
     mode = person_config.get("mode", PRESENCE_AUTOMATIC)
 
@@ -167,15 +290,35 @@ def resolve_presence(
 
     # Walk sorted periods to find active presence state
     sorted_periods = sorted(periods, key=lambda p: _parse_time(p["start"]))
+    active_period = None
     active_state = "absent"  # default before first period
     for period in sorted_periods:
         period_start = _parse_time(period["start"])
         if current_time >= period_start:
             active_state = period["state"]
+            active_period = period
         else:
             break
-    # Note: period schedule states are binary literals "present"/"absent" (PERSON-04),
-    # NOT the presence mode constants PRESENCE_PRESENT/PRESENCE_ABSENT (D-21).
+
+    # Handle period state "calendar" (D-06, CAL-03 — per-period calendar_config)
+    # D-07: not recursive — calendar period inside calendar mode is not supported.
+    if active_state == "calendar" and active_period is not None:
+        cal_cfg = active_period.get("calendar_config") or {}
+        entity_id = cal_cfg.get("entity_id", "")
+        event_means = cal_cfg.get("event_means", "absent")
+        events = (calendar_cache or {}).get(entity_id, [])
+        preheat = person_config.get("preheat_lead_minutes", 60)
+        return resolve_calendar_presence(
+            events,
+            event_means,
+            now,
+            preheat_lead_minutes=preheat,
+            start_of_local_day=start_of_local_day,
+        )
+
+    # Note: period schedule states are binary literals "present"/"absent"
+    # (PERSON-04), NOT the presence mode constants PRESENCE_PRESENT/
+    # PRESENCE_ABSENT (D-21).
     return active_state == "present"
 
 
