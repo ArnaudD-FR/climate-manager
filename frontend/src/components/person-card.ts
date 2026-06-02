@@ -625,7 +625,7 @@ export class PersonCard extends LitElement {
     if (!isNaN(val) && val >= 0 && val <= 480) {
       try {
         await this.ws.setPersonConfig(this.personId, {
-          preheat_lead_minutes: val,
+          wakeup_advance_minutes: val,
         });
         await this.panel.reloadConfig();
         this.panel.showToast("Saved", false);
@@ -935,7 +935,7 @@ export class PersonCard extends LitElement {
                           max="480"
                           step="5"
                           .value=${String(
-                            this.config?.preheat_lead_minutes ?? 60,
+                            this.config?.wakeup_advance_minutes ?? 60,
                           )}
                           @change=${this._onPreheatChange}
                         />
