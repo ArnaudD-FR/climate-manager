@@ -47,6 +47,13 @@ export interface PersonConfig {
   schedule_type?: "single" | "even_odd";
   schedule_even?: DailyProgram;
   schedule_odd?: DailyProgram;
+  // Phase 11: calendar presence mode (D-08, D-09)
+  calendar_config?: {
+    entity_id: string;
+    event_means: "absent" | "present";
+  };
+  // Phase 11: pre-heat lead time in minutes (D-10); absent = 60
+  preheat_lead_minutes?: number;
 }
 
 /** Custom zone configuration stored in ClimateConfig.zones. */
@@ -170,6 +177,7 @@ export const PERIOD_COLORS: Record<string, string> = {
 export const PRESENCE_COLORS: Record<string, string> = {
   present: "#2E7D32",
   absent: "#9E9E9E",
+  calendar: "#5C6BC0", // Phase 11 — UI-SPEC calendar color (indigo-400)
 };
 
 /** Short single-character labels for accessibility (F/R/N/C, P/A). */
@@ -180,6 +188,7 @@ export const PERIOD_LABELS: Record<string, string> = {
   comfort: "C",
   present: "P",
   absent: "A",
+  calendar: "C", // Phase 11
 };
 
 /** Full display names shown inside period blocks (ellipsized when narrow). */
@@ -190,6 +199,7 @@ export const PERIOD_DISPLAY_NAMES: Record<string, string> = {
   comfort: "Comfort",
   present: "Present",
   absent: "Absent",
+  calendar: "Calendar", // Phase 11
 };
 
 // ---------------------------------------------------------------------------

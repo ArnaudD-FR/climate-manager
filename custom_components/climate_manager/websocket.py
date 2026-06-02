@@ -464,7 +464,18 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Sparse-merge config into persons[person_id] without wiping other persons.
+        """Sparse-merge config into persons[person_id].
+
+        Accepted keys (all optional, additive sparse-merge per D-09):
+          mode: str
+          room_ids: list[str]
+          schedule / schedule_even / schedule_odd: DailyProgram
+          schedule_type: "single" | "even_odd"
+          calendar_config: {
+            "entity_id": str,       # must start with "calendar." (T-11-06)
+            "event_means": "absent" | "present",
+          }
+          preheat_lead_minutes: int  (0-480, clamped; D-10)
 
         T-03-09: same setdefault + update pattern as set_room_config.
         """
@@ -472,7 +483,7 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
         # even_odd. Guard: only seed when schedule_even is not already in
         # storage — an existing empty {} schedule must not be overwritten
         # (key-absence check, not truthiness — Pitfall 1 in RESEARCH.md).
-        incoming = msg["config"]
+        incoming = dict(msg["config"])
         if incoming.get("schedule_type") == "even_odd":
             current_person = entry.runtime_data.runtime_config.get(
                 "persons", {}
@@ -486,10 +497,30 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
                     "schedule_odd",
                     copy.deepcopy(current_person.get("schedule", {})),
                 )
+        # T-11-06 (ASVS V5): reject calendar_config whose entity_id does
+        # not start with "calendar." — prevents persisting or calling
+        # unintended entity targets (_prefetch_calendars prefix-checks
+        # too, but validate here at the trust boundary).
+        if "calendar_config" in incoming:
+            cal_cfg = incoming["calendar_config"]
+            eid = (
+                cal_cfg.get("entity_id", "")
+                if isinstance(cal_cfg, dict)
+                else ""
+            )
+            if not (isinstance(eid, str) and eid.startswith("calendar.")):
+                incoming.pop("calendar_config")
+        # T-11-07: clamp preheat_lead_minutes to 0-480 (drops if invalid).
+        if "preheat_lead_minutes" in incoming:
+            val = incoming["preheat_lead_minutes"]
+            if isinstance(val, int) and 0 <= val <= 480:
+                pass  # valid — keep
+            else:
+                incoming.pop("preheat_lead_minutes")
         (
             entry.runtime_data.runtime_config.setdefault("persons", {})
             .setdefault(msg["person_id"], {})
-            .update(msg["config"])
+            .update(incoming)
         )
         await entry.runtime_data.store.async_save(
             entry.runtime_data.runtime_config
