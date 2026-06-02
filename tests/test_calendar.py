@@ -6,10 +6,13 @@ Tests for:
 - Period state "calendar" inside resolve_presence()
 - _prefetch_calendars() cache deduplication, reset, and fallback
 - Calendar-mode persons and calendar period states in coordinator
+- set_person_config: calendar_config + preheat_lead_minutes persistence
+  (ws_ prefix tests — Plan 03)
 
 Pure unit tests (Tasks 1-3): no hass fixture needed.
 Integration tests (Tasks 4-5): use hass fixture, MockConfigEntry,
 async_mock_service.
+WS persistence tests (Plan 03): use hass fixture + hass_ws_client.
 """
 
 import logging
@@ -666,4 +669,137 @@ async def test_calendar_period_overrides_rooms(hass):
     assert (
         "person.alice"
         not in entry.runtime_data.coordinator._last_present_persons
+    )
+
+
+# ---------------------------------------------------------------------------
+# Plan 03 — WS persistence tests (set_person_config calendar fields)
+# ---------------------------------------------------------------------------
+
+
+async def _setup_ws_entry(hass) -> MockConfigEntry:
+    """Set up the integration and return the config entry (no mocked services).
+
+    Mirrors _setup_entry in test_websocket.py for WS-level tests.
+    """
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+async def test_ws_persists_calendar_config(hass, hass_ws_client):
+    """set_person_config with calendar_config persists entity_id + event_means.
+
+    D-08: set_person_config persists calendar_config {entity_id, event_means}.
+    D-09: additive sparse-merge — absent for non-Calendar persons.
+    Send calendar_config with mode=calendar; assert persisted to runtime_config.
+    """
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    async_mock_service(
+        hass,
+        "calendar",
+        "get_events",
+        response={},
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    entry = await _setup_ws_entry(hass)
+    pid = "person.alice"
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_person_config",
+            "person_id": pid,
+            "config": {
+                "mode": "calendar",
+                "calendar_config": {
+                    "entity_id": "calendar.x",
+                    "event_means": "present",
+                },
+            },
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    persisted = entry.runtime_data.runtime_config.get("persons", {}).get(
+        pid, {}
+    )
+    assert persisted.get("calendar_config") == {
+        "entity_id": "calendar.x",
+        "event_means": "present",
+    }
+
+
+async def test_ws_persists_preheat_lead_minutes(hass, hass_ws_client):
+    """set_person_config with preheat_lead_minutes=90 persists the value.
+
+    D-10: set_person_config persists preheat_lead_minutes (default 60, 0–480).
+    """
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = await _setup_ws_entry(hass)
+    pid = "person.bob"
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_person_config",
+            "person_id": pid,
+            "config": {"preheat_lead_minutes": 90},
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    persisted = entry.runtime_data.runtime_config.get("persons", {}).get(
+        pid, {}
+    )
+    assert persisted.get("preheat_lead_minutes") == 90
+
+
+async def test_ws_rejects_non_calendar_entity_id(hass, hass_ws_client):
+    """set_person_config with calendar_config.entity_id='light.*' not persisted.
+
+    T-11-06 (ASVS V5): entity_id not starting with 'calendar.' is rejected
+    before persistence. The invalid calendar_config must not appear in
+    runtime_config.persons; the person's calendar_config must remain absent
+    or unchanged.
+    """
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = await _setup_ws_entry(hass)
+    pid = "person.alice"
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_person_config",
+            "person_id": pid,
+            "config": {
+                "calendar_config": {
+                    "entity_id": "light.kitchen",
+                    "event_means": "absent",
+                },
+            },
+        }
+    )
+    # Consume the WS response (success or error — either is acceptable).
+    await client.receive_json()
+
+    # Command may succeed (dropping the invalid key) or return an error;
+    # the critical assertion is that light.kitchen is not persisted.
+    persisted = entry.runtime_data.runtime_config.get("persons", {}).get(
+        pid, {}
+    )
+    cal_cfg = persisted.get("calendar_config", {})
+    bad_entity = cal_cfg.get("entity_id", "")
+    assert not bad_entity.startswith("light."), (
+        f"Invalid entity_id 'light.kitchen' was persisted: {cal_cfg!r}"
     )
