@@ -59,7 +59,7 @@ hidden.
       and hide it when no device trackers are linked to the person entity
 - [x] **Phase 11: Calendar Presence Backend** — Calendar mode backed by (completed 2026-06-02)
       `calendar.*` HA entities; per-cycle cache, pre-heat lead time
-- [ ] **Phase 12: Predictive Pre-heat** — Inertia-learning pre-heat engine,
+- [x] **Phase 12: Predictive Pre-heat** — Inertia-learning pre-heat engine, (completed 2026-06-02)
       per-room toggle, panel status display
 - [ ] **Phase 13: Matter→Tado X Real-Time Calibration** — Event-driven
       calibration on Matter state_changed; listener lifecycle management
@@ -149,7 +149,7 @@ panel shows pre-heating status and a suppression warning when applicable.
       status fields, second Store (PREHEAT-02, PREHEAT-03, PREHEAT-04)
 - [x] 12-03-PLAN.md — websocket status parity + room/person config clamps
       (PREHEAT-01, PREHEAT-04)
-- [ ] 12-04-PLAN.md — frontend room-card pre-heat UI + types.ts fields
+- [x] 12-04-PLAN.md — frontend room-card pre-heat UI + types.ts fields
       (PREHEAT-01, PREHEAT-04)
 
 ### Phase 13: Matter→Tado X Real-Time Calibration
@@ -185,5 +185,5 @@ sub-minute responsiveness without waiting for the polling interval.
 | 9. TRV Temperature Offset Auto-Calibration | v1.2      | 4/4            | Complete | 2026-05-30 |
 | 10. Presence Mode UI                        | v1.3      | 2/2            | Complete | 2026-06-01 |
 | 11. Calendar Presence Backend               | v1.3      | 5/5 | Complete   | 2026-06-02 |
-| 12. Predictive Pre-heat                     | v1.3      | 3/4 | In Progress|  |
+| 12. Predictive Pre-heat                     | v1.3      | 4/4 | Complete   | 2026-06-02 |
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 0/?            | Pending  | —          |
