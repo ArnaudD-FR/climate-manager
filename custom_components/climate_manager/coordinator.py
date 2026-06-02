@@ -46,6 +46,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -54,11 +55,17 @@ from .const import (
     MODE_TIME_PROGRAM,
     MODE_TIME_PROGRAM_PRESENCES,
     PERIOD_FROST_PROTECTION,
+    PRESENCE_CALENDAR,
     PRESENCE_HA,
     ROOM_MODE_FROST,
     ROOM_MODE_CUSTOM,
 )
-from .schedule import compute_occupied_temp, evaluate_schedule, resolve_presence
+from .schedule import (
+    compute_occupied_temp,
+    evaluate_schedule,
+    resolve_calendar_presence,
+    resolve_presence,
+)
 from .trv import (
     get_tado_valve_devices,
     is_trv_entity,
@@ -120,6 +127,10 @@ class ClimateManagerCoordinator:
         # User dismissal is detected on the next tick by querying hass.data
         # directly (no event listener needed — more robust across HA versions).
         self._ha_tracker_listeners: dict[str, list] = {}
+        # Per-cycle calendar event cache (D-13): maps entity_id → list of event
+        # dicts. Reset at the start of every async_evaluate cycle. Never
+        # persisted — populated fresh from calendar.get_events each cycle.
+        self._calendar_cache: dict[str, list] = {}
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
@@ -138,6 +149,13 @@ class ClimateManagerCoordinator:
         config = self._data.runtime_config
         period_temperatures: dict[str, float] = config["period_temperatures"]
         rooms: dict[str, list[str]] = self._data.rooms
+
+        # D-13: reset cache each cycle, then prefetch all unique calendar
+        # entity IDs referenced by persons or period states. This keeps the
+        # async get_events call here (coordinator) and out of schedule.py
+        # (D-05 — pure-Python contract maintained).
+        self._calendar_cache = {}
+        await self._prefetch_calendars(config, now)
 
         # Presence list computed once — used for PASS 2 and status reporting.
         self._last_present_persons = self._compute_present_persons(config, now)
@@ -178,6 +196,75 @@ class ClimateManagerCoordinator:
 
         # Calibration pass — D-01: runs after push pass and status fire.
         await self._async_calibrate(config)
+
+    async def _prefetch_calendars(self, config: dict, now: datetime) -> None:
+        """Fetch get_events for all unique calendar entity IDs in config.
+
+        Populates self._calendar_cache (entity_id → list of event dicts).
+        Called at the top of each async_evaluate cycle after the cache reset.
+
+        D-13: one get_events call per unique entity_id per cycle (dedup via
+        set). D-04: HomeAssistantError → single WARNING + empty-list fallback
+        (no log spam on repeated failures). D-05: keeps async HA service call
+        here (coordinator) so schedule.py stays pure Python.
+
+        Security — T-11-03: entity_id must start with 'calendar.' before
+        being used as a service target (ASVS V5 input validation).
+        """
+        entity_ids: set[str] = set()
+
+        for person_config in config.get("persons", {}).values():
+            # Calendar-mode persons: read entity_id from calendar_config
+            if person_config.get("mode") == PRESENCE_CALENDAR:
+                eid = (person_config.get("calendar_config") or {}).get(
+                    "entity_id"
+                )
+                if eid and eid.startswith("calendar."):
+                    entity_ids.add(eid)
+
+            # Scheduled-mode persons: scan periods for state="calendar"
+            for schedule_key in (
+                "schedule",
+                "schedule_even",
+                "schedule_odd",
+            ):
+                for day_periods in (
+                    person_config.get(schedule_key) or {}
+                ).values():
+                    for period in day_periods:
+                        if period.get("state") == "calendar":
+                            eid = (period.get("calendar_config") or {}).get(
+                                "entity_id"
+                            )
+                            if eid and eid.startswith("calendar."):
+                                entity_ids.add(eid)
+
+        async def _fetch_one(eid: str) -> None:
+            """Fetch events for one entity and store in _calendar_cache."""
+            try:
+                result = await self._hass.services.async_call(
+                    "calendar",
+                    "get_events",
+                    service_data={
+                        "start_date_time": now,
+                        "end_date_time": now + timedelta(hours=24),
+                    },
+                    target={"entity_id": eid},
+                    blocking=True,
+                    return_response=True,
+                )
+                # Landmine 2: entity service response is keyed by entity_id
+                events = (result or {}).get(eid, {}).get("events", [])
+                self._calendar_cache[eid] = events
+            except HomeAssistantError:
+                # D-04: log once at WARNING, fall back to absent (empty list)
+                _LOGGER.warning(
+                    "Calendar entity %s unavailable — falling back to absent",
+                    eid,
+                )
+                self._calendar_cache[eid] = []
+
+        await asyncio.gather(*[_fetch_one(eid) for eid in entity_ids])
 
     def _compute_desired_temps(
         self,
@@ -300,7 +387,31 @@ class ClimateManagerCoordinator:
             if not room_ids:
                 continue
 
-            is_present = resolve_presence(person_config, now)
+            # Landmine 5: _apply_presence_overrides also drives room temps —
+            # must resolve presence the same way as _compute_present_persons
+            # so calendar-mode persons and calendar period states are consistent.
+            if person_config.get("mode") == PRESENCE_HA:
+                state_obj = self._hass.states.get(_person_id)
+                is_present = state_obj is not None and state_obj.state == "home"
+            elif person_config.get("mode") == PRESENCE_CALENDAR:
+                cal_cfg = person_config.get("calendar_config") or {}
+                eid = cal_cfg.get("entity_id", "")
+                events = self._calendar_cache.get(eid, [])
+                preheat = person_config.get("preheat_lead_minutes", 60)
+                is_present = resolve_calendar_presence(
+                    events,
+                    cal_cfg.get("event_means", "absent"),
+                    now,
+                    preheat_lead_minutes=preheat,
+                    start_of_local_day=dt_util.start_of_local_day,
+                )
+            else:
+                is_present = resolve_presence(
+                    person_config,
+                    now,
+                    calendar_cache=self._calendar_cache,
+                    start_of_local_day=dt_util.start_of_local_day,
+                )
 
             for area_id in room_ids:
                 if area_id not in rooms:
@@ -616,9 +727,30 @@ class ClimateManagerCoordinator:
                 state_obj = self._hass.states.get(person_id)
                 if state_obj is not None and state_obj.state == "home":
                     present.append(person_id)
+            elif person_config.get("mode") == PRESENCE_CALENDAR:
+                # CAL-01: calendar-mode — resolve from prefetched cache (D-05)
+                cal_cfg = person_config.get("calendar_config") or {}
+                eid = cal_cfg.get("entity_id", "")
+                events = self._calendar_cache.get(eid, [])
+                preheat = person_config.get("preheat_lead_minutes", 60)
+                if resolve_calendar_presence(
+                    events,
+                    cal_cfg.get("event_means", "absent"),
+                    now,
+                    preheat_lead_minutes=preheat,
+                    start_of_local_day=dt_util.start_of_local_day,
+                ):
+                    present.append(person_id)
             else:
-                # scheduled, force_present, force_absent, or unknown → delegate to resolve_presence
-                if resolve_presence(person_config, now):
+                # scheduled, force_present, force_absent, or unknown →
+                # delegate to resolve_presence; pass calendar_cache so period
+                # state "calendar" periods resolve correctly (D-05, Landmine 5)
+                if resolve_presence(
+                    person_config,
+                    now,
+                    calendar_cache=self._calendar_cache,
+                    start_of_local_day=dt_util.start_of_local_day,
+                ):
                     present.append(person_id)
         return present
 
