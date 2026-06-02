@@ -41,6 +41,7 @@ PRESENCE_AUTOMATIC = "scheduled"
 PRESENCE_PRESENT = "force_present"
 PRESENCE_ABSENT = "force_absent"
 PRESENCE_HA = "ha"
+PRESENCE_CALENDAR = "calendar"
 
 # ---------------------------------------------------------------------------
 # Per-room mode constants (D-20)
@@ -55,6 +56,7 @@ ROOM_MODE_CUSTOM = "custom"
 # ---------------------------------------------------------------------------
 
 DEFAULT_GLOBAL_MODE = MODE_TIME_PROGRAM
+DEFAULT_PREHEAT_LEAD_MINUTES: int = 60
 
 DEFAULT_PERIOD_TEMPERATURES: dict[str, float] = {
     PERIOD_FROST_PROTECTION: 5.0,  # GLOBAL-03
@@ -146,6 +148,16 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 #                                   # used during even ISO weeks (parity == 0)
 #       "schedule_odd":  { ... },   # SCHED-03; same structure as schedule;
 #                                   # used during odd ISO weeks (parity == 1)
+#       "calendar_config": {        # CAL-01; sparse — absent = not using
+#                                   # Calendar mode (D-08, D-09). Shape:
+#                                   #   {"entity_id": "calendar.*",
+#                                   #    "event_means": "absent"|"present"}
+#                                   # default event_means = "absent".
+#                                   # Do NOT add to DEFAULT_CONFIG (D-09).
+#       },
+#       "preheat_lead_minutes": 60, # CAL-04; sparse — absent = default 60.
+#                                   # Per-person, range 0–480 (D-10, D-11).
+#                                   # Do NOT add to DEFAULT_CONFIG (D-09).
 #     }
 #   }
 #   Empty dict = all persons at default (Automatic mode, no schedule, no rooms).
