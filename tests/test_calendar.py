@@ -737,9 +737,11 @@ async def test_ws_persists_calendar_config(hass, hass_ws_client):
 
 
 async def test_ws_persists_preheat_lead_minutes(hass, hass_ws_client):
-    """set_person_config with preheat_lead_minutes=90 persists the value.
+    """set_person_config with legacy preheat_lead_minutes=90 is mapped to
+    wakeup_advance_minutes (D-02 rename, backward-compat legacy key).
 
-    D-10: set_person_config persists preheat_lead_minutes (default 60, 0–480).
+    D-02: preheat_lead_minutes is renamed to wakeup_advance_minutes at the
+    WS handler level; sending the old key persists the value under the new key.
     """
     async_mock_service(hass, "climate", "set_hvac_mode")
     async_mock_service(hass, "climate", "set_temperature")
@@ -761,7 +763,9 @@ async def test_ws_persists_preheat_lead_minutes(hass, hass_ws_client):
     persisted = entry.runtime_data.runtime_config.get("persons", {}).get(
         pid, {}
     )
-    assert persisted.get("preheat_lead_minutes") == 90
+    # D-02: legacy key is mapped → wakeup_advance_minutes stored, old key absent
+    assert persisted.get("wakeup_advance_minutes") == 90
+    assert "preheat_lead_minutes" not in persisted
 
 
 async def test_ws_rejects_non_calendar_entity_id(hass, hass_ws_client):
