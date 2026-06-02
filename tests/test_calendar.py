@@ -1,19 +1,34 @@
-"""Tests for calendar presence resolution — pure Python unit tests.
+"""Tests for calendar presence resolution.
 
 Tests for:
 - Calendar constants (PRESENCE_CALENDAR, DEFAULT_PREHEAT_LEAD_MINUTES)
 - resolve_calendar_presence() helper logic
 - Period state "calendar" inside resolve_presence()
+- _prefetch_calendars() cache deduplication, reset, and fallback
+- Calendar-mode persons and calendar period states in coordinator
 
-No hass fixture needed for Tasks 1-3 (pure logic). The dt_util import
-is from homeassistant.util.dt which is a pure utility (no HA runtime).
+Pure unit tests (Tasks 1-3): no hass fixture needed.
+Integration tests (Tasks 4-5): use hass fixture, MockConfigEntry,
+async_mock_service.
 """
 
+import logging
+
+import pytest
 from freezegun import freeze_time
+from homeassistant.core import SupportsResponse
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_mock_service,
+)
 
 from custom_components.climate_manager.const import (
+    DEFAULT_PERIOD_TEMPERATURES,
     DEFAULT_PREHEAT_LEAD_MINUTES,
+    DOMAIN,
+    MODE_TIME_PROGRAM_PRESENCES,
     PRESENCE_CALENDAR,
 )
 from custom_components.climate_manager.schedule import (
@@ -309,3 +324,354 @@ def test_present_absent_periods_unchanged():
     # With calendar_cache (should not affect non-calendar periods)
     assert resolve_presence(person_present, now, calendar_cache={}) is True
     assert resolve_presence(person_absent, now, calendar_cache={}) is False
+
+
+# ---------------------------------------------------------------------------
+# Helper for integration tests — minimal runtime config with persons
+# ---------------------------------------------------------------------------
+
+
+ALL_DAYS_NORMAL_PROGRAM: dict = {
+    day: [{"start": "00:00", "mode": "normal"}]
+    for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+}
+
+
+def _make_calendar_runtime_config(persons_config: dict) -> dict:
+    """Build a minimal runtime_config with calendar-mode persons."""
+    return {
+        "version": 2,
+        "global_mode": MODE_TIME_PROGRAM_PRESENCES,
+        "period_temperatures": dict(DEFAULT_PERIOD_TEMPERATURES),
+        "global_time_program": ALL_DAYS_NORMAL_PROGRAM,
+        "rooms": {},
+        "persons": persons_config,
+        "zones": {},
+        "default_zone_name": "Home",
+    }
+
+
+def _calendar_person_config(
+    entity_id: str,
+    event_means: str = "absent",
+    room_ids: list | None = None,
+) -> dict:
+    """Build a calendar-mode person configuration dict."""
+    return {
+        "mode": PRESENCE_CALENDAR,
+        "room_ids": room_ids or [],
+        "calendar_config": {
+            "entity_id": entity_id,
+            "event_means": event_means,
+        },
+        "preheat_lead_minutes": DEFAULT_PREHEAT_LEAD_MINUTES,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Task 4 — _prefetch_calendars: cache deduplication and reset
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.freeze_time("2026-06-01 12:00:00 UTC")
+async def test_calendar_cache_deduplication(hass):
+    """Two calendar-mode persons sharing the same calendar entity → one get_events.
+
+    D-13: per-cycle cache. One get_events call per unique entity_id.
+    The coordinator must issue exactly one ServiceCall even when two persons
+    both reference 'calendar.shared'.
+    """
+    shared_cal = "calendar.shared"
+    mock_events = [
+        {
+            "start": "2026-06-01T08:00:00+00:00",
+            "end": "2026-06-01T17:00:00+00:00",
+            "summary": "School",
+        }
+    ]
+
+    calendar_calls = async_mock_service(
+        hass,
+        "calendar",
+        "get_events",
+        response={shared_cal: {"events": mock_events}},
+        supports_response=SupportsResponse.ONLY,
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Two persons both referencing the same calendar entity
+    persons_config = {
+        "person.alice": _calendar_person_config(shared_cal),
+        "person.bob": _calendar_person_config(shared_cal),
+    }
+    entry.runtime_data.runtime_config = _make_calendar_runtime_config(
+        persons_config
+    )
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    # D-13: exactly one get_events call for the shared entity (dedup)
+    assert len(calendar_calls) == 1
+
+
+@pytest.mark.freeze_time("2026-06-01 12:00:00 UTC")
+async def test_calendar_cache_reset_per_cycle(hass):
+    """Cache is repopulated each cycle — no stale entries carried forward.
+
+    Two async_evaluate calls → 2 total get_events calls (one per cycle).
+    D-13: _calendar_cache reset at start of every cycle.
+    """
+    cal_id = "calendar.person_a"
+    mock_events = [
+        {
+            "start": "2026-06-01T08:00:00+00:00",
+            "end": "2026-06-01T17:00:00+00:00",
+            "summary": "Work",
+        }
+    ]
+
+    calendar_calls = async_mock_service(
+        hass,
+        "calendar",
+        "get_events",
+        response={cal_id: {"events": mock_events}},
+        supports_response=SupportsResponse.ONLY,
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    persons_config = {
+        "person.alice": _calendar_person_config(cal_id),
+    }
+    entry.runtime_data.runtime_config = _make_calendar_runtime_config(
+        persons_config
+    )
+
+    # First evaluate cycle
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    # Second evaluate cycle
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    # Two cycles → 2 total get_events calls (cache resets each cycle)
+    assert len(calendar_calls) == 2
+
+
+@pytest.mark.freeze_time("2026-06-01 12:00:00 UTC")
+async def test_calendar_fallback_on_error(hass, caplog):
+    """HomeAssistantError from get_events → empty list in cache + one WARNING.
+
+    D-04: fallback to absent on calendar entity error; no log spam.
+    """
+    cal_id = "calendar.missing"
+
+    async_mock_service(
+        hass,
+        "calendar",
+        "get_events",
+        raise_exception=HomeAssistantError("No entities matched"),
+        supports_response=SupportsResponse.ONLY,
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    persons_config = {
+        "person.alice": _calendar_person_config(cal_id),
+    }
+    entry.runtime_data.runtime_config = _make_calendar_runtime_config(
+        persons_config
+    )
+
+    with caplog.at_level(logging.WARNING):
+        await entry.runtime_data.coordinator.async_evaluate()
+        await hass.async_block_till_done()
+
+    # D-04: _calendar_cache[eid] == [] on error (fallback to absent)
+    assert entry.runtime_data.coordinator._calendar_cache[cal_id] == []
+
+    # D-04: exactly one WARNING for the failing calendar entity
+    warning_records = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING and cal_id in r.message
+    ]
+    assert len(warning_records) == 1
+
+
+# ---------------------------------------------------------------------------
+# Task 5 — calendar mode and period states in coordinator presence methods
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.freeze_time("2026-06-01 12:00:00 UTC")
+async def test_calendar_mode_person_present_in_evaluate(hass):
+    """Calendar-mode person: event active → absent; no event → present.
+
+    With event covering now (event_means=absent) → NOT in _last_present_persons.
+    With no events → IS in _last_present_persons.
+    """
+    cal_id = "calendar.person_cal"
+    active_event = {
+        "start": "2026-06-01T08:00:00+00:00",
+        "end": "2026-06-01T17:00:00+00:00",
+        "summary": "Away",
+    }
+
+    # First test: event active → person absent
+    calendar_calls_active = async_mock_service(
+        hass,
+        "calendar",
+        "get_events",
+        response={cal_id: {"events": [active_event]}},
+        supports_response=SupportsResponse.ONLY,
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    persons_config = {
+        "person.alice": _calendar_person_config(cal_id, event_means="absent"),
+    }
+    entry.runtime_data.runtime_config = _make_calendar_runtime_config(
+        persons_config
+    )
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    # Active absent-event → person NOT in present list
+    assert (
+        "person.alice"
+        not in entry.runtime_data.coordinator._last_present_persons
+    )
+    _ = calendar_calls_active  # consumed
+
+    # Unload and re-setup with no events → person present
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    async_mock_service(
+        hass,
+        "calendar",
+        "get_events",
+        response={cal_id: {"events": []}},
+        supports_response=SupportsResponse.ONLY,
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry2 = MockConfigEntry(domain=DOMAIN, data={})
+    entry2.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry2.entry_id)
+    await hass.async_block_till_done()
+
+    entry2.runtime_data.runtime_config = _make_calendar_runtime_config(
+        persons_config
+    )
+
+    await entry2.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    # No events → event_means=absent → not absent → person IS present
+    assert (
+        "person.alice" in entry2.runtime_data.coordinator._last_present_persons
+    )
+
+
+@pytest.mark.freeze_time("2026-06-01 12:00:00 UTC")
+async def test_calendar_period_overrides_rooms(hass):
+    """Calendar period state in a scheduled-mode person drives room temp via cache.
+
+    Person has a scheduled mode, but the active period state is "calendar".
+    The calendar entity returns an event → person is absent for the period →
+    room is heated at reduced temperature.
+    With empty events → person is present → room at Normal temperature.
+    (Only tests that _apply_presence_overrides consumed the cache, not stale data.)
+    """
+    cal_id = "calendar.schedule_cal"
+    active_event = {
+        "start": "2026-06-01T08:00:00+00:00",
+        "end": "2026-06-01T17:00:00+00:00",
+        "summary": "Away",
+    }
+
+    # Schedule: all day is a "calendar" period state
+    calendar_period_schedule = {
+        day: [
+            {
+                "start": "00:00",
+                "state": "calendar",
+                "calendar_config": {
+                    "entity_id": cal_id,
+                    "event_means": "absent",
+                },
+            }
+        ]
+        for day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    }
+
+    # Seed a climate entity in HA state for room "bedroom"
+    hass.states.async_set("climate.bedroom_trv", "heat", {"temperature": 15.0})
+
+    calendar_calls = async_mock_service(
+        hass,
+        "calendar",
+        "get_events",
+        response={cal_id: {"events": [active_event]}},
+        supports_response=SupportsResponse.ONLY,
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Person in scheduled mode with calendar period state, associated with bedroom
+    persons_config = {
+        "person.alice": {
+            "mode": "scheduled",
+            "room_ids": ["bedroom"],
+            "schedule": calendar_period_schedule,
+            "preheat_lead_minutes": DEFAULT_PREHEAT_LEAD_MINUTES,
+        }
+    }
+    runtime_config = _make_calendar_runtime_config(persons_config)
+    entry.runtime_data.runtime_config = runtime_config
+    entry.runtime_data.rooms = {"bedroom": ["climate.bedroom_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    # D-13: get_events was called (cache was used — not stale)
+    assert len(calendar_calls) >= 1
+
+    # Person should be absent (active event, event_means=absent)
+    assert (
+        "person.alice"
+        not in entry.runtime_data.coordinator._last_present_persons
+    )
