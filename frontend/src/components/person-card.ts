@@ -488,6 +488,15 @@ export class PersonCard extends LitElement {
   private async _onEventMeansChange(e: Event) {
     const means = (e.target as HTMLSelectElement).value as "absent" | "present";
     const currentEntityId = this.config?.calendar_config?.entity_id ?? "";
+    // Cannot save event_means without a calendar entity selected — the
+    // backend T-11-06 guard would silently discard the update (CR-02).
+    if (!currentEntityId) {
+      this.panel.showToast(
+        "Select a calendar entity first before changing event meaning.",
+        true,
+      );
+      return;
+    }
     try {
       await this.ws.setPersonConfig(this.personId, {
         calendar_config: {
@@ -1049,6 +1058,16 @@ export class PersonCard extends LitElement {
                                     const newMeans = (
                                       e.target as HTMLSelectElement
                                     ).value as "absent" | "present";
+                                    // Guard: no entity selected → save would
+                                    // be silently discarded by T-11-06 (CR-02)
+                                    if (!currentEntityId) {
+                                      this.panel.showToast(
+                                        "Select a calendar entity first" +
+                                          " before changing event meaning.",
+                                        true,
+                                      );
+                                      return;
+                                    }
                                     void this._onPeriodCalendarConfigChange(
                                       dayIndex,
                                       period.start,
