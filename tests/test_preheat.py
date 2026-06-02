@@ -909,3 +909,214 @@ async def test_ws_get_status_preheat_fields(hass, hass_ws_client):
     assert hall_entry["preheat_active"] is False
     assert hall_entry["preheat_target"] is None
     assert hall_entry["preheat_suppressed"] is False
+
+
+# ---------------------------------------------------------------------------
+# Plan 03, Task 2: Room preheat config validation (D-01, T-12-06)
+# and person wakeup_advance_minutes clamp (D-02)
+# ---------------------------------------------------------------------------
+
+
+async def _setup_ws_entry(hass):
+    """Set up integration and return entry (mirrors test_calendar.py pattern)."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+async def test_ws_set_room_preheat_config(hass, hass_ws_client):
+    """set_room_config with preheat_enabled=True + preheat_max_lead_minutes=90
+    persists both keys into rooms[room_id].
+
+    D-01: valid values within [0, 480] are kept; bool is coerced.
+    """
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = await _setup_ws_entry(hass)
+    room_id = "bedroom"
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_room_config",
+            "room_id": room_id,
+            "config": {
+                "preheat_enabled": True,
+                "preheat_max_lead_minutes": 90,
+            },
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    persisted = entry.runtime_data.runtime_config.get("rooms", {}).get(
+        room_id, {}
+    )
+    assert persisted.get("preheat_enabled") is True
+    assert persisted.get("preheat_max_lead_minutes") == 90
+
+
+async def test_ws_room_max_lead_clamped(hass, hass_ws_client):
+    """preheat_max_lead_minutes out of [0, 480] is dropped before persist.
+
+    T-12-06: value 999 dropped; value -5 dropped; non-int ("foo") dropped.
+    """
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = await _setup_ws_entry(hass)
+    room_id = "kitchen"
+    client = await hass_ws_client()
+
+    # Case 1: value 999 (out of range) → dropped
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_room_config",
+            "room_id": room_id,
+            "config": {"preheat_max_lead_minutes": 999},
+        }
+    )
+    await client.receive_json()
+    persisted = entry.runtime_data.runtime_config.get("rooms", {}).get(
+        room_id, {}
+    )
+    assert "preheat_max_lead_minutes" not in persisted, (
+        f"999 should be dropped, got {persisted}"
+    )
+
+    # Case 2: value -5 (negative) → dropped
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_room_config",
+            "room_id": room_id,
+            "config": {"preheat_max_lead_minutes": -5},
+        }
+    )
+    await client.receive_json()
+    persisted = entry.runtime_data.runtime_config.get("rooms", {}).get(
+        room_id, {}
+    )
+    assert "preheat_max_lead_minutes" not in persisted, (
+        f"-5 should be dropped, got {persisted}"
+    )
+
+    # Case 3: non-int ("foo") → dropped
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_room_config",
+            "room_id": room_id,
+            "config": {"preheat_max_lead_minutes": "foo"},
+        }
+    )
+    await client.receive_json()
+    persisted = entry.runtime_data.runtime_config.get("rooms", {}).get(
+        room_id, {}
+    )
+    assert "preheat_max_lead_minutes" not in persisted, (
+        f"'foo' should be dropped, got {persisted}"
+    )
+
+
+async def test_ws_room_enabled_coerced_bool(hass, hass_ws_client):
+    """preheat_enabled=1 (truthy non-bool) is coerced to Python bool True.
+
+    D-01: preheat_enabled is always stored as a Python bool.
+    """
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = await _setup_ws_entry(hass)
+    room_id = "study"
+    client = await hass_ws_client()
+
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_room_config",
+            "room_id": room_id,
+            "config": {"preheat_enabled": 1},
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    persisted = entry.runtime_data.runtime_config.get("rooms", {}).get(
+        room_id, {}
+    )
+    val = persisted.get("preheat_enabled")
+    assert isinstance(val, bool), f"Expected bool, got {type(val)}: {val!r}"
+    assert val is True
+
+
+async def test_ws_set_person_wakeup_advance(hass, hass_ws_client):
+    """set_person_config with wakeup_advance_minutes=90 persists; 999 is dropped.
+
+    D-02: wakeup_advance_minutes replaces preheat_lead_minutes.
+    Legacy preheat_lead_minutes key is mapped to wakeup_advance_minutes.
+    """
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = await _setup_ws_entry(hass)
+    pid = "person.alice"
+    client = await hass_ws_client()
+
+    # Valid value: 90 → persisted as wakeup_advance_minutes
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_person_config",
+            "person_id": pid,
+            "config": {"wakeup_advance_minutes": 90},
+        }
+    )
+    msg = await client.receive_json()
+    assert msg["success"] is True
+    persisted = entry.runtime_data.runtime_config.get("persons", {}).get(
+        pid, {}
+    )
+    assert persisted.get("wakeup_advance_minutes") == 90
+
+    # Out of range: 999 → dropped
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_person_config",
+            "person_id": pid,
+            "config": {"wakeup_advance_minutes": 999},
+        }
+    )
+    await client.receive_json()
+    persisted = entry.runtime_data.runtime_config.get("persons", {}).get(
+        pid, {}
+    )
+    # Should still be 90 (the previous valid value — 999 was dropped)
+    assert persisted.get("wakeup_advance_minutes") == 90
+
+    # Legacy key: preheat_lead_minutes=60 → stored as wakeup_advance_minutes=60
+    pid2 = "person.bob"
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_person_config",
+            "person_id": pid2,
+            "config": {"preheat_lead_minutes": 60},
+        }
+    )
+    await client.receive_json()
+    persisted2 = entry.runtime_data.runtime_config.get("persons", {}).get(
+        pid2, {}
+    )
+    assert persisted2.get("wakeup_advance_minutes") == 60, (
+        f"Legacy preheat_lead_minutes should map to wakeup_advance_minutes: "
+        f"{persisted2}"
+    )
