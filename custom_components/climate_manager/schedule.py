@@ -105,11 +105,18 @@ def _parse_calendar_dt(
         start_of_local_day: Callable(date) → aware datetime. Production
             callers pass dt_util.start_of_local_day. Tests may pass
             the same or the _local_day_fallback.
+
+    Raises:
+        ValueError: if the string cannot be parsed as a valid date or
+            datetime — callers should catch and skip the offending event.
     """
-    if "T" in s:
-        return datetime.datetime.fromisoformat(s)
-    d = datetime.date.fromisoformat(s)
-    return start_of_local_day(d)
+    try:
+        if "T" in s:
+            return datetime.datetime.fromisoformat(s)
+        d = datetime.date.fromisoformat(s)
+        return start_of_local_day(d)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"Unparseable calendar datetime {s!r}") from exc
 
 
 def resolve_calendar_presence(
@@ -166,8 +173,15 @@ def resolve_calendar_presence(
         end_s = event.get("end", "")
         if not start_s or not end_s:
             continue  # T-11-01: skip malformed events (missing start/end)
-        event_start = _parse_calendar_dt(start_s, _sol)
-        event_end = _parse_calendar_dt(end_s, _sol)
+        try:
+            event_start = _parse_calendar_dt(start_s, _sol)
+            event_end = _parse_calendar_dt(end_s, _sol)
+        except ValueError:
+            _LOGGER.warning(
+                "Skipping calendar event with unparseable datetime: %r",
+                event,
+            )
+            continue
 
         event_active = event_start <= now < event_end
 
