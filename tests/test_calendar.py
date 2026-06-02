@@ -575,10 +575,10 @@ async def test_calendar_mode_person_present_in_evaluate(hass):
     ), "Active absent-event → person must NOT be in present list"
 
     # Cycle 2: swap the mock to return no events → person becomes present
-    # Re-register the service with an empty event list. async_mock_service
-    # replaces the existing handler for the same domain/service.
+    # Re-register the service with an empty event list. Remove the existing
+    # handler first via the public API, then register the new one.
     calendar_calls.clear()
-    hass.services._services.pop("calendar", None)  # noqa: SLF001
+    hass.services.async_remove("calendar", "get_events")
     async_mock_service(
         hass,
         "calendar",
