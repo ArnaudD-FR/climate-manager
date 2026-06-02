@@ -42,6 +42,7 @@ const PRESENCE_MODE_SCHEDULED = "scheduled";
 const PRESENCE_MODE_HA = "ha";
 const PRESENCE_MODE_FORCE_PRESENT = "force_present";
 const PRESENCE_MODE_FORCE_ABSENT = "force_absent";
+const PRESENCE_MODE_CALENDAR = "calendar";
 
 // Default schedule seeded on first switch to Scheduled mode (D-22)
 const DEFAULT_SCHEDULE: DailyProgram = {
@@ -237,6 +238,11 @@ export class PersonCard extends LitElement {
         color: var(--secondary-text-color, #757575);
       }
 
+      .mode-badge.calendar {
+        background: var(--secondary-background-color, #f5f5f5);
+        color: var(--secondary-text-color, #757575);
+      }
+
       .presence-dot {
         font-size: 12px;
         line-height: 1;
@@ -282,6 +288,35 @@ export class PersonCard extends LitElement {
 
       .reset-btn:hover {
         background: var(--secondary-background-color);
+      }
+
+      /* Calendar config block inline row (D-11, D-16) */
+      .preheat-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+
+      .preheat-row input[type="number"] {
+        width: 72px;
+        padding: 6px 8px;
+        font-size: 14px;
+        font-family: inherit;
+        border: 1px solid var(--divider-color, #e0e0e0);
+        border-radius: 4px;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+      }
+
+      .preheat-row input[type="number"]:focus {
+        outline: none;
+        border-color: var(--primary-color, #03a9f4);
+      }
+
+      .preheat-row span {
+        font-size: 14px;
+        color: var(--secondary-text-color);
       }
 
       /* Even/Odd week switcher (D-06, D-07) */
@@ -431,6 +466,106 @@ export class PersonCard extends LitElement {
     e.stopPropagation();
   }
 
+  // Calendar config save handlers (D-09 auto-save pattern, no Save button)
+
+  private async _onCalendarEntityChange(e: Event) {
+    const entityId = (e.target as HTMLSelectElement).value;
+    const currentMeans = this.config?.calendar_config?.event_means ?? "absent";
+    try {
+      await this.ws.setPersonConfig(this.personId, {
+        calendar_config: {
+          entity_id: entityId,
+          event_means: currentMeans,
+        },
+      });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onEventMeansChange(e: Event) {
+    const means = (e.target as HTMLSelectElement).value as "absent" | "present";
+    const currentEntityId = this.config?.calendar_config?.entity_id ?? "";
+    try {
+      await this.ws.setPersonConfig(this.personId, {
+        calendar_config: {
+          entity_id: currentEntityId,
+          event_means: means,
+        },
+      });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onPreheatChange(e: Event) {
+    const val = parseInt((e.target as HTMLInputElement).value, 10);
+    if (!isNaN(val) && val >= 0 && val <= 480) {
+      try {
+        await this.ws.setPersonConfig(this.personId, {
+          preheat_lead_minutes: val,
+        });
+        await this.panel.reloadConfig();
+        this.panel.showToast("Saved", false);
+      } catch {
+        this.panel.showToast("Save failed — retrying...", true);
+      }
+    }
+  }
+
+  /**
+   * Save handler for per-period calendar config changes (D-06).
+   * Updates the period's own calendar_config within the schedule.
+   */
+  private async _onPeriodCalendarConfigChange(
+    dayIndex: number,
+    periodStart: string,
+    newCalendarConfig: {
+      entity_id: string;
+      event_means: "absent" | "present";
+    },
+  ) {
+    const scheduleType = this.config?.schedule_type ?? "single";
+    const isEvenOdd = scheduleType === "even_odd";
+    const activeSchedule = isEvenOdd
+      ? this._activeWeek === "even"
+        ? this.config.schedule_even
+        : this.config.schedule_odd
+      : this.config.schedule;
+    const base: DailyProgram = activeSchedule ?? {
+      mon: [],
+      tue: [],
+      wed: [],
+      thu: [],
+      fri: [],
+      sat: [],
+      sun: [],
+    };
+    const dayKey = dayIndexToKey(dayIndex);
+    const updatedDay = (base[dayKey] ?? []).map((p) =>
+      p.start === periodStart && "state" in p
+        ? { ...p, calendar_config: newCalendarConfig }
+        : p,
+    );
+    const updated: DailyProgram = { ...base, [dayKey]: updatedDay };
+    const field = isEvenOdd
+      ? this._activeWeek === "even"
+        ? "schedule_even"
+        : "schedule_odd"
+      : "schedule";
+    try {
+      await this.ws.setPersonConfig(this.personId, { [field]: updated });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
   // -----------------------------------------------------------------------
   // Helpers
   // -----------------------------------------------------------------------
@@ -517,6 +652,8 @@ export class PersonCard extends LitElement {
         return { cls: "force-absent", text: "Force Absent" };
       case PRESENCE_MODE_HA:
         return { cls: "ha", text: haOptionLabel(this.hasDeviceTrackers) };
+      case PRESENCE_MODE_CALENDAR:
+        return { cls: "calendar", text: "Calendar" };
       default:
         return { cls: "scheduled", text: "Scheduled" };
     }
@@ -526,6 +663,7 @@ export class PersonCard extends LitElement {
     const { cls: badgeCls, text: badgeText } = this._getBadgeInfo();
     const currentMode = this.config?.mode ?? PRESENCE_MODE_SCHEDULED;
     const isScheduled = currentMode === PRESENCE_MODE_SCHEDULED;
+    const isCalendar = currentMode === PRESENCE_MODE_CALENDAR;
     // Even/odd week rendering locals (D-01..D-15)
     const scheduleType = this.config?.schedule_type ?? "single";
     const isEvenOdd = scheduleType === "even_odd";
@@ -539,6 +677,11 @@ export class PersonCard extends LitElement {
     const unassignedRooms = this.roomChoices.filter(
       (r) => !currentRoomIds.includes(r.id),
     );
+
+    // D-15: calendar entity list from hass.states filtered to calendar.*
+    const calendarEntityIds = Object.keys(this.panel.hass?.states ?? {})
+      .filter((id) => id.startsWith("calendar."))
+      .sort();
 
     const renderChip = (room: RoomChoice) => html`
       <span
@@ -589,7 +732,7 @@ export class PersonCard extends LitElement {
         ${this._expanded
           ? html`
               <div class="card-content">
-                <!-- Presence mode selector -->
+                <!-- 1. Presence mode selector -->
                 <div
                   class="section-label"
                   title="How this person's presence is determined"
@@ -611,6 +754,12 @@ export class PersonCard extends LitElement {
                       ${haOptionLabel(this.hasDeviceTrackers)}
                     </option>
                     <option
+                      value=${PRESENCE_MODE_CALENDAR}
+                      ?selected=${currentMode === PRESENCE_MODE_CALENDAR}
+                    >
+                      Calendar
+                    </option>
+                    <option
                       value=${PRESENCE_MODE_FORCE_PRESENT}
                       ?selected=${currentMode === PRESENCE_MODE_FORCE_PRESENT}
                     >
@@ -624,8 +773,13 @@ export class PersonCard extends LitElement {
                     </option>
                   </select>
                 </div>
+
+                <!-- 2. Hint / stuck-mode paragraph -->
                 <p class="schedule-hint">
-                  ${presenceModeHint(currentMode, this.hasDeviceTrackers)}
+                  ${isCalendar
+                    ? "Presence determined by calendar events on the" +
+                      " selected entity."
+                    : presenceModeHint(currentMode, this.hasDeviceTrackers)}
                   ${currentMode === PRESENCE_MODE_HA && !this.hasDeviceTrackers
                     ? html`<ha-icon-button
                         title="Edit person in HA"
@@ -650,52 +804,89 @@ export class PersonCard extends LitElement {
                     : ""}
                 </p>
 
-                <!-- Room associations grouped by floor -->
-                <div
-                  class="section-label"
-                  title="Rooms heated by this person's presence"
-                >
-                  Room associations
-                </div>
-                ${assignedGroups.map(
-                  (group) => html`
-                    ${group.floorId !== null
-                      ? html`<div class="floor-group-label">
-                          <ha-icon
-                            icon=${this._getFloorIcon(group.floorId)}
-                          ></ha-icon
-                          >${group.floorName}
-                        </div>`
-                      : ""}
-                    <div class="chips">${group.rooms.map(renderChip)}</div>
-                  `,
-                )}
-                ${assignedGroups.length === 0
-                  ? html`<div class="chips"></div>`
-                  : ""}
-                ${unassignedRooms.length > 0
+                <!-- 3. Calendar config block (Calendar mode only) -->
+                ${isCalendar
                   ? html`
-                      <div class="chips">
-                        <search-picker
-                          .items=${unassignedRooms.map((r) => ({
-                            id: r.id,
-                            label: r.name,
-                            secondary: r.secondary,
-                            icon: "mdi:home-outline",
-                          }))}
-                          triggerLabel="Add room"
-                          triggerIcon="mdi:plus"
-                          placeholder="Search rooms…"
-                          @picked=${(e: CustomEvent) => {
-                            const { id } = e.detail as { id: string };
-                            void this._onRoomToggle(id, true);
-                          }}
-                        ></search-picker>
+                      <div
+                        class="section-label"
+                        title="Calendar entity for presence"
+                      >
+                        Calendar source
+                      </div>
+                      <div class="select-wrapper">
+                        <select
+                          class="mode-select"
+                          @change=${this._onCalendarEntityChange}
+                        >
+                          ${calendarEntityIds.length === 0
+                            ? html`<option value="" disabled selected>
+                                No calendar entities found in Home Assistant.
+                              </option>`
+                            : html`
+                                <option
+                                  value=""
+                                  ?selected=${!this.config?.calendar_config
+                                    ?.entity_id}
+                                >
+                                  — Select a calendar —
+                                </option>
+                                ${calendarEntityIds.map(
+                                  (id) => html`
+                                    <option
+                                      value=${id}
+                                      ?selected=${this.config?.calendar_config
+                                        ?.entity_id === id}
+                                    >
+                                      ${(this.panel.hass?.states[id]?.attributes
+                                        ?.friendly_name as
+                                        | string
+                                        | undefined) ?? id}
+                                    </option>
+                                  `,
+                                )}
+                              `}
+                        </select>
+                      </div>
+                      <div class="section-label">Event means</div>
+                      <div class="select-wrapper">
+                        <select
+                          class="mode-select"
+                          @change=${this._onEventMeansChange}
+                        >
+                          <option
+                            value="absent"
+                            ?selected=${(this.config?.calendar_config
+                              ?.event_means ?? "absent") === "absent"}
+                          >
+                            Absent during events
+                          </option>
+                          <option
+                            value="present"
+                            ?selected=${this.config?.calendar_config
+                              ?.event_means === "present"}
+                          >
+                            Present during events
+                          </option>
+                        </select>
+                      </div>
+                      <div class="section-label">Pre-heat lead time</div>
+                      <div class="preheat-row">
+                        <input
+                          type="number"
+                          min="0"
+                          max="480"
+                          step="5"
+                          .value=${String(
+                            this.config?.preheat_lead_minutes ?? 60,
+                          )}
+                          @change=${this._onPreheatChange}
+                        />
+                        <span>min</span>
                       </div>
                     `
                   : ""}
 
-                <!-- Presence schedule (only in Scheduled mode) -->
+                <!-- 4. Presence schedule section (Scheduled mode only) -->
                 ${isScheduled
                   ? html`
                       <div
@@ -765,12 +956,178 @@ export class PersonCard extends LitElement {
                           @periods-changed=${this._onSchedulePeriodsChanged}
                         ></climate-manager-time-bar>
                       </div>
+                      ${(() => {
+                        // D-17: render inline calendar config for each
+                        // period with state "calendar" in the active schedule.
+                        const activeDays = isEvenOdd
+                          ? this._activeWeek === "even"
+                            ? this._daysEven
+                            : this._daysOdd
+                          : this._days;
+                        const calPeriods: Array<{
+                          dayIndex: number;
+                          period: (typeof activeDays)[0][0];
+                        }> = [];
+                        activeDays.forEach((dayPeriods, dayIndex) => {
+                          dayPeriods.forEach((p) => {
+                            if ("state" in p && p.state === "calendar") {
+                              calPeriods.push({ dayIndex, period: p });
+                            }
+                          });
+                        });
+                        const DAY_NAMES = [
+                          "Mon",
+                          "Tue",
+                          "Wed",
+                          "Thu",
+                          "Fri",
+                          "Sat",
+                          "Sun",
+                        ];
+                        if (calPeriods.length === 0) return "";
+                        return html`
+                          ${calPeriods.map(({ dayIndex, period }) => {
+                            const cfg =
+                              "calendar_config" in period
+                                ? period.calendar_config
+                                : undefined;
+                            const currentEntityId = cfg?.entity_id ?? "";
+                            const currentMeans = cfg?.event_means ?? "absent";
+                            const friendlyName = currentEntityId
+                              ? (this.panel.hass?.states[currentEntityId]
+                                  ?.attributes?.friendly_name as
+                                  | string
+                                  | undefined) ?? currentEntityId
+                              : "";
+                            return html`
+                              <div class="section-label">
+                                Calendar: ${friendlyName || "—"}
+                                (${DAY_NAMES[dayIndex]} ${period.start})
+                              </div>
+                              <div class="select-wrapper">
+                                <select
+                                  class="mode-select"
+                                  @change=${(e: Event) => {
+                                    const newId = (
+                                      e.target as HTMLSelectElement
+                                    ).value;
+                                    void this._onPeriodCalendarConfigChange(
+                                      dayIndex,
+                                      period.start,
+                                      {
+                                        entity_id: newId,
+                                        event_means: currentMeans,
+                                      },
+                                    );
+                                  }}
+                                >
+                                  <option
+                                    value=""
+                                    ?selected=${!currentEntityId}
+                                  >
+                                    — Select a calendar —
+                                  </option>
+                                  ${calendarEntityIds.map(
+                                    (id) => html`
+                                      <option
+                                        value=${id}
+                                        ?selected=${currentEntityId === id}
+                                      >
+                                        ${(this.panel.hass?.states[id]
+                                          ?.attributes?.friendly_name as
+                                          | string
+                                          | undefined) ?? id}
+                                      </option>
+                                    `,
+                                  )}
+                                </select>
+                              </div>
+                              <div class="select-wrapper">
+                                <select
+                                  class="mode-select"
+                                  @change=${(e: Event) => {
+                                    const newMeans = (
+                                      e.target as HTMLSelectElement
+                                    ).value as "absent" | "present";
+                                    void this._onPeriodCalendarConfigChange(
+                                      dayIndex,
+                                      period.start,
+                                      {
+                                        entity_id: currentEntityId,
+                                        event_means: newMeans,
+                                      },
+                                    );
+                                  }}
+                                >
+                                  <option
+                                    value="absent"
+                                    ?selected=${currentMeans === "absent"}
+                                  >
+                                    Absent during events
+                                  </option>
+                                  <option
+                                    value="present"
+                                    ?selected=${currentMeans === "present"}
+                                  >
+                                    Present during events
+                                  </option>
+                                </select>
+                              </div>
+                            `;
+                          })}
+                        `;
+                      })()}
                       <button
                         class="reset-btn"
                         @click=${() => void this._onResetSchedule()}
                       >
                         ${resetLabel}
                       </button>
+                    `
+                  : ""}
+
+                <!-- 5. Room associations grouped by floor (D-14: moved last) -->
+                <div
+                  class="section-label"
+                  title="Rooms heated by this person's presence"
+                >
+                  Room associations
+                </div>
+                ${assignedGroups.map(
+                  (group) => html`
+                    ${group.floorId !== null
+                      ? html`<div class="floor-group-label">
+                          <ha-icon
+                            icon=${this._getFloorIcon(group.floorId)}
+                          ></ha-icon
+                          >${group.floorName}
+                        </div>`
+                      : ""}
+                    <div class="chips">${group.rooms.map(renderChip)}</div>
+                  `,
+                )}
+                ${assignedGroups.length === 0
+                  ? html`<div class="chips"></div>`
+                  : ""}
+                ${unassignedRooms.length > 0
+                  ? html`
+                      <div class="chips">
+                        <search-picker
+                          .items=${unassignedRooms.map((r) => ({
+                            id: r.id,
+                            label: r.name,
+                            secondary: r.secondary,
+                            icon: "mdi:home-outline",
+                          }))}
+                          triggerLabel="Add room"
+                          triggerIcon="mdi:plus"
+                          placeholder="Search rooms…"
+                          @picked=${(e: CustomEvent) => {
+                            const { id } = e.detail as { id: string };
+                            void this._onRoomToggle(id, true);
+                          }}
+                        ></search-picker>
+                      </div>
                     `
                   : ""}
               </div>
