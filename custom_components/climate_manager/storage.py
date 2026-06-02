@@ -137,6 +137,22 @@ class ClimateManagerStore:
             elif person_cfg.get("mode") == "absent":
                 person_cfg["mode"] = "force_absent"
 
+        # D-02 (Phase 12): rename preheat_lead_minutes →
+        # wakeup_advance_minutes.  Only renames when the new key is absent;
+        # never overwrites an existing wakeup_advance_minutes value (Pitfall 6:
+        # migration runs on post-merge result, not DEFAULT_CONFIG).
+        for person_cfg in result.get("persons", {}).values():
+            if (
+                "preheat_lead_minutes" in person_cfg
+                and "wakeup_advance_minutes" not in person_cfg
+            ):
+                person_cfg["wakeup_advance_minutes"] = person_cfg.pop(
+                    "preheat_lead_minutes"
+                )
+            elif "preheat_lead_minutes" in person_cfg:
+                # New key already present — just remove the legacy key
+                person_cfg.pop("preheat_lead_minutes")
+
         return result
 
     async def async_save(self, config: dict) -> None:

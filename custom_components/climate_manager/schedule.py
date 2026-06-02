@@ -35,6 +35,8 @@ from .const import (
     PERIOD_REDUCED,
     PRESENCE_ABSENT,
     PRESENCE_AUTOMATIC,
+    PRESENCE_CALENDAR,
+    PRESENCE_HA,
     PRESENCE_PRESENT,
 )
 
@@ -365,6 +367,136 @@ def resolve_presence(
     # (PERSON-04), NOT the presence mode constants PRESENCE_PRESENT/
     # PRESENCE_ABSENT (D-21).
     return active_state == "present"
+
+
+def next_occupied_at(
+    person_config: dict,
+    now: datetime.datetime,
+    calendar_cache: dict | None = None,
+    start_of_local_day=None,
+) -> datetime.datetime | None:
+    """Return the next datetime when the person transitions to present.
+
+    D-03 / PREHEAT-05: supplies the next-transition value the pre-heat
+    trigger condition depends on (now >= next_occupied_at - learned_lead).
+
+    Mode dispatch:
+    - PRESENCE_HA, PRESENCE_PRESENT (force_present),
+      PRESENCE_ABSENT (force_absent) → None
+    - PRESENCE_CALENDAR → end of active absent-event OR start of next
+      present-event (from calendar_cache)
+    - Automatic (scheduled) single/even_odd → start of the first present
+      period strictly after `now` within a 7-day lookahead
+
+    Returned datetimes are always timezone-aware with the same tzinfo
+    as `now`.  Never mixes naive/aware (Pitfall 2).
+
+    Args:
+        person_config: Person configuration dict.
+        now: Current timezone-aware datetime.
+        calendar_cache: Optional pre-fetched calendar events keyed by
+            entity_id.  Required for PRESENCE_CALENDAR mode.
+        start_of_local_day: Callable(date) → aware datetime.  Only used
+            for all-day calendar event parsing.  Defaults to
+            _local_day_fallback.
+    """
+    mode = person_config.get("mode", PRESENCE_AUTOMATIC)
+
+    # Modes with no predictable next-occupied transition
+    if mode in (PRESENCE_HA, PRESENCE_PRESENT, PRESENCE_ABSENT):
+        return None
+
+    if mode == PRESENCE_CALENDAR:
+        return _next_occupied_calendar(
+            person_config, now, calendar_cache, start_of_local_day
+        )
+
+    # Automatic (scheduled) — single or even_odd
+    return _next_occupied_scheduled(person_config, now)
+
+
+def _next_occupied_calendar(
+    person_config: dict,
+    now: datetime.datetime,
+    calendar_cache: dict | None,
+    start_of_local_day,
+) -> datetime.datetime | None:
+    """Return next-occupied datetime for calendar-mode persons.
+
+    event_means="absent": person returns home when the active event ends
+        → return that event's end datetime.
+    event_means="present": person is next home at the start of the next
+        event after now → return that event's start datetime.
+    """
+    _sol = (
+        start_of_local_day
+        if start_of_local_day is not None
+        else _local_day_fallback
+    )
+    cal_cfg = person_config.get("calendar_config") or {}
+    entity_id = cal_cfg.get("entity_id", "")
+    event_means = cal_cfg.get("event_means", "absent")
+    raw_events = (calendar_cache or {}).get(entity_id, [])
+    events = _parse_events(raw_events, _sol)
+
+    if event_means == "absent":
+        # Person is absent during events.  If we are inside an event,
+        # the next transition to present is the event's end time.
+        for start, end in events:
+            if start <= now < end and end > now:
+                return end
+        return None
+
+    # event_means == "present": person is present during events.
+    # Return the start of the first event that begins strictly after now.
+    for start, end in events:
+        if start > now:
+            return start
+    return None
+
+
+def _next_occupied_scheduled(
+    person_config: dict,
+    now: datetime.datetime,
+) -> datetime.datetime | None:
+    """Return next-occupied datetime for automatic (scheduled) persons.
+
+    Walks a 7-day lookahead from now.  For each target date selects the
+    correct schedule (single vs even_odd) using that day's ISO week parity.
+    Returns the start of the first present period strictly after now.
+    """
+    schedule_type = person_config.get("schedule_type", "single")
+
+    for day_offset in range(7):
+        target_date = now.date() + datetime.timedelta(days=day_offset)
+
+        if schedule_type == "even_odd":
+            week_parity = target_date.isocalendar().week % 2
+            schedule_key = (
+                "schedule_even" if week_parity == 0 else "schedule_odd"
+            )
+            schedule = person_config.get(schedule_key, {})
+        else:
+            schedule = person_config.get("schedule", {})
+
+        day_name = WEEKDAY_TO_DAY[target_date.weekday()]
+        periods = schedule.get(day_name, [])
+        if not periods:
+            continue
+
+        sorted_periods = sorted(periods, key=lambda p: _parse_time(p["start"]))
+        for period in sorted_periods:
+            if period.get("state") != "present":
+                continue
+            # Build the candidate aware datetime for this period start
+            candidate = datetime.datetime.combine(
+                target_date,
+                _parse_time(period["start"]),
+            ).replace(tzinfo=now.tzinfo)
+            if candidate > now:
+                return candidate
+
+    return None
 
 
 def compute_occupied_temp(

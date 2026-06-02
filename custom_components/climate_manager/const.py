@@ -58,6 +58,17 @@ ROOM_MODE_CUSTOM = "custom"
 DEFAULT_GLOBAL_MODE = MODE_TIME_PROGRAM
 DEFAULT_PREHEAT_LEAD_MINUTES: int = 60
 
+# Phase 12 pre-heat constants (D-01, PREHEAT-01, D-08, D-09)
+# Sparse room keys: preheat_enabled (bool, absent=False),
+#   preheat_max_lead_minutes (int, absent=DEFAULT_PREHEAT_MAX_LEAD_MINUTES).
+DEFAULT_PREHEAT_MAX_LEAD_MINUTES: int = 120  # D-01 / PREHEAT-01
+# Min valid samples before learned lead is preferred over default (D-08)
+PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD: int = 3
+# Max stored samples per room (D-08)
+PREHEAT_MAX_SAMPLES: int = 5
+# °C tolerance for convergence detection (D-09)
+PREHEAT_CONVERGENCE_THRESHOLD: float = 0.2
+
 GAP_HANDLING_EXACT = "exact"
 GAP_HANDLING_DAY_SPAN = "day_span"
 GAP_HANDLING_THRESHOLD = "threshold"
