@@ -147,7 +147,7 @@ panel shows pre-heating status and a suppression warning when applicable.
       wakeup_advance_minutes migration (PREHEAT-02, PREHEAT-05)
 - [x] 12-02-PLAN.md — coordinator _async_preheat pass, inertia learning,
       status fields, second Store (PREHEAT-02, PREHEAT-03, PREHEAT-04)
-- [ ] 12-03-PLAN.md — websocket status parity + room/person config clamps
+- [x] 12-03-PLAN.md — websocket status parity + room/person config clamps
       (PREHEAT-01, PREHEAT-04)
 - [ ] 12-04-PLAN.md — frontend room-card pre-heat UI + types.ts fields
       (PREHEAT-01, PREHEAT-04)
@@ -185,5 +185,5 @@ sub-minute responsiveness without waiting for the polling interval.
 | 9. TRV Temperature Offset Auto-Calibration | v1.2      | 4/4            | Complete | 2026-05-30 |
 | 10. Presence Mode UI                        | v1.3      | 2/2            | Complete | 2026-06-01 |
 | 11. Calendar Presence Backend               | v1.3      | 5/5 | Complete   | 2026-06-02 |
-| 12. Predictive Pre-heat                     | v1.3      | 2/4 | In Progress|  |
+| 12. Predictive Pre-heat                     | v1.3      | 3/4 | In Progress|  |
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 0/?            | Pending  | —          |
