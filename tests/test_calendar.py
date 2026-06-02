@@ -152,17 +152,17 @@ def test_calendar_mode_absent_no_event_when_means_present():
 
 
 @freeze_time("2026-06-01 14:00:00 UTC")
-def test_preheat_triggers_at_boundary():
-    """Active event ends exactly 60 min from now → present (pre-heat).
+def test_absent_for_full_event_duration():
+    """Active event → absent for its entire duration, no arrival pre-heat.
 
-    Now = UTC 14:00. Event ends 15:00 UTC. lead=60 min.
-    event_end (15:00) <= now+lead (15:00) → True (pre-heat triggered).
+    Now = UTC 14:00. Event ends 15:00 UTC.
+    Person is absent until 15:00 regardless of preheat_lead_minutes.
     """
     now = dt_util.now()
     events = [
         _timed_event(
             "2026-06-01T08:00:00+00:00",
-            "2026-06-01T15:00:00+00:00",  # ends 60 min from now (UTC 14:00)
+            "2026-06-01T15:00:00+00:00",
         )
     ]
     result = resolve_calendar_presence(
@@ -172,7 +172,7 @@ def test_preheat_triggers_at_boundary():
         preheat_lead_minutes=60,
         start_of_local_day=dt_util.start_of_local_day,
     )
-    assert result is True
+    assert result is False
 
 
 @freeze_time("2026-06-01 14:00:00 UTC")
@@ -180,7 +180,7 @@ def test_preheat_no_trigger_before_boundary():
     """Active event ends 61 min from now → still absent (False).
 
     Now = UTC 14:00. Event ends 15:01 UTC. lead=60 min.
-    event_end (15:01) > now+lead (15:00) → False (not yet pre-heat time).
+    Active event with 61 min remaining → absent (no arrival pre-heat).
     """
     now = dt_util.now()
     events = [

@@ -137,9 +137,7 @@ def resolve_calendar_presence(
     - Parse start/end via _parse_calendar_dt (handles DATE and DATETIME).
     - event_active = event_start <= now < event_end
     - If event_means == "absent" and event is active:
-        - If event ends within preheat_lead_minutes → True (pre-heat,
-          person returns soon — start heating now, D-10, D-12).
-        - Otherwise → False (person is absent).
+        - → False (person is absent for the full event duration).
     - If event_means == "present" and event is active:
         - → True (person is present).
     - After all events (no active event found):
@@ -151,8 +149,8 @@ def resolve_calendar_presence(
             Each dict has at least "start" and "end" ISO strings.
         event_means: "absent" | "present" — what an active event means.
         now: Current timezone-aware datetime (from dt_util.now()).
-        preheat_lead_minutes: Minutes before absence ends to start
-            pre-heating (D-10). Default 60.
+        preheat_lead_minutes: Reserved for future morning pre-heat
+            logic (D-10). Currently unused in presence resolution.
         start_of_local_day: Callable(date) → aware datetime, used by
             _parse_calendar_dt for all-day events. Defaults to
             _local_day_fallback for pure unit tests; production callers
@@ -166,8 +164,6 @@ def resolve_calendar_presence(
         if start_of_local_day is not None
         else _local_day_fallback
     )
-    lead = datetime.timedelta(minutes=preheat_lead_minutes)
-
     for event in events:
         start_s = event.get("start", "")
         end_s = event.get("end", "")
@@ -187,10 +183,7 @@ def resolve_calendar_presence(
 
         if event_means == "absent":
             if event_active:
-                # Pre-heat: event ends within lead window → heat now (D-10)
-                if event_end <= now + lead:
-                    return True
-                return False  # still absent, not pre-heating yet
+                return False  # absent for the full event duration
         else:  # event_means == "present"
             if event_active:
                 return True
