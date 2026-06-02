@@ -695,7 +695,11 @@ export class ClimateManagerTimeBar extends LitElement {
         ? seg.period.state ?? "absent"
         : seg.period.mode ?? "frost_protection";
     const currentIdx = cycle.indexOf(currentType);
-    const nextType = cycle[(currentIdx + 1) % cycle.length];
+    // "calendar" is not in PRESENCE_CYCLE; use "absent" as the next half so
+    // the split is explicit and safe — the user can then set the new half to
+    // "calendar" and configure it (WR-02).
+    const nextType =
+      currentIdx === -1 ? "absent" : cycle[(currentIdx + 1) % cycle.length];
 
     // Build the two replacement periods
     const firstHalf: Period =
