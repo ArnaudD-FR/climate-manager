@@ -879,7 +879,7 @@ export class PersonCard extends LitElement {
                           </option>
                         </select>
                       </div>
-                      <div class="section-label">Pre-heat lead time</div>
+                      <div class="section-label">Wake-up advance</div>
                       <div class="preheat-row">
                         <input
                           type="number"

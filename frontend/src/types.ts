@@ -65,7 +65,7 @@ export interface PersonConfig {
     entity_id: string;
     event_means: "absent" | "present";
   };
-  // Phase 11: pre-heat lead time in minutes (D-10); absent = 60
+  // Phase 11: wake-up advance in minutes (D-10); absent = 60
   preheat_lead_minutes?: number;
 }
 
