@@ -12,10 +12,23 @@
  * (presence bar) must be present. TypeScript will flag access to
  * `period.mode` without checking the
  * discriminant, preventing silent undefined rendering (WR-03).
+ *
+ * Phase 11 (D-06): presence periods with state "calendar" may carry an
+ * optional calendar_config for per-period calendar entity + event_means.
  */
 export type Period =
   | { start: string; mode: string; state?: never }
-  | { start: string; state: string; mode?: never };
+  | {
+      start: string;
+      state: string;
+      mode?: never;
+      // Phase 11 (D-06): per-period calendar config (only used when
+      // state === "calendar")
+      calendar_config?: {
+        entity_id: string;
+        event_means: "absent" | "present";
+      };
+    };
 
 /** Seven-day program map keyed by lowercase day abbreviation. */
 export type DailyProgram = Record<

@@ -510,9 +510,17 @@ export class ClimateManagerTimeBar extends LitElement {
 
   private _modeOptions(): Array<{ key: string; label: string; color: string }> {
     if (this.mode === "presence") {
+      // Phase 11 (D-17): "calendar" is a selectable period state but NOT
+      // part of PRESENCE_CYCLE (click/drag cycling). It is only reachable
+      // via this popup's Change mode options (Landmine 6).
       return [
         { key: "present", label: "Present", color: PRESENCE_COLORS["present"] },
         { key: "absent", label: "Absent", color: PRESENCE_COLORS["absent"] },
+        {
+          key: "calendar",
+          label: "Calendar",
+          color: PRESENCE_COLORS["calendar"],
+        },
       ];
     }
     return [

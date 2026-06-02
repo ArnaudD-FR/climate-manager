@@ -517,6 +517,55 @@ export class PersonCard extends LitElement {
     }
   }
 
+  /**
+   * Save handler for per-period calendar config changes (D-06).
+   * Updates the period's own calendar_config within the schedule.
+   */
+  private async _onPeriodCalendarConfigChange(
+    dayIndex: number,
+    periodStart: string,
+    newCalendarConfig: {
+      entity_id: string;
+      event_means: "absent" | "present";
+    },
+  ) {
+    const scheduleType = this.config?.schedule_type ?? "single";
+    const isEvenOdd = scheduleType === "even_odd";
+    const activeSchedule = isEvenOdd
+      ? this._activeWeek === "even"
+        ? this.config.schedule_even
+        : this.config.schedule_odd
+      : this.config.schedule;
+    const base: DailyProgram = activeSchedule ?? {
+      mon: [],
+      tue: [],
+      wed: [],
+      thu: [],
+      fri: [],
+      sat: [],
+      sun: [],
+    };
+    const dayKey = dayIndexToKey(dayIndex);
+    const updatedDay = (base[dayKey] ?? []).map((p) =>
+      p.start === periodStart && "state" in p
+        ? { ...p, calendar_config: newCalendarConfig }
+        : p,
+    );
+    const updated: DailyProgram = { ...base, [dayKey]: updatedDay };
+    const field = isEvenOdd
+      ? this._activeWeek === "even"
+        ? "schedule_even"
+        : "schedule_odd"
+      : "schedule";
+    try {
+      await this.ws.setPersonConfig(this.personId, { [field]: updated });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
   // -----------------------------------------------------------------------
   // Helpers
   // -----------------------------------------------------------------------
@@ -907,6 +956,127 @@ export class PersonCard extends LitElement {
                           @periods-changed=${this._onSchedulePeriodsChanged}
                         ></climate-manager-time-bar>
                       </div>
+                      ${(() => {
+                        // D-17: render inline calendar config for each
+                        // period with state "calendar" in the active schedule.
+                        const activeDays = isEvenOdd
+                          ? this._activeWeek === "even"
+                            ? this._daysEven
+                            : this._daysOdd
+                          : this._days;
+                        const calPeriods: Array<{
+                          dayIndex: number;
+                          period: (typeof activeDays)[0][0];
+                        }> = [];
+                        activeDays.forEach((dayPeriods, dayIndex) => {
+                          dayPeriods.forEach((p) => {
+                            if ("state" in p && p.state === "calendar") {
+                              calPeriods.push({ dayIndex, period: p });
+                            }
+                          });
+                        });
+                        const DAY_NAMES = [
+                          "Mon",
+                          "Tue",
+                          "Wed",
+                          "Thu",
+                          "Fri",
+                          "Sat",
+                          "Sun",
+                        ];
+                        if (calPeriods.length === 0) return "";
+                        return html`
+                          ${calPeriods.map(({ dayIndex, period }) => {
+                            const cfg =
+                              "calendar_config" in period
+                                ? period.calendar_config
+                                : undefined;
+                            const currentEntityId = cfg?.entity_id ?? "";
+                            const currentMeans = cfg?.event_means ?? "absent";
+                            const friendlyName = currentEntityId
+                              ? (this.panel.hass?.states[currentEntityId]
+                                  ?.attributes?.friendly_name as
+                                  | string
+                                  | undefined) ?? currentEntityId
+                              : "";
+                            return html`
+                              <div class="section-label">
+                                Calendar: ${friendlyName || "—"}
+                                (${DAY_NAMES[dayIndex]} ${period.start})
+                              </div>
+                              <div class="select-wrapper">
+                                <select
+                                  class="mode-select"
+                                  @change=${(e: Event) => {
+                                    const newId = (
+                                      e.target as HTMLSelectElement
+                                    ).value;
+                                    void this._onPeriodCalendarConfigChange(
+                                      dayIndex,
+                                      period.start,
+                                      {
+                                        entity_id: newId,
+                                        event_means: currentMeans,
+                                      },
+                                    );
+                                  }}
+                                >
+                                  <option
+                                    value=""
+                                    ?selected=${!currentEntityId}
+                                  >
+                                    — Select a calendar —
+                                  </option>
+                                  ${calendarEntityIds.map(
+                                    (id) => html`
+                                      <option
+                                        value=${id}
+                                        ?selected=${currentEntityId === id}
+                                      >
+                                        ${(this.panel.hass?.states[id]
+                                          ?.attributes?.friendly_name as
+                                          | string
+                                          | undefined) ?? id}
+                                      </option>
+                                    `,
+                                  )}
+                                </select>
+                              </div>
+                              <div class="select-wrapper">
+                                <select
+                                  class="mode-select"
+                                  @change=${(e: Event) => {
+                                    const newMeans = (
+                                      e.target as HTMLSelectElement
+                                    ).value as "absent" | "present";
+                                    void this._onPeriodCalendarConfigChange(
+                                      dayIndex,
+                                      period.start,
+                                      {
+                                        entity_id: currentEntityId,
+                                        event_means: newMeans,
+                                      },
+                                    );
+                                  }}
+                                >
+                                  <option
+                                    value="absent"
+                                    ?selected=${currentMeans === "absent"}
+                                  >
+                                    Absent during events
+                                  </option>
+                                  <option
+                                    value="present"
+                                    ?selected=${currentMeans === "present"}
+                                  >
+                                    Present during events
+                                  </option>
+                                </select>
+                              </div>
+                            `;
+                          })}
+                        `;
+                      })()}
                       <button
                         class="reset-btn"
                         @click=${() => void this._onResetSchedule()}
