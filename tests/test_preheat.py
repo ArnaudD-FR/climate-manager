@@ -854,3 +854,58 @@ async def test_status_payload_preheat_fields(hass):
     assert garage_entry["preheat_active"] is True
     assert garage_entry["preheat_target"] == 20.0
     assert garage_entry["preheat_suppressed"] is False
+
+
+# ---------------------------------------------------------------------------
+# Plan 03, Task 1: ws_get_status preheat field parity (D-10, PREHEAT-04)
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_get_status_preheat_fields(hass, hass_ws_client):
+    """get_status rooms_status entries contain preheat_active, preheat_target,
+    preheat_suppressed, mirroring the push payload (D-10, Pitfall 1).
+
+    Seeds: one room 'office' with coordinator preheat dicts set.
+    Expected: get_status response includes all three fields with correct values.
+    Also checks default-absent room returns False/None/False.
+    """
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Seed two rooms: 'office' (with preheat state) and 'hall' (absent from dicts)
+    entry.runtime_data.rooms = {
+        "office": [],
+        "hall": [],
+    }
+
+    coord = entry.runtime_data.coordinator
+    coord._preheat_active["office"] = True
+    coord._preheat_target["office"] = 21.0
+    coord._preheat_suppressed["office"] = False
+    # 'hall' has no entries in the preheat dicts — should default to False/None/False
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/get_status"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    rooms_status = msg["result"]["rooms_status"]
+
+    office_entry = next(
+        (r for r in rooms_status if r["area_id"] == "office"), None
+    )
+    hall_entry = next((r for r in rooms_status if r["area_id"] == "hall"), None)
+
+    assert office_entry is not None, "office missing from rooms_status"
+    assert office_entry["preheat_active"] is True
+    assert office_entry["preheat_target"] == 21.0
+    assert office_entry["preheat_suppressed"] is False
+
+    assert hall_entry is not None, "hall missing from rooms_status"
+    assert hall_entry["preheat_active"] is False
+    assert hall_entry["preheat_target"] is None
+    assert hall_entry["preheat_suppressed"] is False
