@@ -27,6 +27,8 @@ export type Period =
       calendar_config?: {
         entity_id: string;
         event_means: "absent" | "present";
+        gap_handling?: "exact" | "day_span" | "threshold";
+        gap_threshold_minutes?: number;
       };
     };
 
@@ -64,6 +66,8 @@ export interface PersonConfig {
   calendar_config?: {
     entity_id: string;
     event_means: "absent" | "present";
+    gap_handling?: "exact" | "day_span" | "threshold";
+    gap_threshold_minutes?: number;
   };
   // Phase 11: wake-up advance in minutes (D-10); absent = 60
   preheat_lead_minutes?: number;

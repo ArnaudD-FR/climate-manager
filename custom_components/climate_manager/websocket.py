@@ -519,6 +519,26 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
                 # T-11-06 (WR-03): reject invalid event_means values to
                 # prevent silent inversion of presence logic in schedule.py.
                 incoming.pop("calendar_config")
+            else:
+                # Validate gap_handling and gap_threshold_minutes.
+                # Sparse model: only normalize keys the client explicitly sent.
+                if "gap_handling" in cal_cfg:
+                    gap = cal_cfg["gap_handling"]
+                    if gap not in ("exact", "day_span", "threshold"):
+                        cal_cfg.pop("gap_handling")
+                        cal_cfg.pop("gap_threshold_minutes", None)
+                    elif gap == "threshold":
+                        try:
+                            thr = int(cal_cfg.get("gap_threshold_minutes", 30))
+                            cal_cfg["gap_threshold_minutes"] = max(
+                                0, min(480, thr)
+                            )
+                        except (TypeError, ValueError):
+                            cal_cfg["gap_threshold_minutes"] = 30
+                    else:
+                        cal_cfg.pop("gap_threshold_minutes", None)
+                else:
+                    cal_cfg.pop("gap_threshold_minutes", None)
         # T-11-07: clamp preheat_lead_minutes to 0-480 (drops if invalid).
         if "preheat_lead_minutes" in incoming:
             val = incoming["preheat_lead_minutes"]

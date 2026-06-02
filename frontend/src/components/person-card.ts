@@ -470,12 +470,13 @@ export class PersonCard extends LitElement {
 
   private async _onCalendarEntityChange(e: Event) {
     const entityId = (e.target as HTMLSelectElement).value;
-    const currentMeans = this.config?.calendar_config?.event_means ?? "absent";
+    const existing = this.config?.calendar_config ?? {};
     try {
       await this.ws.setPersonConfig(this.personId, {
         calendar_config: {
+          ...existing,
           entity_id: entityId,
-          event_means: currentMeans,
+          event_means: existing.event_means ?? "absent",
         },
       });
       await this.panel.reloadConfig();
@@ -487,10 +488,10 @@ export class PersonCard extends LitElement {
 
   private async _onEventMeansChange(e: Event) {
     const means = (e.target as HTMLSelectElement).value as "absent" | "present";
-    const currentEntityId = this.config?.calendar_config?.entity_id ?? "";
+    const existing = this.config?.calendar_config ?? {};
     // Cannot save event_means without a calendar entity selected — the
     // backend T-11-06 guard would silently discard the update (CR-02).
-    if (!currentEntityId) {
+    if (!existing.entity_id) {
       this.panel.showToast(
         "Select a calendar entity first before changing event meaning.",
         true,
@@ -499,10 +500,43 @@ export class PersonCard extends LitElement {
     }
     try {
       await this.ws.setPersonConfig(this.personId, {
-        calendar_config: {
-          entity_id: currentEntityId,
-          event_means: means,
-        },
+        calendar_config: { ...existing, event_means: means },
+      });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onGapHandlingChange(e: Event) {
+    const gap = (e.target as HTMLSelectElement).value as
+      | "exact"
+      | "day_span"
+      | "threshold";
+    const existing = this.config?.calendar_config ?? {};
+    if (!existing.entity_id) return;
+    const update = { ...existing, gap_handling: gap };
+    if (gap !== "threshold") delete update.gap_threshold_minutes;
+    try {
+      await this.ws.setPersonConfig(this.personId, {
+        calendar_config: update,
+      });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onGapThresholdChange(e: Event) {
+    const val = parseInt((e.target as HTMLInputElement).value, 10);
+    if (isNaN(val) || val < 0 || val > 480) return;
+    const existing = this.config?.calendar_config ?? {};
+    if (!existing.entity_id) return;
+    try {
+      await this.ws.setPersonConfig(this.personId, {
+        calendar_config: { ...existing, gap_threshold_minutes: val },
       });
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
@@ -879,6 +913,57 @@ export class PersonCard extends LitElement {
                           </option>
                         </select>
                       </div>
+                      <div class="section-label">Gap handling</div>
+                      <div class="select-wrapper">
+                        <select
+                          class="mode-select"
+                          @change=${this._onGapHandlingChange}
+                        >
+                          <option
+                            value="exact"
+                            ?selected=${(this.config?.calendar_config
+                              ?.gap_handling ?? "exact") === "exact"}
+                          >
+                            Return home between events
+                          </option>
+                          <option
+                            value="day_span"
+                            ?selected=${this.config?.calendar_config
+                              ?.gap_handling === "day_span"}
+                          >
+                            Absent all day (first to last event)
+                          </option>
+                          <option
+                            value="threshold"
+                            ?selected=${this.config?.calendar_config
+                              ?.gap_handling === "threshold"}
+                          >
+                            Return home in long gaps only
+                          </option>
+                        </select>
+                      </div>
+                      ${this.config?.calendar_config?.gap_handling ===
+                      "threshold"
+                        ? html`
+                            <div class="section-label">
+                              Minimum gap to return home
+                            </div>
+                            <div class="preheat-row">
+                              <input
+                                type="number"
+                                min="0"
+                                max="480"
+                                step="5"
+                                .value=${String(
+                                  this.config?.calendar_config
+                                    ?.gap_threshold_minutes ?? 30,
+                                )}
+                                @change=${this._onGapThresholdChange}
+                              />
+                              <span>min</span>
+                            </div>
+                          `
+                        : ""}
                       <div class="section-label">Wake-up advance</div>
                       <div class="preheat-row">
                         <input
@@ -893,6 +978,10 @@ export class PersonCard extends LitElement {
                         />
                         <span>min</span>
                       </div>
+                      <p class="schedule-hint">
+                        Minutes to start heating before your first calendar
+                        event of the day.
+                      </p>
                     `
                   : ""}
 

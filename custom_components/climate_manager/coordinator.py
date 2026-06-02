@@ -416,6 +416,10 @@ class ClimateManagerCoordinator:
                     events,
                     cal_cfg.get("event_means", "absent"),
                     now,
+                    gap_handling=cal_cfg.get("gap_handling", "exact"),
+                    gap_threshold_minutes=cal_cfg.get(
+                        "gap_threshold_minutes", 0
+                    ),
                     preheat_lead_minutes=preheat,
                     start_of_local_day=dt_util.start_of_local_day,
                 )
@@ -751,6 +755,10 @@ class ClimateManagerCoordinator:
                     events,
                     cal_cfg.get("event_means", "absent"),
                     now,
+                    gap_handling=cal_cfg.get("gap_handling", "exact"),
+                    gap_threshold_minutes=cal_cfg.get(
+                        "gap_threshold_minutes", 0
+                    ),
                     preheat_lead_minutes=preheat,
                     start_of_local_day=dt_util.start_of_local_day,
                 ):

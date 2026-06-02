@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
 status: executing
-last_updated: "2026-06-02T08:20:03.997Z"
+last_updated: "2026-06-02T12:53:41.994Z"
 last_activity: 2026-06-02 -- Phase 11 execution started
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 2
-  percent: 25
+  completed_plans: 7
+  percent: 50
 ---
 
 # Project State
@@ -126,14 +126,15 @@ Items acknowledged and deferred at milestone close on 2026-05-31:
 | 260531-any | Remove "Last applied delta" column from calibration table | 2026-05-31 | 392e8e4 | [260531-any-remove-last-applied-delta-column](./quick/260531-any-remove-last-applied-delta-column/) |
 | 260601-d04 | D-04: HA option always visible; ⚠ label + edit link when no trackers | 2026-06-01 | 44ebcdd | [260601-d04-ha-option-always-visible](./quick/260601-d04-ha-option-always-visible/) |
 | 260601-vaz | Fix HA tracker warning notification not recreating after user dismiss | 2026-06-01 | a4cd591 | [260601-vaz-fix-notif-dismiss-watcher](./quick/260601-vaz-fix-notif-dismiss-watcher/) |
+| 260602-kzf | Calendar gap handling modes + wake-up advance description | 2026-06-02 | — | [260602-kzf-calendar-gap-modes-and-wakeup-desc](./quick/260602-kzf-calendar-gap-modes-and-wakeup-desc/) |
 
 Last activity: 2026-05-29 - Created v1.2 roadmap (Phases 7-9); 11 requirements
 mapped (SCHED-01..06, CALIB-01..05)
 
 ## Session Continuity
 
-Last session: 2026-06-01T21:49:45.929Z
-Resume file: .planning/phases/11-calendar-presence-backend/11-UI-SPEC.md
+Last session: 2026-06-02T12:53:41.991Z
+Resume file: None
 
 ## Operator Next Steps
 

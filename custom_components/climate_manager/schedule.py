@@ -27,6 +27,8 @@ import logging
 import re
 
 from .const import (
+    GAP_HANDLING_DAY_SPAN,
+    GAP_HANDLING_THRESHOLD,
     PERIOD_COMFORT,
     PERIOD_FROST_PROTECTION,
     PERIOD_NORMAL,
@@ -119,79 +121,113 @@ def _parse_calendar_dt(
         raise ValueError(f"Unparseable calendar datetime {s!r}") from exc
 
 
+def _parse_events(
+    events: list[dict],
+    sol,
+) -> list[tuple[datetime.datetime, datetime.datetime]]:
+    """Parse and sort calendar event dicts into (start, end) tuples.
+
+    Skips malformed or unparseable entries with a warning log.
+    Returns events sorted ascending by start time.
+    """
+    parsed: list[tuple[datetime.datetime, datetime.datetime]] = []
+    for event in events:
+        start_s = event.get("start", "")
+        end_s = event.get("end", "")
+        if not start_s or not end_s:
+            continue
+        try:
+            parsed.append(
+                (
+                    _parse_calendar_dt(start_s, sol),
+                    _parse_calendar_dt(end_s, sol),
+                )
+            )
+        except ValueError:
+            _LOGGER.warning(
+                "Skipping calendar event with unparseable datetime: %r", event
+            )
+    parsed.sort(key=lambda e: e[0])
+    return parsed
+
+
+def _is_calendar_active(
+    events: list[dict],
+    now: datetime.datetime,
+    gap_handling: str,
+    gap_threshold_minutes: int,
+    sol,
+) -> bool:
+    """Return True if *now* falls inside a 'calendar-active' window.
+
+    gap_handling controls how gaps between events are treated:
+    - "exact" (default): gaps are not active — person returns home.
+    - "day_span": entire span from first event start to last event end
+      is active — gaps are absorbed.
+    - "threshold": gaps shorter than gap_threshold_minutes are active
+      (person stays away); longer gaps trigger a return home.
+    """
+    parsed = _parse_events(events, sol)
+    if not parsed:
+        return False
+
+    if gap_handling == GAP_HANDLING_DAY_SPAN:
+        return parsed[0][0] <= now < parsed[-1][1]
+
+    if gap_handling == GAP_HANDLING_THRESHOLD:
+        for start, end in parsed:
+            if start <= now < end:
+                return True
+        td = datetime.timedelta(minutes=gap_threshold_minutes)
+        for i in range(len(parsed) - 1):
+            gap_start, gap_end = parsed[i][1], parsed[i + 1][0]
+            if gap_start <= now < gap_end:
+                return (gap_end - gap_start) <= td
+        return False
+
+    # "exact" (default)
+    return any(start <= now < end for start, end in parsed)
+
+
 def resolve_calendar_presence(
     events: list[dict],
     event_means: str,
     now: datetime.datetime,
+    gap_handling: str = "exact",
+    gap_threshold_minutes: int = 0,
     preheat_lead_minutes: int = 60,
     start_of_local_day=None,
 ) -> bool:
     """Return True if the person should be considered present.
 
-    Implements the calendar-driven presence resolution with pre-heat
-    lead time (CAL-01, CAL-04, D-10 fixed offset).
-
-    Algorithm:
-    - Walk all events from the pre-fetched list.
-    - For each event, skip if start or end is missing.
-    - Parse start/end via _parse_calendar_dt (handles DATE and DATETIME).
-    - event_active = event_start <= now < event_end
-    - If event_means == "absent" and event is active:
-        - → False (person is absent for the full event duration).
-    - If event_means == "present" and event is active:
-        - → True (person is present).
-    - After all events (no active event found):
-        - event_means == "absent" → True (no event = not absent = present)
-        - event_means == "present" → False (no event = not present)
+    CAL-01, CAL-04, D-10.
 
     Args:
         events: List of event dicts from _calendar_cache[entity_id].
-            Each dict has at least "start" and "end" ISO strings.
-        event_means: "absent" | "present" — what an active event means.
+        event_means: "absent" | "present" — what an active calendar
+            period means.
         now: Current timezone-aware datetime (from dt_util.now()).
-        preheat_lead_minutes: Reserved for future morning pre-heat
-            logic (D-10). Currently unused in presence resolution.
-        start_of_local_day: Callable(date) → aware datetime, used by
-            _parse_calendar_dt for all-day events. Defaults to
-            _local_day_fallback for pure unit tests; production callers
-            MUST pass dt_util.start_of_local_day.
-
-    Returns:
-        True if the person should be considered present, False if absent.
+        gap_handling: "exact" | "day_span" | "threshold" — controls
+            how gaps between calendar events are treated.
+        gap_threshold_minutes: Only used when gap_handling="threshold".
+            Gaps shorter than this are treated as active (person stays
+            away); longer gaps trigger a return home.
+        preheat_lead_minutes: Reserved for future morning pre-heat (D-10).
+            Currently unused.
+        start_of_local_day: Callable(date) → aware datetime. Tests may
+            omit this; production callers MUST pass dt_util.start_of_local_day.
     """
     _sol = (
         start_of_local_day
         if start_of_local_day is not None
         else _local_day_fallback
     )
-    for event in events:
-        start_s = event.get("start", "")
-        end_s = event.get("end", "")
-        if not start_s or not end_s:
-            continue  # T-11-01: skip malformed events (missing start/end)
-        try:
-            event_start = _parse_calendar_dt(start_s, _sol)
-            event_end = _parse_calendar_dt(end_s, _sol)
-        except ValueError:
-            _LOGGER.warning(
-                "Skipping calendar event with unparseable datetime: %r",
-                event,
-            )
-            continue
-
-        event_active = event_start <= now < event_end
-
-        if event_means == "absent":
-            if event_active:
-                return False  # absent for the full event duration
-        else:  # event_means == "present"
-            if event_active:
-                return True
-
-    # No active event found
+    active = _is_calendar_active(
+        events, now, gap_handling, gap_threshold_minutes, _sol
+    )
     if event_means == "absent":
-        return True  # no event = not absent = present
-    return False  # no event = not present
+        return not active
+    return active
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +355,8 @@ def resolve_presence(
             events,
             event_means,
             now,
+            gap_handling=cal_cfg.get("gap_handling", "exact"),
+            gap_threshold_minutes=cal_cfg.get("gap_threshold_minutes", 0),
             preheat_lead_minutes=preheat,
             start_of_local_day=start_of_local_day,
         )

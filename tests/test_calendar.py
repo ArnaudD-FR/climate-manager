@@ -15,6 +15,7 @@ async_mock_service.
 WS persistence tests (Plan 03): use hass fixture + hass_ws_client.
 """
 
+import datetime
 import logging
 
 import pytest
@@ -803,3 +804,122 @@ async def test_ws_rejects_non_calendar_entity_id(hass, hass_ws_client):
     assert not bad_entity.startswith("light."), (
         f"Invalid entity_id 'light.kitchen' was persisted: {cal_cfg!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Gap handling mode tests
+# ---------------------------------------------------------------------------
+
+_TZ = "+02:00"
+
+
+def _ev(start: str, end: str) -> dict:
+    """Build a timed event with the test timezone offset."""
+    return {"start": f"{start}{_TZ}", "end": f"{end}{_TZ}"}
+
+
+def _now(ts: str) -> datetime.datetime:
+    """Return an aware datetime for the given ISO timestamp."""
+    return datetime.datetime.fromisoformat(f"{ts}{_TZ}")
+
+
+def test_gap_exact_present_in_gap():
+    """gap_handling='exact': gap between events → person is present."""
+    events = [
+        _ev("2026-06-02T09:00:00", "2026-06-02T10:00:00"),
+        _ev("2026-06-02T11:00:00", "2026-06-02T13:00:00"),
+    ]
+    now = _now("2026-06-02T10:30:00")
+    result = resolve_calendar_presence(
+        events, "absent", now, gap_handling="exact"
+    )
+    assert result is True, "exact: gap should be treated as present"
+
+
+def test_gap_day_span_absent_in_gap():
+    """gap_handling='day_span': gap between events → person stays absent."""
+    events = [
+        _ev("2026-06-02T09:00:00", "2026-06-02T10:00:00"),
+        _ev("2026-06-02T11:00:00", "2026-06-02T13:00:00"),
+    ]
+    now = _now("2026-06-02T10:30:00")
+    result = resolve_calendar_presence(
+        events, "absent", now, gap_handling="day_span"
+    )
+    assert result is False, "day_span: gap should be treated as absent"
+
+
+def test_gap_day_span_present_before_first_event():
+    """gap_handling='day_span': before first event → person is present."""
+    events = [
+        _ev("2026-06-02T09:00:00", "2026-06-02T10:00:00"),
+        _ev("2026-06-02T11:00:00", "2026-06-02T13:00:00"),
+    ]
+    now = _now("2026-06-02T08:00:00")
+    result = resolve_calendar_presence(
+        events, "absent", now, gap_handling="day_span"
+    )
+    assert result is True, "day_span: before first event → present"
+
+
+def test_gap_day_span_present_after_last_event():
+    """gap_handling='day_span': after last event → person is present."""
+    events = [
+        _ev("2026-06-02T09:00:00", "2026-06-02T10:00:00"),
+        _ev("2026-06-02T11:00:00", "2026-06-02T13:00:00"),
+    ]
+    now = _now("2026-06-02T14:00:00")
+    result = resolve_calendar_presence(
+        events, "absent", now, gap_handling="day_span"
+    )
+    assert result is True, "day_span: after last event → present"
+
+
+def test_gap_threshold_absent_short_gap():
+    """gap_handling='threshold': gap shorter than threshold → person stays absent."""
+    events = [
+        _ev("2026-06-02T09:00:00", "2026-06-02T10:00:00"),
+        _ev("2026-06-02T10:20:00", "2026-06-02T12:00:00"),
+    ]
+    now = _now("2026-06-02T10:10:00")  # 10-min gap, threshold=30
+    result = resolve_calendar_presence(
+        events,
+        "absent",
+        now,
+        gap_handling="threshold",
+        gap_threshold_minutes=30,
+    )
+    assert result is False, "threshold: short gap (10 min < 30) → absent"
+
+
+def test_gap_threshold_present_long_gap():
+    """gap_handling='threshold': gap longer than threshold → person returns home."""
+    events = [
+        _ev("2026-06-02T09:00:00", "2026-06-02T10:00:00"),
+        _ev("2026-06-02T11:30:00", "2026-06-02T13:00:00"),
+    ]
+    now = _now("2026-06-02T10:45:00")  # 90-min gap, threshold=30
+    result = resolve_calendar_presence(
+        events,
+        "absent",
+        now,
+        gap_handling="threshold",
+        gap_threshold_minutes=30,
+    )
+    assert result is True, "threshold: long gap (90 min > 30) → present"
+
+
+def test_gap_threshold_in_event_always_absent():
+    """gap_handling='threshold': inside an active event → always absent."""
+    events = [
+        _ev("2026-06-02T09:00:00", "2026-06-02T10:00:00"),
+    ]
+    now = _now("2026-06-02T09:30:00")
+    result = resolve_calendar_presence(
+        events,
+        "absent",
+        now,
+        gap_handling="threshold",
+        gap_threshold_minutes=0,
+    )
+    assert result is False, "threshold: inside event → absent"
