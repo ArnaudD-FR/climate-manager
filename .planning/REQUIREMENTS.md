@@ -4,20 +4,27 @@
 
 ### Calendar Presence Sources
 
-- [ ] **CAL-01**: User can configure a person's presence source as "Pronote"
-  with a school URL, username, and password; the integration fetches the
-  school timetable and marks the person absent during school slots and present
-  during free/holiday periods
-- [ ] **CAL-02**: The Pronote timetable is cached with a configurable TTL
-  (default 6h) to avoid IP bans; on fetch failure the person falls back to
-  their manual schedule without error or log spam
-- [ ] **CAL-03**: User can configure a person's presence source as "iCal" with
-  an ICS URL and optional keyword filter; events matching the keyword mark the
-  person absent, all other times are present
-- [ ] **CAL-04**: The iCal calendar is fetched and cached with a configurable
-  TTL (default 1h); RRULE recurring events are expanded correctly using
-  `recurring-ical-events`; DATE vs DATETIME types and timezone-naive events
-  are handled safely; on fetch failure the person falls back to manual schedule
+- [ ] **CAL-01**: A person can be set to "Calendar" presence mode in the
+  panel. A `calendar.*` HA entity is configured as the presence source.
+  When an event is active on that calendar, the `event_means` field
+  determines whether the person is absent (default) or present. When no
+  event is active, the inverse applies. On `calendar.*` entity error or
+  unavailability, the person falls back to absent without log spam.
+- [ ] **CAL-02**: The coordinator fetches `get_events` for each unique
+  `calendar.*` entity ID exactly once per `async_evaluate` cycle, caching
+  results in `_calendar_cache`. Multiple persons sharing a calendar entity
+  share the same fetch result within the cycle. On fetch failure, the entity
+  falls back to an empty event list with a single WARNING log.
+- [ ] **CAL-03**: In Scheduled mode, individual periods can have state
+  `"calendar"` instead of `"present"` / `"absent"`. When active, the period
+  resolves via the `calendar_config` attached to that period (entity_id +
+  event_means). Not recursive: a calendar period inside a top-level calendar
+  mode is not supported.
+- [ ] **CAL-04**: A per-person `preheat_lead_minutes` value (default 60,
+  range 0–480) causes the coordinator to treat a calendar-absent person as
+  present when the active event is scheduled to end within
+  `preheat_lead_minutes` minutes, enabling rooms to pre-heat before the
+  person returns.
 
 ### Predictive Pre-heat
 
@@ -35,8 +42,9 @@
   because the presence source is live/reactive (no scheduled transitions)
   show a warning: "Pre-heat disabled — presence cannot be scheduled"
 - [ ] **PREHEAT-05**: Pre-heat is compatible with even/odd week scheduling and
-  calendar presence sources (schedule_even, schedule_odd, Pronote, iCal
-  timetables are all valid sources for next-transition computation)
+  calendar presence sources (schedule_even, schedule_odd, and `calendar.*`
+  HA entity-backed calendar periods are all valid sources for
+  next-transition computation)
 
 ### Matter→Tado X Real-Time Calibration
 
@@ -60,9 +68,10 @@
 
 - Per-zone boiler declaration for accurate pre-heat flow temp normalisation —
   deferred to v1.4 or later
-- Pronote session renewal and multi-account support — deferred
-- iCal event classification beyond keyword matching (richer rules) — deferred
-  to v1.4
+- Multiple `calendar.*` sources per person — deferred (v1.3 ships one entity
+  per person only)
+- Adaptive pre-heat lead time via inertia learning — Phase 12
+  (`preheat_lead_minutes` is a fixed value in Phase 11)
 - Predictive pre-heat post-convergence threshold tuning — monitor post-v1.3
 - Holiday/specific-period overrides (manual) — deferred to v2
 
@@ -77,18 +86,18 @@
 
 ## Traceability
 
-| REQ-ID     | Phase   | Plan |
-| ---------- | ------- | ---- |
-| CAL-01     | Phase 11 | TBD  |
-| CAL-02     | Phase 11 | TBD  |
-| CAL-03     | Phase 11 | TBD  |
-| CAL-04     | Phase 11 | TBD  |
-| PREHEAT-01 | Phase 12 | TBD  |
-| PREHEAT-02 | Phase 12 | TBD  |
-| PREHEAT-03 | Phase 12 | TBD  |
-| PREHEAT-04 | Phase 12 | TBD  |
-| PREHEAT-05 | Phase 12 | TBD  |
-| MCALIB-01  | Phase 13 | TBD  |
-| MCALIB-02  | Phase 13 | TBD  |
-| UI-01      | Phase 10 | TBD  |
-| UI-02      | Phase 10 | TBD  |
+| REQ-ID     | Phase    | Plan                          |
+| ---------- | -------- | ----------------------------- |
+| CAL-01     | Phase 11 | 11-01, 11-02, 11-03, 11-04   |
+| CAL-02     | Phase 11 | 11-02                         |
+| CAL-03     | Phase 11 | 11-01, 11-04                  |
+| CAL-04     | Phase 11 | 11-01, 11-03, 11-04           |
+| PREHEAT-01 | Phase 12 | TBD                           |
+| PREHEAT-02 | Phase 12 | TBD                           |
+| PREHEAT-03 | Phase 12 | TBD                           |
+| PREHEAT-04 | Phase 12 | TBD                           |
+| PREHEAT-05 | Phase 12 | TBD                           |
+| MCALIB-01  | Phase 13 | TBD                           |
+| MCALIB-02  | Phase 13 | TBD                           |
+| UI-01      | Phase 10 | 10-01, 10-02                  |
+| UI-02      | Phase 10 | 10-01, 10-02                  |
