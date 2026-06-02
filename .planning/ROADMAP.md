@@ -47,16 +47,18 @@ See: `.planning/milestones/v1.2-ROADMAP.md` for full phase details.
 
 ### 🚧 v1.3 Calendar Presence & Pre-heat (In Progress)
 
-**Milestone Goal:** Persons can use Pronote or iCal calendars as their
-presence source; the integration fetches and caches schedules and falls back
-to manual schedules on failure. Rooms can opt in to predictive pre-heat using
-a learned inertia model. Matter TRV state-change events trigger immediate
-calibration. The "HA" presence mode is renamed and conditionally hidden.
+**Milestone Goal:** Persons can use standard HA `calendar.*` entities as
+their presence source; the coordinator caches `get_events` per cycle and
+falls back gracefully on entity errors. A fixed pre-heat lead time starts
+heating before the person returns. Rooms can opt in to predictive pre-heat
+using a learned inertia model. Matter TRV state-change events trigger
+immediate calibration. The "HA" presence mode is renamed and conditionally
+hidden.
 
 - [ ] **Phase 10: Presence Mode UI** — Rename "HA" mode to "Live tracking"
       and hide it when no device trackers are linked to the person entity
-- [ ] **Phase 11: Calendar Presence Backend** — Pronote and iCal source
-      integration with caching, fallback, and RRULE expansion
+- [ ] **Phase 11: Calendar Presence Backend** — Calendar mode backed by
+      `calendar.*` HA entities; per-cycle cache, pre-heat lead time
 - [ ] **Phase 12: Predictive Pre-heat** — Inertia-learning pre-heat engine,
       per-room toggle, panel status display
 - [ ] **Phase 13: Matter→Tado X Real-Time Calibration** — Event-driven
@@ -89,22 +91,25 @@ renamed to "Live tracking" everywhere it appears.
 
 ### Phase 11: Calendar Presence Backend
 
-**Goal**: A person's presence can be driven by a Pronote school timetable or
-an iCal calendar, fetched and cached by the integration; failures fall back
-to the manual schedule without log spam.
+**Goal**: A person's presence can be driven by a `calendar.*` HA entity;
+the coordinator caches `get_events` per cycle and falls back to absent on
+error. A per-person `preheat_lead_minutes` offset starts heating before the
+person returns.
 **Depends on**: Phase 10
 **Requirements**: CAL-01, CAL-02, CAL-03, CAL-04
 **Success Criteria** (what must be TRUE):
 
-1. Setting `schedule_type = "pronote"` on a person triggers timetable fetch
-   on next evaluate; absent slots mean present, school-slot times mean absent
-2. Pronote responses are cached for a configurable TTL (default 6h); a fetch
-   failure logs once at WARNING and falls back to the manual schedule
-3. Setting `schedule_type = "ical"` on a person fetches the ICS URL; events
-   whose summary matches the optional keyword filter mark the person absent
-4. iCal responses are cached for a configurable TTL (default 1h); RRULE
-   recurring events expand correctly; DATE-only and timezone-naive events are
-   handled without exceptions
+1. Setting a person to "Calendar" mode with a `calendar.*` entity makes
+   them absent during active events when `event_means` is `"absent"`, or
+   present when `event_means` is `"present"`; no event → inverse applies
+2. The coordinator fetches `get_events` once per unique `calendar.*` entity
+   per `async_evaluate` cycle and falls back to absent with a single WARNING
+   on entity error
+3. A Scheduled-mode period with state `"calendar"` resolves via its attached
+   `calendar_config`; top-level Calendar mode periods are not recursive
+4. A per-person `preheat_lead_minutes` (default 60) treats a calendar-absent
+   person as present when the active event ends within the lead window,
+   enabling pre-heat before the person returns
 
 **Plans**: 5 plans
 - [x] 11-01-PLAN.md — backend calendar presence logic + pure unit tests
@@ -113,9 +118,9 @@ to the manual schedule without log spam.
       presence routing (CAL-01, CAL-02)
 - [x] 11-03-PLAN.md — WebSocket persistence for calendar_config +
       preheat_lead_minutes; types.ts (CAL-01, CAL-04)
-- [ ] 11-04-PLAN.md — frontend person-card Calendar mode UI + layout reorder
+- [x] 11-04-PLAN.md — frontend person-card Calendar mode UI + layout reorder
       + period calendar state (CAL-01, CAL-03, CAL-04)
-- [ ] 11-05-PLAN.md — rewrite CAL-01..04 + ROADMAP success criteria to the
+- [x] 11-05-PLAN.md — rewrite CAL-01..04 + ROADMAP success criteria to the
       HA-native design
 
 ### Phase 12: Predictive Pre-heat
