@@ -111,7 +111,7 @@ to the manual schedule without log spam.
       (const.py, schedule.py, tests/test_calendar.py)
 - [x] 11-02-PLAN.md — coordinator per-cycle calendar cache + prefetch +
       presence routing (CAL-01, CAL-02)
-- [ ] 11-03-PLAN.md — WebSocket persistence for calendar_config +
+- [x] 11-03-PLAN.md — WebSocket persistence for calendar_config +
       preheat_lead_minutes; types.ts (CAL-01, CAL-04)
 - [ ] 11-04-PLAN.md — frontend person-card Calendar mode UI + layout reorder
       + period calendar state (CAL-01, CAL-03, CAL-04)
@@ -171,6 +171,6 @@ sub-minute responsiveness without waiting for the polling interval.
 | 8. Even/Odd Week Scheduling — Frontend     | v1.2      | 3/3            | Complete | 2026-05-30 |
 | 9. TRV Temperature Offset Auto-Calibration | v1.2      | 4/4            | Complete | 2026-05-30 |
 | 10. Presence Mode UI                        | v1.3      | 2/2            | Complete | 2026-06-01 |
-| 11. Calendar Presence Backend               | v1.3      | 2/5 | In Progress|  |
+| 11. Calendar Presence Backend               | v1.3      | 3/5 | In Progress|  |
 | 12. Predictive Pre-heat                     | v1.3      | 0/?            | Pending  | —          |
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 0/?            | Pending  | —          |
