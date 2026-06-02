@@ -92,11 +92,11 @@
 | CAL-02     | Phase 11 | 11-02                         |
 | CAL-03     | Phase 11 | 11-01, 11-04                  |
 | CAL-04     | Phase 11 | 11-01, 11-03, 11-04           |
-| PREHEAT-01 | Phase 12 | TBD                           |
-| PREHEAT-02 | Phase 12 | TBD                           |
-| PREHEAT-03 | Phase 12 | TBD                           |
-| PREHEAT-04 | Phase 12 | TBD                           |
-| PREHEAT-05 | Phase 12 | TBD                           |
+| PREHEAT-01 | Phase 12 | 12-03, 12-04                  |
+| PREHEAT-02 | Phase 12 | 12-01, 12-02                  |
+| PREHEAT-03 | Phase 12 | 12-02                         |
+| PREHEAT-04 | Phase 12 | 12-02, 12-03, 12-04          |
+| PREHEAT-05 | Phase 12 | 12-01                         |
 | MCALIB-01  | Phase 13 | TBD                           |
 | MCALIB-02  | Phase 13 | TBD                           |
 | UI-01      | Phase 10 | 10-01, 10-02                  |
