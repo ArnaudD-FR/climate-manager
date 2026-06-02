@@ -427,6 +427,13 @@ export class ClimateManagerTimeBar extends LitElement {
       this.mode === "presence"
         ? period.state ?? "absent"
         : period.mode ?? "frost_protection";
+    if (key === "calendar" && "calendar_config" in period) {
+      const entityId = period.calendar_config?.entity_id;
+      if (entityId) {
+        const name = entityId.replace(/^calendar\./, "").replace(/_/g, " ");
+        return `Calendar: ${name}`;
+      }
+    }
     return PERIOD_DISPLAY_NAMES[key] ?? key;
   }
 
