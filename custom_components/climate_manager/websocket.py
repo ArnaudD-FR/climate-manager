@@ -439,6 +439,19 @@ def _make_ws_set_room_config(entry: ClimateManagerConfigEntry):
             entry.runtime_data.runtime_config.setdefault(
                 "rooms", {}
             ).setdefault(msg["room_id"], {}).pop("zone_id", None)
+        # D-01 / T-12-06: validate sparse room preheat keys before persist.
+        # preheat_max_lead_minutes must be an int in [0, 480]; drop otherwise.
+        if "preheat_max_lead_minutes" in incoming_config:
+            val = incoming_config["preheat_max_lead_minutes"]
+            if not (isinstance(val, int) and 0 <= val <= 480):
+                incoming_config.pop("preheat_max_lead_minutes")
+        # preheat_enabled: coerce truthy value to Python bool.
+        if "preheat_enabled" in incoming_config and not isinstance(
+            incoming_config["preheat_enabled"], bool
+        ):
+            incoming_config["preheat_enabled"] = bool(
+                incoming_config["preheat_enabled"]
+            )
         (
             entry.runtime_data.runtime_config.setdefault("rooms", {})
             .setdefault(msg["room_id"], {})
@@ -488,7 +501,7 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
             "entity_id": str,       # must start with "calendar." (T-11-06)
             "event_means": "absent" | "present",
           }
-          preheat_lead_minutes: int  (0-480, clamped; D-10)
+          wakeup_advance_minutes: int (0-480, clamped; D-02)
 
         T-03-09: same setdefault + update pattern as set_room_config.
         """
@@ -552,13 +565,19 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
                         cal_cfg.pop("gap_threshold_minutes", None)
                 else:
                     cal_cfg.pop("gap_threshold_minutes", None)
-        # T-11-07: clamp preheat_lead_minutes to 0-480 (drops if invalid).
+        # D-02: legacy preheat_lead_minutes → wakeup_advance_minutes rename.
+        # Map old key to new key so existing clients keep working.
         if "preheat_lead_minutes" in incoming:
-            val = incoming["preheat_lead_minutes"]
+            incoming["wakeup_advance_minutes"] = incoming.pop(
+                "preheat_lead_minutes"
+            )
+        # T-12-07: clamp wakeup_advance_minutes to [0, 480]; drop if invalid.
+        if "wakeup_advance_minutes" in incoming:
+            val = incoming["wakeup_advance_minutes"]
             if isinstance(val, int) and 0 <= val <= 480:
                 pass  # valid — keep
             else:
-                incoming.pop("preheat_lead_minutes")
+                incoming.pop("wakeup_advance_minutes")
         (
             entry.runtime_data.runtime_config.setdefault("persons", {})
             .setdefault(msg["person_id"], {})
