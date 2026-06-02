@@ -416,11 +416,12 @@ def _make_mock_data(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.freeze_time("2026-06-01 05:30:00")  # Monday 05:30 UTC
+@pytest.mark.freeze_time("2026-06-01 06:30:00")  # Monday 06:30 UTC
 async def test_preheat_trigger_fires(hass):
     """Enabled room with next_occupied_at at 07:00.
 
-    now=05:30, default lead=60 min → trigger window 06:00–07:00.
+    now=06:30, default lead=60 min → trigger window [06:00, 07:00).
+    06:30 is inside the window.
     current_temp=18.0 (below Normal 20.0 - threshold).
     Expect: set_temperature called at Normal setpoint, preheat_active True.
     """
@@ -461,7 +462,7 @@ async def test_preheat_trigger_fires(hass):
     coord = ClimateManagerCoordinator(hass, data)
     coord._frost_locked_rooms = set()
 
-    now = datetime.datetime(2026, 6, 1, 5, 30, tzinfo=datetime.timezone.utc)
+    now = datetime.datetime(2026, 6, 1, 6, 30, tzinfo=datetime.timezone.utc)
     await coord._async_preheat_room("bedroom", config, now)
     await hass.async_block_till_done()
 
@@ -488,7 +489,7 @@ async def test_preheat_trigger_fires(hass):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.freeze_time("2026-06-01 05:30:00")
+@pytest.mark.freeze_time("2026-06-01 06:30:00")
 async def test_preheat_respects_frost_lock(hass):
     """Frost-locked room with preheat_enabled=True must NOT fire set_temperature."""
     from custom_components.climate_manager.coordinator import (
@@ -528,7 +529,7 @@ async def test_preheat_respects_frost_lock(hass):
     # Mark room as frost-locked (set during _compute_desired_temps)
     coord._frost_locked_rooms = {"living"}
 
-    now = datetime.datetime(2026, 6, 1, 5, 30, tzinfo=datetime.timezone.utc)
+    now = datetime.datetime(2026, 6, 1, 6, 30, tzinfo=datetime.timezone.utc)
     await coord._async_preheat_room("living", config, now)
     await hass.async_block_till_done()
 
@@ -688,9 +689,12 @@ async def test_sample_recorded_on_convergence(hass):
 
 @pytest.mark.freeze_time("2026-06-01 07:05:00")
 async def test_sample_discarded_when_period_starts(hass):
-    """In-progress room; now >= next_occupied_at but temp not reached.
+    """In-progress room; next_occupied is None (force_absent person) and temp
+    not reached — entry should be discarded without recording a sample.
 
     Expected: entry discarded, no sample recorded, no store save.
+    This exercises the D-07 / D-09 discard condition:
+    next_occupied is None → discard immediately.
     """
     from custom_components.climate_manager.coordinator import (
         ClimateManagerCoordinator,
@@ -709,11 +713,10 @@ async def test_sample_discarded_when_period_starts(hass):
         },
     )
 
+    # force_absent → next_occupied_at returns None → discard condition fires
     persons_config = {
         "person.carol": {
-            "mode": "scheduled",
-            "schedule_type": "single",
-            "schedule": _MORNING_PRESENT,
+            "mode": "force_absent",
             "room_ids": ["kitchen"],
         }
     }
@@ -735,7 +738,6 @@ async def test_sample_discarded_when_period_starts(hass):
     coord = ClimateManagerCoordinator(hass, data)
     coord._frost_locked_rooms = set()
 
-    # now=07:05 — person's occupied time started at 07:00
     now = datetime.datetime(2026, 6, 1, 7, 5, tzinfo=datetime.timezone.utc)
     start_time = datetime.datetime(
         2026, 6, 1, 6, 0, tzinfo=datetime.timezone.utc
