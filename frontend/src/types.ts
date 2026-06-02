@@ -59,10 +59,20 @@ export interface RoomConfig {
   room_mode?: "global" | "frost_protection" | "custom";
   time_program?: DailyProgram | null;
   /**
-   * Absent = Default Zone member (D-06); UUID string for custom zone (D-07).
-   * Sparse model — never written as null.
+   * Absent = Default Zone member (D-06); UUID string for custom zone
+   * (D-07). Sparse model — never written as null.
    */
   zone_id?: string;
+  /**
+   * Phase 12 (D-01): per-room pre-heat enable flag.
+   * Sparse — absent means disabled (default false).
+   */
+  preheat_enabled?: boolean;
+  /**
+   * Phase 12 (D-01): maximum lead time the coordinator may use.
+   * Sparse — absent means default 120 minutes.
+   */
+  preheat_max_lead_minutes?: number;
 }
 
 /** Per-person configuration stored in ClimateConfig.persons. */
@@ -76,8 +86,9 @@ export interface PersonConfig {
   schedule_odd?: DailyProgram;
   // Phase 11: calendar presence mode (D-08, D-09)
   calendar_config?: CalendarConfig;
-  // Phase 11: wake-up advance in minutes (D-10); absent = 60
-  preheat_lead_minutes?: number;
+  // Phase 11/12 (D-02): wake-up advance in minutes; absent = 60.
+  // Backend key was renamed; coordinator reads old key with fallback.
+  wakeup_advance_minutes?: number;
 }
 
 /** Custom zone configuration stored in ClimateConfig.zones. */
@@ -124,6 +135,18 @@ export interface RoomStatus {
   present_person_count: number;
   /** True when at least one entity reports current_temperature (TRV). */
   has_trv?: boolean;
+  /** Phase 12 (D-10): pre-heat is active this cycle. */
+  preheat_active?: boolean;
+  /**
+   * Phase 12 (D-10): target temperature being pre-heated to.
+   * Null when preheat_active is false.
+   */
+  preheat_target?: number | null;
+  /**
+   * Phase 12 (D-10): true when pre-heat is enabled but cannot run
+   * (no person schedule — presence-only suppression).
+   */
+  preheat_suppressed?: boolean;
 }
 
 /** Payload pushed by subscribe_status and returned by get_status. */

@@ -644,6 +644,88 @@ export class RoomCard extends LitElement {
     );
   }
 
+  // -----------------------------------------------------------------------
+  // Pre-heat handlers and render (Phase 12 D-11)
+  // -----------------------------------------------------------------------
+
+  private async _onPreheatToggle(e: Event) {
+    const enabled = (e.target as HTMLInputElement).checked;
+    try {
+      await this.ws.setRoomConfig(this.roomId, { preheat_enabled: enabled });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onPreheatMaxLeadChange(e: Event) {
+    const value = (e.target as HTMLInputElement).value;
+    const val = parseInt(value, 10);
+    if (isNaN(val) || val < 0 || val > 480) return;
+    try {
+      await this.ws.setRoomConfig(this.roomId, {
+        preheat_max_lead_minutes: val,
+      });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private _renderPreheatSection() {
+    const enabled = this.config?.preheat_enabled ?? false;
+    const maxLead = this.config?.preheat_max_lead_minutes ?? 120;
+    const preheatActive = this.roomStatus?.preheat_active ?? false;
+    const preheatTarget = this.roomStatus?.preheat_target ?? null;
+    const suppressed = this.roomStatus?.preheat_suppressed ?? false;
+
+    return html`
+      <div class="section-label">Pre-heat</div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input
+          type="checkbox"
+          .checked=${enabled}
+          @change=${this._onPreheatToggle}
+        />
+        Pre-heat this room
+      </label>
+      ${enabled
+        ? html`
+            <label
+              style="display:flex;align-items:center;gap:8px;margin-top:6px;"
+            >
+              Max lead time (min)
+              <input
+                type="number"
+                min="0"
+                max="480"
+                step="5"
+                .value=${String(maxLead)}
+                @change=${this._onPreheatMaxLeadChange}
+                style="width:70px;"
+              />
+            </label>
+          `
+        : ""}
+      ${preheatActive && preheatTarget != null
+        ? html`
+            <p class="schedule-hint">
+              Pre-heating (&rarr; ${preheatTarget.toFixed(1)}&deg;C)
+            </p>
+          `
+        : ""}
+      ${enabled && suppressed
+        ? html`
+            <p class="schedule-hint">
+              Pre-heat disabled &mdash; presence cannot be scheduled
+            </p>
+          `
+        : ""}
+    `;
+  }
+
   render() {
     const resolvedMode = this.config?.room_mode ?? "global";
 
@@ -795,7 +877,7 @@ export class RoomCard extends LitElement {
                 >
                   Climate entities
                 </div>
-                ${this._renderTrvSection()}
+                ${this._renderTrvSection()} ${this._renderPreheatSection()}
               </div>
             `
           : ""}
