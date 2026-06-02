@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
 status: executing
-last_updated: "2026-06-02T12:53:41.994Z"
+last_updated: "2026-06-02T13:58:10.794Z"
 last_activity: 2026-06-02 -- Phase 11 execution started
 progress:
   total_phases: 4
@@ -133,8 +133,8 @@ mapped (SCHED-01..06, CALIB-01..05)
 
 ## Session Continuity
 
-Last session: 2026-06-02T12:53:41.991Z
-Resume file: None
+Last session: 2026-06-02T13:58:10.779Z
+Resume file: .planning/phases/12-predictive-pre-heat/12-CONTEXT.md
 
 ## Operator Next Steps
 
