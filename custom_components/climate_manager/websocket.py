@@ -227,6 +227,19 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
                 is_trv_entity(hass, eid) for eid in entity_ids
             )
 
+            # D-10: mirror the three preheat fields from the push payload
+            # (PREHEAT-04, Pitfall 1 — ws_get_status must match
+            # _build_status_payload exactly so initial page load is correct).
+            room_entry["preheat_active"] = coordinator._preheat_active.get(
+                area_id, False
+            )
+            room_entry["preheat_target"] = coordinator._preheat_target.get(
+                area_id, None
+            )
+            room_entry["preheat_suppressed"] = (
+                coordinator._preheat_suppressed.get(area_id, False)
+            )
+
             rooms_status.append(room_entry)
 
         connection.send_result(
