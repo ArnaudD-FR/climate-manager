@@ -271,6 +271,126 @@ async def test_ws_get_config_climate_entities_empty_when_none_registered(
 
 
 # ---------------------------------------------------------------------------
+# Tests: get_config matter_entities + tado_x_entities (Plan 13-02, A2 Option A/C)
+# ---------------------------------------------------------------------------
+
+
+async def test_get_config_includes_matter_entities(hass, hass_ws_client):
+    """get_config payload contains matter_entities listing Matter climate entities.
+
+    Verifies A2 Option A/C: backend derives matter_entities list from entity
+    registry platform check. Only climate.* entities with platform=="matter"
+    are included; entities with other platforms are excluded.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    await _setup_entry(hass)
+    entity_reg = er.async_get(hass)
+
+    # Register one Matter climate entity and one non-Matter climate entity
+    matter_entry = entity_reg.async_get_or_create(
+        "climate", "matter", "valve1_matter"
+    )
+    entity_reg.async_get_or_create("climate", "tado_x", "zone_lr")
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/get_config"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert "matter_entities" in msg["result"], (
+        "get_config must include matter_entities key"
+    )
+    matter_entities = msg["result"]["matter_entities"]
+    assert isinstance(matter_entities, list)
+    # The matter entity must be included
+    assert matter_entry.entity_id in matter_entities
+    # The tado_x entity must NOT be in matter_entities
+    for eid in matter_entities:
+        reg = entity_reg.async_get(eid)
+        assert reg is not None and reg.platform == "matter", (
+            f"Non-matter entity {eid} found in matter_entities"
+        )
+
+
+async def test_get_config_includes_tado_x_entities(hass, hass_ws_client):
+    """get_config payload contains tado_x_entities listing tado_x climate entities.
+
+    Verifies A2 Option A/C: backend derives tado_x_entities list from entity
+    registry platform check. Only climate.* entities with platform=="tado_x"
+    are included; entities with other platforms are excluded.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    await _setup_entry(hass)
+    entity_reg = er.async_get(hass)
+
+    # Register one tado_x climate entity and one Matter climate entity
+    tado_entry = entity_reg.async_get_or_create("climate", "tado_x", "zone_lr")
+    entity_reg.async_get_or_create("climate", "matter", "valve1_matter")
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/get_config"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert "tado_x_entities" in msg["result"], (
+        "get_config must include tado_x_entities key"
+    )
+    tado_x_entities = msg["result"]["tado_x_entities"]
+    assert isinstance(tado_x_entities, list)
+    # The tado_x entity must be included
+    assert tado_entry.entity_id in tado_x_entities
+    # The matter entity must NOT be in tado_x_entities
+    for eid in tado_x_entities:
+        reg = entity_reg.async_get(eid)
+        assert reg is not None and reg.platform == "tado_x", (
+            f"Non-tado_x entity {eid} found in tado_x_entities"
+        )
+
+
+async def test_get_config_entity_lists_do_not_pollute_storage(
+    hass, hass_ws_client
+):
+    """get_config derived lists do NOT mutate runtime_config or persisted store.
+
+    Verifies T-13-06: matter_entities and tado_x_entities are derived from the
+    entity registry and merged into a NEW payload dict — runtime_config is never
+    mutated so the derived keys never pollute persistent storage (D-25 invariant).
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    entry = await _setup_entry(hass)
+    entity_reg = er.async_get(hass)
+
+    entity_reg.async_get_or_create("climate", "matter", "valve1_matter")
+    entity_reg.async_get_or_create("climate", "tado_x", "zone_lr")
+
+    # Capture a snapshot of runtime_config keys before the call
+    keys_before = set(entry.runtime_data.runtime_config.keys())
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/get_config"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    # Both derived keys must appear in the payload
+    assert "matter_entities" in msg["result"]
+    assert "tado_x_entities" in msg["result"]
+
+    # runtime_config must not have been mutated with derived keys
+    keys_after = set(entry.runtime_data.runtime_config.keys())
+    assert "matter_entities" not in keys_after, (
+        "matter_entities must not be stored in runtime_config"
+    )
+    assert "tado_x_entities" not in keys_after, (
+        "tado_x_entities must not be stored in runtime_config"
+    )
+    # No keys were added to runtime_config
+    assert keys_after == keys_before
+
+
+# ---------------------------------------------------------------------------
 # Tests 7-8: reset_period_temperatures and reset_time_program WS commands
 # ---------------------------------------------------------------------------
 

@@ -3,7 +3,8 @@
 
 Registers 19 WebSocket commands for the panel ↔ backend protocol:
 - get_status: returns global_mode, active_period, present_persons, rooms_status
-- get_config: returns full runtime_config
+- get_config: returns full runtime_config plus derived climate_entities,
+  matter_entities, and tado_x_entities lists (A2 Option A/C)
 - set_global_mode: mutates global_mode, persists, re-evaluates
 - set_period_temperatures: updates all 4 period temperatures
 - set_time_program: validates and persists the global per-day program
@@ -278,21 +279,36 @@ def _make_ws_get_config(entry: ClimateManagerConfigEntry):
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Return full runtime_config plus derived climate_entities list.
+        """Return full runtime_config plus derived entity lists.
 
         D-25: climate_entities is the sorted list of all climate.* entity IDs
-        from the HA entity registry. Merged into a NEW dict — runtime_config is
-        never mutated so the derived key never pollutes persistent storage.
+        from the HA entity registry. A2 Option A/C: matter_entities and
+        tado_x_entities are derived subsets filtered by entity registry
+        platform. All three are merged into a NEW dict — runtime_config is
+        never mutated so derived keys never pollute persistent storage
+        (T-13-06).
         """
         entity_reg = er.async_get(hass)
-        climate_entities = sorted(
-            reg_entry.entity_id
+        climate_reg_entries = [
+            reg_entry
             for reg_entry in entity_reg.entities.values()
             if reg_entry.entity_id.split(".")[0] == "climate"
+        ]
+        climate_entities = sorted(e.entity_id for e in climate_reg_entries)
+        # A2 Option A/C: derive platform-filtered lists from entity registry.
+        # Merged into a NEW payload dict — runtime_config never mutated so
+        # these derived keys never pollute persistent storage (T-13-06/D-25).
+        matter_entities = sorted(
+            e.entity_id for e in climate_reg_entries if e.platform == "matter"
+        )
+        tado_x_entities = sorted(
+            e.entity_id for e in climate_reg_entries if e.platform == "tado_x"
         )
         payload = {
             **entry.runtime_data.runtime_config,
             "climate_entities": climate_entities,
+            "matter_entities": matter_entities,
+            "tado_x_entities": tado_x_entities,
         }
         connection.send_result(msg["id"], payload)
 
