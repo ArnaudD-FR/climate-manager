@@ -156,7 +156,7 @@ panel shows pre-heating status and a suppression warning when applicable.
 - [x] 12-06-PLAN.md — gap closure (backend): move preheat_enabled to zone
       scope — coordinator read, set_zone_preheat WS command, storage
       migration, default_zone_preheat_enabled flag, tests (PREHEAT-01)
-- [ ] 12-07-PLAN.md — gap closure (frontend): zone-tab pre-heat toggle,
+- [x] 12-07-PLAN.md — gap closure (frontend): zone-tab pre-heat toggle,
       remove room toggle, gate max-lead on zone enable, types + ws-client
       (PREHEAT-01, PREHEAT-04)
 
@@ -193,5 +193,5 @@ sub-minute responsiveness without waiting for the polling interval.
 | 9. TRV Temperature Offset Auto-Calibration | v1.2      | 4/4            | Complete | 2026-05-30 |
 | 10. Presence Mode UI                        | v1.3      | 2/2            | Complete | 2026-06-01 |
 | 11. Calendar Presence Backend               | v1.3      | 5/5 | Complete   | 2026-06-02 |
-| 12. Predictive Pre-heat                     | v1.3      | 6/7 | In Progress|  |
+| 12. Predictive Pre-heat                     | v1.3      | 7/7 | Complete   | 2026-06-03 |
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 0/?            | Pending  | —          |
