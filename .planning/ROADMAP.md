@@ -176,7 +176,14 @@ sub-minute responsiveness without waiting for the polling interval.
 3. Removing the mapping or reloading the integration cancels the listener
    without accumulating ghost listeners
 
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 13-01-PLAN.md — backend core: matter_mappings default, Matter
+      state_changed listener lifecycle, entity-by-entity dispatch, calibration
+      source routing (MCALIB-01, MCALIB-02)
+- [ ] 13-02-PLAN.md — set_matter_mapping WS command + get_config
+      matter_entities/tado_x_entities surfacing (MCALIB-01, MCALIB-02)
+- [ ] 13-03-PLAN.md — frontend room-card Matter pairing UI + types + ws-client
+      (MCALIB-01)
 
 ### Phase 14: Default Zone Consolidation
 
@@ -267,7 +274,7 @@ cleanly and they are committed alongside the README files.
 | 10. Presence Mode UI                        | v1.3      | 2/2            | Complete | 2026-06-01 |
 | 11. Calendar Presence Backend               | v1.3      | 5/5 | Complete   | 2026-06-02 |
 | 12. Predictive Pre-heat                     | v1.3      | 7/7 | Complete   | 2026-06-03 |
-| 13. Matter→Tado X Real-Time Calibration     | v1.3      | 0/?            | Pending  | —          |
+| 13. Matter→Tado X Real-Time Calibration     | v1.3      | 0/3            | Pending  | —          |
 | 14. Default Zone Consolidation              | v1.3      | 0/?            | Pending  | —          |
 | 15. Remove Room Custom Scheduling           | v1.3      | 0/?            | Pending  | —          |
 | 16. Presence & Heating Log Traces           | v1.3      | 0/?            | Pending  | —          |
