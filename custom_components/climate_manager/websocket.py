@@ -21,6 +21,8 @@ Registers 19 WebSocket commands for the panel ↔ backend protocol:
 - set_zone_time_program: validates program via validate_daily_program before any mutation
 - reset_zone_time_program: restores zone time_program from 'default' or 'global' target
 - set_calibration_config: persists calibration_enabled bool (D-10, CALIB-01)
+- set_matter_mapping: persists sparse matter_mappings[tado_entity_id] and
+  triggers coordinator listener refresh (D-15/D-16, MCALIB-01/02)
 
 All handlers access state via the entry closure (never hass.data[DOMAIN]).
 Write handlers follow the write-then-evaluate pattern:
@@ -41,6 +43,8 @@ Security:
 - T-05-11: delete_zone uses pop() never assigns None — sparse D-06 model preserved
 - T-09-01: set_calibration_config vol.Required("enabled"): bool rejects non-bool
            payloads before handler runs (T-03-04 parity)
+- T-13-04: set_matter_mapping filters matter_entity_ids to climate.* strings
+           before storage (Pitfall 7 — non-climate entity_ids silently dropped)
 """
 
 from __future__ import annotations
@@ -120,6 +124,9 @@ def async_register_commands(
     )
     websocket_api.async_register_command(
         hass, _make_ws_get_calibration_status(entry)
+    )
+    websocket_api.async_register_command(
+        hass, _make_ws_set_matter_mapping(entry)
     )
 
 
@@ -1386,3 +1393,59 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
         )
 
     return ws_get_calibration_status
+
+
+def _make_ws_set_matter_mapping(entry: ClimateManagerConfigEntry):
+    """Factory: create set_matter_mapping handler.
+
+    D-15/D-16: persists the sparse matter_mappings config and triggers
+    atomic listener refresh in the coordinator.
+    Security: T-13-04 — filter matter_entity_ids to climate.* only
+    (Pitfall 7) before storage; non-climate entity_ids silently dropped.
+    """
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/set_matter_mapping",
+            vol.Required("tado_entity_id"): str,
+            vol.Required("matter_entity_ids"): list,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_set_matter_mapping(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Store or remove a Matter entity mapping for a tado_x zone entity.
+
+        T-13-04: filter matter_entity_ids to climate.* strings only before
+        storing (Pitfall 7 — rejects sensor.* and other non-climate domains).
+        D-01 sparse model: empty filtered list pops the key (never stored
+        as []).  D-16: refresh coordinator listeners atomically after persist.
+        """
+        matter_eids = [
+            e
+            for e in msg["matter_entity_ids"]
+            if isinstance(e, str) and e.startswith("climate.")
+        ]
+        mappings = entry.runtime_data.runtime_config.setdefault(
+            "matter_mappings", {}
+        )
+        if matter_eids:
+            mappings[msg["tado_entity_id"]] = matter_eids
+        else:
+            # D-01 sparse: absent key = no mapping; never store []
+            mappings.pop(msg["tado_entity_id"], None)
+        await entry.runtime_data.store.async_save(
+            entry.runtime_data.runtime_config
+        )
+        connection.send_result(msg["id"], {"success": True})
+        # D-16: refresh listeners atomically with config change
+        coordinator = entry.runtime_data.coordinator
+        if coordinator is not None:
+            hass.async_create_task(
+                coordinator._async_refresh_matter_listeners()
+            )
+
+    return ws_set_matter_mapping
