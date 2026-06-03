@@ -384,24 +384,26 @@ def _make_preheat_config(
     """Build a runtime_config dict for preheat coordinator tests.
 
     GAP-01: preheat_enabled lives at zone scope, not room scope.
+    Phase 14 (D-01): uses default_zone sub-dict (no flat global_mode or
+    global_time_program keys).
     Pass default_zone_preheat_enabled=True for rooms with no zone_id.
     Pass zones={<uuid>: {"preheat_enabled": True, ...}} for custom zones.
     """
-    cfg: dict = {
+    return {
         "version": 2,
-        "global_mode": global_mode,
+        "default_zone": {
+            "name": "Home",
+            "mode": global_mode,
+            "time_program": _ALL_NORMAL,
+            "preheat_enabled": default_zone_preheat_enabled,
+        },
         "period_temperatures": dict(DEFAULT_PERIOD_TEMPERATURES),
-        "global_time_program": _ALL_NORMAL,
         "rooms": rooms_config or {},
         "persons": persons_config or {},
         "zones": zones or {},
-        "default_zone_name": "Home",
         "calibration_enabled": False,
         "calibration_threshold": 0.5,
     }
-    if default_zone_preheat_enabled:
-        cfg["default_zone_preheat_enabled"] = True
-    return cfg
 
 
 def _make_mock_data(
@@ -1141,8 +1143,10 @@ async def test_ws_set_zone_preheat(hass, hass_ws_client):
 
 
 async def test_ws_set_zone_preheat_default(hass, hass_ws_client):
-    """set_zone_preheat with zone_id="default" writes default_zone_preheat_enabled
-    at the top level of runtime_config (GAP-01, Option A).
+    """set_zone_preheat with zone_id="default" writes default_zone.preheat_enabled.
+
+    Phase 14 (D-11): writes to default_zone sub-dict (was flat key
+    default_zone_preheat_enabled in GAP-01).
     """
     from pytest_homeassistant_custom_component.common import async_mock_service
 
@@ -1162,8 +1166,9 @@ async def test_ws_set_zone_preheat_default(hass, hass_ws_client):
     )
     msg = await client.receive_json()
     assert msg["success"] is True
+    # Phase 14 (D-11): reads from default_zone sub-dict
     assert (
-        entry.runtime_data.runtime_config.get("default_zone_preheat_enabled")
+        entry.runtime_data.runtime_config["default_zone"].get("preheat_enabled")
         is True
     )
 
@@ -1178,7 +1183,7 @@ async def test_ws_set_zone_preheat_default(hass, hass_ws_client):
     msg = await client.receive_json()
     assert msg["success"] is True
     assert (
-        entry.runtime_data.runtime_config.get("default_zone_preheat_enabled")
+        entry.runtime_data.runtime_config["default_zone"].get("preheat_enabled")
         is False
     )
 
@@ -1418,8 +1423,9 @@ async def test_migration_room_preheat_to_zone(hass):
 
     result_b = await storage_b.async_load()
 
-    # Flag promoted to default_zone_preheat_enabled
-    assert result_b.get("default_zone_preheat_enabled") is True
+    # Phase 14 (D-11): GAP-01 flag promoted to default_zone.preheat_enabled
+    # (Phase 14 compat shim absorbs the intermediate flat key into default_zone)
+    assert result_b["default_zone"].get("preheat_enabled") is True
     # Deprecated room key removed
     assert "preheat_enabled" not in result_b["rooms"]["hall"]
 
