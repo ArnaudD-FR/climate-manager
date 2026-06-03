@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 """Climate Manager WebSocket command handlers.
 
-Registers 19 WebSocket commands for the panel ↔ backend protocol:
+Registers 21 WebSocket commands for the panel ↔ backend protocol:
 - get_status: returns global_mode, active_period, present_persons, rooms_status
 - get_config: returns full runtime_config plus derived climate_entities,
   matter_entities, and tado_x_entities lists (A2 Option A/C)
@@ -24,6 +24,8 @@ Registers 19 WebSocket commands for the panel ↔ backend protocol:
 - set_calibration_config: persists calibration_enabled bool (D-10, CALIB-01)
 - set_matter_mapping: persists sparse matter_mappings[tado_entity_id] and
   triggers coordinator listener refresh (D-15/D-16, MCALIB-01/02)
+- suggest_matter_mappings: returns auto-detected Matter->Tado X mapping
+  suggestions (read-only, no mutation)
 
 All handlers access state via the entry closure (never hass.data[DOMAIN]).
 Write handlers follow the write-then-evaluate pattern:
@@ -74,6 +76,7 @@ from .const import (
     PERIOD_REDUCED,
     _DEFAULT_DAILY_PROGRAM,
 )
+from .discovery import suggest_matter_mappings
 from .schedule import validate_daily_program
 from .trv import get_tado_valve_devices, is_trv_entity
 
@@ -128,6 +131,9 @@ def async_register_commands(
     )
     websocket_api.async_register_command(
         hass, _make_ws_set_matter_mapping(entry)
+    )
+    websocket_api.async_register_command(
+        hass, _make_ws_suggest_matter_mappings(entry)
     )
 
 
@@ -1465,3 +1471,24 @@ def _make_ws_set_matter_mapping(entry: ClimateManagerConfigEntry):
             )
 
     return ws_set_matter_mapping
+
+
+def _make_ws_suggest_matter_mappings(
+    entry: ClimateManagerConfigEntry,
+):
+    """Factory: create suggest_matter_mappings handler."""
+
+    @websocket_api.websocket_command(
+        {vol.Required("type"): f"{DOMAIN}/suggest_matter_mappings"}
+    )
+    @websocket_api.async_response
+    async def ws_suggest_matter_mappings(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Return suggested Matter->Tado X mappings (read-only)."""
+        result = await suggest_matter_mappings(hass)
+        connection.send_result(msg["id"], {"mappings": result})
+
+    return ws_suggest_matter_mappings

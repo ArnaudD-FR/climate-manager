@@ -687,6 +687,29 @@ export class RoomCard extends LitElement {
     }
   }
 
+  private async _onAutoDetectMatter() {
+    try {
+      const allMappings = await this.ws.suggestMatterMappings();
+      const roomTadoIds = (this.roomStatus?.entity_ids ?? []).filter((id) =>
+        (this.panelConfig?.tado_x_entities ?? []).includes(id),
+      );
+      const relevant = roomTadoIds.filter(
+        (id) => allMappings[id] !== undefined,
+      );
+      if (relevant.length === 0) {
+        this.panel.showToast("No matches found", false);
+        return;
+      }
+      for (const tadoId of relevant) {
+        await this.ws.setMatterMapping(tadoId, allMappings[tadoId]);
+      }
+      await this.panel.reloadConfig();
+      this.panel.showToast("Auto-detected and saved", false);
+    } catch {
+      this.panel.showToast("Auto-detect failed", true);
+    }
+  }
+
   private _renderMatterPairingSection() {
     const entityIds = this.roomStatus?.entity_ids ?? [];
     const tadoXEntities = this.panelConfig?.tado_x_entities ?? [];
@@ -735,6 +758,9 @@ export class RoomCard extends LitElement {
           </div>
         `;
       })}
+      <button class="reset-btn" @click=${() => void this._onAutoDetectMatter()}>
+        Auto-detect
+      </button>
     `;
   }
 
