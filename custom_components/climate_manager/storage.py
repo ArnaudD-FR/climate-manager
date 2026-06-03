@@ -153,6 +153,21 @@ class ClimateManagerStore:
                 # New key already present — just remove the legacy key
                 person_cfg.pop("preheat_lead_minutes")
 
+        # GAP-01 (Phase 12): migrate preheat_enabled from per-room to
+        # per-zone scope.  Unconditionally pop the deprecated room key so it
+        # never silently re-gates behaviour after upgrade (T-12-13).
+        for room_cfg in result.get("rooms", {}).values():
+            was_enabled = room_cfg.get("preheat_enabled") is True
+            room_cfg.pop("preheat_enabled", None)
+            if was_enabled:
+                zone_id = room_cfg.get("zone_id")
+                if zone_id and zone_id in result.get("zones", {}):
+                    # Custom zone — promote flag to the zone entry.
+                    result["zones"][zone_id]["preheat_enabled"] = True
+                else:
+                    # No zone_id or dangling → Default Zone.
+                    result["default_zone_preheat_enabled"] = True
+
         return result
 
     async def async_save(self, config: dict) -> None:
