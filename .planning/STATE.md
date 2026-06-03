@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
-status: completed
-last_updated: "2026-06-03T21:05:55.198Z"
-last_activity: 2026-06-03 -- Phase 13 UAT closed, proceeding to Phase 14
+status: executing
+last_updated: "2026-06-03T21:30:17.704Z"
+last_activity: 2026-06-03 -- Phase 14 planning complete
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 17
+  total_plans: 21
   completed_plans: 17
   percent: 50
 ---
@@ -28,8 +28,8 @@ presence schedules + TRV offset auto-calibration.
 
 Phase: 13 (matter-tado-x-real-time-calibration) — COMPLETE
 Plan: 3 of 3
-Status: Phase 13 complete — UAT passed (5/5, 2 skipped)
-Last activity: 2026-06-03 -- Phase 13 UAT closed, proceeding to Phase 14
+Status: Ready to execute
+Last activity: 2026-06-03 -- Phase 14 planning complete
 
 ## Performance Metrics
 
