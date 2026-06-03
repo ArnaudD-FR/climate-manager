@@ -1,25 +1,29 @@
 # SPDX-License-Identifier: MIT
 """Climate Manager WebSocket command handlers.
 
-Registers 18 WebSocket commands for the panel ↔ backend protocol:
+Registers 19 WebSocket commands for the panel ↔ backend protocol:
 - get_status: returns global_mode, active_period, present_persons, rooms_status
-- get_config: returns full runtime_config
+- get_config: returns full runtime_config plus derived climate_entities,
+  matter_entities, and tado_x_entities lists (A2 Option A/C)
 - set_global_mode: mutates global_mode, persists, re-evaluates
 - set_period_temperatures: updates all 4 period temperatures
 - set_time_program: validates and persists the global per-day program
 - set_room_config: sparse-merges into rooms[room_id]
 - set_person_config: sparse-merges into persons[person_id]
 - subscribe_status: registers a push listener in connection.subscriptions
-- reset_period_temperatures: resets period_temperatures to DEFAULT_PERIOD_TEMPERATURES from const.py
+- reset_period_temperatures: resets period_temperatures to DEFAULT_PERIOD_TEMPERATURES
 - reset_time_program: resets global_time_program to _DEFAULT_DAILY_PROGRAM from const.py
 - reset_room_to_global_program: deep-copies global_time_program into rooms[room_id].time_program
 - create_zone: creates new heating zone with UUID, persists
 - rename_zone: renames custom zone or Default Zone (zone_id="default")
 - set_zone_mode: sets custom zone mode via vol.In(VALID_MODES)
+- set_zone_preheat: sets preheat_enabled at zone scope (GAP-01; zone_id="default" or UUID)
 - delete_zone: migrates rooms to Default Zone (pop), removes zone, CR-01 snapshot rollback
 - set_zone_time_program: validates program via validate_daily_program before any mutation
 - reset_zone_time_program: restores zone time_program from 'default' or 'global' target
 - set_calibration_config: persists calibration_enabled bool (D-10, CALIB-01)
+- set_matter_mapping: persists sparse matter_mappings[tado_entity_id] and
+  triggers coordinator listener refresh (D-15/D-16, MCALIB-01/02)
 
 All handlers access state via the entry closure (never hass.data[DOMAIN]).
 Write handlers follow the write-then-evaluate pattern:
@@ -40,6 +44,8 @@ Security:
 - T-05-11: delete_zone uses pop() never assigns None — sparse D-06 model preserved
 - T-09-01: set_calibration_config vol.Required("enabled"): bool rejects non-bool
            payloads before handler runs (T-03-04 parity)
+- T-13-04: set_matter_mapping filters matter_entity_ids to climate.* strings
+           before storage (Pitfall 7 — non-climate entity_ids silently dropped)
 """
 
 from __future__ import annotations
@@ -106,6 +112,7 @@ def async_register_commands(
     websocket_api.async_register_command(hass, _make_ws_create_zone(entry))
     websocket_api.async_register_command(hass, _make_ws_rename_zone(entry))
     websocket_api.async_register_command(hass, _make_ws_set_zone_mode(entry))
+    websocket_api.async_register_command(hass, _make_ws_set_zone_preheat(entry))
     websocket_api.async_register_command(hass, _make_ws_delete_zone(entry))
     websocket_api.async_register_command(
         hass, _make_ws_set_zone_time_program(entry)
@@ -118,6 +125,9 @@ def async_register_commands(
     )
     websocket_api.async_register_command(
         hass, _make_ws_get_calibration_status(entry)
+    )
+    websocket_api.async_register_command(
+        hass, _make_ws_set_matter_mapping(entry)
     )
 
 
@@ -227,6 +237,19 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
                 is_trv_entity(hass, eid) for eid in entity_ids
             )
 
+            # D-10: mirror the three preheat fields from the push payload
+            # (PREHEAT-04, Pitfall 1 — ws_get_status must match
+            # _build_status_payload exactly so initial page load is correct).
+            room_entry["preheat_active"] = coordinator._preheat_active.get(
+                area_id, False
+            )
+            room_entry["preheat_target"] = coordinator._preheat_target.get(
+                area_id, None
+            )
+            room_entry["preheat_suppressed"] = (
+                coordinator._preheat_suppressed.get(area_id, False)
+            )
+
             rooms_status.append(room_entry)
 
         connection.send_result(
@@ -256,21 +279,36 @@ def _make_ws_get_config(entry: ClimateManagerConfigEntry):
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Return full runtime_config plus derived climate_entities list.
+        """Return full runtime_config plus derived entity lists.
 
         D-25: climate_entities is the sorted list of all climate.* entity IDs
-        from the HA entity registry. Merged into a NEW dict — runtime_config is
-        never mutated so the derived key never pollutes persistent storage.
+        from the HA entity registry. A2 Option A/C: matter_entities and
+        tado_x_entities are derived subsets filtered by entity registry
+        platform. All three are merged into a NEW dict — runtime_config is
+        never mutated so derived keys never pollute persistent storage
+        (T-13-06).
         """
         entity_reg = er.async_get(hass)
-        climate_entities = sorted(
-            reg_entry.entity_id
+        climate_reg_entries = [
+            reg_entry
             for reg_entry in entity_reg.entities.values()
             if reg_entry.entity_id.split(".")[0] == "climate"
+        ]
+        climate_entities = sorted(e.entity_id for e in climate_reg_entries)
+        # A2 Option A/C: derive platform-filtered lists from entity registry.
+        # Merged into a NEW payload dict — runtime_config never mutated so
+        # these derived keys never pollute persistent storage (T-13-06/D-25).
+        matter_entities = sorted(
+            e.entity_id for e in climate_reg_entries if e.platform == "matter"
+        )
+        tado_x_entities = sorted(
+            e.entity_id for e in climate_reg_entries if e.platform == "tado_x"
         )
         payload = {
             **entry.runtime_data.runtime_config,
             "climate_entities": climate_entities,
+            "matter_entities": matter_entities,
+            "tado_x_entities": tado_x_entities,
         }
         connection.send_result(msg["id"], payload)
 
@@ -409,23 +447,40 @@ def _make_ws_set_room_config(entry: ClimateManagerConfigEntry):
     ) -> None:
         """Sparse-merge config into rooms[room_id] without wiping other rooms.
 
-        T-03-09: setdefault + update pattern ensures only the targeted room's keys are
-                 modified; other rooms and DEFAULT_CONFIG keys are preserved.
-        CR-01: snapshot rooms before mutation so we can roll back if async_save raises
-               (validate_zone_assignment inside async_save may raise ValueError on
-               invalid zone_id assignments — ZONE-04).
+        T-03-09: setdefault + update pattern ensures only the targeted room's
+                 keys are modified; other rooms and DEFAULT_CONFIG keys are
+                 preserved.
+        CR-01: snapshot rooms before mutation so we can roll back if
+               async_save raises (validate_zone_assignment inside async_save
+               may raise ValueError on invalid zone_id assignments — ZONE-04).
+        GAP-01: preheat_enabled moved to zone scope; this command no longer
+                accepts or persists preheat_enabled on the room. Use
+                set_zone_preheat to toggle the enable flag.
         """
         rooms_backup = copy.deepcopy(
             entry.runtime_data.runtime_config.get("rooms", {})
         )
-        # zone_id: null from the frontend signals 'move room to Default Zone' — pop the key
-        # per D-06 sparse model (gap CR-03 fix from VERIFICATION 06-04).
+        # zone_id: null from the frontend signals 'move room to Default Zone'
+        # — pop the key per D-06 sparse model (gap CR-03 fix from VERIFY 06).
         incoming_config = msg["config"]
         if "zone_id" in incoming_config and incoming_config["zone_id"] is None:
             incoming_config.pop("zone_id")
             entry.runtime_data.runtime_config.setdefault(
                 "rooms", {}
             ).setdefault(msg["room_id"], {}).pop("zone_id", None)
+        # D-01 / T-12-06: validate sparse room preheat keys before persist.
+        # preheat_max_lead_minutes must be an int in [0, 480]; drop otherwise.
+        if "preheat_max_lead_minutes" in incoming_config:
+            val = incoming_config["preheat_max_lead_minutes"]
+            if not (
+                isinstance(val, int)
+                and not isinstance(val, bool)
+                and 0 <= val <= 480
+            ):
+                incoming_config.pop("preheat_max_lead_minutes")
+        # GAP-01: preheat_enabled is no longer a valid room key; silently drop
+        # it so legacy callers don't persist the deprecated room-level flag.
+        incoming_config.pop("preheat_enabled", None)
         (
             entry.runtime_data.runtime_config.setdefault("rooms", {})
             .setdefault(msg["room_id"], {})
@@ -464,7 +519,18 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Sparse-merge config into persons[person_id] without wiping other persons.
+        """Sparse-merge config into persons[person_id].
+
+        Accepted keys (all optional, additive sparse-merge per D-09):
+          mode: str
+          room_ids: list[str]
+          schedule / schedule_even / schedule_odd: DailyProgram
+          schedule_type: "single" | "even_odd"
+          calendar_config: {
+            "entity_id": str,       # must start with "calendar." (T-11-06)
+            "event_means": "absent" | "present",
+          }
+          wakeup_advance_minutes: int (0-480, clamped; D-02)
 
         T-03-09: same setdefault + update pattern as set_room_config.
         """
@@ -472,7 +538,7 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
         # even_odd. Guard: only seed when schedule_even is not already in
         # storage — an existing empty {} schedule must not be overwritten
         # (key-absence check, not truthiness — Pitfall 1 in RESEARCH.md).
-        incoming = msg["config"]
+        incoming = dict(msg["config"])
         if incoming.get("schedule_type") == "even_odd":
             current_person = entry.runtime_data.runtime_config.get(
                 "persons", {}
@@ -486,10 +552,69 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
                     "schedule_odd",
                     copy.deepcopy(current_person.get("schedule", {})),
                 )
+        # T-11-06 (ASVS V5): reject calendar_config whose entity_id does
+        # not start with "calendar." — prevents persisting or calling
+        # unintended entity targets (_prefetch_calendars prefix-checks
+        # too, but validate here at the trust boundary).
+        if "calendar_config" in incoming:
+            cal_cfg = incoming["calendar_config"]
+            eid = (
+                cal_cfg.get("entity_id", "")
+                if isinstance(cal_cfg, dict)
+                else ""
+            )
+            event_means = (
+                cal_cfg.get("event_means", "absent")
+                if isinstance(cal_cfg, dict)
+                else "absent"
+            )
+            if not (isinstance(eid, str) and eid.startswith("calendar.")):
+                incoming.pop("calendar_config")
+            elif event_means not in ("absent", "present"):
+                # T-11-06 (WR-03): reject invalid event_means values to
+                # prevent silent inversion of presence logic in schedule.py.
+                incoming.pop("calendar_config")
+            else:
+                # Validate gap_handling and gap_threshold_minutes.
+                # Sparse model: only normalize keys the client explicitly sent.
+                if "gap_handling" in cal_cfg:
+                    gap = cal_cfg["gap_handling"]
+                    if gap not in ("exact", "day_span", "threshold"):
+                        cal_cfg.pop("gap_handling")
+                        cal_cfg.pop("gap_threshold_minutes", None)
+                    elif gap == "threshold":
+                        try:
+                            thr = int(cal_cfg.get("gap_threshold_minutes", 30))
+                            cal_cfg["gap_threshold_minutes"] = max(
+                                0, min(480, thr)
+                            )
+                        except (TypeError, ValueError):
+                            cal_cfg["gap_threshold_minutes"] = 30
+                    else:
+                        cal_cfg.pop("gap_threshold_minutes", None)
+                else:
+                    cal_cfg.pop("gap_threshold_minutes", None)
+        # D-02: legacy preheat_lead_minutes → wakeup_advance_minutes rename.
+        # Map old key to new key so existing clients keep working.
+        if "preheat_lead_minutes" in incoming:
+            incoming["wakeup_advance_minutes"] = incoming.pop(
+                "preheat_lead_minutes"
+            )
+        # T-12-07: clamp wakeup_advance_minutes to [0, 480]; drop if invalid.
+        if "wakeup_advance_minutes" in incoming:
+            val = incoming["wakeup_advance_minutes"]
+            if (
+                isinstance(val, int)
+                and not isinstance(val, bool)
+                and 0 <= val <= 480
+            ):
+                pass  # valid — keep
+            else:
+                incoming.pop("wakeup_advance_minutes")
         (
             entry.runtime_data.runtime_config.setdefault("persons", {})
             .setdefault(msg["person_id"], {})
-            .update(msg["config"])
+            .update(incoming)
         )
         await entry.runtime_data.store.async_save(
             entry.runtime_data.runtime_config
@@ -760,6 +885,77 @@ def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_set_zone_mode
+
+
+def _make_ws_set_zone_preheat(entry: ClimateManagerConfigEntry):
+    """Factory: create set_zone_preheat handler (GAP-01).
+
+    Persists preheat_enabled at zone scope:
+    - zone_id="default" → runtime_config["default_zone_preheat_enabled"]
+    - custom zone_id    → runtime_config["zones"][zone_id]["preheat_enabled"]
+    Modelled on _make_ws_rename_zone (dual-path default sentinel + CR-01
+    snapshot/rollback).
+    Security: T-12-11 — vol schema gates enabled:bool + zone_id:str;
+    unknown custom zone_id returns ERR_NOT_FOUND; save failure rolls back.
+    """
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/set_zone_preheat",
+            vol.Required("zone_id"): str,
+            vol.Required("enabled"): bool,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_set_zone_preheat(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Set preheat_enabled on a zone (Default or custom), persist, re-eval.
+
+        T-05-01 pattern: "default" sentinel handled BEFORE zones dict access
+        so the Default Zone never appears as a key in zones{}.
+        """
+        runtime_config = entry.runtime_data.runtime_config
+        enabled = bool(msg["enabled"])  # defensive; vol already type-guards
+        if msg["zone_id"] == "default":
+            old_val = runtime_config.get("default_zone_preheat_enabled")
+            runtime_config["default_zone_preheat_enabled"] = enabled
+            try:
+                await entry.runtime_data.store.async_save(runtime_config)
+            except Exception as exc:  # noqa: BLE001
+                runtime_config["default_zone_preheat_enabled"] = old_val
+                connection.send_error(
+                    msg["id"],
+                    websocket_api.ERR_UNKNOWN_ERROR,
+                    str(exc),
+                )
+                return
+        else:
+            if msg["zone_id"] not in runtime_config.get("zones", {}):
+                connection.send_error(
+                    msg["id"],
+                    websocket_api.ERR_NOT_FOUND,
+                    f"Zone {msg['zone_id']!r} not found",
+                )
+                return
+            zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
+            runtime_config["zones"][msg["zone_id"]]["preheat_enabled"] = enabled
+            try:
+                await entry.runtime_data.store.async_save(runtime_config)
+            except Exception as exc:  # noqa: BLE001
+                runtime_config["zones"] = zones_backup
+                connection.send_error(
+                    msg["id"],
+                    websocket_api.ERR_UNKNOWN_ERROR,
+                    str(exc),
+                )
+                return
+        connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+    return ws_set_zone_preheat
 
 
 def _make_ws_delete_zone(entry: ClimateManagerConfigEntry):
@@ -1213,3 +1409,59 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
         )
 
     return ws_get_calibration_status
+
+
+def _make_ws_set_matter_mapping(entry: ClimateManagerConfigEntry):
+    """Factory: create set_matter_mapping handler.
+
+    D-15/D-16: persists the sparse matter_mappings config and triggers
+    atomic listener refresh in the coordinator.
+    Security: T-13-04 — filter matter_entity_ids to climate.* only
+    (Pitfall 7) before storage; non-climate entity_ids silently dropped.
+    """
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/set_matter_mapping",
+            vol.Required("tado_entity_id"): str,
+            vol.Required("matter_entity_ids"): list,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_set_matter_mapping(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Store or remove a Matter entity mapping for a tado_x zone entity.
+
+        T-13-04: filter matter_entity_ids to climate.* strings only before
+        storing (Pitfall 7 — rejects sensor.* and other non-climate domains).
+        D-01 sparse model: empty filtered list pops the key (never stored
+        as []).  D-16: refresh coordinator listeners atomically after persist.
+        """
+        matter_eids = [
+            e
+            for e in msg["matter_entity_ids"]
+            if isinstance(e, str) and e.startswith("climate.")
+        ]
+        mappings = entry.runtime_data.runtime_config.setdefault(
+            "matter_mappings", {}
+        )
+        if matter_eids:
+            mappings[msg["tado_entity_id"]] = matter_eids
+        else:
+            # D-01 sparse: absent key = no mapping; never store []
+            mappings.pop(msg["tado_entity_id"], None)
+        await entry.runtime_data.store.async_save(
+            entry.runtime_data.runtime_config
+        )
+        connection.send_result(msg["id"], {"success": True})
+        # D-16: refresh listeners atomically with config change
+        coordinator = entry.runtime_data.coordinator
+        if coordinator is not None:
+            hass.async_create_task(
+                coordinator._async_refresh_matter_listeners()
+            )
+
+    return ws_set_matter_mapping

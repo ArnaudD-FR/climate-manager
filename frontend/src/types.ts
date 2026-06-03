@@ -7,15 +7,42 @@
  */
 
 /**
+ * Calendar-based presence configuration shared by PersonConfig and per-period
+ * calendar state periods. Defines which HA calendar entity to watch, what an
+ * active event means for presence, and how gaps between events are treated.
+ */
+export interface CalendarConfig {
+  entity_id: string;
+  event_means: "absent" | "present";
+  /** How gaps between consecutive events are treated. Default: "exact". */
+  gap_handling?: "exact" | "day_span" | "threshold";
+  /**
+   * Only relevant when gap_handling="threshold". Gaps shorter than this
+   * many minutes keep the person absent; longer gaps let them return home.
+   */
+  gap_threshold_minutes?: number;
+}
+
+/**
  * A single period entry in a daily program.
  * Discriminated union: exactly one of `mode` (schedule bar) or `state`
  * (presence bar) must be present. TypeScript will flag access to
  * `period.mode` without checking the
  * discriminant, preventing silent undefined rendering (WR-03).
+ *
+ * Phase 11 (D-06): presence periods with state "calendar" may carry an
+ * optional calendar_config for per-period calendar entity + event_means.
  */
 export type Period =
   | { start: string; mode: string; state?: never }
-  | { start: string; state: string; mode?: never };
+  | {
+      start: string;
+      state: string;
+      mode?: never;
+      // Phase 11 (D-06): per-period calendar config (only used when
+      // state === "calendar")
+      calendar_config?: CalendarConfig;
+    };
 
 /** Seven-day program map keyed by lowercase day abbreviation. */
 export type DailyProgram = Record<
@@ -32,10 +59,15 @@ export interface RoomConfig {
   room_mode?: "global" | "frost_protection" | "custom";
   time_program?: DailyProgram | null;
   /**
-   * Absent = Default Zone member (D-06); UUID string for custom zone (D-07).
-   * Sparse model — never written as null.
+   * Absent = Default Zone member (D-06); UUID string for custom zone
+   * (D-07). Sparse model — never written as null.
    */
   zone_id?: string;
+  /**
+   * Phase 12 (D-01): maximum lead time the coordinator may use.
+   * Sparse — absent means default 120 minutes.
+   */
+  preheat_max_lead_minutes?: number;
 }
 
 /** Per-person configuration stored in ClimateConfig.persons. */
@@ -47,6 +79,11 @@ export interface PersonConfig {
   schedule_type?: "single" | "even_odd";
   schedule_even?: DailyProgram;
   schedule_odd?: DailyProgram;
+  // Phase 11: calendar presence mode (D-08, D-09)
+  calendar_config?: CalendarConfig;
+  // Phase 11/12 (D-02): wake-up advance in minutes; absent = 60.
+  // Backend key was renamed; coordinator reads old key with fallback.
+  wakeup_advance_minutes?: number;
 }
 
 /** Custom zone configuration stored in ClimateConfig.zones. */
@@ -57,6 +94,11 @@ export interface ZoneConfig {
   mode: string;
   /** Same structure as global_time_program (7-day weekly schedule). */
   time_program: DailyProgram;
+  /**
+   * Phase 12 (GAP-01): per-zone pre-heat enable flag.
+   * Sparse — absent means disabled (default false).
+   */
+  preheat_enabled?: boolean;
 }
 
 /** Full integration configuration returned by climate_manager/get_config. */
@@ -66,6 +108,13 @@ export interface ClimateConfig {
   global_time_program: DailyProgram;
   /** D-03: Default Zone display name. Always present in get_config payloads. */
   default_zone_name: string;
+  /**
+   * Phase 12 (GAP-01): Default Zone pre-heat enable flag.
+   * The Default Zone never appears in `zones{}`, so its enable flag lives
+   * here at the top level, mirroring the default_zone_name pattern.
+   * Sparse — absent means disabled (default false).
+   */
+  default_zone_preheat_enabled?: boolean;
   /** ZONE-01: custom zones keyed by UUID. Empty = all rooms in Default Zone. */
   zones: Record<string, ZoneConfig>;
   rooms: Record<string, RoomConfig>;
@@ -80,6 +129,23 @@ export interface ClimateConfig {
    * the phase that exposes threshold configuration to the user.
    */
   calibration_threshold?: number;
+  /**
+   * Phase 13 (D-01): Matter entity pairings.
+   * Key: tado_x zone climate entity_id.
+   * Value: list of Matter climate entity_ids paired to that tado_x entity.
+   * Sparse — absent key means no mapping for that room.
+   */
+  matter_mappings?: Record<string, string[]>;
+  /**
+   * Phase 13 (A2 Option A/C): backend-derived list of all Matter climate
+   * entity_ids known to HA. Read-only — never written to storage.
+   */
+  matter_entities?: string[];
+  /**
+   * Phase 13 (A2 Option A/C): backend-derived list of all tado_x climate
+   * entity_ids known to HA. Read-only — never written to storage.
+   */
+  tado_x_entities?: string[];
 }
 
 /** Per-room live status entry inside StatusPayload.rooms_status. */
@@ -93,6 +159,18 @@ export interface RoomStatus {
   present_person_count: number;
   /** True when at least one entity reports current_temperature (TRV). */
   has_trv?: boolean;
+  /** Phase 12 (D-10): pre-heat is active this cycle. */
+  preheat_active?: boolean;
+  /**
+   * Phase 12 (D-10): target temperature being pre-heated to.
+   * Null when preheat_active is false.
+   */
+  preheat_target?: number | null;
+  /**
+   * Phase 12 (D-10): true when pre-heat is enabled but cannot run
+   * (no person schedule — presence-only suppression).
+   */
+  preheat_suppressed?: boolean;
 }
 
 /** Payload pushed by subscribe_status and returned by get_status. */
@@ -170,6 +248,7 @@ export const PERIOD_COLORS: Record<string, string> = {
 export const PRESENCE_COLORS: Record<string, string> = {
   present: "#2E7D32",
   absent: "#9E9E9E",
+  calendar: "#5C6BC0", // Phase 11 — UI-SPEC calendar color (indigo-400)
 };
 
 /** Short single-character labels for accessibility (F/R/N/C, P/A). */
@@ -180,6 +259,7 @@ export const PERIOD_LABELS: Record<string, string> = {
   comfort: "C",
   present: "P",
   absent: "A",
+  calendar: "C", // Phase 11
 };
 
 /** Full display names shown inside period blocks (ellipsized when narrow). */
@@ -190,6 +270,7 @@ export const PERIOD_DISPLAY_NAMES: Record<string, string> = {
   comfort: "Comfort",
   present: "Present",
   absent: "Absent",
+  calendar: "Calendar", // Phase 11
 };
 
 // ---------------------------------------------------------------------------

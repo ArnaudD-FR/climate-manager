@@ -509,6 +509,7 @@ export class ClimateManagerPanel extends LitElement {
           name: this._config!.default_zone_name,
           mode: this._config!.global_mode,
           time_program: this._config!.global_time_program,
+          preheat_enabled: this._config!.default_zone_preheat_enabled ?? false,
         }}
         .isDefault=${true}
         .status=${this._status}

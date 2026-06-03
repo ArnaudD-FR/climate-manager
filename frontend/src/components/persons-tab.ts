@@ -23,6 +23,8 @@ import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import type { RoomChoice } from "./person-card.js";
 
+import { computeHasDeviceTrackers } from "./presence-mode.js";
+
 import "./person-card.js";
 
 export class PersonsTab extends LitElement {
@@ -56,7 +58,7 @@ export class PersonsTab extends LitElement {
 
     const allRoomIds = new Set([...statusRooms.map((r) => r.area_id)]);
 
-    return [...allRoomIds].map((roomId) => {
+    const choices = [...allRoomIds].map((roomId) => {
       const name =
         (
           statusRooms.find((r) => r.area_id === roomId) as
@@ -68,8 +70,25 @@ export class PersonsTab extends LitElement {
       const secondary = floorId
         ? this.hass?.floors?.[floorId]?.name ?? undefined
         : undefined;
-      return { id: roomId, name, secondary };
+      return { id: roomId, name, secondary, floorId };
     });
+
+    // Sort by floor level descending (higher floor first), then room name
+    // ascending — mirrors the floor-grouped sort in zone-tab.ts.
+    choices.sort((a, b) => {
+      const levelA =
+        a.floorId != null
+          ? this.hass?.floors?.[a.floorId]?.level ?? 0
+          : -Infinity;
+      const levelB =
+        b.floorId != null
+          ? this.hass?.floors?.[b.floorId]?.level ?? 0
+          : -Infinity;
+      if (levelB !== levelA) return levelB - levelA;
+      return a.name.localeCompare(b.name);
+    });
+
+    return choices;
   }
 
   /** Determine if a person config has any non-default setting (D-15). */
@@ -114,6 +133,18 @@ export class PersonsTab extends LitElement {
 
     const roomChoices = this._getRoomChoices();
 
+    // Compute hasDeviceTrackers per person from hass.states attributes.
+    // Treats absent attribute AND empty array both as false (D-02).
+    const hasDeviceTrackersMap = new Map<string, boolean>();
+    for (const personId of allPersonIds) {
+      hasDeviceTrackersMap.set(
+        personId,
+        computeHasDeviceTrackers(
+          this.hass?.states[personId]?.attributes?.device_trackers,
+        ),
+      );
+    }
+
     return html`
       ${sortedIds.map((personId) => {
         const personConfig = persons[personId] ?? {};
@@ -133,6 +164,7 @@ export class PersonsTab extends LitElement {
             .panel=${this.panel}
             .status=${this.status}
             .autoExpand=${this.expandPersonId === personId}
+            .hasDeviceTrackers=${hasDeviceTrackersMap.get(personId) ?? false}
           ></climate-manager-person-card>
         `;
       })}

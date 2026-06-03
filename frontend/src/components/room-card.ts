@@ -443,6 +443,8 @@ export class RoomCard extends LitElement {
    *   - active_period is null/undefined (no active period to display)
    *
    * Returns gray "Off" badge when globalMode is "off".
+   * When pre-heat is active, replaces the period badge with an amber
+   * "Pre-heating → XX.X°C" badge so it is visible without expanding the card.
    * Otherwise returns a colored pill: "${name} · ${temp}°C".
    */
   private _renderPeriodBadge() {
@@ -458,6 +460,16 @@ export class RoomCard extends LitElement {
           class="program-badge"
           style="background: var(--secondary-background-color); color: var(--secondary-text-color);"
           >Off</span
+        >
+      `;
+    }
+
+    const preheatActive = this.roomStatus?.preheat_active ?? false;
+    const preheatTarget = this.roomStatus?.preheat_target ?? null;
+    if (preheatActive && preheatTarget != null) {
+      return html`
+        <span class="program-badge" style="background: #e65100; color: white;"
+          >Pre-heating &rarr; ${preheatTarget.toFixed(1)}&deg;C</span
         >
       `;
     }
@@ -644,6 +656,133 @@ export class RoomCard extends LitElement {
     );
   }
 
+  // -----------------------------------------------------------------------
+  // Pre-heat handlers and render (Phase 12 D-11)
+  // -----------------------------------------------------------------------
+
+  private async _onPreheatMaxLeadChange(e: Event) {
+    const value = (e.target as HTMLInputElement).value;
+    const val = parseInt(value, 10);
+    if (isNaN(val) || val < 0 || val > 480) return;
+    try {
+      await this.ws.setRoomConfig(this.roomId, {
+        preheat_max_lead_minutes: val,
+      });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private async _onMatterMappingChange(tadoEntityId: string, e: Event) {
+    const selected = (e.target as HTMLSelectElement).value;
+    const matterEntityIds = selected ? [selected] : [];
+    try {
+      await this.ws.setMatterMapping(tadoEntityId, matterEntityIds);
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private _renderMatterPairingSection() {
+    const entityIds = this.roomStatus?.entity_ids ?? [];
+    const tadoXEntities = this.panelConfig?.tado_x_entities ?? [];
+    // Intersect room entity_ids with backend-derived tado_x_entities list
+    const roomTadoXIds = entityIds.filter((id) => tadoXEntities.includes(id));
+    if (roomTadoXIds.length === 0) return html``;
+
+    const matterEntities = this.panelConfig?.matter_entities ?? [];
+    const mappings = this.panelConfig?.matter_mappings ?? {};
+
+    return html`
+      <div class="section-label">Real-time calibration</div>
+      <p class="schedule-hint">
+        Pair each Tado X valve to its Matter entity for sub-minute calibration.
+      </p>
+      ${roomTadoXIds.map((tadoId) => {
+        const tadoName =
+          (this.hass?.states[tadoId]?.attributes?.["friendly_name"] as
+            | string
+            | undefined) ?? tadoId;
+        const currentMapping = mappings[tadoId]?.[0] ?? "";
+        return html`
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <span style="flex:1;font-size:13px;">${tadoName}</span>
+            <div class="select-wrapper">
+              <select
+                class="mode-select"
+                @change=${(e: Event) =>
+                  void this._onMatterMappingChange(tadoId, e)}
+              >
+                <option value="" ?selected=${!currentMapping}>(none)</option>
+                ${matterEntities.map(
+                  (matterId) => html`
+                    <option
+                      value=${matterId}
+                      ?selected=${currentMapping === matterId}
+                    >
+                      ${(this.hass?.states[matterId]?.attributes?.[
+                        "friendly_name"
+                      ] as string | undefined) ?? matterId}
+                    </option>
+                  `,
+                )}
+              </select>
+            </div>
+          </div>
+        `;
+      })}
+    `;
+  }
+
+  private _renderPreheatSection() {
+    // Derive zone-level enable: Default Zone rooms check top-level flag;
+    // custom zone rooms check their zone's preheat_enabled (GAP-01).
+    const zoneId = this.config?.zone_id;
+    const enabled = zoneId
+      ? this.panelConfig?.zones?.[zoneId]?.preheat_enabled ?? false
+      : this.panelConfig?.default_zone_preheat_enabled ?? false;
+
+    const maxLead = this.config?.preheat_max_lead_minutes ?? 120;
+    const preheatActive = this.roomStatus?.preheat_active ?? false;
+    const preheatTarget = this.roomStatus?.preheat_target ?? null;
+    const suppressed = this.roomStatus?.preheat_suppressed ?? false;
+
+    if (!enabled && !preheatActive) return html``;
+
+    return html`
+      <div class="section-label">Pre-heat</div>
+      ${enabled
+        ? html`
+            <label
+              style="display:flex;align-items:center;gap:8px;margin-top:6px;"
+            >
+              Max lead time (min)
+              <input
+                type="number"
+                min="0"
+                max="480"
+                step="5"
+                .value=${String(maxLead)}
+                @change=${this._onPreheatMaxLeadChange}
+                style="width:70px;"
+              />
+            </label>
+          `
+        : ""}
+      ${enabled && suppressed
+        ? html`
+            <p class="schedule-hint">
+              Pre-heat disabled &mdash; presence cannot be scheduled
+            </p>
+          `
+        : ""}
+    `;
+  }
+
   render() {
     const resolvedMode = this.config?.room_mode ?? "global";
 
@@ -795,7 +934,8 @@ export class RoomCard extends LitElement {
                 >
                   Climate entities
                 </div>
-                ${this._renderTrvSection()}
+                ${this._renderTrvSection()} ${this._renderPreheatSection()}
+                ${this._renderMatterPairingSection()}
               </div>
             `
           : ""}

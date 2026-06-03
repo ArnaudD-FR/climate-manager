@@ -128,6 +128,21 @@ export class WsClient {
   }
 
   /**
+   * Enable or disable pre-heat for a zone (Phase 12 GAP-01).
+   * Pass zoneId="default" for the Default Zone or a UUID for custom zones.
+   */
+  setZonePreheat(
+    zoneId: string,
+    enabled: boolean,
+  ): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_zone_preheat",
+      zone_id: zoneId,
+      enabled,
+    });
+  }
+
+  /**
    * Replace the time program for a zone (all 7 day keys required).
    */
   setZoneTimeProgram(
@@ -204,6 +219,22 @@ export class WsClient {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
       type: "climate_manager/set_calibration_config",
       enabled,
+    });
+  }
+
+  /**
+   * Set or remove a Matter entity mapping for a tado_x zone entity.
+   * Pass an empty array for matterEntityIds to remove the mapping
+   * (D-01 sparse — absent key = no mapping).
+   */
+  setMatterMapping(
+    tadoEntityId: string,
+    matterEntityIds: string[],
+  ): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_matter_mapping",
+      tado_entity_id: tadoEntityId,
+      matter_entity_ids: matterEntityIds,
     });
   }
 

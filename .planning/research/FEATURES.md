@@ -1,292 +1,329 @@
-# Features
+# Feature Landscape
 
-**Project:** Climate Manager — v1.1 Heating Zones **Researched:** 2026-05-26
-**Confidence:** HIGH (system internals), MEDIUM (zone UI patterns from
-commercial systems)
+**Project:** Climate Manager — v1.3 Calendar Presence & Pre-heat
+**Researched:** 2026-05-31
+**Confidence:** HIGH (codebase internals), MEDIUM (external library behaviour),
+LOW (pronotepy long-term stability)
 
 ---
 
 ## Context
 
-This document covers features for the v1.1 "Heating Zones" milestone only. v1.0
-features (global mode, time programs, per-room overrides, persons, full panel)
+This document covers the five new features targeted for v1.3. All v1.0–v1.2
+features (global mode, time programs, zones, even/odd presence, TRV calibration)
 are already shipped and are dependencies, not in-scope work. References to
-existing code use the actual source filenames.
+existing code use actual source filenames.
 
-**Core concept being added:** A zone is a named group of rooms that runs its own
-mode and weekly schedule, independently from the global configuration. Rooms not
-in any zone continue to fall back to global. Zones override global, not
-individual room configs — a room's own `room_mode=custom` override can still
-exist within a zone.
+**Core theme:** Replace manual presence entry with calendar-driven sources, make
+rooms reach temperature _before_ the occupied period begins, and make Tado X
+calibration sub-minute via direct Matter sensor subscription.
 
 ---
 
 ## Table Stakes
 
-Features users must have for zones to be usable at all. Missing = zones are
-incomplete.
+Features users expect from v1.3 as stated in PROJECT.md. Missing = milestone
+does not deliver on its goal.
 
-| Feature                                                                   | Why Expected                                                                          | Complexity | Notes                                                                                         |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------- |
-| Zone CRUD — create named zone                                             | Can't use a feature that doesn't exist yet                                            | Low        | Name is the only required field at creation; mode + schedule can be set later                 |
-| Zone CRUD — rename zone                                                   | Names are always wrong first draft                                                    | Low        | Inline rename, immediate persistence                                                          |
-| Zone CRUD — delete zone                                                   | Zones created for experiments or restructuring need removal                           | Low        | Delete unassigns all rooms; rooms fall back to global — no data loss                          |
-| Zone mode — Off / Time program / Time program & presences                 | Zones exist to run independently from global; mode is what makes them independent     | Low        | Same three values as global mode; persisted per zone                                          |
-| Zone time program — own weekly schedule                                   | A zone with no schedule is just a label; this is the core value                       | Medium     | Same per-day structure as global_time_program; reuses existing evaluate_schedule()            |
-| Room assignment — assign room to a zone                                   | Without this, zones are disconnected from the actual rooms                            | Low        | One room belongs to at most one zone (exclusive assignment)                                   |
-| Room assignment — unassign room from zone                                 | Users need to move rooms or leave them at global                                      | Low        | Dropping back to global must be explicit and reversible                                       |
-| Backend evaluation — zone takes precedence over global for assigned rooms | This is the entire point of zones                                                     | Medium     | coordinator.py must branch: zone config > global before room_mode evaluation                  |
-| Zone status in panel — show which zone each room belongs to               | Without visual indication, users can't tell what's doing what                         | Low        | Zone name badge on room card is sufficient                                                    |
-| Default zone schedule seeded from global                                  | New zones start empty; a pre-populated schedule prevents a blank-screen on first open | Low        | Deep-copy global_time_program at zone creation (same pattern as reset_room_to_global_program) |
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Pronote presence source — school timetable maps to absent/present | Parents with Pronote-enrolled children expect school hours to drive child presence automatically; manual weekly re-entry is the current pain | High | External PyPI dep `pronotepy`; reverse-engineered protocol; first mandatory credential storage in person config; fallback to manual on fetch failure required |
+| iCal presence source — ICS calendar maps to absent/present | Work calendars (Google, Outlook, Nextcloud) are the dominant adult scheduling tool; typing a work schedule manually is inferior when a URL feed exists | Medium | External PyPI deps `icalendar` + `recurring-ical-events`; ICS URL fetch + TTL cache; RRULE expansion critical for recurring "work" events |
+| Predictive pre-heat — room reaches target temp _at_ period start not _after_ | Users who set a 7:00 normal period expect 20°C at 7:00; the current system only begins heating at 7:00 | High | Inertia learning loop; pre-heat cap; convergence tracking; "Pre-heating" status in UI; mode-compatibility guard for live-presence sources |
+| Matter→Tado X sensor mapping — sub-minute calibration refresh | Calibration currently stale for 45 min on Tado X free tier; users with Matter TRVs in the same room can get real-time reads | Medium | Room-level mapping table in UI; `state_changed` subscription lifecycle; fall back to existing zone entity when no mapping |
+| Hide HA presence mode when person has no device trackers | Showing a broken option silently corrupts heating logic; users expect the UI to show only what works | Low | Frontend filter on `hass.states[personId]?.attributes?.device_trackers`; or backend flag in `get_status` persons payload |
 
 ---
 
 ## Differentiators
 
-Features that make zones genuinely useful beyond the minimum viable
-implementation.
+Features that make v1.3 stand out beyond "calendar sync in HA".
 
-| Feature                                                              | Value Proposition                                                                                 | Complexity | Notes                                                                                            |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------ |
-| Zone mode shown in zone card header                                  | Instant visible status — don't make user open zone to see mode                                    | Low        | Same mode chip already on global settings; reuse component                                       |
-| Zone list summary — room count and active period per zone            | Scannable at a glance; avoids opening each zone                                                   | Low        | Derived from runtime evaluation data already in coordinator.\_last_room_periods                  |
-| Room assignment via room card (assign/unassign from within the room) | Natural location — user is already looking at a room when they want to zone it                    | Medium     | Needs dropdown of existing zone names + "none (global)" option; triggers set_zone_config WS call |
-| Zone assignment visible on Rooms tab without entering zone detail    | Zones are orthogonal to rooms; rooms tab is where users go to manage rooms                        | Low        | Zone name badge or chip on room card; low implementation cost                                    |
-| "Reset zone schedule to global" action                               | Zones often start as copies of global then diverge; reset shortcut saves re-entering the schedule | Low        | Deep-copy pattern already in ws_reset_room_to_global_program; replicate for zones                |
-| Zone evaluation order shown in UI                                    | With multiple zones, users wonder "which config wins for this room?"                              | Low        | A room in a zone always uses zone config; show "Zone: Bathrooms" in status                       |
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Adaptive inertia learning per room | Lead time is automatically tuned to the room's actual thermal behaviour rather than a fixed guess; converges after 3–5 cycles | High | Normalised to reference flow temp; `did_not_converge` samples excluded from model; convergence flag reduces safety margin |
+| Pre-heat cap + "could not reach target" warning | Prevents runaway pre-heat in poorly insulated rooms; surfaces a diagnostic the user can act on | Low | `preheat_max_duration` configurable per room; warning shown in room card when cap was hit |
+| Graceful Pronote fallback to manual schedule | Library maintenance risk (Pronote changes protocol ~annually) is isolated behind a fallback; heating continues correctly | Low | Log warning on failure; `last_fetch_error` surfaced in person card |
+| ICS recurring event support (RRULE) | Work calendars heavily use RRULE for daily/weekly recurrence; ignoring RRULE silently misses most events | Medium | Requires `recurring-ical-events`; expand occurrences in a ±7-day window at fetch time |
+| Pre-heat status label in room card | "Pre-heating (→ 20.0°C)" replaces generic period label; user immediately sees the system is working ahead of schedule | Low | Coordinator exposes `preheat_active: bool` + `preheat_target: float` per room in status payload |
 
 ---
 
 ## Anti-Features
 
-Explicitly out of scope for v1.1.
+Explicitly out of scope for v1.3.
 
-| Anti-Feature                                                                            | Why Avoid                                                                                 | What to Do Instead                                                                                   |
-| --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Zones nested inside zones (hierarchical zones)                                          | Exponential conflict-resolution complexity; no household use case requires it             | Flat list of zones is sufficient; use zone naming conventions for grouping                           |
-| Per-zone person presence associations                                                   | Persons are already associated to rooms; a zone inheriting those associations is implicit | Persons remain room-scoped; zone mode TIME_PROGRAM_PRESENCES already works through room associations |
-| Zone priority ordering (zone A overrides zone B)                                        | A room can only be in one zone — priority ordering is meaningless                         | Enforce exclusive room-zone membership; no priority needed                                           |
-| Zone-level period temperatures (different Frost/Reduced/Normal/Comfort values per zone) | Each zone having its own temperature scale multiplies configuration surface 4x per zone   | Global period temperatures continue to apply; zones only override mode + schedule                    |
-| Zone creation from global mode switch                                                   | Global mode is a different concept (master on/off); conflating them causes confusion      | Zones tab is separate from global settings; different UX path                                        |
-| "Copy zone" shortcut                                                                    | Nice-to-have but zones rarely need identical copies                                       | Manual re-creation is acceptable for v1.1                                                            |
-| Zone-specific frost protection temperature                                              | Already covered by global period_temperatures[frost_protection]                           | No per-zone temperature scale                                                                        |
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Boiler entity integration for flow temp | Adds a whole new entity-type dependency; not all users have a HA-connected boiler | Use per-zone `preheat_flow_temp_ref` fixed assumption (default 60°C); real boiler read deferred to v2 |
+| Live/reactive GPS presence pre-heat | No future transition time to target — pre-heat cannot compute a lead time | Detect live-source rooms, suppress pre-heat, show "Pre-heat disabled — presence cannot be scheduled." |
+| Outdoor temperature entity for heat curve normalisation | Adds another optional dependency; heat curve lookup table is v2 scope | Treat inertia_factor as learned at average conditions; accept ±10% seasonal variation |
+| Pronote teacher/vie-scolaire accounts | pronotepy support is limited and unmaintained for non-student accounts | Student account only in v1.3; teacher accounts deferred |
+| iCal write-back (creating events from heating data) | Out-of-scope scope creep; HA calendar write is a different API surface | Read-only ICS fetch only |
+| Presence source priority / fallback chain between Pronote and iCal | A person can have at most one schedule source; multi-source merging adds ambiguity | One `schedule_source` field per person: "manual" \| "pronote" \| "ical"; no blending |
+| Custom credential vault / secret manager | HA already encrypts ConfigEntry data at rest; no extra layer needed | Store Pronote credentials in person config via existing Store helper; same pattern as other sensitive config |
 
 ---
 
 ## Feature Dependencies
 
 ```
-Zones feature (v1.1)
-  └─→ Depends on: global_time_program structure (already exists — same schema)
-  └─→ Depends on: evaluate_schedule() in schedule.py (already exists — no changes needed)
-  └─→ Depends on: coordinator.py evaluation loop (must be extended, not replaced)
-  └─→ Depends on: storage.py sparse-merge pattern (zones dict follows same pattern as rooms/persons)
-  └─→ Depends on: websocket.py WS command factory pattern (new zone commands follow same pattern)
+v1.3 features depend on (all already shipped in v1.0–v1.2):
+  └─→ schedule.py resolve_presence() — additive: new "pronote"/"ical" sources plug in
+  └─→ const.py PRESENCE_* constants — add PRESENCE_PRONOTE / PRESENCE_ICAL
+  └─→ coordinator.py _compute_present_persons() — call new source resolvers
+  └─→ storage.py person schema — additive fields: schedule_source, pronote_*, ical_*
+  └─→ websocket.py set_person_config — carry new person config fields
 
-Zone CRUD (create/rename/delete)
-  └─→ Storage: new "zones" key in DEFAULT_CONFIG, keyed by zone_id (UUID or slug)
-  └─→ WS commands: create_zone, update_zone, delete_zone
-  └─→ UI: Zones tab in panel with zone list
+Feature 1 — Pronote presence source
+  └─→ NEW external dep: pronotepy (PyPI); declared in manifest.json requirements[]
+  └─→ Timetable fetch: async executor wrapper (pronotepy is sync — run_in_executor)
+  └─→ Cache: per-person TTL cache (default 1h); keyed by person_id
+  └─→ schedule.py: resolve_presence() gains "pronote" branch; calls cached timetable
+  └─→ Person config additions: schedule_source, pronote_url, pronote_username,
+      pronote_password (encrypted-at-rest by HA Store)
+  └─→ UI: person card gains schedule_source selector; pronote credential fields
+      appear when source=pronote
+  └─→ Fallback: on any pronotepy exception, fall through to manual schedule
+  └─→ Status payload: persons entry gains fetch_error / last_fetched fields
 
-Zone mode
-  └─→ Stored in zone config alongside zone schedule
-  └─→ Backend: coordinator evaluates zone mode before global mode for zone-assigned rooms
+Feature 2 — iCal presence source
+  └─→ NEW external deps: icalendar + recurring-ical-events (PyPI)
+  └─→ ICS fetch: aiohttp (already in HA) or urllib; TTL cache (default 1h)
+  └─→ RRULE expansion: recurring-ical-events.between(now-7d, now+7d) at fetch time
+  └─→ Mapping: work-type events → absent; holiday events → present
+      (configurable via keyword list on the person config)
+  └─→ schedule.py: resolve_presence() gains "ical" branch; queries expanded event list
+  └─→ Person config additions: schedule_source, ical_url, ical_absent_keywords,
+      ical_present_keywords
+  └─→ UI: person card gains ical_url field + keyword config when source=ical
 
-Zone time program
-  └─→ Same DailyProgram type (Record<day, Period[]>); reuses existing time-bar component
-  └─→ Seeded at creation with copy of global_time_program (reuse reset_room_to_global pattern)
+Feature 3 — Predictive pre-heat
+  └─→ Pre-heat is additive to existing coordinator evaluation passes
+  └─→ coordinator.py: new pre-heat pass BEFORE _compute_desired_temps(); if a room
+      is in its pre-heat window, override desired_temp with the upcoming period's temp
+  └─→ schedule.py: new helper next_period_transition(daily_program, now) →
+      (next_mode, transition_datetime)
+  └─→ Room config additions: preheat_enabled, preheat_max_duration,
+      inertia_factor, inertia_samples
+  └─→ Zone config additions: preheat_flow_temp_ref (default 60.0°C)
+  └─→ Observation loop: runs after push pass; records actual_time for rooms that
+      reached target since last pre-heat start; updates inertia_factor
+  └─→ Status payload: rooms entry gains preheat_active, preheat_target
+  └─→ UI: room card shows "Pre-heating (→ XX.X°C)" label when preheat_active
+  └─→ Compatibility guard: if person has live/reactive presence source (ha mode),
+      preheat_enabled is ignored for rooms linked to that person
 
-Room assignment to zone
-  └─→ Stored in zone config as room_ids list (parallel to person.room_ids pattern)
-  └─→ Must enforce exclusive membership: assign to zone B removes from zone A
-  └─→ WS command: set_zone_config carries room_ids
-  └─→ UI: assignable from within zone detail OR from room card
+Feature 4 — Matter→Tado X sensor mapping
+  └─→ coordinator.py _async_calibrate(): already routes to _async_calibrate_tado_device
+      for rooms with Tado X Radiator Valve X devices
+  └─→ NEW: subscribe state_changed for mapped Matter entities on integration setup;
+      cancel subscription on unload (Pitfall 1 pattern — store cancel callback on runtime_data)
+  └─→ On state_changed: extract new_state.attributes.current_temperature;
+      immediately call _async_calibrate_tado_device for the mapped room
+  └─→ Matter entity subscription replaces zone entity as temperature source for
+      calibration — only for rooms with an explicit mapping configured
+  └─→ Config additions: per-room matter_calibration_entity (entity_id string or null)
+  └─→ UI: Global Settings calibration section → mapping table (room name → Matter entity picker)
+  └─→ Fall back to existing zone entity temperature when no mapping present (no regression)
+  └─→ HA helper: homeassistant.helpers.event.async_track_state_change_event
 
-Backend evaluation order (coordinator.py)
-  For each room at each tick:
-    1. Find zone for this room (if any) → evaluate zone mode + zone schedule
-    2. No zone → evaluate global mode + global schedule (existing logic, unchanged)
-    3. Room-level mode (room_mode=frost / custom) → evaluated after zone/global mode decision,
-       because room mode overrides temperature within the scheduling context, not the mode itself.
-       Existing semantics: room_mode=frost overrides regardless; room_mode=custom replaces schedule
-       source. These continue to work within zone context.
-
-Zone status for status payload
-  └─→ coordinator._build_status_payload() must include zone membership per room
-  └─→ WS get_status response gains zone_name field per room (used by room card badge)
+Feature 5 — Hide HA presence mode when no device trackers
+  └─→ person entity attributes: hass.states['person.X'].attributes
+      contains 'device_trackers' (list of entity_ids) when device trackers are
+      linked; absent or empty list means no tracking configured
+  └─→ Preferred approach: Approach 1 (frontend-only) — check
+      hass.states[personId]?.attributes?.device_trackers?.length > 0 before
+      rendering the "HA" option in the mode picker; zero backend changes
+  └─→ Fallback: Approach 2 (backend flag) if the 'device_trackers' attribute
+      proves unreliable — add has_device_tracker: bool to get_status persons payload
+  └─→ websocket.py: no change needed for Approach 1; for Approach 2, add lookup
+      in _build_status_payload() using hass.states.get(person_entity_id)
+  └─→ No storage changes required for either approach
 ```
 
 ---
 
-## User Flows
+## Expected Behaviours and Edge Cases
 
-### Create Zone
+### Feature 1 — Pronote presence source
 
-1. User opens Zones tab (new tab in panel, same nav bar)
-2. Taps "Add zone" button (consistent with how HA Areas or similar panels
-   present creation)
-3. Name field inline (not a modal) — types "Bathrooms", taps confirm
-4. Zone card appears in list: name, mode selector, room count (0), "Edit
-   schedule" button
-5. User sets mode (e.g., Time program) directly in zone card header
-6. User taps "Edit schedule" — opens time-bar editor pre-filled with global
-   schedule copy
-7. User assigns rooms: from zone detail, taps "Add rooms" → checklist of
-   unassigned rooms
+**Normal operation:** On each coordinator tick (or on demand), the cached
+timetable is queried. If the current time falls within a lesson slot, the person
+is absent; otherwise present. Lesson objects expose `start`, `end`,
+`is_cancelled` — cancelled lessons must be treated as free time (present).
 
-### Assign Room to Zone
+**Fetch failure:** pronotepy raises on network error, expired session, or
+Pronote protocol change. Fallback to manual schedule; log warning with
+`last_fetch_error` in status payload. Do not let a single failed fetch freeze
+presence — heating must continue.
 
-- **From zone detail:** checklist of rooms not yet in any zone; multi-select,
-  save
-- **From room card (Rooms tab):** zone selector dropdown showing existing zone
-  names + "None (global)"
-- Assigning to a new zone automatically removes from previous zone (exclusive
-  membership enforced client-side before save)
+**Session expiry:** Pronote sessions expire (typically ~12h). The library
+provides `session_check()`. Reconnect transparently on expiry.
 
-### Delete Zone
+**Synchronous blocking:** pronotepy is sync. All calls must be wrapped in
+`hass.async_add_executor_job()` to avoid blocking the event loop.
 
-1. User taps delete icon on zone card
-2. Confirmation: "Rooms in this zone will return to global settings"
-3. On confirm: zone removed from config, all room_ids cleared, coordinator
-   re-evaluates
-4. Room cards lose zone badge, resume global behavior
+**New school year / empty timetable:** Between school years, timetable may be
+empty. Empty timetable → person considered present (conservative: do not
+deprive of heat when data is absent).
 
-### Rename Zone
+**Long weekend / holiday:** When all slots on a day are cancelled or the day
+has no lessons, person is present for the full day.
 
-1. User taps zone name in zone card header
-2. Inline edit field — type new name, confirm with Enter or blur
-3. WS call persists immediately; UI reflects new name
+### Feature 2 — iCal presence source
 
----
+**Keyword matching:** Work event detection must be keyword-based (summary
+contains "work", "bureau", etc.) since ICS files have no standard "work" flag.
+Default absent keywords: ["work", "bureau", "réunion", "meeting"]; default
+present keywords: ["holiday", "vacances", "congé"]. Configurable per person.
 
-## Edge Cases
+**All-day events:** ICS all-day events use DATE (not DATETIME) values; they
+cover the full day. A "holiday" all-day event means present for the day.
 
-**Room in deleted zone** When a zone is deleted, rooms that were in it have no
-zone assignment. Coordinator must handle this gracefully — rooms fall through to
-global evaluation on the next tick. No orphaned zone_id references should remain
-in room configs (rooms are not stored per-zone in room config; zone owns the
-room_id list).
+**RRULE expansion:** Must expand to the ±7-day window at fetch time.
+`recurring-ical-events.between()` handles this. Without expansion, weekly
+recurring "work" events are invisible to the evaluator.
 
-**Zone with no rooms** Allowed — user creates zone, hasn't assigned rooms yet.
-Empty zone card shows "0 rooms". No coordinator impact (no rooms to evaluate).
+**Timezone handling:** ICS events may have TZID; all comparisons must use
+tz-aware datetimes. `icalendar` + `zoneinfo` handles this correctly.
 
-**Zone with Time program & presences mode** Person-room associations are defined
-on person config, not on zones. A room in a zone using TIME_PROGRAM_PRESENCES
-mode works identically to the same mode at global level — persons associated
-with that room via their room_ids still apply their presence override within the
-zone's schedule. No new configuration needed; existing presence logic in
-\_evaluate_time_program_presences() must be called with the zone's daily_program
-instead of global when the room belongs to a zone.
+**Fetch TTL:** Default 1h prevents hammering the ICS endpoint. URL may be a
+private Google/Outlook/Nextcloud link — treat as opaque.
 
-**Room with room_mode=custom inside a zone** Room-level custom schedule
-overrides the zone's schedule source. Zone mode (on/off/time-program/etc.) still
-applies. This is consistent with v1.0 semantics where room_mode=custom overrides
-the schedule source at the room level.
+**Conflict: work event and holiday event on same day:** Present (holiday) wins
+over absent (work). Holiday is the conservative choice for heating.
 
-**Room with room_mode=frost inside a zone** Frost mode is unconditional — it
-overrides both zone and global. Consistent with v1.0 behavior.
+### Feature 3 — Predictive pre-heat
 
-**HA restart with zones configured** Zones are stored in the same Store as the
-rest of the config. On startup, coordinator reads zone assignments and evaluates
-zone-aware temperatures before the first push. No new restart logic needed
-beyond including zones in the evaluation pass.
+**Lead time computation:** `lead_time = (ΔT / effective_rate) × safety_margin`,
+where `effective_rate = inertia_factor × (flow_temp_now / T_flow_ref)`. With no
+boiler entity, `flow_temp_now = preheat_flow_temp_ref` (fixed assumption). The
+simplification produces ±15–20% error vs a real heat curve, which is acceptable
+for comfort-level control.
+
+**Cold start (inertia not yet learned):** Use fixed 60-minute default, capped by
+`preheat_max_duration`. After the first successful convergence cycle, replace
+with learned value.
+
+**Pre-heat cap overflow:** If `lead_time > preheat_max_duration`, clamp to cap
+and record observation as `did_not_converge=True`. Exclude from inertia model.
+Surface warning: "Room X could not reach target before period start."
+
+**Room already at target:** Skip pre-heat entirely. Delta ≤ threshold (matches
+calibration threshold logic).
+
+**Pre-heat window overlaps a frost/reduced period:** Start pre-heat from the
+period boundary — do not drop below the frost protection temperature during the
+ramp. Coordinator treats the pre-heat window as a synthetic "comfort/normal"
+sub-period for the affected room.
+
+**Live-presence mode incompatibility:** Rooms whose heating depends on a person
+with `mode=ha` (live device tracker) cannot schedule a future transition. Guard:
+if any room-linked person uses `mode=ha`, set `preheat_enabled_effective=False`
+for that room and surface the warning in UI. Rooms linked to pronote/ical/manual
+persons are unaffected.
+
+**Multiple persons linked to a room:** Pre-heat is triggered by the earliest
+upcoming transition among all linked persons. If person A becomes present at
+7:00 and person B at 8:00, pre-heat targets 7:00.
+
+**Convergence detection:** Track last 5 inertia_samples. Convergence when
+variance of last 3 non-`did_not_converge` samples is < 10% of mean. Once
+converged, safety_margin reduces from 1.3 → 1.0 over 2 additional cycles.
+
+### Feature 4 — Matter→Tado X sensor mapping
+
+**Subscription lifecycle:** `async_track_state_change_event` must be called
+after HA is fully started. Cancel callback stored on `runtime_data` and invoked
+in `async_unload_entry` (mirrors existing minute-ticker cancel pattern).
+
+**Missing Matter entity:** If the configured `matter_calibration_entity` does
+not exist in `hass.states`, log a warning at startup and skip subscription.
+Do not raise — graceful degradation to existing 45-min calibration.
+
+**Multiple TRV devices per room:** The Matter entity maps to the _room_, not to
+individual TRV devices. On `state_changed`, calibrate all Tado X devices in
+the room, same as the periodic pass.
+
+**current_temperature attribute absent:** The Matter TRV may fire `state_changed`
+without a `current_temperature` attribute (mode-only changes). Guard: check
+`new_state.attributes.get('current_temperature')` before triggering calibration.
+
+**Calibration throttle:** Back-to-back Matter state changes (sub-second) must
+not hammer the Tado X cloud API. Apply a per-room minimum interval (e.g. 30s)
+between calibration writes triggered by Matter events. Periodic pass (1 min) is
+unaffected.
+
+**Coexistence with periodic pass:** Matter-event-triggered calibration and the
+1-minute periodic calibration pass both write `_calibration_last_offset`. They
+must use the same dictionary and the same delta threshold to avoid race conditions.
+The periodic pass checks `abs(delta) > threshold` — if Matter already corrected
+to within threshold, the periodic pass silently skips.
+
+### Feature 5 — Hide HA presence mode when no device trackers
+
+**Attribute name:** HA `person.*` entities expose `device_trackers` as a list
+of entity_id strings in their state attributes when device trackers are
+configured. Empty list or absent attribute = no tracking configured.
+
+**Frontend guard:** `hass.states[personId]?.attributes?.device_trackers?.length > 0`
+is the simplest check. If the person entity itself is absent from hass.states
+(not a recognised HA person), fall back to hiding the HA option entirely.
+
+**Edge case — HA person entity not in hass.states:** Person IDs in Climate
+Manager are stored as `person.<name>` entity IDs. If the user renames or
+deletes a HA person, the entity ID may become stale. The existing coordinator
+code already handles this gracefully (missing persons yield no presence result).
+The UI guard should also handle the missing-entity case without throwing.
+
+**Rename HA mode label:** Related quick task (noted in todo). Label should read
+"HA device tracker" instead of "HA" to be self-explanatory. Zero backend change;
+purely a frontend string update.
 
 ---
 
 ## MVP Recommendation
 
-For v1.1, ship in this priority order:
+Ship in this priority order within v1.3:
 
-1. Zone CRUD (create/rename/delete) — backend + WS commands + Zones tab with
-   basic zone cards
-2. Zone mode per zone — mode selector in zone card header, persisted, evaluated
-   by coordinator
-3. Zone time program — time-bar editor in zone detail, seeded from global on
-   create
-4. Room assignment — from zone detail with room checklist, zone badge on room
-   card
-5. Zone mode shown in room card status — which zone, which mode
+1. **Hide HA presence mode when no device trackers** — lowest risk, zero
+   backend change, prevents silent breakage for new users who try the HA option.
+2. **Matter→Tado X sensor mapping** — no new PyPI deps; extends existing
+   calibration infrastructure; delivers immediate value for existing Tado X users.
+3. **iCal presence source** — cleaner integration risk profile than Pronote
+   (standard protocol, stable libs); useful for the majority of working adults.
+4. **Pronote presence source** — introduces first external dep + credential
+   storage; higher protocol risk; very high value for French households with
+   school-age children.
+5. **Predictive pre-heat** — highest complexity; requires new coordinator pass,
+   inertia learning loop, schema changes, UI status labels; build after presence
+   sources are stable so pre-heat can target calendar-driven transitions.
 
-Defer to a later quick-task or v1.2:
+Defer to v1.4 or quick tasks post-v1.3:
 
-- Room assignment from within room card (lower priority; zone detail flow is
-  sufficient for initial use)
-- "Reset zone schedule to global" shortcut (easy to add post-v1.1)
-- Zone list summary stats (active period per zone) — nice-to-have, not blocking
-
----
-
-## Implementation Notes for Requirements Author
-
-**Storage schema change:** Add `"zones": {}` key to DEFAULT_CONFIG in const.py.
-Zone schema:
-
-```python
-{
-  "<zone_id>": {
-    "name": "<str>",
-    "mode": "off" | "time_program" | "time_program_presences",
-    "time_program": {per-day DailyProgram},
-    "room_ids": ["<area_id>", ...]
-  }
-}
-```
-
-Zone IDs can be slugs derived from name (lowercase, hyphenated) or UUIDs. Slugs
-are more debuggable. Risk: slug collision on rename. UUID avoids collision but
-loses readability. Recommendation: use slug generated at creation time only
-(rename does not re-slug; zone_id is immutable after creation).
-
-**Coordinator change:** Before evaluating global mode for a room, check if the
-room's area_id appears in any zone's room_ids list. If found, use that zone's
-mode and time_program instead of global. The existing \_evaluate_time_program()
-and \_evaluate_time_program_presences() logic can be reused with a different
-daily_program source and mode — extract "resolve daily_program for area_id" as a
-helper.
-
-**WebSocket commands needed (new):**
-
-- `climate_manager/create_zone` — creates zone, returns zone_id
-- `climate_manager/update_zone` — update name, mode, time_program, room_ids
-- `climate_manager/delete_zone` — removes zone, returns success
-- `climate_manager/get_config` — already returns full config; just needs zones
-  key in payload
-- `climate_manager/get_status` — rooms_status entries gain `zone_id` and
-  `zone_name` fields
-
-**Frontend changes:**
-
-- New "Zones" tab (4th tab in nav bar — or replace an existing tab if nav bar
-  gets crowded)
-- ZonesTab component with zone card list and "Add zone" button
-- ZoneCard component (header with name, mode chip, room count; expandable body
-  with time-bar + room list)
-- Room assignment checklist (reuse search-picker.ts pattern already used for
-  climate entity picker)
-- Zone badge on RoomCard (zone name, small chip below room name)
-
-**Dependency on existing components:**
-
-- `time-bar.ts` — already handles DailyProgram; no changes needed for zone
-  schedule editing
-- `search-picker.ts` — room assignment checklist can reuse this component for
-  area_id selection
-- `ws-client.ts` — new zone WS commands follow same sendMessagePromise pattern;
-  no structural change
-- `ClimateConfig` type in types.ts — add `zones: Record<string, ZoneConfig>`
-  field
+- Outdoor temperature entity for heat curve correction (pre-heat accuracy)
+- Boiler entity integration for real flow temp (pre-heat accuracy)
+- Pronote teacher/vie-scolaire account support
+- Keyword-configuration UI for iCal event classification
 
 ---
 
 ## Sources
 
-- Tado X zone help:
-  https://help.tado.com/en/articles/8911771-how-does-tado-x-control-heating-zones-how-can-i-change-the-zone-controller-of-a-room
-- HA community multi-zone heating:
-  https://community.home-assistant.io/t/smart-heating-scheduler-for-home-assistant-extra-multi-zones-version/237966
-- HA community multi-zone with scheduling:
-  https://community.home-assistant.io/t/multi-zone-heating-with-scheduling/160280
-- multizone_generic_thermostat HA component:
-  https://github.com/tpacri/multizone_generic_thermostat
-- Existing codebase: const.py, coordinator.py, schedule.py, websocket.py,
-  storage.py, types.ts
+- pronotepy GitHub (maintenance mode statement, sync-only API):
+  https://github.com/bain3/pronotepy
+- pronotepy PyPI: https://pypi.org/project/pronotepy/
+- pronotepy stable docs (clients/lessons API):
+  https://pronotepy.readthedocs.io/en/stable/api/clients.html
+- icalendar PyPI (RFC 5545 parser): https://pypi.org/project/icalendar/
+- recurring-ical-events PyPI (RRULE expansion):
+  https://pypi.org/project/recurring-ical-events/
+- HA Person integration docs (device_trackers attribute):
+  https://www.home-assistant.io/integrations/person/
+- HA Developer Docs — entity event setup (async_track_state_change_event):
+  https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/entity-event-setup/
+- Adaptive HVAC Preheat HA community thread (convergence patterns):
+  https://community.home-assistant.io/t/adaptive-hvac-preheat-for-home-assistant-learns-your-system-hits-comfort-time/997235
+- Existing codebase: const.py, coordinator.py, schedule.py, trv.py, storage.py,
+  websocket.py

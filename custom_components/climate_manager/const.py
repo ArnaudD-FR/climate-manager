@@ -41,6 +41,7 @@ PRESENCE_AUTOMATIC = "scheduled"
 PRESENCE_PRESENT = "force_present"
 PRESENCE_ABSENT = "force_absent"
 PRESENCE_HA = "ha"
+PRESENCE_CALENDAR = "calendar"
 
 # ---------------------------------------------------------------------------
 # Per-room mode constants (D-20)
@@ -55,6 +56,26 @@ ROOM_MODE_CUSTOM = "custom"
 # ---------------------------------------------------------------------------
 
 DEFAULT_GLOBAL_MODE = MODE_TIME_PROGRAM
+DEFAULT_PREHEAT_LEAD_MINUTES: int = 60
+
+# Phase 12 pre-heat constants (D-01, PREHEAT-01, D-08, D-09, GAP-01)
+# preheat_enabled moved to zone scope (GAP-01):
+#   - Custom zone: zones[zone_id]["preheat_enabled"] (bool, absent=False)
+#   - Default Zone: top-level default_zone_preheat_enabled (bool, absent=False)
+# Sparse room key (still per-room):
+#   preheat_max_lead_minutes (int, absent=DEFAULT_PREHEAT_MAX_LEAD_MINUTES)
+DEFAULT_PREHEAT_MAX_LEAD_MINUTES: int = 120  # D-01 / PREHEAT-01
+# Min valid samples before learned lead is preferred over default (D-08)
+PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD: int = 3
+# Max stored samples per room (D-08)
+PREHEAT_MAX_SAMPLES: int = 5
+# °C tolerance for convergence detection (D-09)
+PREHEAT_CONVERGENCE_THRESHOLD: float = 0.2
+
+GAP_HANDLING_EXACT = "exact"
+GAP_HANDLING_DAY_SPAN = "day_span"
+GAP_HANDLING_THRESHOLD = "threshold"
+DEFAULT_GAP_THRESHOLD_MINUTES: int = 30
 
 DEFAULT_PERIOD_TEMPERATURES: dict[str, float] = {
     PERIOD_FROST_PROTECTION: 5.0,  # GLOBAL-03
@@ -117,11 +138,15 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 #         "sat": [...],
 #         "sun": [...]
 #       },
-#       "temperature_sensor": "<entity_id>",   # optional (D-16) — string entity ID
-#       "humidity_sensor": "<entity_id>",       # optional (D-16) — string entity ID
-#       "zone_id": "<uuid>"                     # optional string UUID — absent = belongs to Default Zone (D-05, D-06)
-#                                               # Only present if room is assigned to a custom zone.
-#                                               # Writing zone_id: null is prohibited (D-06 sparse model).
+#       "temperature_sensor": "<entity_id>",  # optional (D-16) — string entity ID
+#       "humidity_sensor": "<entity_id>",     # optional (D-16) — string entity ID
+#       "zone_id": "<uuid>",                  # optional UUID — absent = Default Zone
+#                                             # (D-05, D-06); null prohibited.
+#       "preheat_max_lead_minutes": <int>     # optional (GAP-01); per-room only.
+#                                             # preheat_enabled removed (GAP-01):
+#                                             # moved to zone scope — see Zones
+#                                             # sub-schema and
+#                                             # default_zone_preheat_enabled below.
 #     }
 #   }
 #   Empty dict = all rooms inherit the global time program.
@@ -146,6 +171,16 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 #                                   # used during even ISO weeks (parity == 0)
 #       "schedule_odd":  { ... },   # SCHED-03; same structure as schedule;
 #                                   # used during odd ISO weeks (parity == 1)
+#       "calendar_config": {        # CAL-01; sparse — absent = not using
+#                                   # Calendar mode (D-08, D-09). Shape:
+#                                   #   {"entity_id": "calendar.*",
+#                                   #    "event_means": "absent"|"present"}
+#                                   # default event_means = "absent".
+#                                   # Do NOT add to DEFAULT_CONFIG (D-09).
+#       },
+#       "preheat_lead_minutes": 60, # CAL-04; sparse — absent = default 60.
+#                                   # Per-person, range 0–480 (D-10, D-11).
+#                                   # Do NOT add to DEFAULT_CONFIG (D-09).
 #     }
 #   }
 #   Empty dict = all persons at default (Automatic mode, no schedule, no rooms).
@@ -169,12 +204,17 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 #         "fri": [...],
 #         "sat": [...],
 #         "sun": [...]
-#       }
+#       },
+#       "preheat_enabled": <bool>    # optional (GAP-01); absent = False.
+#                                    # True enables predictive pre-heat for
+#                                    # all rooms assigned to this zone.
 #     }
 #   }
 #   Empty dict = no custom zones exist (all rooms belong to Default Zone).
 #   Default Zone is NOT stored here — it is a virtual zone backed by
 #   global_mode + global_time_program + default_zone_name (D-01, D-02, D-03).
+#   Default Zone preheat_enabled: top-level "default_zone_preheat_enabled"
+#   (bool, absent=False) mirrors default_zone_name (GAP-01).
 # ---------------------------------------------------------------------------
 
 DEFAULT_CONFIG: dict = {
@@ -193,4 +233,6 @@ DEFAULT_CONFIG: dict = {
     # non-empty.
     "calibration_enabled": False,  # CALIB-01: global on/off toggle
     "calibration_threshold": 0.5,  # CALIB-04: jitter guard in degrees C
+    # D-02: sparse default — absent key = no mapping, no migration needed.
+    "matter_mappings": {},
 }

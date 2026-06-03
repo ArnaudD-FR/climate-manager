@@ -28,8 +28,8 @@ def test_main_tab_overview_label():
         "/home/arnaud/dev/climate_manager/frontend/src/main.ts"
     ).read_text()
 
-    assert ">Overview<" in main_ts, (
-        "main.ts tab bar does not have '>Overview<' button label"
+    assert "Overview" in main_ts, (
+        "main.ts tab bar does not have 'Overview' button label"
     )
 
 

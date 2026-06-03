@@ -427,6 +427,13 @@ export class ClimateManagerTimeBar extends LitElement {
       this.mode === "presence"
         ? period.state ?? "absent"
         : period.mode ?? "frost_protection";
+    if (key === "calendar" && "calendar_config" in period) {
+      const entityId = period.calendar_config?.entity_id;
+      if (entityId) {
+        const name = entityId.replace(/^calendar\./, "").replace(/_/g, " ");
+        return `Calendar: ${name}`;
+      }
+    }
     return PERIOD_DISPLAY_NAMES[key] ?? key;
   }
 
@@ -510,9 +517,17 @@ export class ClimateManagerTimeBar extends LitElement {
 
   private _modeOptions(): Array<{ key: string; label: string; color: string }> {
     if (this.mode === "presence") {
+      // Phase 11 (D-17): "calendar" is a selectable period state but NOT
+      // part of PRESENCE_CYCLE (click/drag cycling). It is only reachable
+      // via this popup's Change mode options (Landmine 6).
       return [
         { key: "present", label: "Present", color: PRESENCE_COLORS["present"] },
         { key: "absent", label: "Absent", color: PRESENCE_COLORS["absent"] },
+        {
+          key: "calendar",
+          label: "Calendar",
+          color: PRESENCE_COLORS["calendar"],
+        },
       ];
     }
     return [
@@ -680,7 +695,11 @@ export class ClimateManagerTimeBar extends LitElement {
         ? seg.period.state ?? "absent"
         : seg.period.mode ?? "frost_protection";
     const currentIdx = cycle.indexOf(currentType);
-    const nextType = cycle[(currentIdx + 1) % cycle.length];
+    // "calendar" is not in PRESENCE_CYCLE; use "absent" as the next half so
+    // the split is explicit and safe — the user can then set the new half to
+    // "calendar" and configure it (WR-02).
+    const nextType =
+      currentIdx === -1 ? "absent" : cycle[(currentIdx + 1) % cycle.length];
 
     // Build the two replacement periods
     const firstHalf: Period =

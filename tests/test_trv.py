@@ -11,6 +11,7 @@ from pytest_homeassistant_custom_component.common import async_mock_service
 from custom_components.climate_manager.trv import (
     set_trv_off,
     set_trv_offset,
+    set_trv_offset_by_device,
     set_trv_temperature,
     supports_hvac_off,
     supports_offset_calibration,
@@ -20,12 +21,14 @@ CLIMATE_ENTITY = "climate.living_room_trv"
 
 
 async def test_set_trv_temperature_issues_two_calls_in_order(hass):
-    """Test 1: set_trv_temperature on an available TRV issues exactly two service calls
-    in order: climate.set_hvac_mode {hvac_mode: "heat"} then climate.set_temperature
-    {temperature: T}, both blocking=True (INFRA-04).
+    """Test 1: set_trv_temperature on an available TRV not already in heat mode
+    issues exactly two service calls in order: climate.set_hvac_mode
+    {hvac_mode: "heat"} then climate.set_temperature {temperature: T}, both
+    blocking=True (INFRA-04).
     """
-    # Set entity state as available
-    hass.states.async_set(CLIMATE_ENTITY, "heat", {})
+    # Set entity state as available but in "auto" mode with a different
+    # setpoint so both guards pass and both calls fire.
+    hass.states.async_set(CLIMATE_ENTITY, "auto", {"temperature": 18.0})
 
     # Register mock climate services to capture calls
     hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
@@ -48,7 +51,7 @@ async def test_set_trv_temperature_never_uses_auto_mode(hass):
     """Test 2: set_trv_temperature never issues a service call with hvac_mode other
     than "heat" — auto mode is never used (INFRA-04).
     """
-    hass.states.async_set(CLIMATE_ENTITY, "heat", {})
+    hass.states.async_set(CLIMATE_ENTITY, "auto", {"temperature": 18.0})
 
     hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
     async_mock_service(hass, "climate", "set_temperature")
@@ -94,6 +97,116 @@ async def test_set_trv_temperature_skips_missing_entity(hass):
 
     assert len(hvac_calls) == 0
     assert len(temp_calls) == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests 4a-4e: redundant-call guards (skip-redundant-hvac-and-temp-calls)
+#
+# set_trv_temperature must skip set_hvac_mode=heat when the TRV is already in
+# heat mode, and skip set_temperature when the current setpoint already equals
+# the desired temperature. The set_hvac_mode guard must still fire for any
+# non-heat state ("auto"/"off"/"cool") because Tado X TRVs in auto mode ignore
+# set_temperature until forced into heat mode (INFRA-04).
+# ---------------------------------------------------------------------------
+
+
+async def test_set_trv_temperature_skips_set_hvac_mode_when_already_heat(hass):
+    """Guard A: when the TRV is already in "heat" mode, set_hvac_mode is NOT
+    called. set_temperature still fires when the setpoint differs.
+    """
+    hass.states.async_set(CLIMATE_ENTITY, "heat", {"temperature": 18.0})
+
+    hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    await set_trv_temperature(hass, CLIMATE_ENTITY, 21.0)
+
+    assert len(hvac_calls) == 0, (
+        "set_hvac_mode must be skipped when already in heat mode"
+    )
+    assert len(temp_calls) == 1
+    assert temp_calls[0].data["temperature"] == 21.0
+
+
+async def test_set_trv_temperature_calls_set_hvac_mode_when_auto(hass):
+    """Guard A inverse: when the TRV is in "auto" mode, set_hvac_mode=heat IS
+    called (Tado X auto-mode workaround, INFRA-04).
+    """
+    hass.states.async_set(CLIMATE_ENTITY, "auto", {"temperature": 18.0})
+
+    hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    await set_trv_temperature(hass, CLIMATE_ENTITY, 21.0)
+
+    assert len(hvac_calls) == 1
+    assert hvac_calls[0].data["hvac_mode"] == "heat"
+
+
+async def test_set_trv_temperature_calls_set_hvac_mode_when_off(hass):
+    """Guard A inverse: when the TRV is "off", set_hvac_mode=heat IS called."""
+    hass.states.async_set(CLIMATE_ENTITY, "off", {"temperature": 18.0})
+
+    hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    await set_trv_temperature(hass, CLIMATE_ENTITY, 21.0)
+
+    assert len(hvac_calls) == 1
+    assert hvac_calls[0].data["hvac_mode"] == "heat"
+
+
+async def test_set_trv_temperature_skips_set_temperature_when_already_set(hass):
+    """Guard B: when the current setpoint already equals the desired
+    temperature, set_temperature is NOT called. set_hvac_mode still fires when
+    the mode is not heat.
+    """
+    hass.states.async_set(CLIMATE_ENTITY, "auto", {"temperature": 21.0})
+
+    hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    await set_trv_temperature(hass, CLIMATE_ENTITY, 21.0)
+
+    assert len(hvac_calls) == 1, (
+        "set_hvac_mode must still fire to leave auto mode (INFRA-04)"
+    )
+    assert len(temp_calls) == 0, (
+        "set_temperature must be skipped when setpoint already correct"
+    )
+
+
+async def test_set_trv_temperature_skips_both_when_heat_and_setpoint_match(
+    hass,
+):
+    """Guard A+B: steady state — already heating at the desired setpoint —
+    issues ZERO service calls.
+    """
+    hass.states.async_set(CLIMATE_ENTITY, "heat", {"temperature": 21.0})
+
+    hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    await set_trv_temperature(hass, CLIMATE_ENTITY, 21.0)
+
+    assert len(hvac_calls) == 0
+    assert len(temp_calls) == 0
+
+
+async def test_set_trv_temperature_sets_temp_when_attribute_missing(hass):
+    """Guard B edge: when the TRV exposes no "temperature" attribute,
+    set_temperature IS called (cannot prove it is already correct).
+    """
+    hass.states.async_set(CLIMATE_ENTITY, "heat", {})
+
+    hvac_calls = async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    await set_trv_temperature(hass, CLIMATE_ENTITY, 21.0)
+
+    assert len(hvac_calls) == 0
+    assert len(temp_calls) == 1
+    assert temp_calls[0].data["temperature"] == 21.0
 
 
 # ---------------------------------------------------------------------------
@@ -226,3 +339,39 @@ async def test_set_trv_offset_skips_missing_entity(hass):
     await set_trv_offset(hass, "climate.nonexistent_trv", 1.0)
 
     assert len(offset_calls) == 0
+
+
+# Issue 1 (ha-log-calibration-and-api-calls): Tado X API rejects offsets with
+# more than one decimal place ("temperature should have only one digit after
+# the decimal point"). Both offset write helpers must round to 1 decimal at the
+# API boundary so every caller (device path and entity path) is protected.
+
+
+async def test_set_trv_offset_rounds_to_one_decimal(hass):
+    """set_trv_offset must round the offset to exactly one decimal place before
+    calling tado_x.set_temperature_offset (Issue 1)."""
+    hass.states.async_set(CLIMATE_ENTITY, "heat", {"temperature_offset": 0.0})
+
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    # 0.15 + 0.07 float arithmetic -> 0.22 (two decimals) rejected by Tado X
+    await set_trv_offset(hass, CLIMATE_ENTITY, 0.15 + 0.07)
+
+    assert len(offset_calls) == 1
+    sent = offset_calls[0].data["offset"]
+    assert sent == 0.2
+    assert round(sent, 1) == sent
+
+
+async def test_set_trv_offset_by_device_rounds_to_one_decimal(hass):
+    """set_trv_offset_by_device must round the offset to exactly one decimal
+    place before calling tado_x.set_temperature_offset (Issue 1)."""
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    await set_trv_offset_by_device(hass, "VA3805450240", 0.15 + 0.07)
+
+    assert len(offset_calls) == 1
+    assert offset_calls[0].data["device_id"] == "VA3805450240"
+    sent = offset_calls[0].data["offset"]
+    assert sent == 0.2
+    assert round(sent, 1) == sent

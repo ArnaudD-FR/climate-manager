@@ -1,448 +1,405 @@
-# Architecture Patterns: Multi-Zone Heating Integration
+# Architecture Patterns
 
-**Domain:** HA custom integration — adding zone-level scheduling to an existing
-coordinator-based control loop **Researched:** 2026-05-26 **Confidence:** HIGH —
-derived entirely from reading the production codebase, not from external sources
+**Project:** Climate Manager v1.3 — Calendar Presence & Pre-heat
+**Researched:** 2026-05-31
+
+## Existing Architecture (v1.2 baseline)
+
+```
+async_setup_entry
+  ├── ClimateManagerStore (storage.py) — Store-backed persistence
+  ├── discover_rooms / discover_persons / discover_room_sensors
+  ├── ClimateManagerData (runtime_data dataclass on ConfigEntry)
+  │     ├── runtime_config: dict (merged DEFAULT_CONFIG + stored data)
+  │     ├── rooms: {area_id → [entity_ids]}
+  │     ├── persons: [person.* entity_ids]
+  │     ├── room_auto_sensors: {area_id → {temperature, humidity}}
+  │     ├── coordinator: ClimateManagerCoordinator
+  │     ├── cancel_scheduler: Callable
+  │     └── cancel_registry_listeners: list[Callable]
+  ├── ClimateManagerCoordinator.async_evaluate() — minute-poll loop
+  │     ├── _compute_present_persons()
+  │     ├── _compute_desired_temps()       # PASS 1: zone/schedule baseline
+  │     ├── _apply_presence_overrides()    # PASS 2: presence mutations
+  │     ├── _push_temperatures()           # asyncio.gather over all TRVs
+  │     ├── hass.bus.async_fire(status_update)
+  │     └── _async_calibrate()             # Tado X offset correction
+  ├── websocket.async_register_commands() — 20 WS command factories
+  ├── hass.http.async_register_static_paths(www/)
+  └── panel_custom.async_register_panel()
+
+schedule.py  — pure Python, no HA imports
+  ├── evaluate_schedule(program, now)
+  ├── resolve_presence(person_config, now)
+  ├── compute_occupied_temp(program, now, is_present, temps)
+  └── validate_daily_program(program)
+
+trv.py — HA-aware helpers
+  ├── is_trv_entity / supports_hvac_off / supports_offset_calibration
+  ├── set_trv_temperature (two-call: set_hvac_mode heat → set_temperature)
+  ├── set_trv_off / set_trv_offset / set_trv_offset_by_device
+  └── get_tado_valve_devices (device registry scan for Radiator Valve X)
+
+Frontend (Lit/TypeScript, single panel.js)
+  ├── global-settings-tab.ts
+  ├── rooms-tab.ts
+  ├── persons-tab.ts
+  ├── zone-tab.ts
+  └── ws-client.ts (home-assistant-js-websocket)
+```
+
+## Component Boundaries for v1.3 Features
+
+### Feature 1: Pronote Presence Source
+
+**New vs Modified:**
+
+- **NEW** `presence/__init__.py` — package marker
+- **NEW** `presence/pronote.py` — `async_fetch_pronote_timetable(config)`
+  returns normalized `{date: [{"start": "HH:MM", "state": "absent|present"}]}`
+  slots. Contains all credential handling and network I/O. Uses aiohttp
+  (already available in HA environment — no new PyPI dep needed) or
+  `hass.async_add_executor_job` wrapping a sync call.
+- **MODIFIED** `const.py` — add `PRESENCE_PRONOTE = "pronote"` constant;
+  add pronote cache key to DEFAULT_CONFIG persons sub-schema comment
+- **MODIFIED** `schedule.py` — `resolve_presence()` gains a `pronote` mode
+  branch that reads cached timetable from person_config; pure Python, no
+  network. Falls back to `scheduled` behaviour on missing cache key.
+- **MODIFIED** `coordinator.py` — new `_async_refresh_presence_sources()`
+  async method called at the top of `async_evaluate()`. Iterates persons
+  with `mode == "pronote"`, checks cache TTL (1 hour), calls
+  `async_fetch_pronote_timetable`, writes result into
+  `runtime_config["persons"][person_id]["pronote_cache"]`, persists via
+  `store.async_save`.
+- **MODIFIED** `websocket.py` — extend `set_person_config` schema to accept
+  `pronote_url`, `pronote_username`, `pronote_password` fields stored
+  in runtime_config.
+- **MODIFIED** `types.ts` — extend `PersonConfig` with optional
+  `pronote_url?: string`, `pronote_username?: string`,
+  `pronote_password?: string`
+- **MODIFIED** `persons-tab.ts` — add Pronote credential input fields
+  when mode == "pronote"
+
+**Data flow:**
+```
+async_evaluate()
+  └── _async_refresh_presence_sources()
+        └── async_fetch_pronote_timetable() → runtime_config.persons[id].pronote_cache
+              ↓ (same tick, after cache written)
+  └── _compute_present_persons()
+        └── resolve_presence() reads pronote_cache to determine present/absent
+```
+
+**Integration point:** `resolve_presence()` in `schedule.py` is the single
+entry point for all presence determination. Adding `pronote` as a new mode
+constant is a clean additive extension — no existing branches are touched.
+
+**Fallback:** If `pronote_cache` is absent or stale and fetch fails,
+`resolve_presence()` falls back to `scheduled` mode (uses existing `schedule`
+field). Cache refresh failures log as WARNING, not ERROR.
 
 ---
 
-## Existing Architecture Snapshot
+### Feature 2: iCal Presence Source
 
-Before proposing changes, here is the precise shape of the current system so
-integration points are unambiguous.
+**New vs Modified:**
 
-### Data flow (v1.0)
+- **NEW** `presence/ical.py` — `async_fetch_ical(url)` parses ICS content.
+  No credentials — URL only (supports private Google Calendar `.ics` export
+  URLs). Returns same normalized slot format as Pronote. Uses aiohttp for
+  the HTTP fetch; `icalendar` PyPI lib for parsing (or minimal stdlib parser
+  to avoid dependency).
+- **MODIFIED** `const.py` — add `PRESENCE_ICAL = "ical"` constant
+- **MODIFIED** `schedule.py` — `resolve_presence()` gains `ical` mode branch,
+  mirrors Pronote branch but reads `ical_cache`
+- **MODIFIED** `coordinator.py` — `_async_refresh_presence_sources()` also
+  handles `mode == "ical"` persons; calls `async_fetch_ical(url)`
+- **MODIFIED** `websocket.py` — `set_person_config` schema accepts `ical_url`
+- **MODIFIED** `types.ts` — extend `PersonConfig` with `ical_url?: string`
+- **MODIFIED** `persons-tab.ts` — add iCal URL input field when mode == "ical"
 
-```
-HA startup / 1-min tick
-  └─ coordinator.async_evaluate()
-       ├─ reads runtime_config (global_mode, period_temperatures, global_time_program, rooms, persons)
-       ├─ per room:
-       │    global_mode=OFF → frost temp
-       │    global_mode=TIME_PROGRAM →
-       │        room_mode=frost_protection → frost temp
-       │        room_mode=custom           → evaluate room time_program
-       │        room_mode=global (default) → evaluate global_time_program
-       │    global_mode=TIME_PROGRAM_PRESENCES →
-       │        baseline = same as TIME_PROGRAM per room
-       │        per person: compute_occupied_temp() → override baseline if person assigned to room
-       └─ push changed temps → set_hvac_mode(heat) + set_temperature() per TRV entity
-```
+**Integration point:** Identical to Pronote. Both sources share the same
+`_async_refresh_presence_sources()` loop; only the fetch function and config
+keys differ.
 
-### Storage schema (v2, const.py DEFAULT_CONFIG)
-
+**Shared cache model in persons[person_id]:**
 ```python
 {
-  "version": 2,
-  "global_mode": "time_program",
-  "period_temperatures": { "frost_protection": 5.0, "reduced": 18.0, "normal": 20.0, "comfort": 22.0 },
-  "global_time_program": { "mon": [...], "tue": [...], ..., "sun": [...] },
-  "rooms": {
-    "<area_id>": {
-      "room_mode": "global" | "frost_protection" | "custom",
-      "time_program": { "mon": [...], ..., "sun": [...] }  # only when room_mode=custom
-    }
+  "mode": "pronote" | "ical",
+  "pronote_url": "...",              # Pronote only
+  "pronote_username": "...",
+  "pronote_password": "...",
+  "ical_url": "...",                 # iCal only
+  "pronote_cache": {                 # keyed by ISO date string
+    "2026-06-02": [{"start": "08:00", "state": "absent"}, ...]
   },
-  "persons": {
-    "person.<name>": {
-      "mode": "scheduled" | "force_present" | "force_absent" | "ha",
-      "room_ids": ["<area_id>", ...],
-      "schedule": { "mon": [...], ..., "sun": [...] }
-    }
-  }
+  "ical_cache": {
+    "2026-06-02": [...]
+  },
+  "presence_cache_fetched_at": "2026-06-02T07:00:00+02:00"  # shared TTL ts
 }
 ```
 
-### Current component inventory
-
-| File                                   | Role                                                                                                          |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `const.py`                             | Domain constants + DEFAULT_CONFIG + default daily programs                                                    |
-| `storage.py`                           | ClimateManagerStore — sparse-merge load, async_save                                                           |
-| `coordinator.py`                       | ClimateManagerCoordinator — evaluate loop, per-room temp resolution, TRV push, status build                   |
-| `schedule.py`                          | Pure evaluation functions: evaluate_schedule, resolve_presence, compute_occupied_temp, validate_daily_program |
-| `websocket.py`                         | 11 WS command factories registered via async_register_commands                                                |
-| `__init__.py`                          | async_setup_entry + ClimateManagerData dataclass                                                              |
-| `frontend/src/types.ts`                | TypeScript interfaces: ClimateConfig, RoomConfig, StatusPayload, DailyProgram                                 |
-| `frontend/src/ws-client.ts`            | WsClient class — one method per WS command                                                                    |
-| `frontend/src/main.ts`                 | ClimateManagerPanel root element — tab shell, config/status loading                                           |
-| `frontend/src/components/rooms-tab.ts` | Rooms tab — groups by floor, renders room-card                                                                |
-
 ---
 
-## Zone Integration Design
+### Feature 3: Predictive Pre-heat
 
-### Guiding principle
+**New vs Modified:**
 
-Zones slot into the existing evaluation cascade as a new layer between global
-and per-room. The cascade becomes:
+- **NEW** `preheat.py` — pure Python module, no HA imports:
+  - `get_next_period_start(daily_program, now) → datetime | None`
+  - `compute_lead_time(inertia_factor, delta_temp) → timedelta`
+  - `should_preheat(room_config, daily_program, now, period_temps) → bool`
+  Returns True when the next period transition is within lead time and the
+  next period is warmer than the current one.
+- **MODIFIED** `coordinator.py` — new PASS 0 before `_compute_desired_temps()`:
+  `_apply_preheat_overrides(config, rooms, desired_temps, room_periods, now)`.
+  For rooms with `preheat_enabled=True`, calls `should_preheat()` and, if
+  True, sets `desired_temps[area_id]` to the next period's temperature early.
+  Records `"pre_heating"` in `room_periods[area_id]` for status display.
+  New coordinator instance field: `_preheat_inertia_samples: dict[str, list[float]]`
+  for rolling inertia learning (cap at N=10 per room).
+- **MODIFIED** `const.py` — add `PERIOD_PRE_HEATING = "pre_heating"` constant;
+  add preheat sub-schema to rooms section comment
+- **MODIFIED** `websocket.py` — extend `set_room_config` schema to accept
+  `preheat_enabled: bool`, `preheat_max_duration: int` (minutes),
+  `inertia_factor: float` (minutes/°C). The `_build_status_payload()`
+  already passes `room_periods` through — no change needed there.
+- **MODIFIED** `types.ts` — extend `RoomConfig` with `preheat_enabled?: bool`,
+  `preheat_max_duration?: number`, `inertia_factor?: number`
+- **MODIFIED** `rooms-tab.ts` — add pre-heat toggle and config inputs in room
+  settings; display "Pre-heating" badge when active_period == "pre_heating"
 
-```
-global_mode=OFF           → frost temp (unchanged)
-global_mode=TIME_PROGRAM  →
-  room_mode=frost_protection → frost temp (unchanged)
-  room_mode=custom           → room time_program (unchanged)
-  room_mode=global:
-    room has zone_id?
-      YES → zone_mode=off               → frost temp
-            zone_mode=time_program      → evaluate zone time_program
-            zone_mode=time_program_presences → evaluate zone time_program as baseline + presence
-      NO  → evaluate global_time_program (unchanged)
-global_mode=TIME_PROGRAM_PRESENCES → same as above with presence overlay
-```
-
-Note: room_mode=custom always wins — it bypasses both zone and global programs.
-This preserves existing room override semantics exactly.
-
----
-
-## New Data Model
-
-### Zones sub-schema
-
+**Storage additions** (additive to existing rooms sub-schema):
 ```python
-# Added to DEFAULT_CONFIG:
-"zones": {}
-
-# Populated structure:
-"zones": {
-  "<zone_id>": {              # zone_id = slugified name, e.g. "upstairs"
-    "name": "Upstairs",       # user-provided display name
-    "mode": "time_program",   # "off" | "time_program" | "time_program_presences"
-    "time_program": {         # same DailyProgram shape as global_time_program
-      "mon": [...], ..., "sun": [...]
-    }
-  }
+# rooms[area_id] new optional keys
+{
+  "preheat_enabled": True,
+  "preheat_max_duration": 60,   # cap: never pre-heat more than N minutes early
+  "inertia_factor": 4.5,        # minutes per °C (learned or manually set)
+  "inertia_samples": [4.2, 4.8] # rolling window, max 10 entries
 }
 ```
 
-### Room schema extension
-
-```python
-# Extended room sub-schema (new key only):
-"rooms": {
-  "<area_id>": {
-    "room_mode": "global" | "frost_protection" | "custom",  # unchanged
-    "time_program": { ... },                                  # unchanged
-    "zone_id": "<zone_id>" | None                            # NEW — absent = no zone
-  }
-}
+**Pre-heat algorithm:**
+```
+next_start = get_next_period_start(program, now)
+next_temp = period_temps[mode_at(next_start)]
+current_temp = period_temps[current_period]
+delta = next_temp - current_temp
+if delta <= 0: return False   # cooling or same — no pre-heat
+lead_time = min(inertia_factor * delta, preheat_max_duration)
+return (next_start - now) <= timedelta(minutes=lead_time)
 ```
 
-### Storage version bump
-
-STORAGE_VERSION must increment to 3. The async_load migration path in storage.py
-already handles unknown keys gracefully (stored-wins sparse merge), so a fresh
-`zones` dict defaulting to `{}` is safe without an explicit migration block.
-Only the version integer needs bumping in both the constant and the Store
-constructor.
-
-### Why zone_id lives on the room, not on the zone
-
-Storing a `room_ids` list on the zone (mirroring person.room_ids) creates a
-two-way consistency problem: zone CRUD must scan and update all room refs, and
-delete_zone must clean them up atomically. Storing `zone_id` on the room makes
-room-to-zone assignment a single key write and keeps zone config self-contained.
-Membership is derived by scanning `rooms[area_id]["zone_id"]` at evaluation
-time, which is O(rooms) and already inside the existing O(rooms) loop — zero
-cost.
+**Integration point:** PASS 0 runs before PASS 1 (`_compute_desired_temps`).
+Results are written into `desired_temps` and `room_periods` using the same
+dict mutations as PASS 1/2, so `_push_temperatures()` is unchanged. The
+coordinator's `_build_status_payload()` picks up `"pre_heating"` period from
+`room_periods` automatically via the existing room_periods passthrough.
 
 ---
 
-## Component Boundaries: New vs Modified
+### Feature 4: Matter→Tado X Sensor Mapping
 
-### Backend
+**New vs Modified:**
 
-| Component        | Change           | What changes                                                                                                                                                                          |
-| ---------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `const.py`       | **MODIFIED**     | Add zone mode constants, add `"zones": {}` to DEFAULT_CONFIG, bump STORAGE_VERSION to 3                                                                                               |
-| `storage.py`     | **MODIFIED**     | Bump version integer in Store constructor; no migration logic required                                                                                                                |
-| `coordinator.py` | **MODIFIED**     | Add zone resolution inside room_mode=global branch of both `_evaluate_time_program` and `_evaluate_time_program_presences`; add `zone_id` to rooms entries in `_build_status_payload` |
-| `schedule.py`    | **NOT MODIFIED** | `evaluate_schedule` already accepts any DailyProgram dict; zone programs use it unchanged                                                                                             |
-| `websocket.py`   | **MODIFIED**     | Register 5 new commands; existing 11 commands unchanged                                                                                                                               |
-| `__init__.py`    | **NOT MODIFIED** | ClimateManagerData requires no new fields — zones live in runtime_config                                                                                                              |
+- **MODIFIED** `coordinator.py` — new `_setup_matter_listeners()` method.
+  Iterates rooms, reads `rooms[area_id].matter_sensor_map`
+  (`{matter_entity_id: tado_device_id}`), registers
+  `async_track_state_change_event` for each Matter entity. On state_changed:
+  immediately calls `_async_calibrate_tado_device()` for that room, bypassing
+  the 1-minute poll. Returns list of cancel callables stored on runtime_data.
+- **MODIFIED** `__init__.py` — `ClimateManagerData` gains
+  `cancel_matter_listeners: list[Callable]` field (same pattern as
+  `cancel_registry_listeners`); `async_unload_entry` cancels them;
+  `async_setup_entry` calls `_setup_matter_listeners()` after coordinator init.
+- **MODIFIED** `const.py` — add `matter_sensor_map` to rooms sub-schema
+  comment
+- **MODIFIED** `websocket.py` — extend `set_room_config` to accept
+  `matter_sensor_map: dict[str, str]` (Matter entity_id → Tado device_id).
+  After `store.async_save` succeeds, trigger `_setup_matter_listeners()` to
+  cancel old and register new listeners.
+- **MODIFIED** `trv.py` — optional: add
+  `get_tado_device_id_for_name(hass, name) → str | None` helper for UI
+  name-to-device_id resolution in the mapping picker.
+- **MODIFIED** `types.ts` — extend `RoomConfig` with
+  `matter_sensor_map?: Record<string, string>`
+- **MODIFIED** `rooms-tab.ts` — add Matter→Tado mapping picker UI per room
+  (select Matter sensor entity + Tado device name dropdown)
 
-### Frontend
+**Data flow:**
+```
+HA state_changed event (Matter temperature entity)
+  └── _handle_matter_state_change(area_id, matter_entity_id, event)
+        └── guard: calibration_enabled? delta > threshold?
+              └── _async_calibrate_tado_device(area_id, device_id, ...)
+                    └── set_trv_offset_by_device()   [immediate, sub-minute]
+```
 
-| Component                           | Change           | What changes                                                                                                   |
-| ----------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------- |
-| `types.ts`                          | **MODIFIED**     | Add `ZoneConfig` interface; add `zones` key to `ClimateConfig`; add `zone_id` to `RoomConfig` and `RoomStatus` |
-| `ws-client.ts`                      | **MODIFIED**     | Add 5 new methods mirroring new WS commands                                                                    |
-| `main.ts`                           | **MODIFIED**     | Add "Zones" tab button; render `<climate-manager-zones-tab>`                                                   |
-| `components/zones-tab.ts`           | **NEW**          | Zone list + create form + empty state                                                                          |
-| `components/zone-card.ts`           | **NEW**          | Single zone editor: name input, mode select, time-bar, delete button                                           |
-| `components/room-card.ts`           | **MODIFIED**     | Add zone assignment selector in expanded view                                                                  |
-| `components/rooms-tab.ts`           | **NOT MODIFIED** | No structural change needed; room-card handles zone display internally                                         |
-| `components/global-settings-tab.ts` | **NOT MODIFIED** | No zone content needed here                                                                                    |
-| `components/persons-tab.ts`         | **NOT MODIFIED** | Person-room associations unchanged by zones                                                                    |
+**Listener lifecycle:** Cancel callbacks stored in
+`ClimateManagerData.cancel_matter_listeners`. Cancelled in
+`async_unload_entry`. Re-registered when `set_room_config` mutates
+`matter_sensor_map` (cancel all → rebuild). Template: existing
+`cancel_registry_listeners` pattern in `__init__.py`.
+
+**Guard required in listener:** Must check `config.get("calibration_enabled")`
+and apply delta threshold before issuing any offset call — mirrors the
+existing guard in `_async_calibrate_tado_device()`.
 
 ---
 
-## New WebSocket Commands
+### Feature 5: Hide HA Presence Mode (Frontend Only)
 
-5 new commands. All follow the existing factory pattern in websocket.py (closure
-over `entry`, `@websocket_api.async_response`, `vol` schema, write-then-evaluate
-pattern).
+**New vs Modified:**
 
-```
-climate_manager/get_zones
-  → Returns: { zones: Record<zone_id, ZoneConfig> }
-  Read-only snapshot. Thin — get_config already returns zones once the key
-  is in DEFAULT_CONFIG, so this command is only needed if lazy-loading zones
-  separately. Can be omitted if zones are always included in get_config.
+- **MODIFIED** `persons-tab.ts` — in the mode selector, filter out the "ha"
+  option when `hass.states[personId]?.attributes?.device_trackers?.length === 0`
+  or the attribute is absent. `hass.states` is already available via
+  `this.hass` in the Lit panel. No backend changes needed.
 
-climate_manager/set_zone
-  Payload: { zone_id: str, config: { name?: str, mode?: str, time_program?: dict } }
-  → { success: true }
-  Creates or updates a zone. setdefault + update pattern (T-03-09).
-  If time_program present, validate via validate_daily_program before save.
-
-climate_manager/delete_zone
-  Payload: { zone_id: str }
-  → { success: true }
-  Removes zone from zones dict AND clears zone_id from all rooms that
-  reference this zone (inline scan of runtime_config["rooms"]).
-  Both mutations in one save — atomic from the store's perspective.
-
-climate_manager/set_zone_program
-  Payload: { zone_id: str, program: DailyProgram }
-  → { success: true }
-  Dedicated time-program-only update (mirrors set_time_program pattern).
-  Validates with validate_daily_program before save.
-
-climate_manager/set_room_zone
-  Payload: { room_id: str, zone_id: str | null }
-  → { success: true }
-  Sets or clears zone_id on rooms[room_id]. A dedicated command keeps the
-  intent explicit and avoids the panel constructing room config deltas.
-```
-
-Note: `get_config` already returns the full runtime_config including the new
-`zones` key once it is added to DEFAULT_CONFIG. No change to the get_config
-handler is needed. The `get_zones` command is optional; it is worth adding only
-if zones need to be fetched independently (e.g. for lazy-loading). For v1.1,
-including zones in get_config is sufficient.
+**Integration point:** Pure frontend read of `hass.states`. The `hass` object
+is passed into the Lit panel element on every HA state update. Zero WebSocket
+commands, zero Python changes.
 
 ---
 
-## Coordinator Modification Detail
+## Component Dependency Map
 
-The zone lookup is inserted inside the `room_mode=global` path in both
-`_evaluate_time_program` and `_evaluate_time_program_presences`. The current
-single-line assignment:
+```
+Feature 1 (Pronote)
+  presence/pronote.py ← coordinator.py ← schedule.py ← const.py
+  websocket.py (set_person_config extended) ← persons-tab.ts
 
-```python
-daily_program = global_daily_program
+Feature 2 (iCal)
+  presence/ical.py ← coordinator.py ← schedule.py ← const.py
+  websocket.py (set_person_config extended) ← persons-tab.ts
+
+Feature 3 (Pre-heat)
+  preheat.py ← coordinator.py ← const.py
+  websocket.py (set_room_config extended) ← rooms-tab.ts
+
+Feature 4 (Matter→Tado)
+  trv.py ← coordinator.py ← __init__.py
+  websocket.py (set_room_config extended) ← rooms-tab.ts
+
+Feature 5 (Hide HA mode)
+  persons-tab.ts only — no backend
 ```
 
-becomes:
+## Files Modified vs Created Summary
 
-```python
-zone_id = room_config.get("zone_id")
-zone_cfg = config.get("zones", {}).get(zone_id) if zone_id else None
-if zone_cfg:
-    zone_mode = zone_cfg.get("mode", MODE_TIME_PROGRAM)
-    if zone_mode == MODE_OFF:
-        desired_temp = period_temperatures[PERIOD_FROST_PROTECTION]
-        room_periods[area_id] = PERIOD_FROST_PROTECTION
-        pushes.extend(
-            (entity_id, desired_temp)
-            for entity_id in entity_ids
-            if is_trv_entity(self._hass, entity_id)
-        )
-        continue  # skip schedule evaluation for this room
-    zone_program = zone_cfg.get("time_program")
-    daily_program = zone_program if zone_program else global_daily_program
-    # zone_mode stored for presence-override gate in time_program_presences pass
-else:
-    daily_program = global_daily_program
-    zone_mode = None
-```
+| File | Status | Features |
+|------|--------|----------|
+| `presence/__init__.py` | NEW (package) | 1, 2 |
+| `presence/pronote.py` | NEW | 1 |
+| `presence/ical.py` | NEW | 2 |
+| `preheat.py` | NEW | 3 |
+| `const.py` | MODIFIED | 1, 2, 3, 4 |
+| `schedule.py` | MODIFIED | 1, 2 |
+| `coordinator.py` | MODIFIED | 1, 2, 3, 4 |
+| `trv.py` | MODIFIED | 4 |
+| `__init__.py` | MODIFIED | 4 |
+| `websocket.py` | MODIFIED | 1, 2, 3, 4 |
+| `types.ts` | MODIFIED | 1, 2, 3, 4 |
+| `persons-tab.ts` | MODIFIED | 1, 2, 5 |
+| `rooms-tab.ts` | MODIFIED | 3, 4 |
 
-For the presence-overlay pass in `_evaluate_time_program_presences`, whether a
-room participates in presence override depends on the effective mode governing
-it:
+## Suggested Build Order
 
-- Zone absent → uses global_mode to decide (existing behavior)
-- Zone present with `mode=time_program_presences` → participates in presence
-  override
-- Zone present with `mode=time_program` → skips presence override even if
-  global_mode is time_program_presences
+### Phase 1 — Feature 5 (quick task, standalone)
 
-This is implemented by passing `zone_mode` (or `None`) alongside `daily_program`
-through the baseline step, then gating the presence-override step on
-`zone_mode != MODE_TIME_PROGRAM` (when a zone is active).
+Build "hide HA mode" first. Zero backend, zero risk. Ships immediately as a
+standalone quick task before any other phase work begins.
 
-### Status payload extension
+### Phase 2 — Features 1 and 2 (calendar presence sources together)
 
-```python
-room_entry["zone_id"] = room_configs.get(area_id, {}).get("zone_id")
-```
+Build Pronote and iCal together as one phase — they touch identical files,
+share the `_async_refresh_presence_sources()` loop, and use the same cache
+model. Building together avoids touching coordinator.py / schedule.py twice:
 
-Added to `_build_status_payload` for all room entries. Allows the frontend to
-display zone membership without a separate config fetch.
+1. Add `PRESENCE_PRONOTE` and `PRESENCE_ICAL` to `const.py`
+2. Create `presence/` package with `pronote.py` and `ical.py` fetch functions
+3. Extend `resolve_presence()` in `schedule.py` with two new mode branches
+   (pure Python — unit test in isolation first)
+4. Add `_async_refresh_presence_sources()` to coordinator
+5. Extend `set_person_config` WS schema for both source types
+6. Extend `PersonConfig` TypeScript types
+7. Add credential/URL input UI in `persons-tab.ts` for both modes
 
----
+**Dependency:** No dependency on Features 3 or 4.
 
-## TypeScript Types
+### Phase 3 — Feature 3 (predictive pre-heat)
 
-```typescript
-export interface ZoneConfig {
-  name: string;
-  mode: "off" | "time_program" | "time_program_presences";
-  time_program: DailyProgram;
-}
+1. Build `preheat.py` as a pure Python module (unit-testable in isolation)
+2. Add PASS 0 (`_apply_preheat_overrides`) injection into coordinator —
+   this is the highest-risk change; test thoroughly before moving on
+3. Add preheat config keys to rooms storage schema and `const.py` comment
+4. Extend `set_room_config` WS schema
+5. Extend `RoomConfig` TypeScript type
+6. Add pre-heat toggle and config UI in `rooms-tab.ts`
 
-// ClimateConfig extended (add one key):
-export interface ClimateConfig {
-  global_mode: string;
-  period_temperatures: Record<string, number>;
-  global_time_program: DailyProgram;
-  rooms: Record<string, RoomConfig>;
-  persons: Record<string, PersonConfig>;
-  zones: Record<string, ZoneConfig>; // NEW
-  climate_entities: string[];
-}
+**Dependency:** None on Phase 2. Build `preheat.py` pure-Python first; only
+integrate into coordinator once pure-module tests pass.
 
-// RoomConfig extended (add one key):
-export interface RoomConfig {
-  room_mode?: "global" | "frost_protection" | "custom";
-  time_program?: DailyProgram | null;
-  zone_id?: string | null; // NEW
-}
+**Deferral candidate:** Adaptive inertia learning (`inertia_samples` rolling
+update) can ship as a follow-up quick task. Phase 3 ships with manual
+`inertia_factor` and a sensible default (4 min/°C).
 
-// RoomStatus extended (add one key):
-export interface RoomStatus {
-  area_id: string;
-  name: string;
-  entity_ids?: string[];
-  temperature?: number | null;
-  humidity?: number | null;
-  active_period?: string | null;
-  present_person_count: number;
-  has_trv?: boolean;
-  zone_id?: string | null; // NEW
-}
-```
+### Phase 4 — Feature 4 (Matter→Tado real-time calibration)
 
----
+1. Add `cancel_matter_listeners` to `ClimateManagerData` in `__init__.py`
+2. Implement `_setup_matter_listeners()` in coordinator
+3. Wire into `async_setup_entry` and `async_unload_entry`
+4. Add re-registration trigger in `set_room_config` WS handler
+5. Extend `set_room_config` WS schema for `matter_sensor_map`
+6. Add mapping picker UI in `rooms-tab.ts`
 
-## Build Order
+**Dependency:** Requires stable `_async_calibrate_tado_device()` (v1.2,
+production-verified). The listener pattern is a direct copy of the existing
+`cancel_registry_listeners` mechanism — use it as the implementation template.
 
-Dependencies are strict — each phase requires its predecessors to be complete.
+**Rationale for last:** Most HA-lifecycle-sensitive feature (new event
+listeners, new unload path, re-registration logic). Building after pre-heat
+minimises blast radius in coordinator.py.
 
-### Phase 1: Data model (backend + frontend types)
+## Cross-Cutting Patterns to Preserve
 
-Files: `const.py`, `storage.py`, `types.ts`
+**Write-then-Evaluate** (all WS write handlers):
+`mutate → store.async_save → send_result → hass.async_create_task(async_evaluate())`
+Exception: config-only changes that don't affect current-tick temperatures
+(e.g. updating credentials, matter_sensor_map) need not trigger async_evaluate.
 
-- Add zone mode constants to const.py
-- Add `"zones": {}` to DEFAULT_CONFIG
-- Bump STORAGE_VERSION to 3 in const.py and storage.py Store constructor
-- Add ZoneConfig, extend ClimateConfig / RoomConfig / RoomStatus in types.ts
+**Sparse Merge** (all config sub-keys):
+`runtime_config.setdefault("persons", {}).setdefault(person_id, {}).update(incoming)`
+Never replace the entire persons or rooms dict.
 
-Gate: Existing install loads cleanly with `zones: {}` default. No existing tests
-broken.
+**CR-01 Snapshot Rollback** (all writes that can raise):
+Deepcopy the affected sub-dict before mutation; restore on exception.
 
-### Phase 2: WebSocket API
+**Guard Chain** (all async HA calls):
+State guard → availability guard → threshold guard → call → WARNING on
+exception. Presence fetch failures must never crash `async_evaluate()`.
 
-Files: `websocket.py`, `ws-client.ts`
+**Pure-Python Separation**: `schedule.py` and `preheat.py` must have zero HA
+imports. All datetime arithmetic and logic belongs there; the coordinator
+supplies the prepared arguments.
 
-- Implement set_zone, delete_zone, set_zone_program, set_room_zone in
-  websocket.py
-- Register all new commands in async_register_commands
-- Add corresponding methods to WsClient
+## Key Architecture Risks
 
-Gate: Zone CRUD verifiable via browser console or test without any UI or
-coordinator changes.
+| Risk | Location | Mitigation |
+|------|----------|------------|
+| Pronote/iCal HTTP I/O blocking the event loop | coordinator.py | Use aiohttp (async) or hass.async_add_executor_job for any sync HTTP lib |
+| Matter listener leak on set_room_config mutation | coordinator.py | Cancel all existing matter listeners before re-registering after save |
+| Pre-heat PASS 0 overriding PASS 2 presence result | coordinator.py | Run PASS 0 before PASS 1; PASS 2 presence still overwrites — correct (presence wins over pre-heat baseline) |
+| pronote_cache / ical_cache stored in plaintext in Store | store.py | Acceptable for local HA; note in code; formal secrets handling is out of scope |
+| Cache TTL fetch blocking minute tick | coordinator.py | Fire fetch as `hass.async_create_task` on cache miss; use cached value (possibly stale) this tick — never await on slow network in the hot path |
+| inertia_samples growing unbounded in Store | preheat.py | Enforce N=10 rolling window cap inside preheat.py before writing back |
 
-### Phase 3: Coordinator zone evaluation
+## Sources
 
-Files: `coordinator.py`
-
-- Add zone resolution inside room_mode=global path of both evaluation methods
-- Add zone_id to status payload rooms
-- Handle zone_mode=off (frost branch) and zone time_program (daily_program
-  override)
-- Handle presence-override gating when zone_mode=time_program
-
-Gate: Assign a room to a zone via WS, verify TRV receives zone temperature at
-next tick (HA logs). Rooms without zone_id behave identically to v1.0.
-
-### Phase 4: Zones tab UI
-
-Files: `components/zones-tab.ts` (new), `components/zone-card.ts` (new),
-`main.ts`
-
-- Zones tab with zone list, create form (name + mode + default time-bar)
-- Zone card with name edit, mode select, time-bar, delete
-- Add Zones tab button to main.ts tab bar
-
-Gate: Full zone CRUD from the panel UI. Time-bar edits save correctly.
-
-### Phase 5: Room-to-zone assignment UI
-
-Files: `components/room-card.ts`
-
-- Add zone assignment select to expanded room card view
-- Populated from `panelConfig.zones`; includes "None" option
-- Calls `ws.setRoomZone(roomId, zoneId | null)` on change
-
-Gate: Assign rooms to zones from the Rooms tab. Room card shows zone name.
-Assignment survives page reload.
-
----
-
-## Anti-Patterns to Avoid
-
-### Storing room_ids on the zone object
-
-Mirroring `person.room_ids` by adding `room_ids: list` to the zone. This creates
-a two-way consistency problem requiring multi-key writes on every room
-assignment change and on zone delete. Zone_id on the room is the correct model
-for a one-to-many relationship where the "many" side holds the foreign key.
-
-### Adding a zone evaluation function to schedule.py
-
-Zone programs use the same DailyProgram structure and `evaluate_schedule()`
-function as global and room programs. A wrapper is pure indirection with no
-abstraction value.
-
-### Separate period temperature values per zone
-
-Zones share the global period_temperatures. Zone time programs select period
-modes; the temperature per mode is always global. Per-zone temperature overrides
-are a v2+ concern.
-
-### Using zone_id as a display name
-
-zone_id is a stable slug used as a dict key; `name` is the display string. The
-frontend must always display `zones[zone_id].name`, never zone_id itself. When
-the user renames a zone, only the `name` key changes — zone_id stays stable so
-room assignments don't need updating.
-
----
-
-## Open Questions
-
-1. **Zone mode vs global mode interaction for presence:** If a room is in a zone
-   with `mode=time_program` and the global mode is `time_program_presences`,
-   should persons still override that room? The design above says NO (zone
-   mode=time_program opts out of presence). Confirm with user before
-   implementing Phase 3 to avoid a costly coordinator rewrite.
-
-2. **Zone ID generation:** The frontend generates zone*id as a slug from the
-   user's name. A safe formula: `name.toLowerCase().replace(/\s+/g,
-   "*").replace(/[^a-z0-9_]/g, "")`. The backend treats zone_id as an opaque
-   string key. Confirm this is acceptable; alternatively the backend generates a
-   UUID-style ID on set_zone if zone_id is absent.
-
-3. **delete_zone atomicity:** Clearing `zone_id` from all affected rooms plus
-   removing the zone must be a single `async_save` call. Test this explicitly —
-   partial writes would leave dangling zone_id references that cause coordinator
-   warnings.
-
-4. **Zone time program default on create:** When a zone is created without a
-   time_program, should it default to the global time program (deep-copied) or
-   to the standard default weekday schedule? Defaulting to
-   `_DEFAULT_DAILY_PROGRAM` (same as global default) is safest — avoids
-   surprising behaviour if the user later changes the global program.
+- Codebase analysis: coordinator.py, schedule.py, trv.py, websocket.py,
+  __init__.py, const.py, types.ts (all read directly from v1.2 production code)
+- HA async_track_state_change_event pattern: existing cancel_registry_listeners
+  mechanism in __init__.py used as implementation template for Feature 4
+- Pure-Python module pattern: schedule.py as template for preheat.py

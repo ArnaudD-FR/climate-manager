@@ -1306,7 +1306,7 @@ async def test_zone_mode_time_program_uses_zone_schedule(hass):
     Proves divergence: same global_mode=time_program, different temperatures.
     """
     hass.states.async_set("climate.z_trv", "heat", {"temperature": 20.0})
-    hass.states.async_set("climate.d_trv", "heat", {"temperature": 20.0})
+    hass.states.async_set("climate.d_trv", "heat", {"temperature": 18.0})
     async_mock_service(hass, "climate", "set_hvac_mode")
     temp_calls = async_mock_service(hass, "climate", "set_temperature")
 
@@ -1903,4 +1903,817 @@ async def test_calibration_trv_current_temperature_none_zero_offset_calls(hass):
     assert len(offset_calls) == 0, (
         f"TRV current_temperature=None must produce zero offset calls; "
         f"got {len(offset_calls)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 Matter→Tado X Real-Time Calibration — listener lifecycle tests
+# ---------------------------------------------------------------------------
+
+
+async def test_matter_mappings_in_default_config(hass):
+    """D-02: DEFAULT_CONFIG must contain key 'matter_mappings' equal to {}.
+
+    This ensures no migration is needed for existing installs (sparse default).
+    """
+    from custom_components.climate_manager.const import DEFAULT_CONFIG
+
+    assert "matter_mappings" in DEFAULT_CONFIG, (
+        "DEFAULT_CONFIG must contain 'matter_mappings' key (D-02)"
+    )
+    assert DEFAULT_CONFIG["matter_mappings"] == {}, (
+        "DEFAULT_CONFIG['matter_mappings'] must be {} (sparse default)"
+    )
+
+
+async def test_matter_listeners_registered_on_first_evaluate(hass):
+    """D-09/D-10: after entry setup with climate entities, _matter_cal_listeners
+    is non-empty after the first async_evaluate call.
+
+    Unmapped entities (no matter_mappings config) each get their own listener.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    hass.states.async_set(
+        "climate.room_trv",
+        "heat",
+        {"temperature": 20.0, "current_temperature": 20.0},
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Register the entity in the entity registry so platform detection works
+    entity_reg = er.async_get(hass)
+    entity_reg.async_get_or_create("climate", "test_integration", "room_trv")
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+    )
+    entry.runtime_data.rooms = {"bedroom": ["climate.room_trv"]}
+
+    coordinator = entry.runtime_data.coordinator
+    # Force a fresh listener registration
+    coordinator._matter_cal_listeners.clear()
+
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    assert len(coordinator._matter_cal_listeners) > 0, (
+        "_matter_cal_listeners must be non-empty after first evaluate "
+        "when rooms contain climate entities"
+    )
+
+
+async def test_matter_listener_fires_calibrate_on_temp_change(hass):
+    """D-09: state_changed event with changed current_temperature calls
+    _async_calibrate_for_room for the listener's area_id.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    hass.states.async_set(
+        "climate.matter_valve",
+        "heat",
+        {"temperature": 20.0, "current_temperature": 19.0},
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_reg = er.async_get(hass)
+    entity_reg.async_get_or_create("climate", "matter", "valve")
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+    )
+    entry.runtime_data.rooms = {"living": ["climate.matter_valve"]}
+
+    coordinator = entry.runtime_data.coordinator
+    coordinator._matter_cal_listeners.clear()
+
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    assert "climate.matter_valve" in coordinator._matter_cal_listeners, (
+        "Listener must be registered for climate.matter_valve"
+    )
+
+    # Spy on _async_calibrate_for_room
+    calibrate_calls = []
+
+    async def _fake_calibrate(area_id: str) -> None:
+        calibrate_calls.append(area_id)
+
+    coordinator._async_calibrate_for_room = _fake_calibrate
+
+    # Build a mock event with changed current_temperature
+
+    old_state = hass.states.get("climate.matter_valve")
+
+    # Update the state so new_state has a different current_temperature
+    hass.states.async_set(
+        "climate.matter_valve",
+        "heat",
+        {"temperature": 20.0, "current_temperature": 20.5},
+    )
+    new_state = hass.states.get("climate.matter_valve")
+
+    # Fire state_changed event via HA bus so the registered listener fires
+    hass.bus.async_fire(
+        "state_changed",
+        {
+            "entity_id": "climate.matter_valve",
+            "old_state": old_state,
+            "new_state": new_state,
+        },
+    )
+    await hass.async_block_till_done()
+
+    assert len(calibrate_calls) >= 1, (
+        "_async_calibrate_for_room must be called when current_temperature changes; "
+        f"calibrate_calls={calibrate_calls}"
+    )
+    assert calibrate_calls[0] == "living", (
+        f"Expected area_id='living', got {calibrate_calls[0]!r}"
+    )
+
+
+async def test_matter_listener_ignores_non_temp_change(hass):
+    """D-09 attribute filter: state_changed with unchanged current_temperature
+    does NOT call _async_calibrate_for_room.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    hass.states.async_set(
+        "climate.stable_trv",
+        "heat",
+        {"temperature": 20.0, "current_temperature": 20.0},
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_reg = er.async_get(hass)
+    entity_reg.async_get_or_create("climate", "test_integration", "stable_trv")
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+    )
+    entry.runtime_data.rooms = {"hall": ["climate.stable_trv"]}
+
+    coordinator = entry.runtime_data.coordinator
+    coordinator._matter_cal_listeners.clear()
+
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    calibrate_calls: list[str] = []
+
+    async def _fake_calibrate(area_id: str) -> None:
+        calibrate_calls.append(area_id)
+
+    coordinator._async_calibrate_for_room = _fake_calibrate
+
+    old_state = hass.states.get("climate.stable_trv")
+
+    # Change only the setpoint (temperature), not current_temperature
+    hass.states.async_set(
+        "climate.stable_trv",
+        "heat",
+        {"temperature": 22.0, "current_temperature": 20.0},  # same current_temp
+    )
+    new_state = hass.states.get("climate.stable_trv")
+
+    # Fire state_changed — current_temperature is the same in old/new
+    hass.bus.async_fire(
+        "state_changed",
+        {
+            "entity_id": "climate.stable_trv",
+            "old_state": old_state,
+            "new_state": new_state,
+        },
+    )
+    await hass.async_block_till_done()
+
+    assert len(calibrate_calls) == 0, (
+        "No calibration must fire when current_temperature is unchanged; "
+        f"calibrate_calls={calibrate_calls}"
+    )
+
+
+async def test_matter_listener_handles_none_old_state(hass):
+    """Pitfall 5: state_changed with old_state=None must not raise."""
+    from homeassistant.helpers import entity_registry as er
+
+    hass.states.async_set(
+        "climate.new_entity",
+        "heat",
+        {"temperature": 20.0, "current_temperature": 19.0},
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_reg = er.async_get(hass)
+    entity_reg.async_get_or_create("climate", "test_integration", "new_entity")
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+    )
+    entry.runtime_data.rooms = {"nursery": ["climate.new_entity"]}
+
+    coordinator = entry.runtime_data.coordinator
+    coordinator._matter_cal_listeners.clear()
+
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    # Must not raise when old_state is None (entity startup event)
+    new_state = hass.states.get("climate.new_entity")
+    try:
+        hass.bus.async_fire(
+            "state_changed",
+            {
+                "entity_id": "climate.new_entity",
+                "old_state": None,
+                "new_state": new_state,
+            },
+        )
+        await hass.async_block_till_done()
+    except Exception as exc:  # noqa: BLE001
+        raise AssertionError(
+            f"Listener must not raise on old_state=None; got {exc!r}"
+        ) from exc
+
+
+async def test_refresh_matter_listeners_cancels_old(hass):
+    """MCALIB-02: calling _async_refresh_matter_listeners() twice causes every
+    cancel callable from the first pass to be invoked before re-registration.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    hass.states.async_set(
+        "climate.refresh_trv",
+        "heat",
+        {"temperature": 20.0, "current_temperature": 20.0},
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_reg = er.async_get(hass)
+    entity_reg.async_get_or_create("climate", "test_integration", "refresh_trv")
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+    )
+    entry.runtime_data.rooms = {"office": ["climate.refresh_trv"]}
+
+    coordinator = entry.runtime_data.coordinator
+    coordinator._matter_cal_listeners.clear()
+
+    # First registration
+    await coordinator._async_refresh_matter_listeners()
+
+    assert len(coordinator._matter_cal_listeners) > 0, (
+        "First _async_refresh_matter_listeners must register at least one listener"
+    )
+
+    # Capture cancel callables from the first pass
+    first_pass_cancels: list[bool] = []
+
+    def _make_tracking_cancel(real_cancel, tracking_list: list):
+        def _tracked_cancel():
+            real_cancel()
+            tracking_list.append(True)
+
+        return _tracked_cancel
+
+    for eid in list(coordinator._matter_cal_listeners):
+        real_cancel = coordinator._matter_cal_listeners[eid]
+        coordinator._matter_cal_listeners[eid] = _make_tracking_cancel(
+            real_cancel, first_pass_cancels
+        )
+
+    num_first = len(coordinator._matter_cal_listeners)
+
+    # Second registration — must cancel all first-pass listeners
+    await coordinator._async_refresh_matter_listeners()
+
+    assert len(first_pass_cancels) == num_first, (
+        f"All {num_first} first-pass cancel callables must be invoked; "
+        f"got {len(first_pass_cancels)}"
+    )
+
+
+async def test_unload_cancels_matter_listeners(hass):
+    """MCALIB-02/D-11: after async_unload_entry, every _matter_cal_listeners
+    cancel callable was invoked and the dict is empty.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    hass.states.async_set(
+        "climate.unload_trv",
+        "heat",
+        {"temperature": 20.0, "current_temperature": 20.0},
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_reg = er.async_get(hass)
+    entity_reg.async_get_or_create("climate", "test_integration", "unload_trv")
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+    )
+    entry.runtime_data.rooms = {"garage": ["climate.unload_trv"]}
+
+    coordinator = entry.runtime_data.coordinator
+    coordinator._matter_cal_listeners.clear()
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    # Track cancel calls
+    cancel_calls: list[bool] = []
+
+    def _make_tracking_cancel(real_cancel, tracking_list: list):
+        def _tracked_cancel():
+            real_cancel()
+            tracking_list.append(True)
+
+        return _tracked_cancel
+
+    for eid in list(coordinator._matter_cal_listeners):
+        real_cancel = coordinator._matter_cal_listeners[eid]
+        coordinator._matter_cal_listeners[eid] = _make_tracking_cancel(
+            real_cancel, cancel_calls
+        )
+
+    expected_count = len(coordinator._matter_cal_listeners)
+    assert expected_count > 0, (
+        "At least one listener must be registered before unload"
+    )
+
+    result = await hass.config_entries.async_unload(entry.entry_id)
+    assert result is True
+
+    assert len(cancel_calls) == expected_count, (
+        f"All {expected_count} listener cancel callbacks must be called on unload; "
+        f"got {len(cancel_calls)}"
+    )
+    assert len(coordinator._matter_cal_listeners) == 0, (
+        "_matter_cal_listeners must be empty after unload"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 Task 2 — D-03 control-path dispatch + D-04..D-07 calibration
+#
+# IMPORTANT: Entity registry must be populated BEFORE hass.states.async_set.
+# HA's async_generate_entity_id checks the state machine for conflicts —
+# if a state exists for entity_id X before async_get_or_create is called,
+# the registry generates entity_id X_2 instead (the state machine is checked
+# as a known-object_id collision guard). Setup order: register → set state.
+# ---------------------------------------------------------------------------
+
+
+def _register_entity(entity_reg, domain, platform, unique_id):
+    """Register entity in registry before any state is set.
+
+    Returns the entity_id generated by HA (used consistently throughout test).
+    """
+    entry = entity_reg.async_get_or_create(domain, platform, unique_id)
+    return entry.entity_id
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_to_set_uses_matter_entities_when_mapped(hass):
+    """D-03/Pitfall 2: with matter_mappings={tado_eid: [m1, m2]},
+    _push_temperatures issues setpoints for m1 and m2, NOT for tado_eid.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    entity_reg = er.async_get(hass)
+    # Register BEFORE setting states — avoids _2 suffix from state collision
+    tado_eid = _register_entity(entity_reg, "climate", "tado_x", "tado_lv")
+    matter1 = _register_entity(entity_reg, "climate", "matter", "valve1_lv")
+    matter2 = _register_entity(entity_reg, "climate", "matter", "valve2_lv")
+
+    for eid in [tado_eid, matter1, matter2]:
+        hass.states.async_set(
+            eid, "heat", {"temperature": 15.0, "current_temperature": 18.0}
+        )
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    cfg = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+    )
+    cfg["matter_mappings"] = {tado_eid: [matter1, matter2]}
+    entry.runtime_data.runtime_config = cfg
+    entry.runtime_data.rooms = {"living": [tado_eid, matter1, matter2]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    called_eids = {c.data.get("entity_id") for c in temp_calls}
+
+    assert matter1 in called_eids, (
+        f"Mapped Matter entity {matter1} must receive setpoint; "
+        f"got {called_eids}"
+    )
+    assert matter2 in called_eids, (
+        f"Mapped Matter entity {matter2} must receive setpoint; "
+        f"got {called_eids}"
+    )
+    assert tado_eid not in called_eids, (
+        f"Mapped tado_x entity {tado_eid} must NOT receive setpoint "
+        f"(Pitfall 2); got {called_eids}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_to_set_uses_tado_entity_when_unmapped(hass):
+    """D-03 else branch: tado_x entity with no mapping → setpoint to tado_eid."""
+    from homeassistant.helpers import entity_registry as er
+
+    entity_reg = er.async_get(hass)
+    tado_eid = _register_entity(entity_reg, "climate", "tado_x", "tado_bed")
+
+    hass.states.async_set(
+        tado_eid, "heat", {"temperature": 15.0, "current_temperature": 18.0}
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    cfg = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+    )
+    cfg["matter_mappings"] = {}  # no mapping
+    entry.runtime_data.runtime_config = cfg
+    entry.runtime_data.rooms = {"bedroom": [tado_eid]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    called_eids = {c.data.get("entity_id") for c in temp_calls}
+    assert tado_eid in called_eids, (
+        f"Unmapped tado_x entity must receive setpoint; got {called_eids}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_to_set_skips_matter_entity_already_in_mapping(hass):
+    """Pitfall 3: Matter entity in mapping value is NOT added twice to to_set.
+
+    A room has both the tado_x entity and its mapped Matter entity listed.
+    The Matter entity should appear in setpoint calls exactly once.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    entity_reg = er.async_get(hass)
+    tado_eid = _register_entity(entity_reg, "climate", "tado_x", "tado_hall")
+    matter_eid = _register_entity(entity_reg, "climate", "matter", "valve_hall")
+
+    for eid in [tado_eid, matter_eid]:
+        hass.states.async_set(
+            eid, "heat", {"temperature": 15.0, "current_temperature": 18.0}
+        )
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    cfg = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+    )
+    cfg["matter_mappings"] = {tado_eid: [matter_eid]}
+    entry.runtime_data.runtime_config = cfg
+    entry.runtime_data.rooms = {"hall": [tado_eid, matter_eid]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    # Matter entity must appear in setpoint calls exactly once (Pitfall 3)
+    matter_calls = [
+        c for c in temp_calls if c.data.get("entity_id") == matter_eid
+    ]
+    assert len(matter_calls) == 1, (
+        f"Matter entity in mapping value must receive exactly 1 setpoint call "
+        f"(Pitfall 3); got {len(matter_calls)}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_unmapped_matter_entity_gets_setpoint(hass):
+    """D-07: Matter entity not in any mapping value gets its own setpoint call."""
+    from homeassistant.helpers import entity_registry as er
+
+    entity_reg = er.async_get(hass)
+    matter_eid = _register_entity(entity_reg, "climate", "matter", "standalone")
+
+    hass.states.async_set(
+        matter_eid,
+        "heat",
+        {"temperature": 15.0, "current_temperature": 18.0},
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    cfg = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+    )
+    cfg["matter_mappings"] = {}  # no mapping — standalone Matter entity
+    entry.runtime_data.runtime_config = cfg
+    entry.runtime_data.rooms = {"study": [matter_eid]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    called_eids = {c.data.get("entity_id") for c in temp_calls}
+    assert matter_eid in called_eids, (
+        f"Unmapped Matter entity must receive setpoint (D-07); "
+        f"got {called_eids}"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
+    """D-04: for a mapped room, _async_calibrate_for_room routes calibration
+    through the Matter entity as the temperature source, not the tado_x entity.
+
+    We verify this by spying on _async_calibrate_tado_device or
+    _async_calibrate_room to confirm matter_eid is passed as zone_entity_id.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    entity_reg = er.async_get(hass)
+    tado_eid = _register_entity(entity_reg, "climate", "tado_x", "tado_kit")
+    matter_eid = _register_entity(entity_reg, "climate", "matter", "valve_kit")
+    sensor_eid = "sensor.kitchen_temp"
+
+    # tado_x reports a large gap; Matter a small gap
+    hass.states.async_set(
+        tado_eid,
+        "heat",
+        {"temperature": 20.0, "current_temperature": 18.0},
+    )
+    hass.states.async_set(
+        matter_eid,
+        "heat",
+        {"temperature": 20.0, "current_temperature": 20.4},
+    )
+    hass.states.async_set(sensor_eid, "21.0")
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    cfg = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config={"kitchen": {"temperature_sensor": sensor_eid}},
+    )
+    cfg["calibration_enabled"] = True
+    cfg["calibration_threshold"] = 0.5
+    cfg["matter_mappings"] = {tado_eid: [matter_eid]}
+    entry.runtime_data.runtime_config = cfg
+    entry.runtime_data.rooms = {"kitchen": [tado_eid, matter_eid]}
+
+    coordinator = entry.runtime_data.coordinator
+
+    # Spy on _async_calibrate_tado_device to check zone_entity_id used
+    calibrate_tado_calls: list[dict] = []
+    calibrate_room_calls: list[str] = []
+    original_calibrate_tado = coordinator._async_calibrate_tado_device
+    original_calibrate_room = coordinator._async_calibrate_room
+
+    async def _spy_calibrate_tado(
+        area_id, device_id, zone_entity_id, sensor_entity_id, config
+    ):
+        calibrate_tado_calls.append({"zone_entity_id": zone_entity_id})
+        await original_calibrate_tado(
+            area_id, device_id, zone_entity_id, sensor_entity_id, config
+        )
+
+    async def _spy_calibrate_room(area_id, entity_id, sensor, config):
+        calibrate_room_calls.append(entity_id)
+        await original_calibrate_room(area_id, entity_id, sensor, config)
+
+    coordinator._async_calibrate_tado_device = _spy_calibrate_tado
+    coordinator._async_calibrate_room = _spy_calibrate_room
+
+    await coordinator._async_calibrate_for_room("kitchen")
+    await hass.async_block_till_done()
+
+    # D-04: when mapping exists, Matter entity must be the temp source
+    if calibrate_tado_calls:
+        assert calibrate_tado_calls[0]["zone_entity_id"] == matter_eid, (
+            f"D-04: tado calibration must use Matter entity as temp source; "
+            f"got {calibrate_tado_calls[0]['zone_entity_id']!r}"
+        )
+    elif calibrate_room_calls:
+        # D-05 fallback: no tado valve devices → _async_calibrate_room
+        # must be called with matter_eid as entity_id
+        assert calibrate_room_calls[0] == matter_eid, (
+            f"D-05 fallback: must use Matter entity as temp source; "
+            f"got {calibrate_room_calls[0]!r}"
+        )
+    else:
+        raise AssertionError(
+            "D-04: no calibration call was made for a mapped room "
+            "with calibration_enabled=True"
+        )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_calibrate_for_room_unmapped_tado_uses_existing_path(hass):
+    """D-06: unmapped tado_x room uses existing calibration path.
+
+    In test env (no tado valve devices), falls through to _async_calibrate_room
+    with the tado entity itself as the temperature source.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    entity_reg = er.async_get(hass)
+    tado_eid = _register_entity(entity_reg, "climate", "tado_x", "tado_off")
+    sensor_eid = "sensor.office_temp"
+
+    hass.states.async_set(
+        tado_eid,
+        "heat",
+        {
+            "temperature": 20.0,
+            "current_temperature": 18.0,
+            "temperature_offset": 0.0,
+        },
+    )
+    hass.states.async_set(sensor_eid, "21.0")
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    cfg = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config={"office": {"temperature_sensor": sensor_eid}},
+    )
+    cfg["calibration_enabled"] = True
+    cfg["calibration_threshold"] = 0.5
+    cfg["matter_mappings"] = {}  # no mapping
+    entry.runtime_data.runtime_config = cfg
+    entry.runtime_data.rooms = {"office": [tado_eid]}
+
+    coordinator = entry.runtime_data.coordinator
+
+    calibrate_room_calls: list[str] = []
+    original_calibrate_room = coordinator._async_calibrate_room
+
+    async def _spy_calibrate_room(area_id, entity_id, sensor, config):
+        calibrate_room_calls.append(entity_id)
+        await original_calibrate_room(area_id, entity_id, sensor, config)
+
+    coordinator._async_calibrate_room = _spy_calibrate_room
+
+    await coordinator._async_calibrate_for_room("office")
+    await hass.async_block_till_done()
+
+    # D-06: unmapped tado_x → existing calibration path
+    # In test env, no tado valve devices → _async_calibrate_room with tado eid
+    if calibrate_room_calls:
+        assert calibrate_room_calls[0] == tado_eid, (
+            f"D-06: unmapped tado_x must use tado_x entity as temp source; "
+            f"got {calibrate_room_calls[0]!r}"
+        )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")
+async def test_calibrate_for_room_unmapped_matter_uses_room_path(hass):
+    """D-07: unmapped Matter entity falls through to _async_calibrate_room."""
+    from homeassistant.helpers import entity_registry as er
+
+    entity_reg = er.async_get(hass)
+    matter_eid = _register_entity(
+        entity_reg, "climate", "matter", "guest_matter"
+    )
+    sensor_eid = "sensor.guest_temp"
+
+    hass.states.async_set(
+        matter_eid,
+        "heat",
+        {
+            "temperature": 20.0,
+            "current_temperature": 18.0,
+            "temperature_offset": 0.0,
+        },
+    )
+    hass.states.async_set(sensor_eid, "21.0")
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    async_mock_service(hass, "tado_x", "set_temperature_offset")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    cfg = _make_runtime_config(
+        global_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config={"guest": {"temperature_sensor": sensor_eid}},
+    )
+    cfg["calibration_enabled"] = True
+    cfg["calibration_threshold"] = 0.5
+    cfg["matter_mappings"] = {}  # no mapping — standalone Matter
+    entry.runtime_data.runtime_config = cfg
+    entry.runtime_data.rooms = {"guest": [matter_eid]}
+
+    coordinator = entry.runtime_data.coordinator
+
+    calibrate_room_calls: list[str] = []
+    original_calibrate_room = coordinator._async_calibrate_room
+
+    async def _spy_calibrate_room(area_id, entity_id, sensor, config):
+        calibrate_room_calls.append(entity_id)
+        await original_calibrate_room(area_id, entity_id, sensor, config)
+
+    coordinator._async_calibrate_room = _spy_calibrate_room
+
+    await coordinator._async_calibrate_for_room("guest")
+    await hass.async_block_till_done()
+
+    assert len(calibrate_room_calls) >= 1, (
+        "D-07: unmapped Matter entity must trigger _async_calibrate_room; "
+        f"got {calibrate_room_calls}"
+    )
+    assert calibrate_room_calls[0] == matter_eid, (
+        f"D-07: _async_calibrate_room must use Matter entity_id; "
+        f"got {calibrate_room_calls[0]!r}"
     )

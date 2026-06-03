@@ -11,7 +11,8 @@ Also implements off-capable TRV support (quick task 260526-ffr):
 
 Design decisions (from RESEARCH.md / CLAUDE.md):
 - Pattern 5: Two-call TRV service sequence
-- INFRA-04: Heat mode ALWAYS set first; hvac_mode "heat" is the only value used
+- INFRA-04: Heat mode set first whenever the TRV is not already heating; the
+  hvac_mode "heat" is the only value ever used
 - ROOM-03: Unavailable or missing TRVs are silently skipped
 - T-01-07: hvac_mode is hardcoded "heat"
 - T-01-08: Guard on hass.states.get returning None or "unavailable"
@@ -53,29 +54,47 @@ async def set_trv_temperature(
 
     Both calls use blocking=True to ensure sequential execution.
 
+    Redundant-call guards (skip-redundant-hvac-and-temp-calls): each call is
+    skipped when the TRV is already in the desired state, halving tado_x API
+    writes on startup / period transitions.
+    - set_hvac_mode is skipped when state.state is already "heat". It still
+      fires for any other mode ("auto"/"off"/"cool") because Tado X TRVs in
+      auto mode ignore set_temperature until forced into heat mode (INFRA-04).
+    - set_temperature is skipped when the reported "temperature" attribute
+      already equals the desired value. When the attribute is absent we cannot
+      prove the setpoint and so issue the call.
+
     Silently skips the entity if its state is None or "unavailable" (ROOM-03).
-    Always uses hvac_mode "heat" — never any other mode (INFRA-04).
+    Never uses any hvac_mode other than "heat" (INFRA-04).
     """
     # Availability guard (ROOM-03, T-01-08): skip missing or unavailable TRVs
     state = hass.states.get(entity_id)
     if state is None or state.state in ("unavailable", "unknown"):
         return
 
-    # Step 1: Ensure heat mode (INFRA-04 — hvac_mode must be "heat")
-    await hass.services.async_call(
-        "climate",
-        "set_hvac_mode",
-        {"entity_id": entity_id, "hvac_mode": "heat"},
-        blocking=True,
-    )
+    # Step 1: Ensure heat mode (INFRA-04 — hvac_mode must be "heat").
+    # Skip when already heating; fire for any non-heat mode (Tado X auto-mode
+    # workaround — set_temperature is ignored unless the TRV is in heat mode).
+    if state.state != HVACMode.HEAT.value:
+        await hass.services.async_call(
+            "climate",
+            "set_hvac_mode",
+            {"entity_id": entity_id, "hvac_mode": "heat"},
+            blocking=True,
+        )
 
-    # Step 2: Set target temperature
-    await hass.services.async_call(
-        "climate",
-        "set_temperature",
-        {"entity_id": entity_id, "temperature": temperature},
-        blocking=True,
-    )
+    # Step 2: Set target temperature. Skip when the reported setpoint already
+    # matches the desired value (self-contained guard mirroring the
+    # coordinator's D-02 _push_if_changed check). Missing attribute means we
+    # cannot prove the setpoint, so issue the call.
+    current_setpoint = state.attributes.get("temperature")
+    if current_setpoint != temperature:
+        await hass.services.async_call(
+            "climate",
+            "set_temperature",
+            {"entity_id": entity_id, "temperature": temperature},
+            blocking=True,
+        )
 
 
 def supports_hvac_off(hass: HomeAssistant, entity_id: str) -> bool:
@@ -135,7 +154,10 @@ def supports_offset_calibration(hass: HomeAssistant, entity_id: str) -> bool:
     state = hass.states.get(entity_id)
     if state is None:
         return False
-    return "temperature_offset" in state.attributes
+    return (
+        "temperature_offset" in state.attributes
+        or hass.services.has_service("tado_x", "set_temperature_offset")
+    )
 
 
 def get_tado_valve_devices(hass: HomeAssistant, area_id: str) -> list[dict]:
@@ -187,7 +209,9 @@ async def set_trv_offset_by_device(
     await hass.services.async_call(
         "tado_x",
         "set_temperature_offset",
-        {"device_id": device_id, "offset": offset},
+        # Tado X API requires exactly one decimal place (Issue 1):
+        # round at the boundary so every caller is protected.
+        {"device_id": device_id, "offset": round(offset, 1)},
         blocking=True,
     )
 
@@ -220,6 +244,8 @@ async def set_trv_offset(
     await hass.services.async_call(
         "tado_x",
         "set_temperature_offset",
-        {"entity_id": entity_id, "offset": offset},
+        # Tado X API requires exactly one decimal place (Issue 1):
+        # round at the boundary so every caller is protected.
+        {"entity_id": entity_id, "offset": round(offset, 1)},
         blocking=True,
     )

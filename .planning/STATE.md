@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Presence & Calibration
-status: Awaiting next milestone
-last_updated: "2026-05-31T13:12:42.469Z"
-last_activity: 2026-05-31 — Milestone v1.2 completed and archived
+milestone: v1.3
+milestone_name: Calendar Presence & Pre-heat
+status: executing
+last_updated: "2026-06-03T14:09:57.079Z"
+last_activity: 2026-06-03 -- Phase 13 execution started
 progress:
-  total_phases: 3
+  total_phases: 8
   completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
+  total_plans: 17
+  completed_plans: 14
+  percent: 38
 ---
 
 # Project State
@@ -21,15 +21,15 @@ See: .planning/PROJECT.md (updated 2026-05-29)
 
 **Core value:** A household's rooms are always at the right temperature at the
 right time, without manual intervention — driven by schedules and who is
-actually home. **Current focus:** Milestone complete
+actually home. **Current focus:** Phase 13 — matter-tado-x-real-time-calibration
 presence schedules + TRV offset auto-calibration.
 
 ## Current Position
 
-Phase: Milestone v1.2 complete
-Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-05-31 — Milestone v1.2 completed and archived
+Phase: 13 (matter-tado-x-real-time-calibration) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 13
+Last activity: 2026-06-03 -- Phase 13 execution started
 
 ## Performance Metrics
 
@@ -124,13 +124,16 @@ Items acknowledged and deferred at milestone close on 2026-05-31:
 | 260531-w9z | Tado X refresh-rate info banner on calibration table    | 2026-05-31 | b656fd7 | [260531-w9z-tado-x-calibration-refresh-warning](./quick/260531-w9z-tado-x-calibration-refresh-warning/) |
 | 260531-r6t | Show current TRV offset for Tado X in calibration table | 2026-05-31 | 68e61f0 | [260531-r6t-tado-x-show-current-offset](./quick/260531-r6t-tado-x-show-current-offset/) |
 | 260531-any | Remove "Last applied delta" column from calibration table | 2026-05-31 | 392e8e4 | [260531-any-remove-last-applied-delta-column](./quick/260531-any-remove-last-applied-delta-column/) |
+| 260601-d04 | D-04: HA option always visible; ⚠ label + edit link when no trackers | 2026-06-01 | 44ebcdd | [260601-d04-ha-option-always-visible](./quick/260601-d04-ha-option-always-visible/) |
+| 260601-vaz | Fix HA tracker warning notification not recreating after user dismiss | 2026-06-01 | a4cd591 | [260601-vaz-fix-notif-dismiss-watcher](./quick/260601-vaz-fix-notif-dismiss-watcher/) |
+| 260602-kzf | Calendar gap handling modes + wake-up advance description | 2026-06-02 | — | [260602-kzf-calendar-gap-modes-and-wakeup-desc](./quick/260602-kzf-calendar-gap-modes-and-wakeup-desc/) |
 
 Last activity: 2026-05-29 - Created v1.2 roadmap (Phases 7-9); 11 requirements
 mapped (SCHED-01..06, CALIB-01..05)
 
 ## Session Continuity
 
-Last session: 2026-05-30T20:29:21.539Z
+Last session: 2026-06-03T13:40:56.486Z
 Resume file: None
 
 ## Operator Next Steps
