@@ -124,6 +124,9 @@ class ClimateManagerCoordinator:
         self._last_present_persons: list[str] = []
         # Per-room effective period (may differ from global in time_program_presences mode).
         self._last_room_periods: dict[str, str] = {}
+        # D-05: per-zone active period dict — "default" plus one key per custom
+        # zone UUID. Populated by async_evaluate; consumed by _build_status_payload.
+        self._last_zone_periods: dict[str, str | None] = {}
         # Tracks when each TRV's offset was last changed by auto-calibration.
         self._calibration_last_changed: dict[str, str] = {}
         # Tracks the last delta applied per TRV (sensor_temp - current_temp).
@@ -213,13 +216,32 @@ class ClimateManagerCoordinator:
 
         self._last_room_periods = room_periods
 
-        # Pitfall 7: _last_active_period reflects Default Zone for backward-compat.
-        global_mode = config["global_mode"]
+        # D-05: _last_active_period still used as per-room fallback in
+        # _build_status_payload; now reads from config["default_zone"]
+        # (global_mode key no longer exists after Phase 14 schema reshape).
+        dz = config["default_zone"]
         self._last_active_period = (
-            evaluate_schedule(config["global_time_program"], now)
-            if global_mode != MODE_OFF
+            evaluate_schedule(dz["time_program"], now)
+            if dz["mode"] != MODE_OFF
             else None
         )
+        # D-05: per-zone active period dict for _build_status_payload.
+        # Key "default" mirrors the zone_id="default" sentinel convention.
+        self._last_zone_periods = {
+            "default": (
+                evaluate_schedule(dz["time_program"], now)
+                if dz["mode"] != MODE_OFF
+                else None
+            ),
+            **{
+                zone_id: (
+                    evaluate_schedule(zone["time_program"], now)
+                    if zone["mode"] != MODE_OFF
+                    else None
+                )
+                for zone_id, zone in config.get("zones", {}).items()
+            },
+        }
 
         await self._push_temperatures(rooms, desired_temps, mode_off_rooms)
 
@@ -384,7 +406,7 @@ class ClimateManagerCoordinator:
                 # schedule when the zone is active (zone OFF is handled above).
                 room_program = (
                     room_config.get("time_program")
-                    or config["global_time_program"]
+                    or config["default_zone"]["time_program"]
                 )
                 period_mode = evaluate_schedule(room_program, now)
                 temp = period_temperatures.get(period_mode)
@@ -757,8 +779,8 @@ class ClimateManagerCoordinator:
         room_cfg_step2 = config.get("rooms", {}).get(area_id, {})
         if room_cfg_step2.get("room_mode") == ROOM_MODE_CUSTOM:
             tp_step2 = room_cfg_step2.get("time_program") or config.get(
-                "global_time_program", {}
-            )
+                "default_zone", {}
+            ).get("time_program", {})
         else:
             _, tp_step2 = self._resolve_zone_config(area_id, config)
         period_temperatures_step2: dict[str, float] = config.get(
@@ -842,8 +864,8 @@ class ClimateManagerCoordinator:
         room_cfg = config.get("rooms", {}).get(area_id, {})
         if room_cfg.get("room_mode") == ROOM_MODE_CUSTOM:
             time_program = room_cfg.get("time_program") or config.get(
-                "global_time_program", {}
-            )
+                "default_zone", {}
+            ).get("time_program", {})
         else:
             _, time_program = self._resolve_zone_config(area_id, config)
         period_temperatures: dict[str, float] = config.get(
@@ -1323,7 +1345,8 @@ class ClimateManagerCoordinator:
         """
         zone_id = config.get("rooms", {}).get(area_id, {}).get("zone_id")
         if zone_id is None:
-            return (config["global_mode"], config["global_time_program"])
+            dz = config["default_zone"]
+            return (dz["mode"], dz["time_program"])
         zone = config.get("zones", {}).get(zone_id)
         if zone is None:
             _LOGGER.warning(
@@ -1331,7 +1354,8 @@ class ClimateManagerCoordinator:
                 area_id,
                 zone_id,
             )
-            return (config["global_mode"], config["global_time_program"])
+            dz = config["default_zone"]
+            return (dz["mode"], dz["time_program"])
         return (zone["mode"], zone["time_program"])
 
     def _compute_present_persons(
@@ -1581,9 +1605,21 @@ class ClimateManagerCoordinator:
 
             rooms_status.append(room_entry)
 
+        config = self._data.runtime_config
         return {
-            "global_mode": self._data.runtime_config["global_mode"],
-            "active_period": self._last_active_period,
+            "zones": {
+                "default": {
+                    "mode": config["default_zone"]["mode"],
+                    "active_period": self._last_zone_periods.get("default"),
+                },
+                **{
+                    zone_id: {
+                        "mode": zone["mode"],
+                        "active_period": self._last_zone_periods.get(zone_id),
+                    }
+                    for zone_id, zone in config.get("zones", {}).items()
+                },
+            },
             "present_persons": self._last_present_persons,
             "rooms_status": rooms_status,
         }
