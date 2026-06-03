@@ -27,8 +27,8 @@ async def test_load_fresh_install_returns_copy_not_same_object(hass):
     store = ClimateManagerStore(hass)
     result = await store.async_load()
 
-    # Mutate the returned config
-    result["global_mode"] = "off"
+    # Mutate the returned config (Phase 14: mutate default_zone.mode)
+    result["default_zone"]["mode"] = "off"
     result["rooms"]["new_room"] = {
         "time_program": {
             d: [] for d in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
@@ -36,44 +36,48 @@ async def test_load_fresh_install_returns_copy_not_same_object(hass):
     }
 
     # DEFAULT_CONFIG must be unchanged
-    assert DEFAULT_CONFIG["global_mode"] == "time_program"
+    assert DEFAULT_CONFIG["default_zone"]["mode"] == "time_program"
     assert "new_room" not in DEFAULT_CONFIG["rooms"]
 
 
 async def test_load_sparse_stored_data_merges_over_defaults(hass):
-    """Test 2: async_load() with sparse stored data merges override over defaults."""
+    """Test 2: async_load() with sparse stored data merges override over defaults.
+
+    Phase 14: legacy format with global_mode triggers compat shim.
+    """
     store = ClimateManagerStore(hass)
 
-    # Manually write sparse data to the underlying store
+    # Manually write sparse data to the underlying store (old format)
     await store._store.async_save({"global_mode": "off"})
 
     result = await store.async_load()
 
-    # Stored override wins
-    assert result["global_mode"] == "off"
+    # Compat shim promotes global_mode → default_zone["mode"]
+    assert result["default_zone"]["mode"] == "off"
+    assert "global_mode" not in result
     # Defaults still present for unset keys
     assert (
         result["period_temperatures"] == DEFAULT_CONFIG["period_temperatures"]
-    )
-    assert (
-        result["global_time_program"] == DEFAULT_CONFIG["global_time_program"]
     )
     assert result["rooms"] == DEFAULT_CONFIG["rooms"]
     assert result["persons"] == DEFAULT_CONFIG["persons"]
 
 
 async def test_save_then_load_round_trips(hass):
-    """Test 3: async_save(config) followed by async_load() round-trips the saved config."""
+    """Test 3: async_save(config) followed by async_load() round-trips the saved config.
+
+    Phase 14: mutates default_zone.mode instead of the removed global_mode key.
+    """
     store = ClimateManagerStore(hass)
 
     config_to_save = copy.deepcopy(DEFAULT_CONFIG)
-    config_to_save["global_mode"] = "off"
+    config_to_save["default_zone"]["mode"] = "off"
     config_to_save["period_temperatures"]["comfort"] = 24.0
 
     await store.async_save(config_to_save)
     loaded = await store.async_load()
 
-    assert loaded["global_mode"] == "off"
+    assert loaded["default_zone"]["mode"] == "off"
     assert loaded["period_temperatures"]["comfort"] == 24.0
 
 
@@ -151,25 +155,29 @@ async def test_load_unrelated_modes_unchanged(hass):
 
 
 async def test_load_fresh_install_includes_zones_and_default_zone_name(hass):
-    """Fresh install returns DEFAULT_CONFIG with zones:{} and default_zone_name present."""
+    """Fresh install returns DEFAULT_CONFIG with zones:{} and default_zone present."""
     store = ClimateManagerStore(hass)
     result = await store.async_load()
     assert "zones" in result
     assert result["zones"] == {}
-    assert "default_zone_name" in result
-    assert result["default_zone_name"] == "Home"
+    assert "default_zone" in result
+    assert result["default_zone"]["name"] == "Home"
+    assert result["default_zone"]["mode"] == "time_program"
 
 
 async def test_load_v10_data_without_zones_gets_defaults(hass):
-    """v1.0 stored data without zones/default_zone_name loads cleanly (D-04, ZONE-03)."""
+    """v1.0 stored data without zones/default_zone loads cleanly (D-04, ZONE-03).
+
+    Phase 14: compat shim promotes global_mode to default_zone.
+    """
     store = ClimateManagerStore(hass)
-    # Simulate v1.0 stored data — no zones, no default_zone_name
+    # Simulate v1.0 stored data — no zones, no default_zone
     # Use _store (underlying HA Store) directly to bypass validation and write raw bytes
     await store._store.async_save({"global_mode": "off"})
     result = await store.async_load()
     assert result["zones"] == {}
-    assert result["default_zone_name"] == "Home"
-    assert result["global_mode"] == "off"  # stored value survives
+    assert result["default_zone"]["mode"] == "off"
+    assert "global_mode" not in result
 
 
 async def test_save_then_load_round_trips_zone(hass):
@@ -284,3 +292,54 @@ def test_validate_zone_assignment_rejects_explicit_null():
         ValueError, match="sparse model prohibits explicit null"
     ):
         validate_zone_assignment(config)
+
+
+# ---------------------------------------------------------------------------
+# Phase 14 compat shim tests (D-02, D-03)
+# ---------------------------------------------------------------------------
+
+_ALL_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+async def test_load_legacy_flat_keys_builds_default_zone(hass):
+    """Phase 14 compat shim: old format with global_mode is promoted to default_zone."""
+    store = ClimateManagerStore(hass)
+    await store._store.async_save(
+        {
+            "global_mode": "off",
+            "global_time_program": {d: [] for d in _ALL_DAYS},
+            "default_zone_name": "Maison",
+            "default_zone_preheat_enabled": True,
+        }
+    )
+    result = await store.async_load()
+    assert result["default_zone"]["mode"] == "off"
+    assert result["default_zone"]["name"] == "Maison"
+    assert result["default_zone"]["preheat_enabled"] is True
+    assert "global_mode" not in result
+    assert "global_time_program" not in result
+    assert "default_zone_name" not in result
+    # Day-fill: empty day lists are filled with defaults before absorption
+    for day in _ALL_DAYS:
+        assert result["default_zone"]["time_program"][day] != []
+
+
+async def test_load_new_format_reads_default_zone_directly(hass):
+    """Phase 14: new format with default_zone key loads without shim."""
+    store = ClimateManagerStore(hass)
+    await store._store.async_save(
+        {
+            "default_zone": {
+                "name": "Home",
+                "mode": "time_program",
+                "time_program": {d: [] for d in _ALL_DAYS},
+                "preheat_enabled": False,
+            }
+        }
+    )
+    result = await store.async_load()
+    assert result["default_zone"]["mode"] == "time_program"
+    assert "global_mode" not in result
+    # Day-fill: empty day lists in new-format default_zone.time_program are filled
+    for day in _ALL_DAYS:
+        assert result["default_zone"]["time_program"][day] != []
