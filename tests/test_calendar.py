@@ -342,16 +342,23 @@ ALL_DAYS_NORMAL_PROGRAM: dict = {
 
 
 def _make_calendar_runtime_config(persons_config: dict) -> dict:
-    """Build a minimal runtime_config with calendar-mode persons."""
+    """Build a minimal runtime_config with calendar-mode persons.
+
+    Phase 14 (D-01): uses default_zone sub-dict (no flat global_mode or
+    global_time_program keys).
+    """
     return {
         "version": 2,
-        "global_mode": MODE_TIME_PROGRAM_PRESENCES,
+        "default_zone": {
+            "name": "Home",
+            "mode": MODE_TIME_PROGRAM_PRESENCES,
+            "time_program": ALL_DAYS_NORMAL_PROGRAM,
+            "preheat_enabled": False,
+        },
         "period_temperatures": dict(DEFAULT_PERIOD_TEMPERATURES),
-        "global_time_program": ALL_DAYS_NORMAL_PROGRAM,
         "rooms": {},
         "persons": persons_config,
         "zones": {},
-        "default_zone_name": "Home",
     }
 
 

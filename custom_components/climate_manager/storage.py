@@ -175,6 +175,16 @@ class ClimateManagerStore:
             for day, periods in tp.items():
                 if not periods:
                     tp[day] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM[day])
+            # Collect preheat_enabled: GAP-01 migration may have already
+            # written to result["default_zone"]["preheat_enabled"] (when
+            # DEFAULT_CONFIG merge gave result a default_zone sub-dict before
+            # this shim runs). Prefer that value over the flat key.
+            preheat_from_gap01 = (
+                result.get("default_zone", {}).get("preheat_enabled") is True
+            )
+            preheat_enabled = preheat_from_gap01 or bool(
+                result.pop("default_zone_preheat_enabled", False)
+            )
             result["default_zone"] = {
                 "name": result.pop("default_zone_name", "Home"),
                 "mode": result.pop("global_mode"),
@@ -182,9 +192,7 @@ class ClimateManagerStore:
                     "global_time_program",
                     copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
                 ),
-                "preheat_enabled": result.pop(
-                    "default_zone_preheat_enabled", False
-                ),
+                "preheat_enabled": preheat_enabled,
             }
         else:
             # New format: day-fill pass on default_zone["time_program"].

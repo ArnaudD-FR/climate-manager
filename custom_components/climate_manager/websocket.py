@@ -1,31 +1,40 @@
 # SPDX-License-Identifier: MIT
 """Climate Manager WebSocket command handlers.
 
-Registers 21 WebSocket commands for the panel ↔ backend protocol:
-- get_status: returns global_mode, active_period, present_persons, rooms_status
+Registers 19 WebSocket commands for the panel ↔ backend protocol:
+- get_status: delegates to coordinator._build_status_payload() (D-07)
 - get_config: returns full runtime_config plus derived climate_entities,
   matter_entities, and tado_x_entities lists (A2 Option A/C)
-- set_global_mode: mutates global_mode, persists, re-evaluates
 - set_period_temperatures: updates all 4 period temperatures
 - set_time_program: validates and persists the global per-day program
 - set_room_config: sparse-merges into rooms[room_id]
 - set_person_config: sparse-merges into persons[person_id]
 - subscribe_status: registers a push listener in connection.subscriptions
 - reset_period_temperatures: resets period_temperatures to DEFAULT_PERIOD_TEMPERATURES
-- reset_time_program: resets global_time_program to _DEFAULT_DAILY_PROGRAM from const.py
-- reset_room_to_global_program: deep-copies global_time_program into rooms[room_id].time_program
-- create_zone: creates new heating zone with UUID, persists
-- rename_zone: renames custom zone or Default Zone (zone_id="default")
-- set_zone_mode: sets custom zone mode via vol.In(VALID_MODES)
-- set_zone_preheat: sets preheat_enabled at zone scope (GAP-01; zone_id="default" or UUID)
-- delete_zone: migrates rooms to Default Zone (pop), removes zone, CR-01 snapshot rollback
-- set_zone_time_program: validates program via validate_daily_program before any mutation
-- reset_zone_time_program: restores zone time_program from 'default' or 'global' target
+- reset_room_to_default_zone_program: deep-copies default_zone.time_program
+  into rooms[room_id].time_program (D-10; renamed from reset_room_to_global_program)
+- create_zone: creates new heating zone with UUID, persists; seeds time_program
+  from default_zone.time_program (Pitfall 1)
+- rename_zone: renames custom zone or Default Zone (zone_id="default" → default_zone.name)
+- set_zone_mode: sets zone mode via vol.In(VALID_MODES); zone_id="default" writes
+  default_zone.mode (D-08)
+- set_zone_preheat: sets preheat_enabled at zone scope (GAP-01; zone_id="default"
+  writes default_zone.preheat_enabled — D-11)
+- delete_zone: migrates rooms to Default Zone (pop), removes zone, CR-01 snapshot
+  rollback
+- set_zone_time_program: validates program via validate_daily_program before any
+  mutation
+- reset_zone_time_program: restores zone time_program from 'default' or 'global'
+  target; zone_id="default" resets default_zone.time_program (D-09)
 - set_calibration_config: persists calibration_enabled bool (D-10, CALIB-01)
 - set_matter_mapping: persists sparse matter_mappings[tado_entity_id] and
   triggers coordinator listener refresh (D-15/D-16, MCALIB-01/02)
 - suggest_matter_mappings: returns auto-detected Matter->Tado X mapping
   suggestions (read-only, no mutation)
+
+Removed in Phase 14 (D-08/D-09):
+- set_global_mode: use set_zone_mode(zone_id="default") instead
+- reset_time_program: use reset_zone_time_program(zone_id="default") instead
 
 All handlers access state via the entry closure (never hass.data[DOMAIN]).
 Write handlers follow the write-then-evaluate pattern:
@@ -93,7 +102,7 @@ def async_register_commands(
     """
     websocket_api.async_register_command(hass, _make_ws_get_status(entry))
     websocket_api.async_register_command(hass, _make_ws_get_config(entry))
-    websocket_api.async_register_command(hass, _make_ws_set_global_mode(entry))
+    # D-08: set_global_mode removed; set_zone_mode handles zone_id="default"
     websocket_api.async_register_command(
         hass, _make_ws_set_period_temperatures(entry)
     )
@@ -106,11 +115,10 @@ def async_register_commands(
     websocket_api.async_register_command(
         hass, _make_ws_reset_period_temperatures(entry)
     )
+    # D-09: reset_time_program removed; reset_zone_time_program handles
+    # zone_id="default"
     websocket_api.async_register_command(
-        hass, _make_ws_reset_time_program(entry)
-    )
-    websocket_api.async_register_command(
-        hass, _make_ws_reset_room_to_global_program(entry)
+        hass, _make_ws_reset_room_to_default_zone_program(entry)
     )
     websocket_api.async_register_command(hass, _make_ws_create_zone(entry))
     websocket_api.async_register_command(hass, _make_ws_rename_zone(entry))
@@ -156,117 +164,21 @@ def _make_ws_get_status(entry: ClimateManagerConfigEntry):
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Return global status: global_mode, active_period, present_persons, rooms_status.
+        """Return global status delegating to coordinator._build_status_payload().
 
-        T-03-07: sensor entity IDs are read from stored config (never from payload);
-                 every hass.states.get() result is guarded for None.
+        D-07 (Phase 14): ws_get_status delegates to _build_status_payload()
+        eliminating the sensor-read duplication. The payload includes:
+        - zones: {default: {mode, active_period}, <uuid>: {mode, active_period}}
+        - present_persons: list of present person entity_ids
+        - rooms_status: per-room entries with sensor data, preheat fields
+
+        T-03-07: sensor entity IDs are read from stored config (never from
+                 payload); every hass.states.get() result is guarded for None
+                 inside _build_status_payload.
         """
         coordinator = entry.runtime_data.coordinator
-        runtime_config = entry.runtime_data.runtime_config
-        rooms = entry.runtime_data.rooms
-
-        # Pull last-evaluation results from coordinator (set during async_evaluate)
-        active_period = getattr(coordinator, "_last_active_period", None)
-        present_persons = getattr(coordinator, "_last_present_persons", [])
-
-        # D-24: pre-compute persons join data for present_person_count
-        persons_config: dict = runtime_config.get("persons", {})
-        present_set = set(present_persons)
-
-        # Build per-room status list
-        from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
-
-        _area_reg = ar.async_get(hass)
-
-        rooms_status = []
-        room_auto_sensors = entry.runtime_data.room_auto_sensors
-        for area_id, entity_ids in rooms.items():
-            auto = room_auto_sensors.get(area_id, {})
-            _area = _area_reg.async_get_area(area_id)
-            room_entry: dict = {
-                "area_id": area_id,
-                "name": _area.name if _area else area_id,
-                "entity_ids": entity_ids,
-            }
-
-            # Temperature/humidity: HA area registry (HA 2026.5+) → auto-discovered → TRV built-in
-            temp_sensor = getattr(
-                _area, "temperature_entity_id", None
-            ) or auto.get("temperature")
-            humidity_sensor = getattr(
-                _area, "humidity_entity_id", None
-            ) or auto.get("humidity")
-            if temp_sensor:
-                sensor_state = hass.states.get(temp_sensor)
-                if sensor_state is not None and sensor_state.state not in (
-                    "unavailable",
-                    "unknown",
-                ):
-                    try:
-                        room_entry["temperature"] = float(sensor_state.state)
-                    except (ValueError, TypeError):
-                        pass  # leave temperature absent (invalid sensor state)
-            elif entity_ids:
-                trv_state = hass.states.get(entity_ids[0])
-                if trv_state is not None:
-                    current_temp = trv_state.attributes.get(
-                        "current_temperature"
-                    )
-                    if current_temp is not None:
-                        room_entry["temperature"] = current_temp
-
-            if humidity_sensor:
-                hum_state = hass.states.get(humidity_sensor)
-                if hum_state is not None and hum_state.state not in (
-                    "unavailable",
-                    "unknown",
-                ):
-                    try:
-                        room_entry["humidity"] = float(hum_state.state)
-                    except (ValueError, TypeError):
-                        pass  # leave humidity absent (invalid sensor state)
-
-            # Active period for this room — per-room value when available, global fallback
-            room_entry["active_period"] = coordinator._last_room_periods.get(
-                area_id, active_period
-            )
-
-            # D-24: count persons assigned to this area who are currently present
-            room_entry["present_person_count"] = sum(
-                1
-                for person_id, person_config in persons_config.items()
-                if area_id in person_config.get("room_ids", [])
-                and person_id in present_set
-            )
-
-            room_entry["has_trv"] = any(
-                is_trv_entity(hass, eid) for eid in entity_ids
-            )
-
-            # D-10: mirror the three preheat fields from the push payload
-            # (PREHEAT-04, Pitfall 1 — ws_get_status must match
-            # _build_status_payload exactly so initial page load is correct).
-            room_entry["preheat_active"] = coordinator._preheat_active.get(
-                area_id, False
-            )
-            room_entry["preheat_target"] = coordinator._preheat_target.get(
-                area_id, None
-            )
-            room_entry["preheat_suppressed"] = (
-                coordinator._preheat_suppressed.get(area_id, False)
-            )
-
-            rooms_status.append(room_entry)
-
-        connection.send_result(
-            msg["id"],
-            {
-                "global_mode": runtime_config["global_mode"],
-                "active_period": active_period,
-                "present_persons": present_persons,
-                "rooms_status": rooms_status,
-            },
-        )
+        payload = coordinator._build_status_payload()
+        connection.send_result(msg["id"], payload)
 
     return ws_get_status
 
@@ -324,35 +236,6 @@ def _make_ws_get_config(entry: ClimateManagerConfigEntry):
 # ---------------------------------------------------------------------------
 # Write commands
 # ---------------------------------------------------------------------------
-
-
-def _make_ws_set_global_mode(entry: ClimateManagerConfigEntry):
-    """Factory: create set_global_mode handler."""
-
-    @websocket_api.websocket_command(
-        {
-            vol.Required("type"): f"{DOMAIN}/set_global_mode",
-            vol.Required("mode"): vol.In(VALID_MODES),
-        }
-    )
-    @websocket_api.async_response
-    async def ws_set_global_mode(
-        hass: HomeAssistant,
-        connection: websocket_api.ActiveConnection,
-        msg: dict,
-    ) -> None:
-        """Set global mode, persist, and re-evaluate.
-
-        T-03-04: vol.In(VALID_MODES) in the schema rejects invalid modes before handler runs.
-        """
-        entry.runtime_data.runtime_config["global_mode"] = msg["mode"]
-        await entry.runtime_data.store.async_save(
-            entry.runtime_data.runtime_config
-        )
-        connection.send_result(msg["id"], {"success": True})
-        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
-
-    return ws_set_global_mode
 
 
 def _make_ws_set_period_temperatures(entry: ClimateManagerConfigEntry):
@@ -423,7 +306,9 @@ def _make_ws_set_time_program(entry: ClimateManagerConfigEntry):
             )
             return  # T-03-05: return BEFORE save/evaluate
 
-        entry.runtime_data.runtime_config["global_time_program"] = msg[
+        # Phase 14 (D-01): the default zone time program lives under
+        # default_zone["time_program"] (flat key removed in D-01).
+        entry.runtime_data.runtime_config["default_zone"]["time_program"] = msg[
             "program"
         ]
         await entry.runtime_data.store.async_save(
@@ -662,71 +547,48 @@ def _make_ws_reset_period_temperatures(entry: ClimateManagerConfigEntry):
     return ws_reset_period_temperatures
 
 
-def _make_ws_reset_time_program(entry: ClimateManagerConfigEntry):
-    """Factory: create reset_time_program handler."""
-
-    @websocket_api.websocket_command(
-        {
-            vol.Required("type"): f"{DOMAIN}/reset_time_program",
-        }
-    )
-    @websocket_api.async_response
-    async def ws_reset_time_program(
-        hass: HomeAssistant,
-        connection: websocket_api.ActiveConnection,
-        msg: dict,
-    ) -> None:
-        """Reset global_time_program to _DEFAULT_DAILY_PROGRAM from const.py.
-
-        T-03-09: A deep copy is used so the runtime_config never shares list
-                 references with the module-level default (each day's period list
-                 must be independent).
-        """
-        entry.runtime_data.runtime_config["global_time_program"] = (
-            copy.deepcopy(_DEFAULT_DAILY_PROGRAM)
-        )
-        await entry.runtime_data.store.async_save(
-            entry.runtime_data.runtime_config
-        )
-        connection.send_result(msg["id"], {"success": True})
-        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
-
-    return ws_reset_time_program
-
-
-def _make_ws_reset_room_to_global_program(entry: ClimateManagerConfigEntry):
+def _make_ws_reset_room_to_default_zone_program(
+    entry: ClimateManagerConfigEntry,
+):
     """Factory: create reset_room_to_global_program handler."""
 
     @websocket_api.websocket_command(
         {
-            vol.Required("type"): f"{DOMAIN}/reset_room_to_global_program",
+            vol.Required(
+                "type"
+            ): f"{DOMAIN}/reset_room_to_default_zone_program",
             vol.Required("room_id"): str,
         }
     )
     @websocket_api.async_response
-    async def ws_reset_room_to_global_program(
+    async def ws_reset_room_to_default_zone_program(
         hass: HomeAssistant,
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Deep-copy global_time_program into rooms[room_id].time_program and set room_mode=custom.
+        """Deep-copy default_zone.time_program into rooms[room_id].time_program.
 
-        T-03-09: setdefault + direct assignment pattern ensures only the targeted room's
-                 time_program and room_mode keys are modified; other rooms and other top-level
-                 keys (period_temperatures, persons, global_mode, global_time_program) are untouched.
-        T-03-09: copy.deepcopy ensures the room and global program never share list references.
+        D-10 (Phase 14): renamed from reset_room_to_global_program; reads from
+        runtime_config["default_zone"]["time_program"] (old flat key removed
+        in D-01).
+
+        T-03-09: setdefault + direct assignment pattern ensures only the
+                 targeted room's time_program and room_mode keys are modified;
+                 other rooms and other top-level keys are untouched.
+        T-03-09: copy.deepcopy ensures the room and Default Zone program never
+                 share list references.
         """
         runtime_config = entry.runtime_data.runtime_config
         room_id = msg["room_id"]
-        global_time_program = runtime_config.get("global_time_program", {})
+        default_zone_program = runtime_config["default_zone"]["time_program"]
         room = runtime_config.setdefault("rooms", {}).setdefault(room_id, {})
         room["room_mode"] = "custom"
-        room["time_program"] = copy.deepcopy(global_time_program)
+        room["time_program"] = copy.deepcopy(default_zone_program)
         await entry.runtime_data.store.async_save(runtime_config)
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
-    return ws_reset_room_to_global_program
+    return ws_reset_room_to_default_zone_program
 
 
 # ---------------------------------------------------------------------------
@@ -752,9 +614,11 @@ def _make_ws_create_zone(entry: ClimateManagerConfigEntry):
         """Create a new heating zone, persist, and re-evaluate.
 
         D-01: new zone mode defaults to MODE_TIME_PROGRAM.
-        D-02: time_program is a deepcopy of the current global_time_program.
+        D-02: time_program is a deepcopy of the current default_zone program.
         D-03: returns full zone config {zone_id, name, mode, time_program}.
         D-06: write-then-evaluate pattern.
+        Pitfall 1 (Phase 14): seed from default_zone["time_program"], not
+        from the old flat key (removed in D-01).
         """
         runtime_config = entry.runtime_data.runtime_config
         zone_id = str(uuid.uuid4())
@@ -762,7 +626,7 @@ def _make_ws_create_zone(entry: ClimateManagerConfigEntry):
             "name": msg["name"],
             "mode": MODE_TIME_PROGRAM,
             "time_program": copy.deepcopy(
-                runtime_config["global_time_program"]
+                runtime_config["default_zone"]["time_program"]
             ),
         }
         zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
@@ -807,18 +671,20 @@ def _make_ws_rename_zone(entry: ClimateManagerConfigEntry):
     ) -> None:
         """Rename a zone (custom or Default Zone), persist, and re-evaluate.
 
-        D-05: zone_id="default" routes to runtime_config["default_zone_name"].
+        D-11 (Phase 14): zone_id="default" routes to
+        runtime_config["default_zone"]["name"] (not the old flat
+        default_zone_name key).
         T-05-01: the "default" sentinel is handled BEFORE zones dict access so
                  the Default Zone never appears as a key in zones{}.
         """
         runtime_config = entry.runtime_data.runtime_config
         if msg["zone_id"] == "default":
-            name_backup = runtime_config.get("default_zone_name")
-            runtime_config["default_zone_name"] = msg["name"]
+            name_backup = runtime_config["default_zone"].get("name")
+            runtime_config["default_zone"]["name"] = msg["name"]
             try:
                 await entry.runtime_data.store.async_save(runtime_config)
             except Exception as exc:  # noqa: BLE001
-                runtime_config["default_zone_name"] = name_backup
+                runtime_config["default_zone"]["name"] = name_backup
                 connection.send_error(
                     msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
                 )
@@ -863,30 +729,47 @@ def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Set a custom zone's mode, persist, and re-evaluate.
+        """Set a zone's mode (Default Zone or custom), persist, re-evaluate.
 
-        T-05-02: vol.In(VALID_MODES) schema gate rejects invalid modes before handler runs.
-        Note: global_mode (Default Zone) is mutated via set_global_mode; zone_id="default"
-              is not supported here and routes to ERR_NOT_FOUND.
+        D-08 (Phase 14): zone_id="default" is now supported — writes to
+        runtime_config["default_zone"]["mode"] via T-05-01 sentinel pattern.
+        T-05-02: vol.In(VALID_MODES) schema gate rejects invalid modes before
+                 handler runs, regardless of zone_id value.
+        T-14-05: sentinel check before zones dict lookup so Default Zone is
+                 never confused with a custom zone UUID.
         """
         runtime_config = entry.runtime_data.runtime_config
-        if msg["zone_id"] not in runtime_config.get("zones", {}):
-            connection.send_error(
-                msg["id"],
-                websocket_api.ERR_NOT_FOUND,
-                f"Zone {msg['zone_id']!r} not found",
-            )
-            return
-        zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
-        runtime_config["zones"][msg["zone_id"]]["mode"] = msg["mode"]
-        try:
-            await entry.runtime_data.store.async_save(runtime_config)
-        except Exception as exc:  # noqa: BLE001
-            runtime_config["zones"] = zones_backup
-            connection.send_error(
-                msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
-            )
-            return
+        if msg["zone_id"] == "default":
+            # D-08 / T-05-01: Default Zone sentinel — write to default_zone
+            # sub-dict before any zones{} lookup.
+            old_val = runtime_config["default_zone"].get("mode")
+            runtime_config["default_zone"]["mode"] = msg["mode"]
+            try:
+                await entry.runtime_data.store.async_save(runtime_config)
+            except Exception as exc:  # noqa: BLE001
+                runtime_config["default_zone"]["mode"] = old_val
+                connection.send_error(
+                    msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+                )
+                return
+        else:
+            if msg["zone_id"] not in runtime_config.get("zones", {}):
+                connection.send_error(
+                    msg["id"],
+                    websocket_api.ERR_NOT_FOUND,
+                    f"Zone {msg['zone_id']!r} not found",
+                )
+                return
+            zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
+            runtime_config["zones"][msg["zone_id"]]["mode"] = msg["mode"]
+            try:
+                await entry.runtime_data.store.async_save(runtime_config)
+            except Exception as exc:  # noqa: BLE001
+                runtime_config["zones"] = zones_backup
+                connection.send_error(
+                    msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+                )
+                return
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
@@ -897,7 +780,8 @@ def _make_ws_set_zone_preheat(entry: ClimateManagerConfigEntry):
     """Factory: create set_zone_preheat handler (GAP-01).
 
     Persists preheat_enabled at zone scope:
-    - zone_id="default" → runtime_config["default_zone_preheat_enabled"]
+    - zone_id="default" → runtime_config["default_zone"]["preheat_enabled"]
+      (D-11, Phase 14: was default_zone_preheat_enabled flat key)
     - custom zone_id    → runtime_config["zones"][zone_id]["preheat_enabled"]
     Modelled on _make_ws_rename_zone (dual-path default sentinel + CR-01
     snapshot/rollback).
@@ -926,12 +810,13 @@ def _make_ws_set_zone_preheat(entry: ClimateManagerConfigEntry):
         runtime_config = entry.runtime_data.runtime_config
         enabled = bool(msg["enabled"])  # defensive; vol already type-guards
         if msg["zone_id"] == "default":
-            old_val = runtime_config.get("default_zone_preheat_enabled")
-            runtime_config["default_zone_preheat_enabled"] = enabled
+            # D-11 (Phase 14): write to default_zone sub-dict (was flat key)
+            old_val = runtime_config["default_zone"].get("preheat_enabled")
+            runtime_config["default_zone"]["preheat_enabled"] = enabled
             try:
                 await entry.runtime_data.store.async_save(runtime_config)
             except Exception as exc:  # noqa: BLE001
-                runtime_config["default_zone_preheat_enabled"] = old_val
+                runtime_config["default_zone"]["preheat_enabled"] = old_val
                 connection.send_error(
                     msg["id"],
                     websocket_api.ERR_UNKNOWN_ERROR,
@@ -1101,40 +986,64 @@ def _make_ws_reset_zone_time_program(entry: ClimateManagerConfigEntry):
     ) -> None:
         """Reset a zone's time_program from 'default' or 'global' target.
 
-        T-05-09 / Pitfall 2: copy.deepcopy enforced for both branches so the zone's
-        program never shares list references with the source (module constant or
-        runtime global_time_program).
+        D-09 (Phase 14): zone_id="default" is now supported — resets
+        default_zone.time_program to _DEFAULT_DAILY_PROGRAM for both target
+        values (there is no separate "global" source after Phase 14 migration).
+        T-05-01: sentinel check before zones dict lookup (T-14-05 pattern).
+        T-05-09 / Pitfall 2: copy.deepcopy enforced for all branches so the
+        zone's program never shares list references with the source (module
+        constant or default_zone.time_program).
         """
         runtime_config = entry.runtime_data.runtime_config
 
-        if msg["zone_id"] not in runtime_config.get("zones", {}):
-            connection.send_error(
-                msg["id"],
-                websocket_api.ERR_NOT_FOUND,
-                f"Zone {msg['zone_id']!r} not found",
+        if msg["zone_id"] == "default":
+            # D-09: Default Zone sentinel — reset default_zone.time_program.
+            # Both target="default" and target="global" reset to the module
+            # constant (after Phase 14 there is no separate global source).
+            zones_backup = copy.deepcopy(runtime_config.get("default_zone", {}))
+            runtime_config["default_zone"]["time_program"] = copy.deepcopy(
+                _DEFAULT_DAILY_PROGRAM
             )
-            return
-
-        zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
-        if msg["target"] == "default":
-            # Pitfall 5: deepcopy the module constant, never assign directly
-            runtime_config["zones"][msg["zone_id"]]["time_program"] = (
-                copy.deepcopy(_DEFAULT_DAILY_PROGRAM)
-            )
+            try:
+                await entry.runtime_data.store.async_save(runtime_config)
+            except Exception as exc:  # noqa: BLE001
+                runtime_config["default_zone"] = zones_backup
+                connection.send_error(
+                    msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+                )
+                return
         else:
-            # target == "global": deepcopy from current runtime global_time_program (Pitfall 2)
-            runtime_config["zones"][msg["zone_id"]]["time_program"] = (
-                copy.deepcopy(runtime_config["global_time_program"])
-            )
+            if msg["zone_id"] not in runtime_config.get("zones", {}):
+                connection.send_error(
+                    msg["id"],
+                    websocket_api.ERR_NOT_FOUND,
+                    f"Zone {msg['zone_id']!r} not found",
+                )
+                return
 
-        try:
-            await entry.runtime_data.store.async_save(runtime_config)
-        except Exception as exc:  # noqa: BLE001
-            runtime_config["zones"] = zones_backup
-            connection.send_error(
-                msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
-            )
-            return
+            zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
+            if msg["target"] == "default":
+                # Pitfall 5: deepcopy the module constant, never assign directly
+                runtime_config["zones"][msg["zone_id"]]["time_program"] = (
+                    copy.deepcopy(_DEFAULT_DAILY_PROGRAM)
+                )
+            else:
+                # target == "global": deepcopy from default_zone.time_program
+                # (Phase 14 D-09: flat key removed; default_zone is the source)
+                runtime_config["zones"][msg["zone_id"]]["time_program"] = (
+                    copy.deepcopy(
+                        runtime_config["default_zone"]["time_program"]
+                    )
+                )
+
+            try:
+                await entry.runtime_data.store.async_save(runtime_config)
+            except Exception as exc:  # noqa: BLE001
+                runtime_config["zones"] = zones_backup
+                connection.send_error(
+                    msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+                )
+                return
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
