@@ -648,17 +648,6 @@ export class RoomCard extends LitElement {
   // Pre-heat handlers and render (Phase 12 D-11)
   // -----------------------------------------------------------------------
 
-  private async _onPreheatToggle(e: Event) {
-    const enabled = (e.target as HTMLInputElement).checked;
-    try {
-      await this.ws.setRoomConfig(this.roomId, { preheat_enabled: enabled });
-      await this.panel.reloadConfig();
-      this.panel.showToast("Saved", false);
-    } catch {
-      this.panel.showToast("Save failed — retrying...", true);
-    }
-  }
-
   private async _onPreheatMaxLeadChange(e: Event) {
     const value = (e.target as HTMLInputElement).value;
     const val = parseInt(value, 10);
@@ -675,7 +664,13 @@ export class RoomCard extends LitElement {
   }
 
   private _renderPreheatSection() {
-    const enabled = this.config?.preheat_enabled ?? false;
+    // Derive zone-level enable: Default Zone rooms check top-level flag;
+    // custom zone rooms check their zone's preheat_enabled (GAP-01).
+    const zoneId = this.config?.zone_id;
+    const enabled = zoneId
+      ? this.panelConfig?.zones?.[zoneId]?.preheat_enabled ?? false
+      : this.panelConfig?.default_zone_preheat_enabled ?? false;
+
     const maxLead = this.config?.preheat_max_lead_minutes ?? 120;
     const preheatActive = this.roomStatus?.preheat_active ?? false;
     const preheatTarget = this.roomStatus?.preheat_target ?? null;
@@ -683,14 +678,6 @@ export class RoomCard extends LitElement {
 
     return html`
       <div class="section-label">Pre-heat</div>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-        <input
-          type="checkbox"
-          .checked=${enabled}
-          @change=${this._onPreheatToggle}
-        />
-        Pre-heat this room
-      </label>
       ${enabled
         ? html`
             <label
