@@ -128,6 +128,21 @@ export class WsClient {
   }
 
   /**
+   * Enable or disable pre-heat for a zone (Phase 12 GAP-01).
+   * Pass zoneId="default" for the Default Zone or a UUID for custom zones.
+   */
+  setZonePreheat(
+    zoneId: string,
+    enabled: boolean,
+  ): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_zone_preheat",
+      zone_id: zoneId,
+      enabled,
+    });
+  }
+
+  /**
    * Replace the time program for a zone (all 7 day keys required).
    */
   setZoneTimeProgram(
