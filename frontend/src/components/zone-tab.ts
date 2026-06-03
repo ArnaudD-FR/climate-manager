@@ -214,6 +214,22 @@ export class ZoneTab extends LitElement {
   // Handlers
   // -------------------------------------------------------------------------
 
+  /**
+   * Pre-heat toggle — auto-save the zone preheat enable state.
+   * Works for both Default Zone (zoneId="default") and custom zones
+   * without branching: setZonePreheat accepts both forms.
+   */
+  private _onPreheatToggle = async (e: Event) => {
+    const enabled = (e.target as HTMLInputElement).checked;
+    try {
+      await this.ws.setZonePreheat(this.zoneId, enabled);
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed", true);
+    }
+  };
+
   /** Mode select change — auto-save the new zone mode. */
   private _onModeChange = async (e: Event) => {
     const newMode = (e.target as HTMLSelectElement).value;
@@ -573,6 +589,21 @@ export class ZoneTab extends LitElement {
           Reset to default
         </button>
       </div>
+
+      <!-- Pre-heat enable toggle (Phase 12 GAP-01) -->
+      <div class="section-label">Pre-heat</div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input
+          type="checkbox"
+          .checked=${this.zoneConfig?.preheat_enabled ?? false}
+          @change=${this._onPreheatToggle}
+        />
+        Enable pre-heat for all rooms in this zone
+      </label>
+      <p class="schedule-hint">
+        When enabled, the coordinator may start heating each room in this zone
+        ahead of the first occupied period of the day.
+      </p>
 
       <!-- 5. Assigned Rooms section (D-08 / D-09 / D-10) -->
       <div class="section-divider"></div>
