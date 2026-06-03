@@ -142,7 +142,7 @@ panel shows pre-heating status and a suppression warning when applicable.
    active and "Pre-heat disabled — presence cannot be scheduled" when the
    presence source has no deterministic next transition
 
-**Plans**: 4 plans
+**Plans**: 7 plans
 - [x] 12-01-PLAN.md — next_occupied_at() helper, pre-heat constants,
       wakeup_advance_minutes migration (PREHEAT-02, PREHEAT-05)
 - [x] 12-02-PLAN.md — coordinator _async_preheat pass, inertia learning,
@@ -150,6 +150,14 @@ panel shows pre-heating status and a suppression warning when applicable.
 - [x] 12-03-PLAN.md — websocket status parity + room/person config clamps
       (PREHEAT-01, PREHEAT-04)
 - [x] 12-04-PLAN.md — frontend room-card pre-heat UI + types.ts fields
+      (PREHEAT-01, PREHEAT-04)
+- [x] 12-05-PLAN.md — human UAT visual verification; surfaced GAP-01:
+      preheat enable is per-room but must be per-zone (PREHEAT-01, PREHEAT-04)
+- [ ] 12-06-PLAN.md — gap closure (backend): move preheat_enabled to zone
+      scope — coordinator read, set_zone_preheat WS command, storage
+      migration, default_zone_preheat_enabled flag, tests (PREHEAT-01)
+- [ ] 12-07-PLAN.md — gap closure (frontend): zone-tab pre-heat toggle,
+      remove room toggle, gate max-lead on zone enable, types + ws-client
       (PREHEAT-01, PREHEAT-04)
 
 ### Phase 13: Matter→Tado X Real-Time Calibration
