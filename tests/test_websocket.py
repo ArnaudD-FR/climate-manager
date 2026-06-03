@@ -1,13 +1,20 @@
 """Tests for Climate Manager WebSocket command handlers.
 
 Tests:
-- get_config returns runtime_config containing "global_mode"
-- set_global_mode mode=off succeeds and persists to runtime_config
+- get_config returns runtime_config containing "default_zone"
+- set_global_mode command is no longer registered (removed in D-08)
 - set_time_program with a partial program (missing day keys) returns a WS error
-  and does NOT mutate runtime_config["global_time_program"]
+  and does NOT mutate runtime_config["default_zone"]["time_program"]
 - create_zone returns zone config and persists to runtime_config
-- rename_zone updates custom zone name and default_zone_name
-- set_zone_mode updates zone mode and rejects invalid modes
+- rename_zone updates custom zone name and default_zone.name
+- set_zone_mode updates zone mode (custom + default) and rejects invalid modes
+- set_zone_mode with zone_id="default" writes default_zone.mode (D-08)
+- reset_zone_time_program with zone_id="default" resets default_zone.time_program (D-09)
+- reset_time_program command is no longer registered (removed in D-09)
+- reset_room_to_default_zone_program replaces reset_room_to_global_program (D-10)
+- set_zone_preheat with zone_id="default" writes default_zone.preheat_enabled (D-11)
+- rename_zone with zone_id="default" writes default_zone.name (D-11)
+- get_status returns zones.default.mode with no top-level global_mode (D-07)
 
 All tests use MockConfigEntry + hass_ws_client following the scaffold from test_coordinator.py.
 The hass_ws_client fixture provides an authenticated WebSocket client via
@@ -72,14 +79,16 @@ async def _setup_entry(hass) -> MockConfigEntry:
 
 
 # ---------------------------------------------------------------------------
-# Test 1: get_config returns runtime_config
+# Test 1: get_config returns runtime_config with default_zone (Phase 14, D-01)
 # ---------------------------------------------------------------------------
 
 
 async def test_ws_get_config_returns_runtime_config(hass, hass_ws_client):
-    """get_config WS command returns runtime_config containing 'global_mode'.
+    """get_config WS command returns runtime_config containing 'default_zone'.
 
-    Verifies the read path: panel can fetch the full config on startup.
+    Phase 14 (D-01): default_zone replaces global_mode/global_time_program
+    flat keys. Verifies the read path: panel can fetch the full config on
+    startup with the new schema.
     """
     await _setup_entry(hass)
 
@@ -88,23 +97,25 @@ async def test_ws_get_config_returns_runtime_config(hass, hass_ws_client):
     msg = await client.receive_json()
 
     assert msg["success"] is True
-    assert "global_mode" in msg["result"]
+    assert "default_zone" in msg["result"]
     # Fresh install defaults to MODE_TIME_PROGRAM
-    assert msg["result"]["global_mode"] == MODE_TIME_PROGRAM
+    assert msg["result"]["default_zone"]["mode"] == MODE_TIME_PROGRAM
+    # Old flat keys must be absent (D-08)
+    assert "global_mode" not in msg["result"]
 
 
 # ---------------------------------------------------------------------------
-# Test 2: set_global_mode persists and updates runtime_config
+# Test 2: set_global_mode command is no longer registered (D-08)
 # ---------------------------------------------------------------------------
 
 
-async def test_ws_set_global_mode_persists_and_evaluates(hass, hass_ws_client):
-    """set_global_mode mode=off returns success and persists to runtime_config.
+async def test_ws_set_global_mode_is_removed(hass, hass_ws_client):
+    """D-08: set_global_mode command is no longer registered.
 
-    Verifies the write-then-evaluate pattern: after a successful set_global_mode,
-    entry.runtime_data.runtime_config["global_mode"] must equal MODE_OFF.
+    Sending the removed command must return an error (unknown command).
+    The mode must not appear as a top-level key in runtime_config.
     """
-    entry = await _setup_entry(hass)
+    await _setup_entry(hass)
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
@@ -112,9 +123,8 @@ async def test_ws_set_global_mode_persists_and_evaluates(hass, hass_ws_client):
     )
     msg = await client.receive_json()
 
-    assert msg["success"] is True
-    assert msg["result"]["success"] is True
-    assert entry.runtime_data.runtime_config["global_mode"] == MODE_OFF
+    # Must be an error (command not found / unknown command)
+    assert msg.get("success") is False
 
 
 # ---------------------------------------------------------------------------
@@ -126,13 +136,14 @@ async def test_ws_set_time_program_rejects_partial(hass, hass_ws_client):
     """set_time_program with a program missing day keys returns a WS error.
 
     Verifies T-03-05: validate_daily_program gate sends send_error and returns
-    BEFORE any save/evaluate — the original global_time_program is unchanged.
+    BEFORE any save/evaluate — the original default_zone.time_program is
+    unchanged (Phase 14: global_time_program no longer exists as flat key).
     """
     entry = await _setup_entry(hass)
 
-    # Capture original program (should be the default empty per-day dict)
+    # Capture original program from default_zone (new schema)
     original_program = dict(
-        entry.runtime_data.runtime_config["global_time_program"]
+        entry.runtime_data.runtime_config["default_zone"]["time_program"]
     )
 
     # Send a partial program missing most day keys (only "mon" present)
@@ -152,15 +163,55 @@ async def test_ws_set_time_program_rejects_partial(hass, hass_ws_client):
         and msg.get("success") is False
     )
 
-    # global_time_program must be unchanged — T-03-05 validation gate
+    # default_zone.time_program must be unchanged — T-03-05 validation gate
     assert (
-        entry.runtime_data.runtime_config["global_time_program"]
+        entry.runtime_data.runtime_config["default_zone"]["time_program"]
         == original_program
     )
 
 
 # ---------------------------------------------------------------------------
-# Test 4: D-24 — get_status rooms_status includes present_person_count
+# Test 4: D-07 — get_status returns zones dict with no top-level global_mode
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_get_status_returns_zones_dict_not_global_mode(
+    hass, hass_ws_client
+):
+    """D-07: get_status response contains zones.default.mode, no global_mode.
+
+    Phase 14 (D-07): ws_get_status delegates to coordinator._build_status_payload().
+    The response must contain zones.default.mode (not top-level global_mode or
+    active_period).
+    """
+    await _setup_entry(hass)
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/get_status"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    result = msg["result"]
+
+    # New shape: zones dict with "default" key
+    assert "zones" in result, "get_status must return a 'zones' dict (D-07)"
+    assert "default" in result["zones"], (
+        "zones dict must contain 'default' key (D-06)"
+    )
+    assert "mode" in result["zones"]["default"], (
+        "zones.default must have 'mode' key"
+    )
+
+    # Old shape: must NOT be present
+    assert "global_mode" not in result, (
+        "global_mode must be absent from get_status result (D-08)"
+    )
+    # Note: top-level active_period is removed; per-room active_period is
+    # still valid inside rooms_status entries
+
+
+# ---------------------------------------------------------------------------
+# Test 4b: D-24 — get_status rooms_status includes present_person_count
 # ---------------------------------------------------------------------------
 
 
@@ -251,7 +302,8 @@ async def test_ws_get_config_includes_climate_entities(hass, hass_ws_client):
     assert climate_entities == sorted(climate_entities)
 
     # Original runtime_config keys still present alongside climate_entities
-    assert "global_mode" in msg["result"]
+    # Phase 14 (D-01): default_zone replaces global_mode flat key
+    assert "default_zone" in msg["result"]
     assert "period_temperatures" in msg["result"]
 
 
@@ -435,84 +487,75 @@ async def test_ws_reset_period_temperatures_writes_defaults(
     assert DEFAULT_PERIOD_TEMPERATURES["frost_protection"] == 5.0
 
 
-async def test_ws_reset_time_program_writes_defaults(hass, hass_ws_client):
-    """reset_time_program resets global_time_program to _DEFAULT_DAILY_PROGRAM.
+async def test_ws_reset_time_program_is_removed(hass, hass_ws_client):
+    """D-09: reset_time_program command is no longer registered.
 
-    Mutates global_time_program to a 1-day stub first, then sends the reset command
-    and asserts the resulting program has all 7 day keys with weekday/weekend splits
-    matching the const.py defaults.
+    Phase 14 (D-09): reset_time_program is removed. The replacement is
+    reset_zone_time_program(zone_id="default", target="default").
+    Sending the removed command must return an error.
     """
-    entry = await _setup_entry(hass)
-
-    # Mutate to a 1-day stub (missing tue..sun)
-    entry.runtime_data.runtime_config["global_time_program"] = {
-        "mon": [{"start": "00:00", "mode": "normal"}],
-    }
+    await _setup_entry(hass)
 
     client = await hass_ws_client()
     await client.send_json_auto_id({"type": f"{DOMAIN}/reset_time_program"})
     msg = await client.receive_json()
 
-    assert msg["success"] is True
-    assert msg["result"]["success"] is True
-
-    program = entry.runtime_data.runtime_config["global_time_program"]
-
-    # Must have all 7 day keys
-    for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun"):
-        assert day in program, f"Missing day key: {day}"
-
-    # Weekdays: 5 periods (morning + evening normal blocks)
-    expected_weekday_starts = ("00:00", "06:00", "08:00", "17:00", "22:00")
-    for day in ("mon", "tue", "wed", "thu", "fri"):
-        starts = tuple(p["start"] for p in program[day])
-        assert starts == expected_weekday_starts, (
-            f"Day {day}: expected starts {expected_weekday_starts}, got {starts}"
-        )
-
-    # Weekends: 3 periods (full-day normal)
-    expected_weekend_starts = ("00:00", "06:00", "22:00")
-    for day in ("sat", "sun"):
-        starts = tuple(p["start"] for p in program[day])
-        assert starts == expected_weekend_starts, (
-            f"Day {day}: expected starts {expected_weekend_starts}, got {starts}"
-        )
-
-    # Must equal the module-level default (deep equality check)
-    assert program == _DEFAULT_DAILY_PROGRAM
-
-    # Verify deep copy: mutating runtime_config must not affect the constant
-    program["mon"][0]["mode"] = "comfort"
-    assert _DEFAULT_DAILY_PROGRAM["mon"][0]["mode"] == "reduced"
+    # Must be an error (command not found / unknown command)
+    assert msg.get("success") is False
 
 
 # ---------------------------------------------------------------------------
-# Test 9: reset_room_to_global_program WS command
+# Test 9: reset_room_to_default_zone_program WS command (D-10)
 # ---------------------------------------------------------------------------
 
 
-async def test_ws_reset_room_to_global_program_copies_global_into_room(
+async def test_ws_reset_room_to_global_program_is_removed(hass, hass_ws_client):
+    """D-10: reset_room_to_global_program command is no longer registered.
+
+    Phase 14 (D-10): the command type string changed to
+    reset_room_to_default_zone_program. Sending the old name must return an
+    error.
+    """
+    await _setup_entry(hass)
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/reset_room_to_global_program",
+            "room_id": "room-a",
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg.get("success") is False
+
+
+async def test_ws_reset_room_to_default_zone_program_copies_into_room(
     hass, hass_ws_client
 ):
-    """reset_room_to_global_program deep-copies global_time_program into the target room.
+    """D-10: reset_room_to_default_zone_program reads from default_zone.time_program.
 
     Verifies:
     - result.success is True
     - target room room_mode becomes "custom"
-    - target room time_program deep-equals global_time_program
-    - mutating target room's time_program does NOT bleed into global_time_program (deep copy)
+    - target room time_program deep-equals default_zone.time_program
+    - mutating target room's time_program does NOT bleed into
+      default_zone.time_program (deep copy)
     - sibling room is untouched (T-03-09 sparse-merge semantics)
     """
     entry = await _setup_entry(hass)
 
-    # Sentinel global time program with one period per day
+    # Sentinel default zone time program with one period per day
     sentinel_program = {
         day: [{"start": "06:00", "mode": "normal"}]
         for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
     }
-    entry.runtime_data.runtime_config["global_time_program"] = sentinel_program
+    entry.runtime_data.runtime_config["default_zone"]["time_program"] = (
+        sentinel_program
+    )
 
-    # Seed room-a with stale data and room-b as a sibling that must remain untouched
+    # Seed room-a with stale data and room-b as a sibling that must remain
+    # untouched
     sentinel_room_b = {
         "room_mode": "global",
         "time_program": {"mon": [{"start": "08:00", "mode": "reduced"}]},
@@ -524,7 +567,10 @@ async def test_ws_reset_room_to_global_program_copies_global_into_room(
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
-        {"type": f"{DOMAIN}/reset_room_to_global_program", "room_id": "room-a"}
+        {
+            "type": f"{DOMAIN}/reset_room_to_default_zone_program",
+            "room_id": "room-a",
+        }
     )
     msg = await client.receive_json()
 
@@ -533,20 +579,22 @@ async def test_ws_reset_room_to_global_program_copies_global_into_room(
 
     rooms = entry.runtime_data.runtime_config["rooms"]
 
-    # Target room: mode must be "custom", time_program must equal global_time_program
+    # Target room: mode must be "custom",
+    # time_program must equal default_zone.time_program
     assert rooms["room-a"]["room_mode"] == "custom"
     assert rooms["room-a"]["time_program"] == sentinel_program
 
     # Sibling room must be completely untouched
     assert rooms["room-b"] == sentinel_room_b
 
-    # Deep-copy proof: mutating room-a's time_program must NOT bleed into global_time_program
+    # Deep-copy proof: mutating room-a's time_program must NOT bleed into
+    # default_zone.time_program
     rooms["room-a"]["time_program"]["mon"].append(
         {"start": "22:00", "mode": "reduced"}
     )
-    assert entry.runtime_data.runtime_config["global_time_program"]["mon"] == [
-        {"start": "06:00", "mode": "normal"}
-    ]
+    assert entry.runtime_data.runtime_config["default_zone"]["time_program"][
+        "mon"
+    ] == [{"start": "06:00", "mode": "normal"}]
 
 
 # ---------------------------------------------------------------------------
@@ -594,18 +642,21 @@ async def test_ws_create_zone_returns_zone_config(hass, hass_ws_client):
     assert persisted["time_program"] == result["time_program"]
 
 
-async def test_ws_create_zone_copies_global_program(hass, hass_ws_client):
-    """create_zone deep-copies from the current global_time_program (D-02).
+async def test_ws_create_zone_copies_default_zone_program(hass, hass_ws_client):
+    """create_zone deep-copies from the current default_zone.time_program (D-02/Pitfall 1).
 
-    Mutates global_time_program before sending — asserts the returned zone
-    time_program reflects the mutation (copy of current state, not DEFAULT).
-    Then mutates the returned program and asserts the source is unaffected (deepcopy).
+    Phase 14 (Pitfall 1): create_zone must seed from
+    default_zone["time_program"], not from global_time_program (removed).
+    Mutates default_zone.time_program before sending — asserts the returned
+    zone time_program reflects the mutation (copy of current state, not
+    DEFAULT). Then mutates the returned program and asserts the source is
+    unaffected (deepcopy).
     """
     entry = await _setup_entry(hass)
 
-    # Mutate global_time_program to a known sentinel before sending
+    # Mutate default_zone.time_program to a known sentinel before sending
     sentinel_period = [{"start": "00:00", "mode": "comfort"}]
-    entry.runtime_data.runtime_config["global_time_program"]["mon"] = (
+    entry.runtime_data.runtime_config["default_zone"]["time_program"]["mon"] = (
         sentinel_period
     )
 
@@ -618,13 +669,15 @@ async def test_ws_create_zone_copies_global_program(hass, hass_ws_client):
     assert msg["success"] is True
     result = msg["result"]
 
-    # Returned time_program["mon"] must equal the sentinel (copied from current global)
+    # Returned time_program["mon"] must equal the sentinel (copied from
+    # current default_zone.time_program)
     assert result["time_program"]["mon"] == sentinel_period
 
-    # Deep-copy proof: mutating the returned program must NOT mutate global_time_program
+    # Deep-copy proof: mutating the returned program must NOT mutate
+    # default_zone.time_program
     result["time_program"]["mon"].append({"start": "12:00", "mode": "reduced"})
     assert (
-        entry.runtime_data.runtime_config["global_time_program"]["mon"]
+        entry.runtime_data.runtime_config["default_zone"]["time_program"]["mon"]
         == sentinel_period
     )
 
@@ -657,10 +710,12 @@ async def test_ws_rename_zone_custom(hass, hass_ws_client):
 
 
 async def test_ws_rename_zone_default(hass, hass_ws_client):
-    """rename_zone with zone_id="default" updates default_zone_name (D-05).
+    """rename_zone with zone_id="default" writes default_zone.name (D-11).
 
-    Verifies the Default Zone sentinel branch: "default" routes to
-    runtime_config["default_zone_name"] and never creates a "default" key in zones{}.
+    Phase 14 (D-11): "default" sentinel routes to
+    runtime_config["default_zone"]["name"] (not the old flat
+    default_zone_name key). Verifies the Default Zone sentinel branch never
+    creates a "default" key in zones{}.
     """
     entry = await _setup_entry(hass)
 
@@ -676,8 +731,10 @@ async def test_ws_rename_zone_default(hass, hass_ws_client):
 
     assert msg["success"] is True
     assert msg["result"]["success"] is True
-    # Default Zone name must be updated
-    assert entry.runtime_data.runtime_config["default_zone_name"] == "Maison"
+    # Phase 14 (D-11): Default Zone name must be updated in default_zone sub-dict
+    assert entry.runtime_data.runtime_config["default_zone"]["name"] == "Maison"
+    # Old flat key must NOT be used
+    assert "default_zone_name" not in entry.runtime_data.runtime_config
     # Pitfall 3: "default" must NOT appear as a key in zones dict
     assert "default" not in entry.runtime_data.runtime_config.get("zones", {})
 
@@ -727,6 +784,63 @@ async def test_ws_set_zone_mode(hass, hass_ws_client):
     # Zone mode must be unchanged — schema rejection means no mutation
     assert (
         entry.runtime_data.runtime_config["zones"][zone_id]["mode"] == MODE_OFF
+    )
+
+
+async def test_ws_set_zone_mode_default_zone_success(hass, hass_ws_client):
+    """D-08: set_zone_mode with zone_id="default" writes default_zone.mode.
+
+    Phase 14 (D-08): set_zone_mode is extended to accept zone_id="default".
+    Verifies:
+    - result.success is True
+    - default_zone.mode is updated in runtime_config
+    - "default" never appears as a key in zones{}
+    """
+    entry = await _setup_entry(hass)
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_zone_mode",
+            "zone_id": "default",
+            "mode": MODE_OFF,
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+    # D-08: mode must be written to default_zone sub-dict
+    assert entry.runtime_data.runtime_config["default_zone"]["mode"] == MODE_OFF
+    # Sentinel invariant: "default" must NOT appear as a key in zones{}
+    assert "default" not in entry.runtime_data.runtime_config.get("zones", {})
+
+
+async def test_ws_set_zone_mode_default_zone_invalid_mode_rejected(
+    hass, hass_ws_client
+):
+    """D-08: set_zone_mode zone_id="default" invalid mode rejected by vol schema.
+
+    T-14-05: vol.In(VALID_MODES) schema gate rejects invalid modes for all
+    zone_ids including "default". default_zone.mode must remain unchanged.
+    """
+    entry = await _setup_entry(hass)
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_zone_mode",
+            "zone_id": "default",
+            "mode": "bogus",
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is False
+    # default_zone.mode must be unchanged (schema rejection = no mutation)
+    assert (
+        entry.runtime_data.runtime_config["default_zone"]["mode"]
+        == MODE_TIME_PROGRAM
     )
 
 
@@ -877,10 +991,12 @@ async def test_ws_reset_zone_time_program_default(hass, hass_ws_client):
 
 
 async def test_ws_reset_zone_time_program_global(hass, hass_ws_client):
-    """reset_zone_time_program target='global' copies from runtime global_time_program via deepcopy.
+    """reset_zone_time_program target='global' copies from default_zone.time_program.
 
-    Verifies ZONE-09 / Pitfall 2: the copy is independent — mutating the zone's
-    program does NOT mutate runtime_config["global_time_program"].
+    Phase 14 (D-09): target='global' for a custom zone reads from
+    default_zone["time_program"] (the Default Zone's current program).
+    Verifies ZONE-09 / Pitfall 2: the copy is independent — mutating the
+    zone's program does NOT mutate default_zone.time_program.
     """
     entry = await _setup_entry(hass)
 
@@ -894,8 +1010,8 @@ async def test_ws_reset_zone_time_program_global(hass, hass_ws_client):
         },
     }
 
-    # Mutate global_time_program["wed"] to a sentinel BEFORE the WS call
-    entry.runtime_data.runtime_config["global_time_program"]["wed"] = [
+    # Mutate default_zone.time_program["wed"] to a sentinel BEFORE the WS call
+    entry.runtime_data.runtime_config["default_zone"]["time_program"]["wed"] = [
         {"start": "00:00", "mode": "comfort"}
     ]
 
@@ -912,18 +1028,65 @@ async def test_ws_reset_zone_time_program_global(hass, hass_ws_client):
     assert msg["success"] is True
     assert msg["result"]["success"] is True
 
-    # Zone's wed must match the sentinel we set on global
+    # Zone's wed must match the sentinel we set on default_zone.time_program
     assert entry.runtime_data.runtime_config["zones"][zone_id]["time_program"][
         "wed"
     ] == [{"start": "00:00", "mode": "comfort"}]
 
-    # Deepcopy isolation: mutating the zone's program must NOT affect global_time_program
+    # Deepcopy isolation: mutating the zone's program must NOT affect
+    # default_zone.time_program
     entry.runtime_data.runtime_config["zones"][zone_id]["time_program"][
         "wed"
     ].append({"start": "06:00", "mode": "normal"})
-    assert entry.runtime_data.runtime_config["global_time_program"]["wed"] == [
-        {"start": "00:00", "mode": "comfort"}
-    ]
+    assert entry.runtime_data.runtime_config["default_zone"]["time_program"][
+        "wed"
+    ] == [{"start": "00:00", "mode": "comfort"}]
+
+
+async def test_ws_reset_zone_time_program_default_zone(hass, hass_ws_client):
+    """D-09: reset_zone_time_program zone_id="default" target="default" resets
+    default_zone.time_program to _DEFAULT_DAILY_PROGRAM.
+
+    Phase 14 (D-09): reset_zone_time_program is extended to handle
+    zone_id="default". target="default" deepcopies _DEFAULT_DAILY_PROGRAM into
+    default_zone.time_program.
+    """
+    entry = await _setup_entry(hass)
+
+    # Mutate default_zone.time_program to a stub before sending
+    entry.runtime_data.runtime_config["default_zone"]["time_program"] = {
+        d: [{"start": "00:00", "mode": "comfort"}]
+        for d in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/reset_zone_time_program",
+            "zone_id": "default",
+            "target": "default",
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+
+    # Must deep-equal _DEFAULT_DAILY_PROGRAM after reset
+    assert (
+        entry.runtime_data.runtime_config["default_zone"]["time_program"]
+        == _DEFAULT_DAILY_PROGRAM
+    )
+
+    # Deepcopy isolation: mutating the result must NOT affect the constant
+    entry.runtime_data.runtime_config["default_zone"]["time_program"][
+        "mon"
+    ].append({"start": "12:00", "mode": "reduced"})
+    # Default weekday program has 5 periods
+    assert len(_DEFAULT_DAILY_PROGRAM["mon"]) == 5
+
+    # Sentinel invariant: "default" must NOT appear as a key in zones{}
+    assert "default" not in entry.runtime_data.runtime_config.get("zones", {})
 
 
 # ---------------------------------------------------------------------------
@@ -1101,6 +1264,47 @@ async def test_ws_set_zone_time_program_accepts_full_program(
     ] == [{"start": "06:00", "mode": "normal"}], (
         "zone time_program was affected by mutation to the input program — not a deep copy"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests: set_zone_preheat with zone_id="default" (Phase 14, D-11)
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_set_zone_preheat_default_zone_writes_sub_key(
+    hass, hass_ws_client
+):
+    """D-11: set_zone_preheat zone_id="default" writes default_zone.preheat_enabled.
+
+    Phase 14 (D-11): the "default" sentinel branch must write to
+    runtime_config["default_zone"]["preheat_enabled"], not to the old flat
+    default_zone_preheat_enabled key.
+    """
+    entry = await _setup_entry(hass)
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_zone_preheat",
+            "zone_id": "default",
+            "enabled": True,
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+    # D-11: must write to default_zone sub-dict
+    assert (
+        entry.runtime_data.runtime_config["default_zone"]["preheat_enabled"]
+        is True
+    )
+    # Old flat key must NOT be created
+    assert (
+        "default_zone_preheat_enabled" not in entry.runtime_data.runtime_config
+    )
+    # Sentinel invariant: "default" must NOT appear as a key in zones{}
+    assert "default" not in entry.runtime_data.runtime_config.get("zones", {})
 
 
 # ---------------------------------------------------------------------------
