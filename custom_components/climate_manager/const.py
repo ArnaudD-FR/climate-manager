@@ -233,4 +233,6 @@ DEFAULT_CONFIG: dict = {
     # non-empty.
     "calibration_enabled": False,  # CALIB-01: global on/off toggle
     "calibration_threshold": 0.5,  # CALIB-04: jitter guard in degrees C
+    # D-02: sparse default — absent key = no mapping, no migration needed.
+    "matter_mappings": {},
 }

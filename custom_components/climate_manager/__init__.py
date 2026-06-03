@@ -304,4 +304,13 @@ async def async_unload_entry(
     for cancel in entry.runtime_data.cancel_registry_listeners:
         cancel()
 
+    # D-11 (Phase 13): cancel all Matter calibration state_changed listeners.
+    # These live in coordinator._matter_cal_listeners, NOT in
+    # cancel_registry_listeners (which is for bus registry events only).
+    coordinator = entry.runtime_data.coordinator
+    if coordinator is not None:
+        for cancel in coordinator._matter_cal_listeners.values():
+            cancel()
+        coordinator._matter_cal_listeners.clear()
+
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
