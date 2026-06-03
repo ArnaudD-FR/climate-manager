@@ -64,11 +64,6 @@ export interface RoomConfig {
    */
   zone_id?: string;
   /**
-   * Phase 12 (D-01): per-room pre-heat enable flag.
-   * Sparse — absent means disabled (default false).
-   */
-  preheat_enabled?: boolean;
-  /**
    * Phase 12 (D-01): maximum lead time the coordinator may use.
    * Sparse — absent means default 120 minutes.
    */
@@ -99,6 +94,11 @@ export interface ZoneConfig {
   mode: string;
   /** Same structure as global_time_program (7-day weekly schedule). */
   time_program: DailyProgram;
+  /**
+   * Phase 12 (GAP-01): per-zone pre-heat enable flag.
+   * Sparse — absent means disabled (default false).
+   */
+  preheat_enabled?: boolean;
 }
 
 /** Full integration configuration returned by climate_manager/get_config. */
@@ -108,6 +108,13 @@ export interface ClimateConfig {
   global_time_program: DailyProgram;
   /** D-03: Default Zone display name. Always present in get_config payloads. */
   default_zone_name: string;
+  /**
+   * Phase 12 (GAP-01): Default Zone pre-heat enable flag.
+   * The Default Zone never appears in `zones{}`, so its enable flag lives
+   * here at the top level, mirroring the default_zone_name pattern.
+   * Sparse — absent means disabled (default false).
+   */
+  default_zone_preheat_enabled?: boolean;
   /** ZONE-01: custom zones keyed by UUID. Empty = all rooms in Default Zone. */
   zones: Record<string, ZoneConfig>;
   rooms: Record<string, RoomConfig>;
