@@ -153,7 +153,7 @@ panel shows pre-heating status and a suppression warning when applicable.
       (PREHEAT-01, PREHEAT-04)
 - [x] 12-05-PLAN.md — human UAT visual verification; surfaced GAP-01:
       preheat enable is per-room but must be per-zone (PREHEAT-01, PREHEAT-04)
-- [ ] 12-06-PLAN.md — gap closure (backend): move preheat_enabled to zone
+- [x] 12-06-PLAN.md — gap closure (backend): move preheat_enabled to zone
       scope — coordinator read, set_zone_preheat WS command, storage
       migration, default_zone_preheat_enabled flag, tests (PREHEAT-01)
 - [ ] 12-07-PLAN.md — gap closure (frontend): zone-tab pre-heat toggle,
@@ -193,5 +193,5 @@ sub-minute responsiveness without waiting for the polling interval.
 | 9. TRV Temperature Offset Auto-Calibration | v1.2      | 4/4            | Complete | 2026-05-30 |
 | 10. Presence Mode UI                        | v1.3      | 2/2            | Complete | 2026-06-01 |
 | 11. Calendar Presence Backend               | v1.3      | 5/5 | Complete   | 2026-06-02 |
-| 12. Predictive Pre-heat                     | v1.3      | 4/4 | Complete   | 2026-06-02 |
+| 12. Predictive Pre-heat                     | v1.3      | 6/7 | In Progress|  |
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 0/?            | Pending  | —          |
