@@ -59,6 +59,8 @@ export class RoomCard extends LitElement {
 
   /** Expanded state. Defaults to true when room_mode is "custom". */
   @state() _expanded = false;
+  @state() private _dragActive = false;
+  @state() private _dragType: "matter" | "tadox" | null = null;
 
   // Memoize days array — same pattern as global-settings-tab and person-card to
   // prevent time-bar drag-preview from clearing on status-only re-renders.
@@ -571,10 +573,7 @@ export class RoomCard extends LitElement {
             >
               <ha-icon icon="mdi:thermometer"></ha-icon>
               ${name}
-              <span
-                style="color:var(--secondary-text-color);margin-left:4px;font-size:12px;"
-                >${temp}</span
-              >
+              <span class="chip-temp">${temp}</span>
             </span>
           `;
         })}
@@ -677,37 +676,122 @@ export class RoomCard extends LitElement {
     }
   }
 
-  // Matter DnD handlers
+  // Matter / Tado X DnD handlers
 
-  private _onMatterDragStart(matterEntityId: string, e: DragEvent): void {
-    e.dataTransfer?.setData("text/plain", matterEntityId);
+  private _entityName(id: string): string {
+    return (
+      (this.hass?.states[id]?.attributes?.["friendly_name"] as
+        | string
+        | undefined) ?? id
+    );
   }
 
-  private _onGroupDragOver(e: DragEvent): void {
-    e.preventDefault();
-  }
-
-  private async _onMatterDropOnGroup(
-    tadoEntityId: string,
+  private _startDrag(
+    entityId: string,
+    type: "matter" | "tadox",
+    fromTadoId: string | null,
     e: DragEvent,
-  ): Promise<void> {
+  ): void {
+    if (!e.dataTransfer) return;
+    e.dataTransfer.setData(
+      "text/plain",
+      JSON.stringify({ entityId, type, fromTadoId }),
+    );
+    e.dataTransfer.effectAllowed = "move";
+    const el = e.currentTarget as HTMLElement;
+    e.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2);
+    this._dragActive = true;
+    this._dragType = type;
+  }
+
+  private _onDragEnd(): void {
+    this._dragActive = false;
+    this._dragType = null;
+  }
+
+  private _onMatterDragOver(e: DragEvent): void {
+    if (this._dragType !== "matter") return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+  }
+
+  private _onAnyDragOver(e: DragEvent): void {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+  }
+
+  private _onMatterDragEnter(e: DragEvent): void {
+    if (this._dragType !== "matter") return;
+    (e.currentTarget as HTMLElement).classList.add("drag-over");
+  }
+
+  private _onMatterDragLeave(e: DragEvent): void {
+    if (this._dragType !== "matter") return;
+    const el = e.currentTarget as HTMLElement;
+    const rel = e.relatedTarget as Node | null;
+    if (rel && el.contains(rel)) return;
+    el.classList.remove("drag-over");
+  }
+
+  private _parseDragPayload(e: DragEvent): {
+    entityId: string;
+    type: string;
+    fromTadoId: string | null;
+  } | null {
+    const raw = e.dataTransfer?.getData("text/plain");
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as {
+        entityId: string;
+        type: string;
+        fromTadoId: string | null;
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private async _onDropOnTado(tadoId: string, e: DragEvent): Promise<void> {
     e.preventDefault();
     (e.currentTarget as HTMLElement).classList.remove("drag-over");
-    const matterEntityId = e.dataTransfer?.getData("text/plain");
-    if (!matterEntityId) return;
-    const existing = this.panelConfig?.matter_mappings?.[tadoEntityId] ?? [];
-    if (existing.includes(matterEntityId)) return;
-    await this.ws.setMatterMapping(tadoEntityId, [...existing, matterEntityId]);
+    this._dragActive = false;
+    this._dragType = null;
+    const d = this._parseDragPayload(e);
+    if (!d || d.type !== "matter") return;
+    const { entityId: matterId, fromTadoId } = d;
+    if (fromTadoId === tadoId) return;
+    if (fromTadoId) {
+      const src = this.panelConfig?.matter_mappings?.[fromTadoId] ?? [];
+      await this.ws.setMatterMapping(
+        fromTadoId,
+        src.filter((id) => id !== matterId),
+      );
+    }
+    const existing = this.panelConfig?.matter_mappings?.[tadoId] ?? [];
+    if (!existing.includes(matterId)) {
+      await this.ws.setMatterMapping(tadoId, [...existing, matterId]);
+    }
     await this.panel.reloadConfig();
   }
 
-  private async _onUnmapMatterEntity(
-    tadoEntityId: string,
-    matterEntityId: string,
-  ): Promise<void> {
-    const existing = this.panelConfig?.matter_mappings?.[tadoEntityId] ?? [];
-    const remaining = existing.filter((id) => id !== matterEntityId);
-    await this.ws.setMatterMapping(tadoEntityId, remaining);
+  private async _onDropOnUnassign(e: DragEvent): Promise<void> {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).classList.remove("drag-over");
+    this._dragActive = false;
+    this._dragType = null;
+    const d = this._parseDragPayload(e);
+    if (!d) return;
+    if (d.type === "tadox") {
+      await this.ws.setMatterMapping(d.entityId, []);
+      await this.panel.reloadConfig();
+      return;
+    }
+    if (!d.fromTadoId) return;
+    const src = this.panelConfig?.matter_mappings?.[d.fromTadoId] ?? [];
+    await this.ws.setMatterMapping(
+      d.fromTadoId,
+      src.filter((id) => id !== d.entityId),
+    );
     await this.panel.reloadConfig();
   }
 
@@ -717,94 +801,165 @@ export class RoomCard extends LitElement {
     const roomTadoXIds = roomEntityIds.filter((id) =>
       tadoXEntities.includes(id),
     );
-    const hasMatter = (this.panelConfig?.matter_entities ?? []).length > 0;
+    const matterEntities = this.panelConfig?.matter_entities ?? [];
+    const canPair = roomTadoXIds.length > 0 && matterEntities.length > 0;
 
-    if (roomTadoXIds.length === 0 && !hasMatter) {
-      return html`
-        <div
-          class="section-label"
-          title="TRV climate entities controlled in this room"
-        >
-          Climate entities
-        </div>
-        ${this._renderTrvSection()}
-      `;
+    if (roomTadoXIds.length === 0 && matterEntities.length === 0) {
+      return this._renderTrvSection();
     }
 
     const mappings = this.panelConfig?.matter_mappings ?? {};
-    const allMapped = Object.values(mappings).flat();
-    const orphans = (this.panelConfig?.matter_entities ?? []).filter(
-      (id) => !allMapped.includes(id),
+    const allMapped = new Set(Object.values(mappings).flat());
+    // First level: room entities that are not Tado X and not
+    // already claimed as a group child (mapped Matter).
+    const firstLevelOther = roomEntityIds.filter(
+      (id) => !tadoXEntities.includes(id) && !allMapped.has(id),
+    );
+    const firstLevel = [...firstLevelOther, ...roomTadoXIds].sort((a, b) =>
+      this._entityName(a).localeCompare(this._entityName(b)),
     );
 
     return html`
-      <div class="section-label">Real-time calibration</div>
-      <p class="schedule-hint">
-        Drag Matter entities onto a Tado X valve to pair them for sub-minute
-        calibration.
-      </p>
-      ${roomTadoXIds.map((tadoId) => {
-        const name =
-          (this.hass?.states[tadoId]?.attributes?.["friendly_name"] as
-            | string
-            | undefined) ?? tadoId;
-        const mapped = mappings[tadoId] ?? [];
-        return html`
-          <div
-            class="group-box"
-            @dragover=${this._onGroupDragOver}
-            @drop=${(e: DragEvent) => void this._onMatterDropOnGroup(tadoId, e)}
-            @dragenter=${(e: DragEvent) =>
-              (e.currentTarget as HTMLElement).classList.add("drag-over")}
-            @dragleave=${(e: DragEvent) =>
-              (e.currentTarget as HTMLElement).classList.remove("drag-over")}
-          >
-            <div style="font-size:13px;font-weight:600;margin-bottom:6px;">
-              ${name}
-            </div>
-            ${mapped.map((matterId) => {
-              const mName =
-                (this.hass?.states[matterId]?.attributes?.["friendly_name"] as
-                  | string
-                  | undefined) ?? matterId;
+      ${canPair
+        ? html`<p class="schedule-hint">
+            Drag Matter entities onto a Tado X valve to pair them for sub-minute
+            calibration.
+          </p>`
+        : ""}
+      <div class=${this._dragActive ? "climate-pair" : ""}>
+        <div class="climate-tree">
+          ${firstLevel.map((id) => {
+            const isTado = roomTadoXIds.includes(id);
+            const s = this.hass?.states[id];
+            const name = this._entityName(id);
+            const temp =
+              s?.attributes?.["current_temperature"] != null
+                ? `${s.attributes["current_temperature"]}°C`
+                : "—";
+
+            if (!isTado) {
+              // Regular or orphan-Matter entity — plain chip
+              // (orphan Matter is draggable when canPair)
+              const isMatter = matterEntities.includes(id);
+              const draggable = canPair && isMatter;
               return html`
-                <span class="matter-chip">
-                  ${mName}
-                  <button
-                    @click=${() =>
-                      void this._onUnmapMatterEntity(tadoId, matterId)}
-                  >
-                    &times;
-                  </button>
+                <span
+                  class=${`chip${draggable ? " chip-draggable" : ""}`}
+                  .draggable=${draggable}
+                  @dragstart=${draggable
+                    ? (e: DragEvent) => this._startDrag(id, "matter", null, e)
+                    : undefined}
+                  @dragend=${draggable ? () => this._onDragEnd() : undefined}
+                  @click=${() => this._openEntityMoreInfo(id)}
+                >
+                  <ha-icon icon="mdi:thermometer"></ha-icon>
+                  ${name}
+                  <span class="chip-temp">${temp}</span>
                 </span>
               `;
-            })}
-          </div>
-        `;
-      })}
-      ${orphans.length > 0
-        ? html`
-            <div class="section-label" style="margin-top:12px;">
-              Unassigned Matter entities
-            </div>
-            <div class="orphan-chips">
-              ${orphans.map(
-                (id) => html`
+            }
+
+            // Tado X entity
+            const mapped = (mappings[id] ?? [])
+              .slice()
+              .sort((a, b) =>
+                this._entityName(a).localeCompare(this._entityName(b)),
+              );
+            const isGroup = mapped.length > 0;
+
+            if (isGroup) {
+              return html`
+                <div
+                  class="tado-group"
+                  @dragover=${this._onMatterDragOver}
+                  @drop=${(e: DragEvent) => void this._onDropOnTado(id, e)}
+                  @dragenter=${this._onMatterDragEnter}
+                  @dragleave=${this._onMatterDragLeave}
+                >
                   <span
-                    class="matter-chip"
-                    draggable="true"
-                    @dragstart=${(e: DragEvent) =>
-                      this._onMatterDragStart(id, e)}
+                    class=${`chip${canPair ? " chip-draggable" : ""}`}
+                    .draggable=${canPair}
+                    @dragstart=${canPair
+                      ? (e: DragEvent) => this._startDrag(id, "tadox", null, e)
+                      : undefined}
+                    @dragend=${canPair ? () => this._onDragEnd() : undefined}
+                    @click=${() => this._openEntityMoreInfo(id)}
                   >
-                    ${(this.hass?.states[id]?.attributes?.["friendly_name"] as
-                      | string
-                      | undefined) ?? id}
+                    <ha-icon icon="mdi:thermometer"></ha-icon>
+                    ${name}
+                    <span class="chip-temp">${temp}</span>
                   </span>
-                `,
-              )}
-            </div>
-          `
-        : ""}
+                  <div class="matter-children">
+                    ${mapped.map((mid) => {
+                      const ms = this.hass?.states[mid];
+                      const mt =
+                        ms?.attributes?.["current_temperature"] != null
+                          ? `${ms.attributes["current_temperature"]}°C`
+                          : "—";
+                      return html`
+                        <span
+                          class=${`chip${canPair ? " chip-draggable" : ""}`}
+                          .draggable=${canPair}
+                          @dragstart=${canPair
+                            ? (e: DragEvent) =>
+                                this._startDrag(mid, "matter", id, e)
+                            : undefined}
+                          @dragend=${canPair
+                            ? () => this._onDragEnd()
+                            : undefined}
+                          @click=${() => this._openEntityMoreInfo(mid)}
+                        >
+                          <ha-icon icon="mdi:thermometer"></ha-icon>
+                          ${this._entityName(mid)}
+                          <span class="chip-temp">${mt}</span>
+                        </span>
+                      `;
+                    })}
+                  </div>
+                </div>
+              `;
+            }
+
+            // Ungrouped Tado X — plain chip, drop target for Matter
+            return html`
+              <span
+                class="chip"
+                @dragover=${canPair ? this._onMatterDragOver : undefined}
+                @drop=${canPair
+                  ? (e: DragEvent) => void this._onDropOnTado(id, e)
+                  : undefined}
+                @dragenter=${canPair ? this._onMatterDragEnter : undefined}
+                @dragleave=${canPair ? this._onMatterDragLeave : undefined}
+                @click=${() => this._openEntityMoreInfo(id)}
+              >
+                <ha-icon icon="mdi:thermometer"></ha-icon>
+                ${name}
+                <span class="chip-temp">${temp}</span>
+              </span>
+            `;
+          })}
+        </div>
+        ${this._dragActive
+          ? html`
+              <div
+                class="unassign-drop-zone"
+                @dragover=${this._onAnyDragOver}
+                @drop=${(e: DragEvent) => void this._onDropOnUnassign(e)}
+                @dragenter=${(e: DragEvent) =>
+                  (e.currentTarget as HTMLElement).classList.add("drag-over")}
+                @dragleave=${(e: DragEvent) => {
+                  const el = e.currentTarget as HTMLElement;
+                  const rel = e.relatedTarget as Node | null;
+                  if (!rel || !el.contains(rel))
+                    el.classList.remove("drag-over");
+                }}
+              >
+                <ha-icon icon="mdi:link-variant-off"></ha-icon>
+                <span>Remove</span>
+              </div>
+            `
+          : ""}
+      </div>
     `;
   }
 

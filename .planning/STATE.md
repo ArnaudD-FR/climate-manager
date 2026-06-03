@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
 status: executing
-last_updated: "2026-06-03T14:09:57.079Z"
+last_updated: "2026-06-03T19:53:06.406Z"
 last_activity: 2026-06-03 -- Phase 13 execution started
 progress:
   total_phases: 8
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 17
-  completed_plans: 14
-  percent: 38
+  completed_plans: 17
+  percent: 50
 ---
 
 # Project State
@@ -127,13 +127,13 @@ Items acknowledged and deferred at milestone close on 2026-05-31:
 | 260601-d04 | D-04: HA option always visible; ⚠ label + edit link when no trackers | 2026-06-01 | 44ebcdd | [260601-d04-ha-option-always-visible](./quick/260601-d04-ha-option-always-visible/) |
 | 260601-vaz | Fix HA tracker warning notification not recreating after user dismiss | 2026-06-01 | a4cd591 | [260601-vaz-fix-notif-dismiss-watcher](./quick/260601-vaz-fix-notif-dismiss-watcher/) |
 | 260602-kzf | Calendar gap handling modes + wake-up advance description | 2026-06-02 | — | [260602-kzf-calendar-gap-modes-and-wakeup-desc](./quick/260602-kzf-calendar-gap-modes-and-wakeup-desc/) |
+| 260603-uo0 | Matter→Tado X drag-and-drop pairing UI + panel.js cache-bust | 2026-06-03 | — | [260603-uo0-matter-tado-x-drag-and-drop-pairing-ui-i](./quick/260603-uo0-matter-tado-x-drag-and-drop-pairing-ui-i/) |
 
-Last activity: 2026-05-29 - Created v1.2 roadmap (Phases 7-9); 11 requirements
-mapped (SCHED-01..06, CALIB-01..05)
+Last activity: 2026-06-03 - Completed quick task 260603-uo0: Matter→Tado X drag-and-drop pairing UI + panel.js cache-bust
 
 ## Session Continuity
 
-Last session: 2026-06-03T13:40:56.486Z
+Last session: 2026-06-03T19:53:06.401Z
 Resume file: None
 
 ## Operator Next Steps

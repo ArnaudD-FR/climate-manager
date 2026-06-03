@@ -164,43 +164,98 @@ export const floorGroupLabelStyles = css`
 
 /** Drag-and-drop grouping canvas — used by room-card Matter pairing. */
 export const groupDndStyles = css`
-  .group-box {
-    background: var(--card-background-color, white);
-    border-radius: 8px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
-    padding: 8px 12px;
+  /* Flex row: tree on left + unassign zone on right during drag */
+  .climate-pair {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .climate-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+  }
+
+  .climate-pair .climate-tree {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Tado X group — parent chip + indented Matter children */
+  .tado-group {
     margin-bottom: 8px;
   }
 
-  .group-box.drag-over {
+  .tado-group.drag-over {
     outline: 2px dashed var(--primary-color, #03a9f4);
+    outline-offset: 4px;
+    border-radius: 8px;
   }
 
-  .matter-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: 12px;
-    background: var(--secondary-background-color, #f0f0f0);
-    font-size: 0.85em;
-    cursor: grab;
-    margin: 2px;
-  }
-
-  .matter-chip button {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-    color: var(--secondary-text-color);
-  }
-
-  .orphan-chips {
+  /* Tree branch — Matter chips indented under Tado X parent */
+  .matter-children {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px 10px;
+    margin-top: 4px;
+    margin-left: 12px;
+    border-left: 2px solid var(--primary-color, #03a9f4);
+    align-items: flex-start;
+  }
+
+  /* Draggable chip modifier */
+  .chip-draggable {
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .chip-draggable:active {
+    cursor: grabbing;
+  }
+
+  /* Temperature span inside a chip */
+  .chip-temp {
+    color: var(--secondary-text-color);
+    margin-left: 4px;
+    font-size: 12px;
+  }
+
+  /* Drop highlight on an ungrouped Tado X chip */
+  .chip.drag-over {
+    border-color: var(--primary-color, #03a9f4);
+    background: var(--secondary-background-color, #f5f5f5);
+  }
+
+  /* Unassign zone — appears to the right during any drag */
+  .unassign-drop-zone {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    min-height: 56px;
+    border: 2px dashed var(--divider-color, #e0e0e0);
+    border-radius: 8px;
+    color: var(--secondary-text-color);
+    font-size: 11px;
+    text-align: center;
+    padding: 6px 4px;
     gap: 4px;
-    padding: 8px 0;
+  }
+
+  .unassign-drop-zone ha-icon {
+    --mdc-icon-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  .unassign-drop-zone.drag-over {
+    border-color: var(--error-color, #f44336);
+    color: var(--error-color, #f44336);
   }
 `;
