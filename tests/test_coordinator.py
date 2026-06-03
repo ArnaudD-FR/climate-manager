@@ -84,7 +84,7 @@ LATE_START_PROGRAM: dict = {
 
 
 def _make_runtime_config(
-    global_mode: str = MODE_TIME_PROGRAM,
+    default_zone_mode: str = MODE_TIME_PROGRAM,
     daily_program: dict | None = None,
     rooms_config: dict | None = None,
     persons_config: dict | None = None,
@@ -93,15 +93,18 @@ def _make_runtime_config(
     """Build a runtime_config dict suitable for coordinator tests."""
     return {
         "version": 2,
-        "global_mode": global_mode,
+        "default_zone": {
+            "name": "Home",
+            "mode": default_zone_mode,
+            "time_program": daily_program
+            if daily_program is not None
+            else ALL_DAYS_NORMAL_PROGRAM,
+            "preheat_enabled": False,
+        },
         "period_temperatures": dict(DEFAULT_PERIOD_TEMPERATURES),
-        "global_time_program": daily_program
-        if daily_program is not None
-        else ALL_DAYS_NORMAL_PROGRAM,
         "rooms": rooms_config or {},
         "persons": persons_config or {},
         "zones": zones_config or {},
-        "default_zone_name": "Home",
     }
 
 
@@ -133,7 +136,7 @@ async def test_coordinator_pushes_on_startup(hass):
 
     # Patch runtime_config to have a Normal-all-day program
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     # Patch rooms to include our entity
@@ -206,7 +209,7 @@ async def test_push_on_change_no_duplicate(hass):
 
     # Patch config + rooms
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     entry.runtime_data.rooms = {"living": ["climate.living_trv"]}
@@ -270,7 +273,7 @@ async def test_manual_override_hold(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     entry.runtime_data.rooms = {"hall": ["climate.hall_trv"]}
@@ -350,7 +353,7 @@ async def test_present_person_wins_absent_for_same_room(hass):
     }
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM_PRESENCES,
+        default_zone_mode=MODE_TIME_PROGRAM_PRESENCES,
         daily_program=TYPICAL_WEEKDAY_PROGRAM,
         persons_config=persons_config,
     )
@@ -402,7 +405,7 @@ async def test_coordinator_applies_frost_before_first_period(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=LATE_START_PROGRAM,
     )
     entry.runtime_data.rooms = {"study": ["climate.study_trv"]}
@@ -450,7 +453,7 @@ async def test_room_mode_frost_protection_pushes_frost_temp(hass):
 
     # Global program: Normal all day. Room mode overrides to frost_protection.
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={"area_x": {"room_mode": ROOM_MODE_FROST}},
     )
@@ -489,7 +492,7 @@ async def test_room_mode_custom_uses_room_time_program(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={
             "area_y": {
@@ -533,7 +536,7 @@ async def test_room_mode_global_explicit_key_uses_global_program(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={"area_z": {"room_mode": ROOM_MODE_GLOBAL}},
     )
@@ -572,7 +575,7 @@ async def test_room_mode_absent_key_uses_global_program(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={
             "area_w": {}
@@ -616,7 +619,7 @@ async def test_room_mode_frost_wins_over_stale_time_program(hass):
 
     # room_mode=frost_protection AND a time_program (Comfort) — frost wins
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={
             "area_v": {
@@ -670,7 +673,7 @@ async def test_room_mode_frost_wins_over_presence(hass):
     }
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM_PRESENCES,
+        default_zone_mode=MODE_TIME_PROGRAM_PRESENCES,
         daily_program=TYPICAL_WEEKDAY_PROGRAM,
         rooms_config={"area_p": {"room_mode": ROOM_MODE_FROST}},
         persons_config=persons_config,
@@ -705,7 +708,7 @@ async def test_room_mode_frost_wins_over_presence(hass):
 async def test_zone_off_overrides_room_mode_custom_default_zone(hass):
     """EVAL-01 / Bug fix: zone MODE_OFF must override room_mode=custom.
 
-    Regression: when global_mode=off, a room with room_mode=custom and a
+    Regression: when default_zone_mode=off, a room with room_mode=custom and a
     Comfort-all-day time_program was previously pushed 22.0 (custom schedule
     temperature) instead of 7.0 (frost protection). Zone OFF must win.
 
@@ -726,7 +729,7 @@ async def test_zone_off_overrides_room_mode_custom_default_zone(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_OFF,
+        default_zone_mode=MODE_OFF,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={
             "area_y": {
@@ -772,7 +775,7 @@ async def test_zone_off_overrides_room_mode_custom_custom_zone(hass):
 
     zone_id = "zone-abc"
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,  # Default Zone is active
+        default_zone_mode=MODE_TIME_PROGRAM,  # Default Zone is active
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={
             "area_custom": {
@@ -964,7 +967,7 @@ async def test_mode_off_uses_set_hvac_mode_off_when_supported(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_OFF
+        default_zone_mode=MODE_OFF
     )
     entry.runtime_data.rooms = {"living": ["climate.off_capable_trv"]}
 
@@ -1041,7 +1044,7 @@ async def test_mode_off_falls_back_to_frost_temp_when_off_not_supported(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_OFF
+        default_zone_mode=MODE_OFF
     )
     entry.runtime_data.rooms = {"bedroom": ["climate.heat_only_trv"]}
 
@@ -1097,7 +1100,7 @@ async def test_mode_off_does_not_flap_set_hvac_mode_off_on_repeat_tick(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_OFF
+        default_zone_mode=MODE_OFF
     )
     entry.runtime_data.rooms = {"hall": ["climate.flap_test_trv"]}
 
@@ -1157,7 +1160,7 @@ async def test_mode_off_to_time_program_pushes_schedule_temp(hass):
 
     # Tick 1: MODE_OFF — should push set_hvac_mode=off
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_OFF
+        default_zone_mode=MODE_OFF
     )
     await coord.async_evaluate()
     await hass.async_block_till_done()
@@ -1172,7 +1175,7 @@ async def test_mode_off_to_time_program_pushes_schedule_temp(hass):
 
     # Tick 2: switch to MODE_TIME_PROGRAM — should push heat + schedule temp
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode="time_program"
+        default_zone_mode="time_program"
     )
     await coord.async_evaluate()
     await hass.async_block_till_done()
@@ -1244,6 +1247,154 @@ def test_build_status_payload_includes_present_person_count(hass):
 
 
 # ---------------------------------------------------------------------------
+# Tests: D-04/D-05/D-06 — Phase 14 default_zone consolidation
+# ---------------------------------------------------------------------------
+
+
+def test_build_status_payload_returns_zones_dict_not_global_mode(hass):
+    """D-06: _build_status_payload emits a zones dict; no top-level global_mode or
+    active_period.
+
+    Verifies that after the Phase 14 coordinator change:
+    - result["zones"]["default"]["mode"] == configured default_zone mode
+    - result["zones"]["default"]["active_period"] is None or a string
+    - "global_mode" is NOT a top-level key in the payload
+    - "active_period" is NOT a top-level key in the payload
+    """
+    from custom_components.climate_manager.storage import ClimateManagerStore
+
+    runtime_config = _make_runtime_config(
+        default_zone_mode=MODE_TIME_PROGRAM,
+    )
+    data = ClimateManagerData(
+        store=ClimateManagerStore(hass),
+        runtime_config=runtime_config,
+        rooms={},
+        persons=[],
+        room_auto_sensors={},
+    )
+    coordinator = ClimateManagerCoordinator(hass, data)
+
+    payload = coordinator._build_status_payload()
+
+    assert "zones" in payload, (
+        "D-06: _build_status_payload must include a 'zones' key"
+    )
+    assert "default" in payload["zones"], (
+        "D-06: zones dict must have a 'default' entry"
+    )
+    assert payload["zones"]["default"]["mode"] == MODE_TIME_PROGRAM, (
+        f"D-06: zones['default']['mode'] must equal the configured default_zone mode, "
+        f"got {payload['zones']['default']['mode']!r}"
+    )
+    assert "active_period" in payload["zones"]["default"], (
+        "D-06: zones['default'] must have an 'active_period' key"
+    )
+    assert "global_mode" not in payload, (
+        "D-06: top-level 'global_mode' must NOT be in the status payload"
+    )
+    assert "active_period" not in payload, (
+        "D-06: top-level 'active_period' must NOT be in the status payload"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")  # Monday noon
+async def test_async_evaluate_populates_last_zone_periods(hass):
+    """D-05: async_evaluate populates _last_zone_periods with 'default' and custom zone UUIDs.
+
+    After a full async_evaluate cycle:
+    - _last_zone_periods["default"] is set (string period or None)
+    - _last_zone_periods[zone_id] is set for each custom zone UUID
+    """
+    hass.states.async_set("climate.zone_trv", "heat", {"temperature": 20.0})
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    zone_id = "zone-uuid-1234"
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        default_zone_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        zones_config={
+            zone_id: {
+                "name": "Night Zone",
+                "mode": MODE_TIME_PROGRAM,
+                "time_program": ALL_DAYS_NORMAL_PROGRAM,
+            }
+        },
+    )
+    entry.runtime_data.rooms = {"area_z": ["climate.zone_trv"]}
+
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    coordinator = entry.runtime_data.coordinator
+    assert hasattr(coordinator, "_last_zone_periods"), (
+        "D-05: coordinator must have _last_zone_periods attribute after evaluate"
+    )
+    assert "default" in coordinator._last_zone_periods, (
+        "D-05: _last_zone_periods must contain 'default' key after evaluate"
+    )
+    assert zone_id in coordinator._last_zone_periods, (
+        f"D-05: _last_zone_periods must contain custom zone UUID {zone_id!r} after evaluate"
+    )
+
+
+@pytest.mark.freeze_time("2026-01-05 12:00:00")  # Monday noon
+async def test_resolve_zone_config_dangling_zone_id_falls_back_to_default(hass):
+    """D-04 / T-14-03: room with a dangling zone_id falls back to default_zone
+    without raising KeyError.
+
+    Scenario: room has zone_id='deleted-zone' but that zone is not in zones dict.
+    Expected: coordinator uses default_zone mode/time_program; no exception.
+    TRV should receive the default_zone Normal temp (20.0).
+    """
+    hass.states.async_set("climate.dangling_trv", "heat", {"temperature": 15.0})
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    temp_calls = async_mock_service(hass, "climate", "set_temperature")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entry.runtime_data.runtime_config = _make_runtime_config(
+        default_zone_mode=MODE_TIME_PROGRAM,
+        daily_program=ALL_DAYS_NORMAL_PROGRAM,
+        rooms_config={
+            "area_dangling": {"zone_id": "deleted-zone"},
+        },
+        zones_config={},  # the referenced zone does NOT exist
+    )
+    entry.runtime_data.rooms = {"area_dangling": ["climate.dangling_trv"]}
+
+    # Must not raise KeyError
+    await entry.runtime_data.coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+    calls = [
+        c
+        for c in temp_calls
+        if c.data.get("entity_id") == "climate.dangling_trv"
+    ]
+    assert len(calls) >= 1, (
+        "Dangling zone_id room must still receive a temperature push "
+        "(falls back to default_zone)"
+    )
+    assert (
+        calls[-1].data["temperature"]
+        == DEFAULT_PERIOD_TEMPERATURES[PERIOD_NORMAL]
+    ), (
+        f"Dangling zone_id must fall back to default_zone Normal temp, "
+        f"got {calls[-1].data['temperature']}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Tests: Zone-aware evaluation (EVAL-01..05) — Plan 05-03
 # ---------------------------------------------------------------------------
 
@@ -1267,7 +1418,7 @@ async def test_zone_mode_off_pushes_frost_temp(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         zones_config={
             "z1": {
@@ -1303,7 +1454,7 @@ async def test_zone_mode_time_program_uses_zone_schedule(hass):
 
     Default Zone rooms use global_time_program (Normal → 20.0).
     Custom zone rooms use zone.time_program (Comfort → 22.0).
-    Proves divergence: same global_mode=time_program, different temperatures.
+    Proves divergence: same default_zone_mode=time_program, different temperatures.
     """
     hass.states.async_set("climate.z_trv", "heat", {"temperature": 20.0})
     hass.states.async_set("climate.d_trv", "heat", {"temperature": 18.0})
@@ -1316,7 +1467,7 @@ async def test_zone_mode_time_program_uses_zone_schedule(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         zones_config={
             "z1": {
@@ -1364,8 +1515,8 @@ async def test_zone_mode_time_program_uses_zone_schedule(hass):
 async def test_zone_mode_presences_applies_presence(hass):
     """EVAL-03: zone with mode=time_program_presences applies presence evaluation.
 
-    global_mode=time_program (NOT presences) — proves zone presence is independent
-    of global_mode. A force_present person assigned to the zone's room causes
+    default_zone_mode=time_program (NOT presences) — proves zone presence is independent
+    of default_zone_mode. A force_present person assigned to the zone's room causes
     compute_occupied_temp to run (presence path active).
     """
     hass.states.async_set("climate.z_trv", "heat", {"temperature": 15.0})
@@ -1378,7 +1529,7 @@ async def test_zone_mode_presences_applies_presence(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,  # global NOT presences
+        default_zone_mode=MODE_TIME_PROGRAM,  # global NOT presences
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         zones_config={
             "z1": {
@@ -1412,10 +1563,10 @@ async def test_zone_mode_presences_applies_presence(hass):
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")  # Monday noon
 async def test_global_mode_off_does_not_affect_custom_zones(hass):
-    """EVAL-04 per D-10: global_mode=off only puts Default Zone rooms at frost.
+    """EVAL-04 per D-10: default_zone_mode=off only puts Default Zone rooms at frost.
 
     Custom zone rooms with mode=time_program continue following their schedule.
-    Proves global_mode=off is NOT a system-wide override (D-07/D-08/D-10).
+    Proves default_zone_mode=off is NOT a system-wide override (D-07/D-08/D-10).
     """
     hass.states.async_set("climate.d_trv", "heat", {"temperature": 20.0})
     hass.states.async_set("climate.z_trv", "heat", {"temperature": 20.0})
@@ -1428,7 +1579,7 @@ async def test_global_mode_off_does_not_affect_custom_zones(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_OFF,  # Default Zone is off
+        default_zone_mode=MODE_OFF,  # Default Zone is off
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         zones_config={
             "z1": {
@@ -1459,14 +1610,16 @@ async def test_global_mode_off_does_not_affect_custom_zones(hass):
         d_calls[-1].data["temperature"]
         == DEFAULT_PERIOD_TEMPERATURES[PERIOD_FROST_PROTECTION]
     ), (
-        f"Default Zone with global_mode=off should push frost (5.0), got {d_calls[-1].data['temperature']}"
+        f"Default Zone with default_zone_mode=off should push frost, "
+        f"got {d_calls[-1].data['temperature']}"
     )
     assert len(z_calls) >= 1, "Expected set_temperature call for z_trv"
     assert (
         z_calls[-1].data["temperature"]
         == DEFAULT_PERIOD_TEMPERATURES[PERIOD_COMFORT]
     ), (
-        f"Custom zone (Comfort schedule) should push 22.0 even when global_mode=off, got {z_calls[-1].data['temperature']}"
+        f"Custom zone (Comfort schedule) should push 22.0 even when "
+        f"default_zone_mode=off, got {z_calls[-1].data['temperature']}"
     )
 
 
@@ -1488,7 +1641,7 @@ async def test_room_mode_custom_wins_over_active_zone_schedule(hass):
     await hass.async_block_till_done()
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         zones_config={
             "z1": {
@@ -1541,7 +1694,7 @@ def _make_calibration_config(
     if sensor_entity_id is not None:
         room_cfg["temperature_sensor"] = sensor_entity_id
     cfg = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config=rooms_config
         if rooms_config is not None
@@ -1621,7 +1774,7 @@ async def test_calibration_no_sensor_zero_offset_calls(hass):
 
     # No temperature_sensor key in rooms config
     cfg = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={"bedroom": {}},  # no temperature_sensor key
     )
@@ -1952,7 +2105,7 @@ async def test_matter_listeners_registered_on_first_evaluate(hass):
     entity_reg.async_get_or_create("climate", "test_integration", "room_trv")
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     entry.runtime_data.rooms = {"bedroom": ["climate.room_trv"]}
@@ -1993,7 +2146,7 @@ async def test_matter_listener_fires_calibrate_on_temp_change(hass):
     entity_reg.async_get_or_create("climate", "matter", "valve")
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     entry.runtime_data.rooms = {"living": ["climate.matter_valve"]}
@@ -2071,7 +2224,7 @@ async def test_matter_listener_ignores_non_temp_change(hass):
     entity_reg.async_get_or_create("climate", "test_integration", "stable_trv")
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     entry.runtime_data.rooms = {"hall": ["climate.stable_trv"]}
@@ -2137,7 +2290,7 @@ async def test_matter_listener_handles_none_old_state(hass):
     entity_reg.async_get_or_create("climate", "test_integration", "new_entity")
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     entry.runtime_data.rooms = {"nursery": ["climate.new_entity"]}
@@ -2189,7 +2342,7 @@ async def test_refresh_matter_listeners_cancels_old(hass):
     entity_reg.async_get_or_create("climate", "test_integration", "refresh_trv")
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     entry.runtime_data.rooms = {"office": ["climate.refresh_trv"]}
@@ -2254,7 +2407,7 @@ async def test_unload_cancels_matter_listeners(hass):
     entity_reg.async_get_or_create("climate", "test_integration", "unload_trv")
 
     entry.runtime_data.runtime_config = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     entry.runtime_data.rooms = {"garage": ["climate.unload_trv"]}
@@ -2344,7 +2497,7 @@ async def test_to_set_uses_matter_entities_when_mapped(hass):
     await hass.async_block_till_done()
 
     cfg = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     cfg["matter_mappings"] = {tado_eid: [matter1, matter2]}
@@ -2390,7 +2543,7 @@ async def test_to_set_uses_tado_entity_when_unmapped(hass):
     await hass.async_block_till_done()
 
     cfg = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     cfg["matter_mappings"] = {}  # no mapping
@@ -2433,7 +2586,7 @@ async def test_to_set_skips_matter_entity_already_in_mapping(hass):
     await hass.async_block_till_done()
 
     cfg = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     cfg["matter_mappings"] = {tado_eid: [matter_eid]}
@@ -2475,7 +2628,7 @@ async def test_unmapped_matter_entity_gets_setpoint(hass):
     await hass.async_block_till_done()
 
     cfg = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
     )
     cfg["matter_mappings"] = {}  # no mapping — standalone Matter entity
@@ -2530,7 +2683,7 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
     await hass.async_block_till_done()
 
     cfg = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={"kitchen": {"temperature_sensor": sensor_eid}},
     )
@@ -2620,7 +2773,7 @@ async def test_calibrate_for_room_unmapped_tado_uses_existing_path(hass):
     await hass.async_block_till_done()
 
     cfg = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={"office": {"temperature_sensor": sensor_eid}},
     )
@@ -2685,7 +2838,7 @@ async def test_calibrate_for_room_unmapped_matter_uses_room_path(hass):
     await hass.async_block_till_done()
 
     cfg = _make_runtime_config(
-        global_mode=MODE_TIME_PROGRAM,
+        default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={"guest": {"temperature_sensor": sensor_eid}},
     )
