@@ -64,6 +64,28 @@
 - [ ] **UI-02**: The "HA" presence mode is renamed to "Live tracking" (or
   equivalent clear label) everywhere it appears in the panel
 
+### Architecture Cleanup
+
+- [ ] **ARCH-01**: Default Zone is stored as a first-class `ZoneConfig` under
+  a single `default_zone` key; `global_mode`, `global_time_program`,
+  `default_zone_name`, and `default_zone_preheat_enabled` flat keys are
+  removed and migrated on load
+- [ ] **ARCH-02**: `room_mode: custom` is removed from coordinator, storage,
+  and frontend; rooms that previously used custom scheduling are migrated to
+  a dedicated single-room zone with the same schedule
+
+### Observability
+
+- [ ] **OBS-01**: Structured log lines are emitted at INFO level on presence
+  transitions and zone state changes, and at DEBUG level on each TRV
+  set_temperature call; repeated identical states do not produce duplicate lines
+
+### Documentation
+
+- [ ] **DOC-01**: Five person-scheduling use-case documents with screenshots
+  exist under `docs/use-cases/`; `make screenshots` captures all scenario
+  screenshots cleanly
+
 ## Future Requirements
 
 - Per-zone boiler declaration for accurate pre-heat flow temp normalisation —

@@ -178,6 +178,79 @@ sub-minute responsiveness without waiting for the polling interval.
 
 **Plans**: TBD
 
+### Phase 14: Default Zone Consolidation
+
+**Goal**: The Default Zone is a first-class `ZoneConfig` object stored under
+a single `default_zone` key, eliminating the split across `global_mode`,
+`global_time_program`, `default_zone_name`, and `default_zone_preheat_enabled`.
+**Depends on**: Phase 12
+**Requirements**: ARCH-01
+**Success Criteria** (what must be TRUE):
+
+1. `DEFAULT_CONFIG` has a single `default_zone` key shaped as a full
+   `ZoneConfig`; the old flat top-level keys are absent
+2. `_resolve_zone_config` reads Default Zone from `config["default_zone"]`
+   with no special-casing
+3. Storage migration promotes old flat keys into `default_zone` on first
+   load; existing configurations survive the upgrade without data loss
+4. All WebSocket handlers for zone config use a unified code path for
+   Default Zone and custom zones
+
+**Plans**: TBD
+
+### Phase 15: Remove Room Custom Scheduling
+
+**Goal**: The `room_mode: custom` path is removed from coordinator, storage,
+and frontend; rooms that need a different schedule use a dedicated zone instead.
+**Depends on**: Phase 14
+**Requirements**: ARCH-02
+**Success Criteria** (what must be TRUE):
+
+1. `ROOM_MODE_CUSTOM` branch is absent from coordinator evaluation
+2. The custom schedule editor is removed from the Rooms tab
+3. Storage migration converts any existing custom-scheduled rooms to a new
+   single-room zone with the same schedule and `room_mode` reset to `global`
+4. All tests pass with no reference to `room_mode: custom`
+
+**Plans**: TBD
+
+### Phase 16: Presence & Heating Log Traces
+
+**Goal**: Structured debug/info log lines are emitted on every presence
+transition, zone state change, and TRV temperature write, making it possible
+to diagnose heating behaviour from HA logs without reading source code.
+**Depends on**: Phase 12
+**Requirements**: OBS-01
+**Success Criteria** (what must be TRUE):
+
+1. A person transitioning present↔absent logs
+   `presence | person=<name> home=<bool> reason=<source>` at INFO level
+2. A zone changing heating state logs
+   `zone | zone=<name> state=<old>→<new> reason=<why>` at INFO level
+3. Each TRV set_temperature call logs
+   `heating | room=<name> temp=<T>°C zone=<zone> slot=<slot>` at DEBUG level
+4. No log spam: repeated identical states do not produce duplicate lines
+
+**Plans**: TBD
+
+### Phase 17: Person Scheduling Use-Case Docs
+
+**Goal**: Five documented use cases with screenshots cover the full range of
+person scheduling modes; `make screenshots` produces all scenario screenshots
+cleanly and they are committed alongside the README files.
+**Depends on**: Phase 16
+**Requirements**: DOC-01
+**Success Criteria** (what must be TRUE):
+
+1. `docs/use-cases/` contains five subdirectories (simple-schedule,
+   business-calendar, student-mixed-schedule, rotating-shift-worker,
+   shared-custody-odd-even-weeks), each with a `README.md` and `screenshots/`
+2. `make screenshots` captures all five scenario screenshot sets without error
+3. Each README describes the persona, configuration steps, and references
+   its screenshots
+
+**Plans**: TBD
+
 ## Progress
 
 | Phase                                      | Milestone | Plans Complete | Status   | Completed  |
@@ -195,3 +268,7 @@ sub-minute responsiveness without waiting for the polling interval.
 | 11. Calendar Presence Backend               | v1.3      | 5/5 | Complete   | 2026-06-02 |
 | 12. Predictive Pre-heat                     | v1.3      | 7/7 | Complete   | 2026-06-03 |
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 0/?            | Pending  | —          |
+| 14. Default Zone Consolidation              | v1.3      | 0/?            | Pending  | —          |
+| 15. Remove Room Custom Scheduling           | v1.3      | 0/?            | Pending  | —          |
+| 16. Presence & Heating Log Traces           | v1.3      | 0/?            | Pending  | —          |
+| 17. Person Scheduling Use-Case Docs         | v1.3      | 0/?            | Pending  | —          |
