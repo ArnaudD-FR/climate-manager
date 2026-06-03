@@ -61,14 +61,17 @@ from .const import (
     PREHEAT_CONVERGENCE_THRESHOLD,
     PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD,
     PREHEAT_MAX_SAMPLES,
+    PRESENCE_ABSENT,
     PRESENCE_CALENDAR,
     PRESENCE_HA,
+    PRESENCE_PRESENT,
     ROOM_MODE_FROST,
     ROOM_MODE_CUSTOM,
 )
 from .schedule import (
     compute_occupied_temp,
     evaluate_schedule,
+    next_occupied_at,
     next_setpoint_increase_at,
     resolve_calendar_presence,
     resolve_presence,
@@ -659,12 +662,42 @@ class ClimateManagerCoordinator:
                 return
 
         # ----------------------------------------------------------------
-        # Step 2: compute next setpoint increase from the zone time program.
-        # Pre-heat fires before the zone's own temperature rises, regardless
-        # of person presence mode (a present-all-day person has no upcoming
-        # "arrival" transition, but the setpoint still increases at period
-        # boundaries).
+        # Step 2: compute trigger time.
+        #
+        # Priority: if any assigned person is currently absent AND has a
+        # predictable schedule, use their earliest next arrival. This ensures
+        # pre-heat fires just before the person comes home, not at an arbitrary
+        # zone period boundary (e.g. Lucie absent until 18:00 → trigger at 16:00
+        # with 120 min lead, not at the 11:30 Comfort boundary).
+        #
+        # Fallback: when all persons are already present or have unpredictable
+        # modes (HA / force), use next_setpoint_increase_at from the zone
+        # program — the room is occupied so heat based on schedule.
         # ----------------------------------------------------------------
+        persons_cfg_step2: dict = config.get("persons", {})
+        assigned_step2 = [
+            pc
+            for pc in persons_cfg_step2.values()
+            if area_id in pc.get("room_ids", [])
+        ]
+        unpredictable = {PRESENCE_HA, PRESENCE_PRESENT, PRESENCE_ABSENT}
+
+        next_arrival: datetime | None = None
+        for pc in assigned_step2:
+            if pc.get("mode") in unpredictable:
+                continue
+            currently_present = resolve_presence(
+                pc, now, self._calendar_cache, dt_util.start_of_local_day
+            )
+            if currently_present:
+                continue  # already home — no arrival to pre-heat for
+            candidate = next_occupied_at(
+                pc, now, self._calendar_cache, dt_util.start_of_local_day
+            )
+            if candidate is not None:
+                if next_arrival is None or candidate < next_arrival:
+                    next_arrival = candidate
+
         room_cfg_step2 = config.get("rooms", {}).get(area_id, {})
         if room_cfg_step2.get("room_mode") == ROOM_MODE_CUSTOM:
             tp_step2 = room_cfg_step2.get("time_program") or config.get(
@@ -675,9 +708,13 @@ class ClimateManagerCoordinator:
         period_temperatures_step2: dict[str, float] = config.get(
             "period_temperatures", {}
         )
-        next_occupied: datetime | None = next_setpoint_increase_at(
-            tp_step2, period_temperatures_step2, now
-        )
+
+        if next_arrival is not None:
+            next_occupied: datetime | None = next_arrival
+        else:
+            next_occupied = next_setpoint_increase_at(
+                tp_step2, period_temperatures_step2, now
+            )
 
         # ----------------------------------------------------------------
         # Step 3: DISCARD check (D-07 / D-09)
@@ -693,11 +730,34 @@ class ClimateManagerCoordinator:
         # ----------------------------------------------------------------
         # Step 4: TRIGGER (D-08, T-12-03)
         # ----------------------------------------------------------------
-        # Suppressed: preheat enabled but no higher-temp period exists in
-        # the 7-day lookahead (e.g. zone stuck at Reduced all week).
-        self._preheat_suppressed[area_id] = next_occupied is None
+        # Suppressed when no higher-temp period exists in the 7-day lookahead,
+        # OR when the zone is in time_program_presences mode and every assigned
+        # person is unpredictable (HA / force_present / force_absent) — in that
+        # mode, heating depends on presence, and we can't predict arrival.
+        zone_mode_ph, _ = self._resolve_zone_config(area_id, config)
+        persons_config: dict = config.get("persons", {})
+        assigned_persons = [
+            pc
+            for pc in persons_config.values()
+            if area_id in pc.get("room_ids", [])
+        ]
+        unpredictable_modes = {PRESENCE_HA, PRESENCE_PRESENT, PRESENCE_ABSENT}
+        presence_suppressed = (
+            zone_mode_ph == MODE_TIME_PROGRAM_PRESENCES
+            and bool(assigned_persons)
+            and all(
+                pc.get("mode") in unpredictable_modes for pc in assigned_persons
+            )
+        )
+        self._preheat_suppressed[area_id] = (
+            next_occupied is None or presence_suppressed
+        )
 
-        if next_occupied is None or area_id in self._frost_locked_rooms:
+        if (
+            next_occupied is None
+            or presence_suppressed
+            or area_id in self._frost_locked_rooms
+        ):
             self._preheat_active[area_id] = False
             return
 

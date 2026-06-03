@@ -3,7 +3,7 @@ status: partial
 phase: 12-predictive-pre-heat
 source: [12-VERIFICATION.md]
 started: 2026-06-03T08:10:00Z
-updated: 2026-06-03T11:20:00Z
+updated: 2026-06-03T12:00:00Z
 ---
 
 ## Current Test
@@ -37,7 +37,14 @@ Enable pre-heat on a zone that has a room whose only assigned person is in
 expected: The room card shows 'Pre-heat disabled — presence cannot be
   scheduled'. Disabling the zone Pre-heat toggle makes the warning
   disappear.
-result: [pending]
+result: pass — confirmed 2026-06-03. Suppression correctly activates
+  when zone mode is time_program_presences and all assigned persons use
+  HA presence mode. Two fixes applied: (1) presence suppression was
+  lost when person-loop was replaced with next_setpoint_increase_at —
+  re-added suppression check conditioned on zone mode; (2) person
+  arrival priority over zone schedule: absent scheduled persons now
+  trigger pre-heat based on their next arrival time rather than the
+  zone's next temperature increase.
 
 ### 3. Zone toggle gates room card max-lead input
 
@@ -52,9 +59,9 @@ result: [pending]
 ## Summary
 
 total: 3
-passed: 1
+passed: 2
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
