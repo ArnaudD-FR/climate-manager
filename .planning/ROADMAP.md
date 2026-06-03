@@ -61,7 +61,7 @@ hidden.
       `calendar.*` HA entities; per-cycle cache, pre-heat lead time
 - [x] **Phase 12: Predictive Pre-heat** — Inertia-learning pre-heat engine, (completed 2026-06-02)
       per-room toggle, panel status display
-- [ ] **Phase 13: Matter→Tado X Real-Time Calibration** — Event-driven
+- [x] **Phase 13: Matter→Tado X Real-Time Calibration** — Event-driven (completed 2026-06-03)
       calibration on Matter state_changed; listener lifecycle management
 
 ## Phase Details
@@ -274,7 +274,7 @@ cleanly and they are committed alongside the README files.
 | 10. Presence Mode UI                        | v1.3      | 2/2            | Complete | 2026-06-01 |
 | 11. Calendar Presence Backend               | v1.3      | 5/5 | Complete   | 2026-06-02 |
 | 12. Predictive Pre-heat                     | v1.3      | 7/7 | Complete   | 2026-06-03 |
-| 13. Matter→Tado X Real-Time Calibration     | v1.3      | 2/3 | In Progress|  |
+| 13. Matter→Tado X Real-Time Calibration     | v1.3      | 3/3 | Complete   | 2026-06-03 |
 | 14. Default Zone Consolidation              | v1.3      | 0/?            | Pending  | —          |
 | 15. Remove Room Custom Scheduling           | v1.3      | 0/?            | Pending  | —          |
 | 16. Presence & Heating Log Traces           | v1.3      | 0/?            | Pending  | —          |

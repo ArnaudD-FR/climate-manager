@@ -29,9 +29,8 @@ result: pass
 
 ### 4. Unassign a paired Matter entity via drop zone
 expected: With a Matter entity already paired to a Tado X valve (visible as an L2 child chip), drag that Matter chip and drop it onto the "Unassign" drop zone that appears on the right during drag. The chip moves back to the unassigned pool, the mapping is removed, and a "Saved" toast appears.
-result: issue
-reported: "the saved toast does not appear but refresh is ok"
-severity: minor
+result: pass
+note: fixed by quick/tf5 (2b9b30f) — try/catch + showToast added to _onDropOnUnassign
 
 ### 5. Auto-detect button finds and saves pairings
 expected: Click the "Auto-detect" button in the climate section. The backend walks the HA device registry matching Tado X valve serial numbers against Matter device identifiers. For any matched pairs in this room, the mappings are saved automatically and the UI reloads to show the newly paired chips under their Tado X groups. A toast confirms "Auto-detected and saved". If no matches are found for this room, a "No matches found" toast appears instead.
@@ -49,20 +48,12 @@ result: pass
 ## Summary
 
 total: 7
-passed: 4
-issues: 1
+passed: 5
+issues: 0
 pending: 0
 skipped: 2
 blocked: 0
 
 ## Gaps
 
-- truth: "Dropping a Matter chip onto the Unassign drop zone shows a Saved toast"
-  status: failed
-  reason: "User reported: the saved toast does not appear but refresh is ok"
-  severity: minor
-  test: 4
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+(none — all issues resolved)
