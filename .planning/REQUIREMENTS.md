@@ -20,10 +20,10 @@
   resolves via the `calendar_config` attached to that period (entity_id +
   event_means). Not recursive: a calendar period inside a top-level calendar
   mode is not supported.
-- [ ] **CAL-04**: A per-person `preheat_lead_minutes` value (default 60,
+- [ ] **CAL-04**: A per-person `wakeup_advance_minutes` value (default 60,
   range 0–480) causes the coordinator to treat a calendar-absent person as
   present when the active event is scheduled to end within
-  `preheat_lead_minutes` minutes, enabling rooms to pre-heat before the
+  `wakeup_advance_minutes` minutes, enabling rooms to pre-heat before the
   person returns.
 
 ### Predictive Pre-heat

@@ -93,7 +93,7 @@ renamed to "Live tracking" everywhere it appears.
 
 **Goal**: A person's presence can be driven by a `calendar.*` HA entity;
 the coordinator caches `get_events` per cycle and falls back to absent on
-error. A per-person `preheat_lead_minutes` offset starts heating before the
+error. A per-person `wakeup_advance_minutes` offset starts heating before the
 person returns.
 **Depends on**: Phase 10
 **Requirements**: CAL-01, CAL-02, CAL-03, CAL-04
@@ -107,7 +107,7 @@ person returns.
    on entity error
 3. A Scheduled-mode period with state `"calendar"` resolves via its attached
    `calendar_config`; top-level Calendar mode periods are not recursive
-4. A per-person `preheat_lead_minutes` (default 60) treats a calendar-absent
+4. A per-person `wakeup_advance_minutes` (default 60) treats a calendar-absent
    person as present when the active event ends within the lead window,
    enabling pre-heat before the person returns
 
@@ -117,7 +117,7 @@ person returns.
 - [x] 11-02-PLAN.md — coordinator per-cycle calendar cache + prefetch +
       presence routing (CAL-01, CAL-02)
 - [x] 11-03-PLAN.md — WebSocket persistence for calendar_config +
-      preheat_lead_minutes; types.ts (CAL-01, CAL-04)
+      wakeup_advance_minutes; types.ts (CAL-01, CAL-04)
 - [x] 11-04-PLAN.md — frontend person-card Calendar mode UI + layout reorder
       + period calendar state (CAL-01, CAL-03, CAL-04)
 - [x] 11-05-PLAN.md — rewrite CAL-01..04 + ROADMAP success criteria to the
