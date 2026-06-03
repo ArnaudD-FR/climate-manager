@@ -203,7 +203,15 @@ a single `default_zone` key, eliminating the split across `global_mode`,
 4. All WebSocket handlers for zone config use a unified code path for
    Default Zone and custom zones
 
-**Plans**: TBD
+**Plans**: 4 plans
+- [ ] 14-01-PLAN.md — DEFAULT_CONFIG reshape + storage compat shim + tests
+      (ARCH-01)
+- [ ] 14-02-PLAN.md — coordinator zone resolution, _last_zone_periods,
+      _build_status_payload zones shape + tests (ARCH-01)
+- [ ] 14-03-PLAN.md — websocket default-zone command migration +
+      ws_get_status delegation + tests (ARCH-01)
+- [ ] 14-04-PLAN.md — frontend types/main/ws-client/components migration +
+      rebuild/deploy + human verify (ARCH-01)
 
 ### Phase 15: Remove Room Custom Scheduling
 
@@ -275,7 +283,7 @@ cleanly and they are committed alongside the README files.
 | 11. Calendar Presence Backend               | v1.3      | 5/5 | Complete   | 2026-06-02 |
 | 12. Predictive Pre-heat                     | v1.3      | 7/7 | Complete   | 2026-06-03 |
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 3/3 | Complete   | 2026-06-03 |
-| 14. Default Zone Consolidation              | v1.3      | 0/?            | Pending  | —          |
+| 14. Default Zone Consolidation              | v1.3      | 0/4            | Planned  | —          |
 | 15. Remove Room Custom Scheduling           | v1.3      | 0/?            | Pending  | —          |
 | 16. Presence & Heating Log Traces           | v1.3      | 0/?            | Pending  | —          |
 | 17. Person Scheduling Use-Case Docs         | v1.3      | 0/?            | Pending  | —          |
