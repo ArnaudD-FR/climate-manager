@@ -675,6 +675,69 @@ export class RoomCard extends LitElement {
     }
   }
 
+  private async _onMatterMappingChange(tadoEntityId: string, e: Event) {
+    const selected = (e.target as HTMLSelectElement).value;
+    const matterEntityIds = selected ? [selected] : [];
+    try {
+      await this.ws.setMatterMapping(tadoEntityId, matterEntityIds);
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
+  private _renderMatterPairingSection() {
+    const entityIds = this.roomStatus?.entity_ids ?? [];
+    const tadoXEntities = this.panelConfig?.tado_x_entities ?? [];
+    // Intersect room entity_ids with backend-derived tado_x_entities list
+    const roomTadoXIds = entityIds.filter((id) => tadoXEntities.includes(id));
+    if (roomTadoXIds.length === 0) return html``;
+
+    const matterEntities = this.panelConfig?.matter_entities ?? [];
+    const mappings = this.panelConfig?.matter_mappings ?? {};
+
+    return html`
+      <div class="section-label">Real-time calibration</div>
+      <p class="schedule-hint">
+        Pair each Tado X valve to its Matter entity for sub-minute calibration.
+      </p>
+      ${roomTadoXIds.map((tadoId) => {
+        const tadoName =
+          (this.hass?.states[tadoId]?.attributes?.["friendly_name"] as
+            | string
+            | undefined) ?? tadoId;
+        const currentMapping = mappings[tadoId]?.[0] ?? "";
+        return html`
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <span style="flex:1;font-size:13px;">${tadoName}</span>
+            <div class="select-wrapper">
+              <select
+                class="mode-select"
+                @change=${(e: Event) =>
+                  void this._onMatterMappingChange(tadoId, e)}
+              >
+                <option value="" ?selected=${!currentMapping}>(none)</option>
+                ${matterEntities.map(
+                  (matterId) => html`
+                    <option
+                      value=${matterId}
+                      ?selected=${currentMapping === matterId}
+                    >
+                      ${(this.hass?.states[matterId]?.attributes?.[
+                        "friendly_name"
+                      ] as string | undefined) ?? matterId}
+                    </option>
+                  `,
+                )}
+              </select>
+            </div>
+          </div>
+        `;
+      })}
+    `;
+  }
+
   private _renderPreheatSection() {
     // Derive zone-level enable: Default Zone rooms check top-level flag;
     // custom zone rooms check their zone's preheat_enabled (GAP-01).
@@ -872,6 +935,7 @@ export class RoomCard extends LitElement {
                   Climate entities
                 </div>
                 ${this._renderTrvSection()} ${this._renderPreheatSection()}
+                ${this._renderMatterPairingSection()}
               </div>
             `
           : ""}
