@@ -676,6 +676,8 @@ export class RoomCard extends LitElement {
     const preheatTarget = this.roomStatus?.preheat_target ?? null;
     const suppressed = this.roomStatus?.preheat_suppressed ?? false;
 
+    if (!enabled && !preheatActive) return html``;
+
     return html`
       <div class="section-label">Pre-heat</div>
       ${enabled
