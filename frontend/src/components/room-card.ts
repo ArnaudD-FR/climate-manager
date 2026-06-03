@@ -781,18 +781,24 @@ export class RoomCard extends LitElement {
     this._dragType = null;
     const d = this._parseDragPayload(e);
     if (!d) return;
-    if (d.type === "tadox") {
-      await this.ws.setMatterMapping(d.entityId, []);
+    try {
+      if (d.type === "tadox") {
+        await this.ws.setMatterMapping(d.entityId, []);
+        await this.panel.reloadConfig();
+        this.panel.showToast("Saved", false);
+        return;
+      }
+      if (!d.fromTadoId) return;
+      const src = this.panelConfig?.matter_mappings?.[d.fromTadoId] ?? [];
+      await this.ws.setMatterMapping(
+        d.fromTadoId,
+        src.filter((id) => id !== d.entityId),
+      );
       await this.panel.reloadConfig();
-      return;
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
     }
-    if (!d.fromTadoId) return;
-    const src = this.panelConfig?.matter_mappings?.[d.fromTadoId] ?? [];
-    await this.ws.setMatterMapping(
-      d.fromTadoId,
-      src.filter((id) => id !== d.entityId),
-    );
-    await this.panel.reloadConfig();
   }
 
   private _renderClimateSection() {
