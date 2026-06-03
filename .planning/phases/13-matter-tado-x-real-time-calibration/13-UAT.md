@@ -44,16 +44,15 @@ result: pass
 
 ### 7. Panel loads fresh JS after deploy
 expected: After running `make build && make deploy`, open the Climate Manager panel in a browser that previously cached the old JS. The panel loads the latest version (no stale UI artifacts from the old select-based pairing UI). The URL for the panel module ends with a `?v=` version suffix matching the current manifest.json version.
-result: skipped
-reason: Panel URL is https://ha.local/climate_manager — module-level ?v= suffix requires DevTools verification; functional freshness confirmed by DnD UI loading correctly in tests 1 and 3
+result: pass
 
 ## Summary
 
 total: 7
-passed: 3
+passed: 4
 issues: 1
 pending: 0
-skipped: 3
+skipped: 2
 blocked: 0
 
 ## Gaps
