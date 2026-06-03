@@ -238,6 +238,15 @@ export class WsClient {
     });
   }
 
+  /** Return auto-detected Matter->Tado X mapping suggestions. */
+  suggestMatterMappings(): Promise<Record<string, string[]>> {
+    return this.hass.connection
+      .sendMessagePromise<{ mappings: Record<string, string[]> }>({
+        type: "climate_manager/suggest_matter_mappings",
+      })
+      .then((r) => r.mappings);
+  }
+
   /** Return per-TRV calibration status for the TRV Auto-Calibration card. */
   getCalibrationStatus(): Promise<{
     trvs: TRVCalibrationEntry[];
