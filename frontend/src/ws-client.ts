@@ -222,6 +222,22 @@ export class WsClient {
     });
   }
 
+  /**
+   * Set or remove a Matter entity mapping for a tado_x zone entity.
+   * Pass an empty array for matterEntityIds to remove the mapping
+   * (D-01 sparse — absent key = no mapping).
+   */
+  setMatterMapping(
+    tadoEntityId: string,
+    matterEntityIds: string[],
+  ): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_matter_mapping",
+      tado_entity_id: tadoEntityId,
+      matter_entity_ids: matterEntityIds,
+    });
+  }
+
   /** Return per-TRV calibration status for the TRV Auto-Calibration card. */
   getCalibrationStatus(): Promise<{
     trvs: TRVCalibrationEntry[];

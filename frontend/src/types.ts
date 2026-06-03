@@ -129,6 +129,23 @@ export interface ClimateConfig {
    * the phase that exposes threshold configuration to the user.
    */
   calibration_threshold?: number;
+  /**
+   * Phase 13 (D-01): Matter entity pairings.
+   * Key: tado_x zone climate entity_id.
+   * Value: list of Matter climate entity_ids paired to that tado_x entity.
+   * Sparse — absent key means no mapping for that room.
+   */
+  matter_mappings?: Record<string, string[]>;
+  /**
+   * Phase 13 (A2 Option A/C): backend-derived list of all Matter climate
+   * entity_ids known to HA. Read-only — never written to storage.
+   */
+  matter_entities?: string[];
+  /**
+   * Phase 13 (A2 Option A/C): backend-derived list of all tado_x climate
+   * entity_ids known to HA. Read-only — never written to storage.
+   */
+  tado_x_entities?: string[];
 }
 
 /** Per-room live status entry inside StatusPayload.rooms_status. */
