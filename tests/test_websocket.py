@@ -1166,3 +1166,133 @@ async def test_ws_set_calibration_config_enabled_false(hass, hass_ws_client):
     assert msg["success"] is True
     assert msg["result"]["success"] is True
     assert entry.runtime_data.runtime_config["calibration_enabled"] is False
+
+
+# ---------------------------------------------------------------------------
+# Tests: set_matter_mapping WS command (Plan 13-02, MCALIB-01/02)
+# ---------------------------------------------------------------------------
+
+
+async def test_set_matter_mapping_stores_mapping(hass, hass_ws_client):
+    """set_matter_mapping stores the mapping in matter_mappings[tado_entity_id].
+
+    Verifies D-15: valid {tado_entity_id, matter_entity_ids} payload is
+    persisted under runtime_config["matter_mappings"].
+    """
+    entry = await _setup_entry(hass)
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_matter_mapping",
+            "tado_entity_id": "climate.tado_lr",
+            "matter_entity_ids": [
+                "climate.valve1",
+                "climate.valve2",
+            ],
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["success"] is True
+    mappings = entry.runtime_data.runtime_config.get("matter_mappings", {})
+    assert mappings.get("climate.tado_lr") == [
+        "climate.valve1",
+        "climate.valve2",
+    ]
+
+
+async def test_set_matter_mapping_empty_list_pops_key(hass, hass_ws_client):
+    """set_matter_mapping with matter_entity_ids=[] removes the key (sparse).
+
+    Verifies D-01: empty list must pop the tado_entity_id key — the mapping
+    is never stored as []. Sparse model: absent key = no mapping.
+    """
+    entry = await _setup_entry(hass)
+
+    # Pre-seed an existing mapping
+    entry.runtime_data.runtime_config.setdefault("matter_mappings", {})[
+        "climate.tado_lr"
+    ] = ["climate.valve1"]
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_matter_mapping",
+            "tado_entity_id": "climate.tado_lr",
+            "matter_entity_ids": [],
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    mappings = entry.runtime_data.runtime_config.get("matter_mappings", {})
+    # Key must be absent (sparse — never stored as [])
+    assert "climate.tado_lr" not in mappings
+
+
+async def test_set_matter_mapping_filters_non_climate_entity_ids(
+    hass, hass_ws_client
+):
+    """set_matter_mapping filters out non-climate.* entity IDs (Pitfall 7).
+
+    Verifies T-13-04: a payload with mixed entity_ids stores only the
+    climate.* entries; sensor.* and other domains are silently dropped.
+    """
+    entry = await _setup_entry(hass)
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_matter_mapping",
+            "tado_entity_id": "climate.tado_lr",
+            "matter_entity_ids": [
+                "sensor.foo",
+                "climate.valve1",
+            ],
+        }
+    )
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    mappings = entry.runtime_data.runtime_config.get("matter_mappings", {})
+    # Only the climate.* entity must be stored
+    assert mappings.get("climate.tado_lr") == ["climate.valve1"]
+
+
+async def test_set_matter_mapping_triggers_listener_refresh(
+    hass, hass_ws_client
+):
+    """set_matter_mapping triggers coordinator._async_refresh_matter_listeners.
+
+    Verifies D-16: after persisting, the coordinator's Matter listeners are
+    refreshed atomically. Uses a monkeypatch spy on the coordinator method;
+    allows for hass.async_create_task scheduling via
+    hass.async_block_till_done().
+    """
+    entry = await _setup_entry(hass)
+    coordinator = entry.runtime_data.coordinator
+
+    refresh_called = []
+
+    async def _spy_refresh():
+        refresh_called.append(True)
+
+    coordinator._async_refresh_matter_listeners = _spy_refresh
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_matter_mapping",
+            "tado_entity_id": "climate.tado_lr",
+            "matter_entity_ids": ["climate.valve1"],
+        }
+    )
+    msg = await client.receive_json()
+    await hass.async_block_till_done()
+
+    assert msg["success"] is True
+    assert len(refresh_called) == 1, (
+        "_async_refresh_matter_listeners must be called once"
+    )
