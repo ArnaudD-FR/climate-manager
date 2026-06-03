@@ -530,26 +530,70 @@ class ClimateManagerCoordinator:
         desired_temps: dict[str, float],
         mode_off_rooms: set[str],
     ) -> None:
-        """Push pass — off-capable TRVs in mode_off_rooms use _push_off_safely."""
-        await asyncio.gather(
-            *(
-                (
-                    self._push_off_safely(entity_id, desired_temps[area_id])
-                    if supports_hvac_off(self._hass, entity_id)
-                    else self._push_safely(
-                        entity_id, desired_temps[area_id], "ZONE_EVAL_OFF"
-                    )
-                )
-                if area_id in mode_off_rooms
-                else self._push_safely(
-                    entity_id, desired_temps[area_id], "ZONE_EVAL"
-                )
-                for area_id, entity_ids in rooms.items()
-                for entity_id in entity_ids
-                if area_id in desired_temps
-                and is_trv_entity(self._hass, entity_id)
-            )
+        """Push pass — off-capable TRVs in mode_off_rooms use _push_off_safely.
+
+        D-03 (Phase 13): per-area entity-by-entity dispatch.
+        tado_x + mapped Matter → setpoint calls go to Matter entity_ids only.
+        tado_x + unmapped → setpoint goes to tado_x entity.
+        matter + in matter_entity_set → skip (already covered by tado_x branch).
+        matter + not in set → independent setpoint call (D-07).
+        """
+        from homeassistant.helpers import (  # noqa: PLC0415
+            entity_registry as er,
         )
+
+        entity_reg = er.async_get(self._hass)
+        config = self._data.runtime_config
+        matter_mappings: dict[str, list[str]] = config.get(
+            "matter_mappings", {}
+        )
+        # Build frozenset of all Matter entity_ids in any mapping value
+        # (Pitfall 3: prevents double-adding Matter entities to to_set)
+        matter_entity_set: frozenset[str] = frozenset(
+            eid for eids in matter_mappings.values() for eid in eids
+        )
+
+        tasks: list = []
+        for area_id, entity_ids in rooms.items():
+            if area_id not in desired_temps:
+                continue
+            target_temp = desired_temps[area_id]
+            to_set: list[str] = []
+            for entity_id in entity_ids:
+                if not is_trv_entity(self._hass, entity_id):
+                    continue
+                reg = entity_reg.async_get(entity_id)
+                platform = reg.platform if reg is not None else None
+                if platform == "tado_x":
+                    mapped = matter_mappings.get(entity_id)
+                    if mapped:
+                        # D-03: mapped tado_x → use Matter entities only
+                        to_set.extend(mapped)
+                    else:
+                        # D-03: unmapped tado_x → use tado_x entity
+                        to_set.append(entity_id)
+                elif platform == "matter":
+                    if entity_id not in matter_entity_set:
+                        # D-07: unmapped Matter → independent setpoint
+                        to_set.append(entity_id)
+                    # else: skip — already in to_set via tado_x branch
+                else:
+                    # Generic TRV entity
+                    to_set.append(entity_id)
+            for eid in to_set:
+                if area_id in mode_off_rooms:
+                    if supports_hvac_off(self._hass, eid):
+                        tasks.append(self._push_off_safely(eid, target_temp))
+                    else:
+                        tasks.append(
+                            self._push_safely(eid, target_temp, "ZONE_EVAL_OFF")
+                        )
+                else:
+                    tasks.append(
+                        self._push_safely(eid, target_temp, "ZONE_EVAL")
+                    )
+        if tasks:
+            await asyncio.gather(*tasks)
 
     async def _async_preheat(self, config: dict) -> None:
         """Pre-heat pass — trigger early heating for enabled rooms (PREHEAT-02/03).
