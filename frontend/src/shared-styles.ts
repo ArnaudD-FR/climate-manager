@@ -161,3 +161,46 @@ export const floorGroupLabelStyles = css`
     flex-shrink: 0;
   }
 `;
+
+/** Drag-and-drop grouping canvas — used by room-card Matter pairing. */
+export const groupDndStyles = css`
+  .group-box {
+    background: var(--card-background-color, white);
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    padding: 8px 12px;
+    margin-bottom: 8px;
+  }
+
+  .group-box.drag-over {
+    outline: 2px dashed var(--primary-color, #03a9f4);
+  }
+
+  .matter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--secondary-background-color, #f0f0f0);
+    font-size: 0.85em;
+    cursor: grab;
+    margin: 2px;
+  }
+
+  .matter-chip button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    color: var(--secondary-text-color);
+  }
+
+  .orphan-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px 0;
+  }
+`;

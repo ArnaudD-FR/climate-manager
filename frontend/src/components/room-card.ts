@@ -33,6 +33,7 @@ import {
   selectStyles,
   expandIconStyles,
   scheduleHintStyles,
+  groupDndStyles,
 } from "../shared-styles.js";
 
 import "./time-bar.js";
@@ -104,6 +105,7 @@ export class RoomCard extends LitElement {
     selectStyles,
     expandIconStyles,
     scheduleHintStyles,
+    groupDndStyles,
     css`
       :host {
         display: block;
@@ -675,92 +677,134 @@ export class RoomCard extends LitElement {
     }
   }
 
-  private async _onMatterMappingChange(tadoEntityId: string, e: Event) {
-    const selected = (e.target as HTMLSelectElement).value;
-    const matterEntityIds = selected ? [selected] : [];
-    try {
-      await this.ws.setMatterMapping(tadoEntityId, matterEntityIds);
-      await this.panel.reloadConfig();
-      this.panel.showToast("Saved", false);
-    } catch {
-      this.panel.showToast("Save failed — retrying...", true);
-    }
+  // Matter DnD handlers
+
+  private _onMatterDragStart(matterEntityId: string, e: DragEvent): void {
+    e.dataTransfer?.setData("text/plain", matterEntityId);
   }
 
-  private async _onAutoDetectMatter() {
-    try {
-      const allMappings = await this.ws.suggestMatterMappings();
-      const roomTadoIds = (this.roomStatus?.entity_ids ?? []).filter((id) =>
-        (this.panelConfig?.tado_x_entities ?? []).includes(id),
-      );
-      const relevant = roomTadoIds.filter(
-        (id) => allMappings[id] !== undefined,
-      );
-      if (relevant.length === 0) {
-        this.panel.showToast("No matches found", false);
-        return;
-      }
-      for (const tadoId of relevant) {
-        await this.ws.setMatterMapping(tadoId, allMappings[tadoId]);
-      }
-      await this.panel.reloadConfig();
-      this.panel.showToast("Auto-detected and saved", false);
-    } catch {
-      this.panel.showToast("Auto-detect failed", true);
-    }
+  private _onGroupDragOver(e: DragEvent): void {
+    e.preventDefault();
   }
 
-  private _renderMatterPairingSection() {
-    const entityIds = this.roomStatus?.entity_ids ?? [];
+  private async _onMatterDropOnGroup(
+    tadoEntityId: string,
+    e: DragEvent,
+  ): Promise<void> {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).classList.remove("drag-over");
+    const matterEntityId = e.dataTransfer?.getData("text/plain");
+    if (!matterEntityId) return;
+    const existing = this.panelConfig?.matter_mappings?.[tadoEntityId] ?? [];
+    if (existing.includes(matterEntityId)) return;
+    await this.ws.setMatterMapping(tadoEntityId, [...existing, matterEntityId]);
+    await this.panel.reloadConfig();
+  }
+
+  private async _onUnmapMatterEntity(
+    tadoEntityId: string,
+    matterEntityId: string,
+  ): Promise<void> {
+    const existing = this.panelConfig?.matter_mappings?.[tadoEntityId] ?? [];
+    const remaining = existing.filter((id) => id !== matterEntityId);
+    await this.ws.setMatterMapping(tadoEntityId, remaining);
+    await this.panel.reloadConfig();
+  }
+
+  private _renderClimateSection() {
     const tadoXEntities = this.panelConfig?.tado_x_entities ?? [];
-    // Intersect room entity_ids with backend-derived tado_x_entities list
-    const roomTadoXIds = entityIds.filter((id) => tadoXEntities.includes(id));
-    if (roomTadoXIds.length === 0) return html``;
+    const roomEntityIds = this.roomStatus?.entity_ids ?? [];
+    const roomTadoXIds = roomEntityIds.filter((id) =>
+      tadoXEntities.includes(id),
+    );
+    const hasMatter = (this.panelConfig?.matter_entities ?? []).length > 0;
 
-    const matterEntities = this.panelConfig?.matter_entities ?? [];
+    if (roomTadoXIds.length === 0 && !hasMatter) {
+      return html`
+        <div
+          class="section-label"
+          title="TRV climate entities controlled in this room"
+        >
+          Climate entities
+        </div>
+        ${this._renderTrvSection()}
+      `;
+    }
+
     const mappings = this.panelConfig?.matter_mappings ?? {};
+    const allMapped = Object.values(mappings).flat();
+    const orphans = (this.panelConfig?.matter_entities ?? []).filter(
+      (id) => !allMapped.includes(id),
+    );
 
     return html`
       <div class="section-label">Real-time calibration</div>
       <p class="schedule-hint">
-        Pair each Tado X valve to its Matter entity for sub-minute calibration.
+        Drag Matter entities onto a Tado X valve to pair them for sub-minute
+        calibration.
       </p>
       ${roomTadoXIds.map((tadoId) => {
-        const tadoName =
+        const name =
           (this.hass?.states[tadoId]?.attributes?.["friendly_name"] as
             | string
             | undefined) ?? tadoId;
-        const currentMapping = mappings[tadoId]?.[0] ?? "";
+        const mapped = mappings[tadoId] ?? [];
         return html`
-          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-            <span style="flex:1;font-size:13px;">${tadoName}</span>
-            <div class="select-wrapper">
-              <select
-                class="mode-select"
-                @change=${(e: Event) =>
-                  void this._onMatterMappingChange(tadoId, e)}
-              >
-                <option value="" ?selected=${!currentMapping}>(none)</option>
-                ${matterEntities.map(
-                  (matterId) => html`
-                    <option
-                      value=${matterId}
-                      ?selected=${currentMapping === matterId}
-                    >
-                      ${(this.hass?.states[matterId]?.attributes?.[
-                        "friendly_name"
-                      ] as string | undefined) ?? matterId}
-                    </option>
-                  `,
-                )}
-              </select>
+          <div
+            class="group-box"
+            @dragover=${this._onGroupDragOver}
+            @drop=${(e: DragEvent) => void this._onMatterDropOnGroup(tadoId, e)}
+            @dragenter=${(e: DragEvent) =>
+              (e.currentTarget as HTMLElement).classList.add("drag-over")}
+            @dragleave=${(e: DragEvent) =>
+              (e.currentTarget as HTMLElement).classList.remove("drag-over")}
+          >
+            <div style="font-size:13px;font-weight:600;margin-bottom:6px;">
+              ${name}
             </div>
+            ${mapped.map((matterId) => {
+              const mName =
+                (this.hass?.states[matterId]?.attributes?.["friendly_name"] as
+                  | string
+                  | undefined) ?? matterId;
+              return html`
+                <span class="matter-chip">
+                  ${mName}
+                  <button
+                    @click=${() =>
+                      void this._onUnmapMatterEntity(tadoId, matterId)}
+                  >
+                    &times;
+                  </button>
+                </span>
+              `;
+            })}
           </div>
         `;
       })}
-      <button class="reset-btn" @click=${() => void this._onAutoDetectMatter()}>
-        Auto-detect
-      </button>
+      ${orphans.length > 0
+        ? html`
+            <div class="section-label" style="margin-top:12px;">
+              Unassigned Matter entities
+            </div>
+            <div class="orphan-chips">
+              ${orphans.map(
+                (id) => html`
+                  <span
+                    class="matter-chip"
+                    draggable="true"
+                    @dragstart=${(e: DragEvent) =>
+                      this._onMatterDragStart(id, e)}
+                  >
+                    ${(this.hass?.states[id]?.attributes?.["friendly_name"] as
+                      | string
+                      | undefined) ?? id}
+                  </span>
+                `,
+              )}
+            </div>
+          `
+        : ""}
     `;
   }
 
@@ -960,8 +1004,7 @@ export class RoomCard extends LitElement {
                 >
                   Climate entities
                 </div>
-                ${this._renderTrvSection()} ${this._renderPreheatSection()}
-                ${this._renderMatterPairingSection()}
+                ${this._renderClimateSection()} ${this._renderPreheatSection()}
               </div>
             `
           : ""}
