@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
 status: executing
-last_updated: "2026-06-02T18:18:40.643Z"
-last_activity: 2026-06-02 -- Phase 12 execution started
+last_updated: "2026-06-03T06:12:05.873Z"
+last_activity: 2026-06-03 -- Phase 12 planning complete
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 11
-  completed_plans: 7
+  total_plans: 12
+  completed_plans: 11
   percent: 50
 ---
 
@@ -28,8 +28,8 @@ presence schedules + TRV offset auto-calibration.
 
 Phase: 12 (predictive-pre-heat) — EXECUTING
 Plan: 1 of 4
-Status: Executing Phase 12
-Last activity: 2026-06-02 -- Phase 12 execution started
+Status: Ready to execute
+Last activity: 2026-06-03 -- Phase 12 planning complete
 
 ## Performance Metrics
 
@@ -133,8 +133,8 @@ mapped (SCHED-01..06, CALIB-01..05)
 
 ## Session Continuity
 
-Last session: 2026-06-02T13:58:10.779Z
-Resume file: .planning/phases/12-predictive-pre-heat/12-CONTEXT.md
+Last session: 2026-06-02T19:29:07.745Z
+Resume file: None
 
 ## Operator Next Steps
 
