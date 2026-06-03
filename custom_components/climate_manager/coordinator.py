@@ -881,6 +881,27 @@ class ClimateManagerCoordinator:
         self._preheat_active[area_id] = True
         self._preheat_target[area_id] = upcoming_setpoint
 
+    def _resolve_room_sensor(self, area_id: str, config: dict) -> str | None:
+        """Return the temperature sensor entity_id for a room.
+
+        Resolution order (shared by _async_calibrate and
+        _async_calibrate_for_room):
+          1. area_reg.temperature_entity_id (HA 2026.5+ area registry)
+          2. room_auto_sensors (discovered from device registry)
+          3. rooms_config explicit override (test + manual config)
+        """
+        from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
+
+        area_reg = ar.async_get(self._hass)
+        _area = area_reg.async_get_area(area_id)
+        return (
+            getattr(_area, "temperature_entity_id", None)
+            or self._data.room_auto_sensors.get(area_id, {}).get("temperature")
+            or config.get("rooms", {})
+            .get(area_id, {})
+            .get("temperature_sensor")
+        )
+
     async def _async_calibrate(self, config: dict) -> None:
         """Offset-calibrate all compatible TRVs toward their room sensors.
 
@@ -893,24 +914,10 @@ class ClimateManagerCoordinator:
         """
         if not config.get("calibration_enabled", False):
             return
-        from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
-
-        area_reg = ar.async_get(self._hass)
         rooms = self._data.rooms
         tasks = []
         for area_id, entity_ids in rooms.items():
-            # Resolve room sensor: area registry (HA 2026.5+) → auto-discovered
-            # → rooms_config explicit override (used in tests and manual config)
-            _area = area_reg.async_get_area(area_id)
-            sensor_entity_id = (
-                getattr(_area, "temperature_entity_id", None)
-                or self._data.room_auto_sensors.get(area_id, {}).get(
-                    "temperature"
-                )
-                or config.get("rooms", {})
-                .get(area_id, {})
-                .get("temperature_sensor")
-            )
+            sensor_entity_id = self._resolve_room_sensor(area_id, config)
             valve_devices = get_tado_valve_devices(self._hass, area_id)
             if valve_devices:
                 # Find zone climate entity for temperature reading
@@ -1202,22 +1209,12 @@ class ClimateManagerCoordinator:
             return
 
         from homeassistant.helpers import (  # noqa: PLC0415
-            area_registry as ar,
             entity_registry as er,
         )
 
-        area_reg = ar.async_get(self._hass)
         entity_reg = er.async_get(self._hass)
         entity_ids = self._data.rooms.get(area_id, [])
-
-        _area = area_reg.async_get_area(area_id)
-        sensor_entity_id = (
-            getattr(_area, "temperature_entity_id", None)
-            or self._data.room_auto_sensors.get(area_id, {}).get("temperature")
-            or config.get("rooms", {})
-            .get(area_id, {})
-            .get("temperature_sensor")
-        )
+        sensor_entity_id = self._resolve_room_sensor(area_id, config)
 
         matter_mappings: dict[str, list[str]] = config.get(
             "matter_mappings", {}
