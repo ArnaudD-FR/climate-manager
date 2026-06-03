@@ -45,7 +45,12 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 
 from .coordinator import ClimateManagerCoordinator
-from .discovery import discover_persons, discover_room_sensors, discover_rooms
+from .discovery import (
+    discover_persons,
+    discover_room_sensors,
+    discover_rooms,
+    suggest_matter_mappings,
+)
 from .storage import ClimateManagerStore
 from . import websocket as cm_ws
 from .const import DOMAIN
@@ -160,6 +165,10 @@ async def async_setup_entry(
     # INFRA-03: immediate push on startup before first scheduler tick.
     # _last_pushed is empty on restart → push always fires (D-04).
     await coordinator.async_evaluate()
+
+    # Auto-detect Matter→Tado X mappings on startup when none configured.
+    if not entry.runtime_data.runtime_config.get("matter_mappings"):
+        await _async_auto_detect_matter_mappings(hass, entry)
 
     # Register minute-polling scheduler; store cancel callback for clean unload (Pitfall 1).
     entry.runtime_data.cancel_scheduler = async_track_time_interval(
@@ -282,8 +291,38 @@ async def _async_refresh_rooms(
     new_sensors = await discover_room_sensors(hass)
     entry.runtime_data.rooms = new_rooms
     entry.runtime_data.room_auto_sensors = new_sensors
+    await _async_auto_detect_matter_mappings(hass, entry)
     if entry.runtime_data.coordinator is not None:
         await entry.runtime_data.coordinator.async_evaluate()
+
+
+async def _async_auto_detect_matter_mappings(
+    hass: HomeAssistant,
+    entry: ClimateManagerConfigEntry,
+) -> None:
+    """Populate matter_mappings from device registry (additive-only).
+
+    Never overwrites an existing key. Saves and refreshes listeners
+    only when at least one new mapping is added. Safe to call
+    repeatedly — idempotent when nothing new is found.
+    """
+    suggestions = await suggest_matter_mappings(hass)
+    if not suggestions:
+        return
+    existing = entry.runtime_data.runtime_config.setdefault(
+        "matter_mappings", {}
+    )
+    changed = False
+    for tado_id, matter_ids in suggestions.items():
+        if tado_id not in existing:
+            existing[tado_id] = matter_ids
+            changed = True
+    if not changed:
+        return
+    await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
+    coordinator = entry.runtime_data.coordinator
+    if coordinator is not None:
+        await coordinator._async_refresh_matter_listeners()
 
 
 async def async_unload_entry(
