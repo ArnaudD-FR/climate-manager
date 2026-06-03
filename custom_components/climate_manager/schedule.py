@@ -594,6 +594,49 @@ def compute_occupied_temp(
     ), effective
 
 
+def next_setpoint_increase_at(
+    time_program: dict,
+    period_temperatures: dict[str, float],
+    now: datetime.datetime,
+) -> datetime.datetime | None:
+    """Return the next datetime when the zone time program transitions to a
+    period with a strictly higher temperature than the current one.
+
+    Scans up to 7 days ahead. Returns None if no such transition exists in
+    that window (e.g. already in the highest period all week).
+
+    Used by the pre-heat trigger so that pre-heat fires based on the zone
+    schedule's own setpoint increases, not on person presence transitions.
+    """
+    current_period = evaluate_schedule(time_program, now)
+    current_temp = period_temperatures.get(current_period)
+    if current_temp is None:
+        return None
+
+    for day_offset in range(8):
+        target_date = now.date() + datetime.timedelta(days=day_offset)
+        day_name = WEEKDAY_TO_DAY[target_date.weekday()]
+        periods = time_program.get(day_name, [])
+        if not periods:
+            continue
+
+        sorted_periods = sorted(periods, key=lambda p: _parse_time(p["start"]))
+        for period in sorted_periods:
+            candidate = datetime.datetime.combine(
+                target_date,
+                _parse_time(period["start"]),
+            ).replace(tzinfo=now.tzinfo)
+
+            if candidate <= now:
+                continue
+
+            candidate_temp = period_temperatures.get(period.get("mode", ""))
+            if candidate_temp is not None and candidate_temp > current_temp:
+                return candidate
+
+    return None
+
+
 def validate_daily_program(
     daily_program: dict[str, list],
 ) -> tuple[bool, str]:

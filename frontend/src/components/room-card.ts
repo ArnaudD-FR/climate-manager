@@ -443,6 +443,8 @@ export class RoomCard extends LitElement {
    *   - active_period is null/undefined (no active period to display)
    *
    * Returns gray "Off" badge when globalMode is "off".
+   * When pre-heat is active, replaces the period badge with an amber
+   * "Pre-heating → XX.X°C" badge so it is visible without expanding the card.
    * Otherwise returns a colored pill: "${name} · ${temp}°C".
    */
   private _renderPeriodBadge() {
@@ -458,6 +460,16 @@ export class RoomCard extends LitElement {
           class="program-badge"
           style="background: var(--secondary-background-color); color: var(--secondary-text-color);"
           >Off</span
+        >
+      `;
+    }
+
+    const preheatActive = this.roomStatus?.preheat_active ?? false;
+    const preheatTarget = this.roomStatus?.preheat_target ?? null;
+    if (preheatActive && preheatTarget != null) {
+      return html`
+        <span class="program-badge" style="background: #e65100; color: white;"
+          >Pre-heating &rarr; ${preheatTarget.toFixed(1)}&deg;C</span
         >
       `;
     }
@@ -696,13 +708,6 @@ export class RoomCard extends LitElement {
                 style="width:70px;"
               />
             </label>
-          `
-        : ""}
-      ${preheatActive && preheatTarget != null
-        ? html`
-            <p class="schedule-hint">
-              Pre-heating (&rarr; ${preheatTarget.toFixed(1)}&deg;C)
-            </p>
           `
         : ""}
       ${enabled && suppressed

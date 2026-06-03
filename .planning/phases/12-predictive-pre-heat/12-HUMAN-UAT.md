@@ -3,7 +3,7 @@ status: partial
 phase: 12-predictive-pre-heat
 source: [12-VERIFICATION.md]
 started: 2026-06-03T08:10:00Z
-updated: 2026-06-03T08:10:00Z
+updated: 2026-06-03T11:20:00Z
 ---
 
 ## Current Test
@@ -22,7 +22,12 @@ period).
 expected: The room card shows 'Pre-heating (→ XX.X°C)' with the correct
   target temperature formatted to 1 decimal place. The max lead time input
   is visible. No per-room Pre-heat checkbox appears.
-result: [pending]
+result: pass — confirmed 2026-06-03. Header badge shows "Pre-heating →
+  28.0°C" replacing the period badge when active. Required two fixes:
+  (1) bootstrap learned_lead used hardcoded 60 min instead of
+  preheat_max_lead; (2) next_occupied derived from person presence
+  transitions — replaced with next_setpoint_increase_at() which uses
+  the zone time program directly.
 
 ### 2. Suppression warning with zone-scoped enable
 
@@ -47,9 +52,9 @@ result: [pending]
 ## Summary
 
 total: 3
-passed: 0
+passed: 1
 issues: 0
-pending: 3
+pending: 2
 skipped: 0
 blocked: 0
 

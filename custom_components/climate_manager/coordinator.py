@@ -69,7 +69,7 @@ from .const import (
 from .schedule import (
     compute_occupied_temp,
     evaluate_schedule,
-    next_occupied_at,
+    next_setpoint_increase_at,
     resolve_calendar_presence,
     resolve_presence,
 )
@@ -659,27 +659,25 @@ class ClimateManagerCoordinator:
                 return
 
         # ----------------------------------------------------------------
-        # Step 2: compute next_occupied_at (earliest non-None across
-        #         assigned persons — D-04)
+        # Step 2: compute next setpoint increase from the zone time program.
+        # Pre-heat fires before the zone's own temperature rises, regardless
+        # of person presence mode (a present-all-day person has no upcoming
+        # "arrival" transition, but the setpoint still increases at period
+        # boundaries).
         # ----------------------------------------------------------------
-        persons_config: dict = config.get("persons", {})
-        next_occupied: datetime | None = None
-        assigned_persons = [
-            (pid, pc)
-            for pid, pc in persons_config.items()
-            if area_id in pc.get("room_ids", [])
-        ]
-
-        for _pid, person_config in assigned_persons:
-            candidate = next_occupied_at(
-                person_config,
-                now,
-                self._calendar_cache,
-                dt_util.start_of_local_day,
+        room_cfg_step2 = config.get("rooms", {}).get(area_id, {})
+        if room_cfg_step2.get("room_mode") == ROOM_MODE_CUSTOM:
+            tp_step2 = room_cfg_step2.get("time_program") or config.get(
+                "global_time_program", {}
             )
-            if candidate is not None:
-                if next_occupied is None or candidate < next_occupied:
-                    next_occupied = candidate
+        else:
+            _, tp_step2 = self._resolve_zone_config(area_id, config)
+        period_temperatures_step2: dict[str, float] = config.get(
+            "period_temperatures", {}
+        )
+        next_occupied: datetime | None = next_setpoint_increase_at(
+            tp_step2, period_temperatures_step2, now
+        )
 
         # ----------------------------------------------------------------
         # Step 3: DISCARD check (D-07 / D-09)
@@ -695,28 +693,24 @@ class ClimateManagerCoordinator:
         # ----------------------------------------------------------------
         # Step 4: TRIGGER (D-08, T-12-03)
         # ----------------------------------------------------------------
-        # Suppressed: preheat enabled but ALL persons are ha/force mode
-        # (no next_occupied determinable from any of them).
-        preheat_suppressed = bool(assigned_persons) and all(
-            next_occupied_at(
-                pc, now, self._calendar_cache, dt_util.start_of_local_day
-            )
-            is None
-            for _pid, pc in assigned_persons
-        )
-        self._preheat_suppressed[area_id] = preheat_suppressed
+        # Suppressed: preheat enabled but no higher-temp period exists in
+        # the 7-day lookahead (e.g. zone stuck at Reduced all week).
+        self._preheat_suppressed[area_id] = next_occupied is None
 
         if next_occupied is None or area_id in self._frost_locked_rooms:
             self._preheat_active[area_id] = False
             return
 
-        # D-08: compute learned lead
+        # D-08: compute learned lead. Bootstrap (< threshold samples) uses
+        # preheat_max_lead so the user-configured cap is respected from the
+        # first cycle. DEFAULT_PREHEAT_LEAD_MINUTES is only the fallback when
+        # no preheat_max_lead_minutes is configured at all.
         samples = self._data.preheat_samples.get(area_id, [])
         if len(samples) >= PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD:
             avg = statistics.mean(s["duration_minutes"] for s in samples)
             learned_lead = min(avg, preheat_max_lead)
         else:
-            learned_lead = DEFAULT_PREHEAT_LEAD_MINUTES
+            learned_lead = preheat_max_lead
 
         trigger_start = next_occupied - timedelta(minutes=learned_lead)
 
@@ -735,9 +729,7 @@ class ClimateManagerCoordinator:
                 "global_time_program", {}
             )
         else:
-            _zone_mode, time_program = self._resolve_zone_config(
-                area_id, config
-            )
+            _, time_program = self._resolve_zone_config(area_id, config)
         period_temperatures: dict[str, float] = config.get(
             "period_temperatures", {}
         )
