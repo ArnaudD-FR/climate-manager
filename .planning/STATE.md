@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
 status: executing
-last_updated: "2026-06-03T21:30:17.704Z"
-last_activity: 2026-06-03 -- Phase 14 planning complete
+last_updated: "2026-06-03T21:31:48.295Z"
+last_activity: 2026-06-03 -- Phase 14 execution started
 progress:
   total_phases: 8
   completed_phases: 4
@@ -21,15 +21,15 @@ See: .planning/PROJECT.md (updated 2026-05-29)
 
 **Core value:** A household's rooms are always at the right temperature at the
 right time, without manual intervention — driven by schedules and who is
-actually home. **Current focus:** Phase 13 — matter-tado-x-real-time-calibration
+actually home. **Current focus:** Phase 14 — default-zone-consolidation
 presence schedules + TRV offset auto-calibration.
 
 ## Current Position
 
-Phase: 13 (matter-tado-x-real-time-calibration) — COMPLETE
-Plan: 3 of 3
-Status: Ready to execute
-Last activity: 2026-06-03 -- Phase 14 planning complete
+Phase: 14 (default-zone-consolidation) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 14
+Last activity: 2026-06-03 -- Phase 14 execution started
 
 ## Performance Metrics
 
