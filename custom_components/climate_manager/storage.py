@@ -118,14 +118,6 @@ class ClimateManagerStore:
             else:
                 result[key] = value
 
-        # Post-merge fill: seed any day that has no periods with the default schedule.
-        # This handles existing stored configs where days were saved as [] before
-        # default periods were introduced.
-        time_program = result.get("global_time_program", {})
-        for day, periods in time_program.items():
-            if not periods:
-                time_program[day] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM[day])
-
         # Migration: rename person presence modes to current wire values.
         for person_cfg in result.get("persons", {}).values():
             # Pre-D-21: "automatic" → "scheduled"
@@ -166,7 +158,40 @@ class ClimateManagerStore:
                     result["zones"][zone_id]["preheat_enabled"] = True
                 else:
                     # No zone_id or dangling → Default Zone.
-                    result["default_zone_preheat_enabled"] = True
+                    # Phase 14: write to default_zone sub-key (D-11).
+                    if "default_zone" in result:
+                        result["default_zone"]["preheat_enabled"] = True
+                    else:
+                        result["default_zone_preheat_enabled"] = True
+
+        # Phase 14 compat shim (D-02/D-03): promote old flat keys to
+        # default_zone sub-dict on every load.
+        # Guard: stored (raw) data has global_mode AND no default_zone.
+        # Checked against stored (not merged result) so the guard fires
+        # correctly even after DEFAULT_CONFIG gained a default_zone key.
+        if "global_mode" in stored and "default_zone" not in stored:
+            # Day-fill pass on legacy time_program before absorbing it.
+            tp = result.get("global_time_program", {})
+            for day, periods in tp.items():
+                if not periods:
+                    tp[day] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM[day])
+            result["default_zone"] = {
+                "name": result.pop("default_zone_name", "Home"),
+                "mode": result.pop("global_mode"),
+                "time_program": result.pop(
+                    "global_time_program",
+                    copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
+                ),
+                "preheat_enabled": result.pop(
+                    "default_zone_preheat_enabled", False
+                ),
+            }
+        else:
+            # New format: day-fill pass on default_zone["time_program"].
+            tp = result.get("default_zone", {}).get("time_program", {})
+            for day, periods in tp.items():
+                if not periods:
+                    tp[day] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM[day])
 
         return result
 

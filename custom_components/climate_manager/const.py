@@ -196,7 +196,7 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 #       "name": "<string>",          # display name (user-editable)
 #       "mode": "<global_mode>",     # same enum as global_mode:
 #                                    #   off | time_program | time_program_presences
-#       "time_program": {            # same structure as global_time_program
+#       "time_program": {            # same structure as default_zone.time_program
 #         "mon": [{"start": "HH:MM", "mode": "<period_mode>"}, ...],
 #         "tue": [...],
 #         "wed": [...],
@@ -211,21 +211,24 @@ _DEFAULT_DAILY_PROGRAM: dict = {
 #     }
 #   }
 #   Empty dict = no custom zones exist (all rooms belong to Default Zone).
-#   Default Zone is NOT stored here — it is a virtual zone backed by
-#   global_mode + global_time_program + default_zone_name (D-01, D-02, D-03).
-#   Default Zone preheat_enabled: top-level "default_zone_preheat_enabled"
-#   (bool, absent=False) mirrors default_zone_name (GAP-01).
+#   Default Zone is stored under the `default_zone` key (D-01, Phase 14):
+#   a single first-class ZoneConfig mirroring the custom zone shape.
 # ---------------------------------------------------------------------------
 
 DEFAULT_CONFIG: dict = {
     "version": STORAGE_VERSION,
-    "global_mode": DEFAULT_GLOBAL_MODE,
+    # Phase 14 (D-01): Default Zone as first-class ZoneConfig.
+    # The four old flat keys (global_mode, global_time_program,
+    # default_zone_name, default_zone_preheat_enabled) are absent.
+    "default_zone": {
+        "name": "Home",
+        "mode": DEFAULT_GLOBAL_MODE,
+        "time_program": copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
+        "preheat_enabled": False,
+    },
     "period_temperatures": dict(DEFAULT_PERIOD_TEMPERATURES),
-    "global_time_program": copy.deepcopy(_DEFAULT_DAILY_PROGRAM),
     "rooms": {},  # sparse: only rooms with non-default config (SCHED-05, D-11)
     "persons": {},  # sparse: only persons with non-default settings (D-11)
-    # D-03: Default Zone display name (user-editable in Phase 5/6)
-    "default_zone_name": "Home",
     "zones": {},  # ZONE-01: custom zones, keyed by UUID string (D-07)
     # Empty dict = no custom zones; all rooms belong to Default Zone.
     # DEFAULT_CONFIG["zones"] MUST stay {} — pitfall 2: dict.update()
