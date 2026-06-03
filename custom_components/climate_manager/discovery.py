@@ -148,3 +148,66 @@ async def discover_persons(hass: HomeAssistant) -> list[str]:
         for entry in entity_reg.entities.values()
         if entry.entity_id.split(".")[0] == "person"
     ]
+
+
+async def suggest_matter_mappings(
+    hass: HomeAssistant,
+) -> dict[str, list[str]]:
+    """Return {tado_x_entity_id: [matter_entity_id, ...]} by matching
+    Tado X valve serial numbers to Matter device identifiers.
+
+    Algorithm:
+    Step 1: Build serial → matter_entity_id lookup from Matter climate
+            entities whose device has an identifier ("matter", "serial_*").
+    Step 2: For each tado_x climate entity, find valve sub-devices via
+            via_device_id, extract their tado_x identifiers as serials,
+            and map to Matter entity_ids via the Step 1 lookup.
+    """
+    entity_reg = er.async_get(hass)
+    device_reg = dr.async_get(hass)
+
+    # Step 1 — build serial → matter_entity_id lookup
+    matter_serial_to_entity: dict[str, str] = {}
+    for entry in entity_reg.entities.values():
+        if (
+            entry.entity_id.split(".")[0] != "climate"
+            or entry.platform != "matter"
+        ):
+            continue
+        device = (
+            device_reg.async_get(entry.device_id) if entry.device_id else None
+        )
+        if device is None:
+            continue
+        for identifier in device.identifiers:
+            if identifier[0] == "matter" and identifier[1].startswith(
+                "serial_"
+            ):
+                serial = identifier[1][7:]  # strip "serial_" prefix
+                matter_serial_to_entity[serial] = entry.entity_id
+
+    # Step 2 — for each tado_x zone, find valve devices and map serials
+    mappings: dict[str, list[str]] = {}
+    for entry in entity_reg.entities.values():
+        if (
+            entry.entity_id.split(".")[0] != "climate"
+            or entry.platform != "tado_x"
+        ):
+            continue
+        zone_device_id = entry.device_id
+        valve_devices = [
+            d
+            for d in device_reg.devices.values()
+            if d.via_device_id == zone_device_id
+        ]
+        matter_eids: list[str] = []
+        for valve in valve_devices:
+            for identifier in valve.identifiers:
+                if identifier[0] == "tado_x":
+                    serial = identifier[1]
+                    matter_eid = matter_serial_to_entity.get(serial)
+                    if matter_eid:
+                        matter_eids.append(matter_eid)
+        if matter_eids:
+            mappings[entry.entity_id] = matter_eids
+    return mappings

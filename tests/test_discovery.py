@@ -11,6 +11,7 @@ from homeassistant.helpers import (
     device_registry as dr,
     entity_registry as er,
 )
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.climate_manager.discovery import (
     discover_persons,
@@ -124,18 +125,22 @@ async def test_suggest_matter_mappings_matches_by_serial(hass):
     device_reg = dr.async_get(hass)
     entity_reg = er.async_get(hass)
 
+    # Create mock config entries so device registry accepts config_entry_id
+    tado_entry = MockConfigEntry(domain="tado_x", data={})
+    tado_entry.add_to_hass(hass)
+    matter_entry_cfg = MockConfigEntry(domain="matter", data={})
+    matter_entry_cfg.add_to_hass(hass)
+
     # Create the tado_x zone device (parent)
-    zone_device = dr.async_get_or_create(
-        hass,
-        config_entry_id="tado_x_entry",
+    zone_device = device_reg.async_get_or_create(
+        config_entry_id=tado_entry.entry_id,
         identifiers={("tado_x", "zone_1")},
         name="Living Room Zone",
     )
 
     # Create the valve sub-device (child via via_device_id)
-    valve_device = dr.async_get_or_create(
-        hass,
-        config_entry_id="tado_x_entry",
+    valve_device = device_reg.async_get_or_create(
+        config_entry_id=tado_entry.entry_id,
         identifiers={("tado_x", "VA3805450240")},
         name="Valve 1",
     )
@@ -144,70 +149,72 @@ async def test_suggest_matter_mappings_matches_by_serial(hass):
     )
 
     # Create the Matter device with the matching serial identifier
-    matter_device = dr.async_get_or_create(
-        hass,
-        config_entry_id="matter_entry",
+    matter_device = device_reg.async_get_or_create(
+        config_entry_id=matter_entry_cfg.entry_id,
         identifiers={("matter", "serial_VA3805450240")},
         name="Matter Valve 1",
     )
 
     # Register tado_x climate entity on the zone device
-    tado_entry = entity_reg.async_get_or_create(
+    tado_climate = entity_reg.async_get_or_create(
         domain="climate",
         platform="tado_x",
         unique_id="tado_zone_lr",
     )
     entity_reg.async_update_entity(
-        tado_entry.entity_id, device_id=zone_device.id
+        tado_climate.entity_id, device_id=zone_device.id
     )
 
     # Register matter climate entity on the matter device
-    matter_entry = entity_reg.async_get_or_create(
+    matter_climate = entity_reg.async_get_or_create(
         domain="climate",
         platform="matter",
         unique_id="matter_valve_lr",
     )
     entity_reg.async_update_entity(
-        matter_entry.entity_id, device_id=matter_device.id
+        matter_climate.entity_id, device_id=matter_device.id
     )
 
     result = await suggest_matter_mappings(hass)
 
-    assert tado_entry.entity_id in result
-    assert matter_entry.entity_id in result[tado_entry.entity_id]
+    assert tado_climate.entity_id in result
+    assert matter_climate.entity_id in result[tado_climate.entity_id]
 
 
 async def test_suggest_matter_mappings_no_valve_subdevices(hass):
     """Test B: tado_x entity whose zone device has no valve sub-devices
     (via_device_id does not match) → returns {}.
     """
+    device_reg = dr.async_get(hass)
     entity_reg = er.async_get(hass)
 
+    # Create a mock config entry for device registry
+    tado_entry = MockConfigEntry(domain="tado_x", data={})
+    tado_entry.add_to_hass(hass)
+
     # Create the tado_x zone device (no children)
-    zone_device = dr.async_get_or_create(
-        hass,
-        config_entry_id="tado_x_entry",
+    zone_device = device_reg.async_get_or_create(
+        config_entry_id=tado_entry.entry_id,
         identifiers={("tado_x", "zone_2")},
         name="Bedroom Zone",
     )
 
     # Create a valve device that does NOT point to zone_device
     # (via_device_id left unset — not a child of zone_device)
-    dr.async_get_or_create(
-        hass,
-        config_entry_id="tado_x_entry",
+    device_reg.async_get_or_create(
+        config_entry_id=tado_entry.entry_id,
         identifiers={("tado_x", "VA9999999999")},
         name="Unrelated Valve",
     )
 
     # Register tado_x climate entity on the zone device
-    tado_entry = entity_reg.async_get_or_create(
+    tado_climate = entity_reg.async_get_or_create(
         domain="climate",
         platform="tado_x",
         unique_id="tado_zone_bedroom",
     )
     entity_reg.async_update_entity(
-        tado_entry.entity_id, device_id=zone_device.id
+        tado_climate.entity_id, device_id=zone_device.id
     )
 
     result = await suggest_matter_mappings(hass)
