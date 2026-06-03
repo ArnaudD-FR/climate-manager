@@ -1,14 +1,14 @@
 ---
-status: partial
+status: complete
 phase: 12-predictive-pre-heat
 source: [12-VERIFICATION.md]
 started: 2026-06-03T08:10:00Z
-updated: 2026-06-03T12:00:00Z
+updated: 2026-06-03T19:33:20Z
 ---
 
 ## Current Test
 
-[awaiting human testing — zone-scoped pre-heat panel UAT]
+All tests complete.
 
 ## Tests
 
@@ -54,14 +54,16 @@ room card's max lead time input for a room in that zone.
 expected: When the zone toggle is ON, the max lead time number input appears
   in the room card. When OFF, it disappears. Changing the max lead value
   triggers auto-save and shows a toast.
-result: [pending]
+result: pass — confirmed 2026-06-03. Zone Pre-heat toggle correctly
+  gates the max lead time input visibility in the room card. Changing
+  the value triggers auto-save and shows a toast notification.
 
 ## Summary
 
 total: 3
-passed: 2
+passed: 3
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
