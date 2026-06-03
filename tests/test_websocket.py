@@ -1416,3 +1416,28 @@ async def test_set_matter_mapping_triggers_listener_refresh(
     assert len(refresh_called) == 1, (
         "_async_refresh_matter_listeners must be called once"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test: suggest_matter_mappings WS command (Plan quick/260603-o8e)
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_suggest_matter_mappings_returns_mappings(
+    hass, hass_ws_client
+):
+    """suggest_matter_mappings returns {"mappings": {}} on a fresh hass
+    with no Tado X or Matter entities.
+
+    Verifies the command is registered, returns success=True, and the
+    result contains a "mappings" key that is a dict.
+    """
+    await _setup_entry(hass)
+    client = await hass_ws_client()
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/suggest_matter_mappings"}
+    )
+    msg = await client.receive_json()
+    assert msg["success"] is True
+    assert "mappings" in msg["result"]
+    assert isinstance(msg["result"]["mappings"], dict)
