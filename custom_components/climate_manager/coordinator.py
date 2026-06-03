@@ -1107,6 +1107,17 @@ class ClimateManagerCoordinator:
             eid for eids in matter_mappings.values() for eid in eids
         )
 
+        def _register(eid: str, aid: str) -> None:
+            """Register once — skip if already tracked (idempotent)."""
+            if eid in self._matter_cal_listeners:
+                return
+            cancel = async_track_state_change_event(
+                self._hass,
+                eid,
+                self._make_matter_cal_listener(aid),
+            )
+            self._matter_cal_listeners[eid] = cancel
+
         for area_id, entity_ids in self._data.rooms.items():
             for entity_id in entity_ids:
                 reg = entity_reg.async_get(entity_id)
@@ -1118,43 +1129,17 @@ class ClimateManagerCoordinator:
                         # D-09: mapped tado_x → no listener on tado_x;
                         # each mapped Matter entity gets its own listener
                         for matter_eid in mapped:
-                            if matter_eid in self._matter_cal_listeners:
-                                continue
-                            cancel = async_track_state_change_event(
-                                self._hass,
-                                matter_eid,
-                                self._make_matter_cal_listener(area_id),
-                            )
-                            self._matter_cal_listeners[matter_eid] = cancel
+                            _register(matter_eid, area_id)
                     else:
                         # D-09: unmapped tado_x → listener on tado_x entity
-                        if entity_id not in self._matter_cal_listeners:
-                            cancel = async_track_state_change_event(
-                                self._hass,
-                                entity_id,
-                                self._make_matter_cal_listener(area_id),
-                            )
-                            self._matter_cal_listeners[entity_id] = cancel
+                        _register(entity_id, area_id)
                 elif platform == "matter":
                     # D-09: unmapped Matter entity → listener
                     if entity_id not in matter_entity_set:
-                        if entity_id not in self._matter_cal_listeners:
-                            cancel = async_track_state_change_event(
-                                self._hass,
-                                entity_id,
-                                self._make_matter_cal_listener(area_id),
-                            )
-                            self._matter_cal_listeners[entity_id] = cancel
+                        _register(entity_id, area_id)
                 else:
-                    # Non-tado_x / non-matter entities also get listeners
-                    # for generic event-driven calibration
-                    if entity_id not in self._matter_cal_listeners:
-                        cancel = async_track_state_change_event(
-                            self._hass,
-                            entity_id,
-                            self._make_matter_cal_listener(area_id),
-                        )
-                        self._matter_cal_listeners[entity_id] = cancel
+                    # Generic TRV or unregistered entity → listener
+                    _register(entity_id, area_id)
 
     async def _async_calibrate_for_room(self, area_id: str) -> None:
         """Run calibration for a single room (event-driven path).
