@@ -378,20 +378,30 @@ def _make_preheat_config(
     global_mode: str = MODE_TIME_PROGRAM_PRESENCES,
     persons_config: dict | None = None,
     rooms_config: dict | None = None,
+    zones: dict | None = None,
+    default_zone_preheat_enabled: bool = False,
 ) -> dict:
-    """Build a runtime_config dict for preheat coordinator tests."""
-    return {
+    """Build a runtime_config dict for preheat coordinator tests.
+
+    GAP-01: preheat_enabled lives at zone scope, not room scope.
+    Pass default_zone_preheat_enabled=True for rooms with no zone_id.
+    Pass zones={<uuid>: {"preheat_enabled": True, ...}} for custom zones.
+    """
+    cfg: dict = {
         "version": 2,
         "global_mode": global_mode,
         "period_temperatures": dict(DEFAULT_PERIOD_TEMPERATURES),
         "global_time_program": _ALL_NORMAL,
         "rooms": rooms_config or {},
         "persons": persons_config or {},
-        "zones": {},
+        "zones": zones or {},
         "default_zone_name": "Home",
         "calibration_enabled": False,
         "calibration_threshold": 0.5,
     }
+    if default_zone_preheat_enabled:
+        cfg["default_zone_preheat_enabled"] = True
+    return cfg
 
 
 def _make_mock_data(
@@ -445,15 +455,16 @@ async def test_preheat_trigger_fires(hass):
             "room_ids": ["bedroom"],
         }
     }
+    # GAP-01: enable pre-heat at zone scope (room has no zone_id → Default Zone)
     rooms_config = {
         "bedroom": {
-            "preheat_enabled": True,
             "preheat_max_lead_minutes": DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
         }
     }
     config = _make_preheat_config(
         persons_config=persons_config,
         rooms_config=rooms_config,
+        default_zone_preheat_enabled=True,
     )
     data = _make_mock_data(
         runtime_config=config, rooms={"bedroom": ["climate.bedroom_trv"]}
@@ -512,14 +523,16 @@ async def test_preheat_respects_frost_lock(hass):
             "room_ids": ["living"],
         }
     }
+    # GAP-01: enable pre-heat at zone scope (room has no zone_id → Default Zone)
     rooms_config = {
         "living": {
-            "preheat_enabled": True,
             "room_mode": ROOM_MODE_FROST,  # frost-locked
         }
     }
     config = _make_preheat_config(
-        persons_config=persons_config, rooms_config=rooms_config
+        persons_config=persons_config,
+        rooms_config=rooms_config,
+        default_zone_preheat_enabled=True,
     )
     data = _make_mock_data(
         runtime_config=config, rooms={"living": ["climate.living_trv"]}
@@ -641,13 +654,16 @@ async def test_sample_recorded_on_convergence(hass):
         },
     )
 
+    # GAP-01: enable pre-heat at zone scope (room has no zone_id → Default Zone)
     rooms_config = {
         "study": {
-            "preheat_enabled": True,
             "preheat_max_lead_minutes": DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
         }
     }
-    config = _make_preheat_config(rooms_config=rooms_config)
+    config = _make_preheat_config(
+        rooms_config=rooms_config,
+        default_zone_preheat_enabled=True,
+    )
     data = _make_mock_data(
         runtime_config=config,
         rooms={"study": ["climate.study_trv"]},
@@ -720,14 +736,16 @@ async def test_sample_discarded_when_period_starts(hass):
             "room_ids": ["kitchen"],
         }
     }
+    # GAP-01: enable pre-heat at zone scope (room has no zone_id → Default Zone)
     rooms_config = {
         "kitchen": {
-            "preheat_enabled": True,
             "preheat_max_lead_minutes": DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
         }
     }
     config = _make_preheat_config(
-        persons_config=persons_config, rooms_config=rooms_config
+        persons_config=persons_config,
+        rooms_config=rooms_config,
+        default_zone_preheat_enabled=True,
     )
     data = _make_mock_data(
         runtime_config=config,
@@ -788,14 +806,16 @@ async def test_preheat_suppressed_for_ha_mode(hass):
             "room_ids": ["bath"],
         }
     }
+    # GAP-01: enable pre-heat at zone scope (room has no zone_id → Default Zone)
     rooms_config = {
         "bath": {
-            "preheat_enabled": True,
             "preheat_max_lead_minutes": DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
         }
     }
     config = _make_preheat_config(
-        persons_config=persons_config, rooms_config=rooms_config
+        persons_config=persons_config,
+        rooms_config=rooms_config,
+        default_zone_preheat_enabled=True,
     )
     data = _make_mock_data(
         runtime_config=config, rooms={"bath": ["climate.bath_trv"]}
@@ -828,12 +848,12 @@ async def test_status_payload_preheat_fields(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    rooms_config = {
-        "garage": {
-            "preheat_enabled": True,
-        }
-    }
-    config = _make_preheat_config(rooms_config=rooms_config)
+    # GAP-01: preheat_enabled is at zone scope; room config holds no flag
+    rooms_config = {"garage": {}}
+    config = _make_preheat_config(
+        rooms_config=rooms_config,
+        default_zone_preheat_enabled=True,
+    )
     entry.runtime_data.runtime_config = config
     entry.runtime_data.rooms = {"garage": []}
 
@@ -929,10 +949,10 @@ async def _setup_ws_entry(hass):
 
 
 async def test_ws_set_room_preheat_config(hass, hass_ws_client):
-    """set_room_config with preheat_enabled=True + preheat_max_lead_minutes=90
-    persists both keys into rooms[room_id].
+    """set_room_config no longer persists preheat_enabled on the room (GAP-01).
 
-    D-01: valid values within [0, 480] are kept; bool is coerced.
+    preheat_enabled has moved to zone scope; the room command silently drops
+    the deprecated key.  preheat_max_lead_minutes is still accepted per-room.
     """
     from pytest_homeassistant_custom_component.common import async_mock_service
 
@@ -959,7 +979,11 @@ async def test_ws_set_room_preheat_config(hass, hass_ws_client):
     persisted = entry.runtime_data.runtime_config.get("rooms", {}).get(
         room_id, {}
     )
-    assert persisted.get("preheat_enabled") is True
+    # preheat_enabled must NOT be persisted on the room (GAP-01)
+    assert "preheat_enabled" not in persisted, (
+        f"Deprecated room preheat_enabled must be dropped, got {persisted}"
+    )
+    # preheat_max_lead_minutes still persisted per-room
     assert persisted.get("preheat_max_lead_minutes") == 90
 
 
@@ -1027,9 +1051,10 @@ async def test_ws_room_max_lead_clamped(hass, hass_ws_client):
 
 
 async def test_ws_room_enabled_coerced_bool(hass, hass_ws_client):
-    """preheat_enabled=1 (truthy non-bool) is coerced to Python bool True.
+    """preheat_enabled sent to set_room_config is silently dropped (GAP-01).
 
-    D-01: preheat_enabled is always stored as a Python bool.
+    preheat_enabled has moved to zone scope.  Sending it via set_room_config
+    (even as a truthy non-bool) must NOT persist any room-level flag.
     """
     from pytest_homeassistant_custom_component.common import async_mock_service
 
@@ -1053,9 +1078,350 @@ async def test_ws_room_enabled_coerced_bool(hass, hass_ws_client):
     persisted = entry.runtime_data.runtime_config.get("rooms", {}).get(
         room_id, {}
     )
-    val = persisted.get("preheat_enabled")
-    assert isinstance(val, bool), f"Expected bool, got {type(val)}: {val!r}"
-    assert val is True
+    # GAP-01: deprecated room-level preheat_enabled must be absent
+    assert "preheat_enabled" not in persisted, (
+        f"Room preheat_enabled must not be persisted, got {persisted}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# GAP-01 zone-scope preheat WS command tests
+# ---------------------------------------------------------------------------
+
+
+async def test_ws_set_zone_preheat(hass, hass_ws_client):
+    """set_zone_preheat with a custom zone_id writes preheat_enabled to
+    zones[zone_id] (GAP-01).
+
+    T-12-11: unknown zone_id returns error; valid zone_id persists bool.
+    """
+    import uuid as _uuid
+
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = await _setup_ws_entry(hass)
+    zone_id = str(_uuid.uuid4())
+    # Seed a custom zone into runtime_config
+    entry.runtime_data.runtime_config.setdefault("zones", {})[zone_id] = {
+        "name": "Upstairs",
+        "mode": "time_program",
+        "time_program": {},
+    }
+
+    client = await hass_ws_client()
+
+    # Enable preheat on the custom zone
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_zone_preheat",
+            "zone_id": zone_id,
+            "enabled": True,
+        }
+    )
+    msg = await client.receive_json()
+    assert msg["success"] is True
+    zone = entry.runtime_data.runtime_config["zones"][zone_id]
+    assert zone.get("preheat_enabled") is True
+
+    # Disable preheat on the custom zone
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_zone_preheat",
+            "zone_id": zone_id,
+            "enabled": False,
+        }
+    )
+    msg = await client.receive_json()
+    assert msg["success"] is True
+    zone = entry.runtime_data.runtime_config["zones"][zone_id]
+    assert zone.get("preheat_enabled") is False
+
+
+async def test_ws_set_zone_preheat_default(hass, hass_ws_client):
+    """set_zone_preheat with zone_id="default" writes default_zone_preheat_enabled
+    at the top level of runtime_config (GAP-01, Option A).
+    """
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    entry = await _setup_ws_entry(hass)
+    client = await hass_ws_client()
+
+    # Enable preheat on the Default Zone
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_zone_preheat",
+            "zone_id": "default",
+            "enabled": True,
+        }
+    )
+    msg = await client.receive_json()
+    assert msg["success"] is True
+    assert (
+        entry.runtime_data.runtime_config.get("default_zone_preheat_enabled")
+        is True
+    )
+
+    # Disable preheat on the Default Zone
+    await client.send_json_auto_id(
+        {
+            "type": f"{DOMAIN}/set_zone_preheat",
+            "zone_id": "default",
+            "enabled": False,
+        }
+    )
+    msg = await client.receive_json()
+    assert msg["success"] is True
+    assert (
+        entry.runtime_data.runtime_config.get("default_zone_preheat_enabled")
+        is False
+    )
+
+
+# ---------------------------------------------------------------------------
+# GAP-01 coordinator zone-scope enable tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.freeze_time("2026-06-01 06:30:00")
+async def test_preheat_reads_zone_enabled(hass):
+    """Room assigned to a custom zone: pre-heat fires iff zone.preheat_enabled.
+
+    T-12-11 / GAP-01: preheat_enabled is read from the zone, not the room.
+    """
+    import uuid as _uuid
+
+    from custom_components.climate_manager.coordinator import (
+        ClimateManagerCoordinator,
+    )
+
+    hass.states.async_set(
+        "climate.office_trv",
+        "heat",
+        {"temperature": 18.0, "current_temperature": 18.0},
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    zone_id = str(_uuid.uuid4())
+    persons_config = {
+        "person.alice": {
+            "mode": "scheduled",
+            "schedule_type": "single",
+            "schedule": _MORNING_PRESENT,
+            "room_ids": ["office"],
+        }
+    }
+    rooms_config = {
+        "office": {
+            "zone_id": zone_id,
+            "preheat_max_lead_minutes": DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
+        }
+    }
+
+    # Case 1: zone.preheat_enabled=True → trigger fires
+    zones_enabled = {
+        zone_id: {
+            "name": "Z",
+            "mode": "time_program_presences",
+            "time_program": _ALL_NORMAL,
+            "preheat_enabled": True,
+        }
+    }
+    config = _make_preheat_config(
+        persons_config=persons_config,
+        rooms_config=rooms_config,
+        zones=zones_enabled,
+    )
+    data = _make_mock_data(
+        runtime_config=config,
+        rooms={"office": ["climate.office_trv"]},
+    )
+    coord = ClimateManagerCoordinator(hass, data)
+    coord._frost_locked_rooms = set()
+    now = datetime.datetime(2026, 6, 1, 6, 30, tzinfo=datetime.timezone.utc)
+    await coord._async_preheat_room("office", config, now)
+    await hass.async_block_till_done()
+
+    assert coord._preheat_active.get("office") is True
+
+    # Case 2: zone.preheat_enabled absent → preheat_active False
+    zones_disabled = {
+        zone_id: {
+            "name": "Z",
+            "mode": "time_program_presences",
+            "time_program": _ALL_NORMAL,
+        }
+    }
+    config2 = _make_preheat_config(
+        persons_config=persons_config,
+        rooms_config=rooms_config,
+        zones=zones_disabled,
+    )
+    data2 = _make_mock_data(
+        runtime_config=config2,
+        rooms={"office": ["climate.office_trv"]},
+    )
+    coord2 = ClimateManagerCoordinator(hass, data2)
+    coord2._frost_locked_rooms = set()
+    await coord2._async_preheat_room("office", config2, now)
+    await hass.async_block_till_done()
+
+    assert coord2._preheat_active.get("office") is not True
+
+
+@pytest.mark.freeze_time("2026-06-01 06:30:00")
+async def test_preheat_default_zone_enabled(hass):
+    """Room with no zone_id: pre-heat fires iff default_zone_preheat_enabled.
+
+    GAP-01: rooms with no zone_id read default_zone_preheat_enabled.
+    """
+    from custom_components.climate_manager.coordinator import (
+        ClimateManagerCoordinator,
+    )
+
+    hass.states.async_set(
+        "climate.hall_trv",
+        "heat",
+        {"temperature": 18.0, "current_temperature": 18.0},
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    persons_config = {
+        "person.bob": {
+            "mode": "scheduled",
+            "schedule_type": "single",
+            "schedule": _MORNING_PRESENT,
+            "room_ids": ["hall"],
+        }
+    }
+    rooms_config = {
+        "hall": {"preheat_max_lead_minutes": DEFAULT_PREHEAT_MAX_LEAD_MINUTES}
+    }
+
+    # Case 1: default_zone_preheat_enabled=True → fires
+    config = _make_preheat_config(
+        persons_config=persons_config,
+        rooms_config=rooms_config,
+        default_zone_preheat_enabled=True,
+    )
+    data = _make_mock_data(
+        runtime_config=config,
+        rooms={"hall": ["climate.hall_trv"]},
+    )
+    coord = ClimateManagerCoordinator(hass, data)
+    coord._frost_locked_rooms = set()
+    now = datetime.datetime(2026, 6, 1, 6, 30, tzinfo=datetime.timezone.utc)
+    await coord._async_preheat_room("hall", config, now)
+    await hass.async_block_till_done()
+
+    assert coord._preheat_active.get("hall") is True
+
+    # Case 2: default_zone_preheat_enabled absent → does NOT fire
+    config2 = _make_preheat_config(
+        persons_config=persons_config,
+        rooms_config=rooms_config,
+        default_zone_preheat_enabled=False,
+    )
+    data2 = _make_mock_data(
+        runtime_config=config2,
+        rooms={"hall": ["climate.hall_trv"]},
+    )
+    coord2 = ClimateManagerCoordinator(hass, data2)
+    coord2._frost_locked_rooms = set()
+    await coord2._async_preheat_room("hall", config2, now)
+    await hass.async_block_till_done()
+
+    assert coord2._preheat_active.get("hall") is not True
+
+
+# ---------------------------------------------------------------------------
+# GAP-01 storage migration tests (T-12-13)
+# ---------------------------------------------------------------------------
+
+
+async def test_migration_room_preheat_to_zone(hass):
+    """async_load migrates legacy room.preheat_enabled=True to zone scope.
+
+    T-12-13: migration unconditionally pops deprecated room key.
+    Variant A: room with zone_id → flag lands on zones[zone_id].
+    Variant B: room with no zone_id → flag lands on default_zone_preheat_enabled.
+    """
+    import uuid as _uuid
+
+    from custom_components.climate_manager.storage import ClimateManagerStore
+
+    zone_id = str(_uuid.uuid4())
+
+    # Variant A: room assigned to a custom zone
+    stored_a = {
+        "version": 2,
+        "global_mode": "time_program",
+        "period_temperatures": {},
+        "global_time_program": {},
+        "zones": {
+            zone_id: {
+                "name": "Upstairs",
+                "mode": "time_program",
+                "time_program": {},
+            }
+        },
+        "rooms": {
+            "bedroom": {
+                "zone_id": zone_id,
+                "preheat_enabled": True,
+                "preheat_max_lead_minutes": 90,
+            }
+        },
+        "persons": {},
+    }
+
+    mock_store_a = AsyncMock()
+    mock_store_a.async_load = AsyncMock(return_value=stored_a)
+    storage_a = ClimateManagerStore.__new__(ClimateManagerStore)
+    storage_a._store = mock_store_a
+
+    result_a = await storage_a.async_load()
+
+    # Flag promoted to zone
+    assert result_a["zones"][zone_id].get("preheat_enabled") is True
+    # Deprecated room key removed
+    assert "preheat_enabled" not in result_a["rooms"]["bedroom"]
+    # max_lead still on room
+    assert result_a["rooms"]["bedroom"].get("preheat_max_lead_minutes") == 90
+
+    # Variant B: room with no zone_id → Default Zone
+    stored_b = {
+        "version": 2,
+        "global_mode": "time_program",
+        "period_temperatures": {},
+        "global_time_program": {},
+        "zones": {},
+        "rooms": {
+            "hall": {
+                "preheat_enabled": True,
+            }
+        },
+        "persons": {},
+    }
+
+    mock_store_b = AsyncMock()
+    mock_store_b.async_load = AsyncMock(return_value=stored_b)
+    storage_b = ClimateManagerStore.__new__(ClimateManagerStore)
+    storage_b._store = mock_store_b
+
+    result_b = await storage_b.async_load()
+
+    # Flag promoted to default_zone_preheat_enabled
+    assert result_b.get("default_zone_preheat_enabled") is True
+    # Deprecated room key removed
+    assert "preheat_enabled" not in result_b["rooms"]["hall"]
 
 
 async def test_ws_set_person_wakeup_advance(hass, hass_ws_client):

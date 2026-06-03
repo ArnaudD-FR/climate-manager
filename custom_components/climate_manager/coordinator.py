@@ -574,7 +574,20 @@ class ClimateManagerCoordinator:
         set_temperature call.
         """
         room_config = (config.get("rooms") or {}).get(area_id, {})
-        preheat_enabled = room_config.get("preheat_enabled", False)
+        # GAP-01: preheat_enabled moved from per-room to per-zone scope.
+        # Rooms with no zone_id read default_zone_preheat_enabled (Option A).
+        # Dangling zone_id falls back identically (defense-in-depth, T-12-12).
+        zone_id = room_config.get("zone_id")
+        if zone_id is None:
+            preheat_enabled = config.get("default_zone_preheat_enabled", False)
+        else:
+            zone = config.get("zones", {}).get(zone_id)
+            if zone is None:
+                preheat_enabled = config.get(
+                    "default_zone_preheat_enabled", False
+                )
+            else:
+                preheat_enabled = zone.get("preheat_enabled", False)
 
         if not preheat_enabled:
             self._preheat_active[area_id] = False

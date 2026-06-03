@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 """Climate Manager WebSocket command handlers.
 
-Registers 18 WebSocket commands for the panel ↔ backend protocol:
+Registers 19 WebSocket commands for the panel ↔ backend protocol:
 - get_status: returns global_mode, active_period, present_persons, rooms_status
 - get_config: returns full runtime_config
 - set_global_mode: mutates global_mode, persists, re-evaluates
@@ -10,12 +10,13 @@ Registers 18 WebSocket commands for the panel ↔ backend protocol:
 - set_room_config: sparse-merges into rooms[room_id]
 - set_person_config: sparse-merges into persons[person_id]
 - subscribe_status: registers a push listener in connection.subscriptions
-- reset_period_temperatures: resets period_temperatures to DEFAULT_PERIOD_TEMPERATURES from const.py
+- reset_period_temperatures: resets period_temperatures to DEFAULT_PERIOD_TEMPERATURES
 - reset_time_program: resets global_time_program to _DEFAULT_DAILY_PROGRAM from const.py
 - reset_room_to_global_program: deep-copies global_time_program into rooms[room_id].time_program
 - create_zone: creates new heating zone with UUID, persists
 - rename_zone: renames custom zone or Default Zone (zone_id="default")
 - set_zone_mode: sets custom zone mode via vol.In(VALID_MODES)
+- set_zone_preheat: sets preheat_enabled at zone scope (GAP-01; zone_id="default" or UUID)
 - delete_zone: migrates rooms to Default Zone (pop), removes zone, CR-01 snapshot rollback
 - set_zone_time_program: validates program via validate_daily_program before any mutation
 - reset_zone_time_program: restores zone time_program from 'default' or 'global' target
@@ -106,6 +107,7 @@ def async_register_commands(
     websocket_api.async_register_command(hass, _make_ws_create_zone(entry))
     websocket_api.async_register_command(hass, _make_ws_rename_zone(entry))
     websocket_api.async_register_command(hass, _make_ws_set_zone_mode(entry))
+    websocket_api.async_register_command(hass, _make_ws_set_zone_preheat(entry))
     websocket_api.async_register_command(hass, _make_ws_delete_zone(entry))
     websocket_api.async_register_command(
         hass, _make_ws_set_zone_time_program(entry)
@@ -422,17 +424,21 @@ def _make_ws_set_room_config(entry: ClimateManagerConfigEntry):
     ) -> None:
         """Sparse-merge config into rooms[room_id] without wiping other rooms.
 
-        T-03-09: setdefault + update pattern ensures only the targeted room's keys are
-                 modified; other rooms and DEFAULT_CONFIG keys are preserved.
-        CR-01: snapshot rooms before mutation so we can roll back if async_save raises
-               (validate_zone_assignment inside async_save may raise ValueError on
-               invalid zone_id assignments — ZONE-04).
+        T-03-09: setdefault + update pattern ensures only the targeted room's
+                 keys are modified; other rooms and DEFAULT_CONFIG keys are
+                 preserved.
+        CR-01: snapshot rooms before mutation so we can roll back if
+               async_save raises (validate_zone_assignment inside async_save
+               may raise ValueError on invalid zone_id assignments — ZONE-04).
+        GAP-01: preheat_enabled moved to zone scope; this command no longer
+                accepts or persists preheat_enabled on the room. Use
+                set_zone_preheat to toggle the enable flag.
         """
         rooms_backup = copy.deepcopy(
             entry.runtime_data.runtime_config.get("rooms", {})
         )
-        # zone_id: null from the frontend signals 'move room to Default Zone' — pop the key
-        # per D-06 sparse model (gap CR-03 fix from VERIFICATION 06-04).
+        # zone_id: null from the frontend signals 'move room to Default Zone'
+        # — pop the key per D-06 sparse model (gap CR-03 fix from VERIFY 06).
         incoming_config = msg["config"]
         if "zone_id" in incoming_config and incoming_config["zone_id"] is None:
             incoming_config.pop("zone_id")
@@ -449,13 +455,9 @@ def _make_ws_set_room_config(entry: ClimateManagerConfigEntry):
                 and 0 <= val <= 480
             ):
                 incoming_config.pop("preheat_max_lead_minutes")
-        # preheat_enabled: coerce truthy value to Python bool.
-        if "preheat_enabled" in incoming_config and not isinstance(
-            incoming_config["preheat_enabled"], bool
-        ):
-            incoming_config["preheat_enabled"] = bool(
-                incoming_config["preheat_enabled"]
-            )
+        # GAP-01: preheat_enabled is no longer a valid room key; silently drop
+        # it so legacy callers don't persist the deprecated room-level flag.
+        incoming_config.pop("preheat_enabled", None)
         (
             entry.runtime_data.runtime_config.setdefault("rooms", {})
             .setdefault(msg["room_id"], {})
@@ -860,6 +862,77 @@ def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_set_zone_mode
+
+
+def _make_ws_set_zone_preheat(entry: ClimateManagerConfigEntry):
+    """Factory: create set_zone_preheat handler (GAP-01).
+
+    Persists preheat_enabled at zone scope:
+    - zone_id="default" → runtime_config["default_zone_preheat_enabled"]
+    - custom zone_id    → runtime_config["zones"][zone_id]["preheat_enabled"]
+    Modelled on _make_ws_rename_zone (dual-path default sentinel + CR-01
+    snapshot/rollback).
+    Security: T-12-11 — vol schema gates enabled:bool + zone_id:str;
+    unknown custom zone_id returns ERR_NOT_FOUND; save failure rolls back.
+    """
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/set_zone_preheat",
+            vol.Required("zone_id"): str,
+            vol.Required("enabled"): bool,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_set_zone_preheat(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Set preheat_enabled on a zone (Default or custom), persist, re-eval.
+
+        T-05-01 pattern: "default" sentinel handled BEFORE zones dict access
+        so the Default Zone never appears as a key in zones{}.
+        """
+        runtime_config = entry.runtime_data.runtime_config
+        enabled = bool(msg["enabled"])  # defensive; vol already type-guards
+        if msg["zone_id"] == "default":
+            old_val = runtime_config.get("default_zone_preheat_enabled")
+            runtime_config["default_zone_preheat_enabled"] = enabled
+            try:
+                await entry.runtime_data.store.async_save(runtime_config)
+            except Exception as exc:  # noqa: BLE001
+                runtime_config["default_zone_preheat_enabled"] = old_val
+                connection.send_error(
+                    msg["id"],
+                    websocket_api.ERR_UNKNOWN_ERROR,
+                    str(exc),
+                )
+                return
+        else:
+            if msg["zone_id"] not in runtime_config.get("zones", {}):
+                connection.send_error(
+                    msg["id"],
+                    websocket_api.ERR_NOT_FOUND,
+                    f"Zone {msg['zone_id']!r} not found",
+                )
+                return
+            zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
+            runtime_config["zones"][msg["zone_id"]]["preheat_enabled"] = enabled
+            try:
+                await entry.runtime_data.store.async_save(runtime_config)
+            except Exception as exc:  # noqa: BLE001
+                runtime_config["zones"] = zones_backup
+                connection.send_error(
+                    msg["id"],
+                    websocket_api.ERR_UNKNOWN_ERROR,
+                    str(exc),
+                )
+                return
+        connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+    return ws_set_zone_preheat
 
 
 def _make_ws_delete_zone(entry: ClimateManagerConfigEntry):
