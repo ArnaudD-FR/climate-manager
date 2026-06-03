@@ -69,17 +69,18 @@ device-tracker forwarding from hass.states**
 - **Duration:** ~20 min
 - **Started:** 2026-06-01T00:00:00Z
 - **Completed:** 2026-06-01
-- **Tasks:** 2 of 3 complete (Task 3 = checkpoint: pending human
-  review)
+- **Tasks:** 3 of 3 complete (Task 3 verified via UAT 9/9 — 2026-06-01)
 - **Files modified:** 2
 
 ## Accomplishments
 
-- `person-card.ts`: imports `MODE_LABEL_HA`, `shouldShowHaOption`,
-  `presenceModeHint` from `./presence-mode.js`; exposes
-  `@property({ type: Boolean }) hasDeviceTrackers = false`; gates
-  ha `<option>` on `shouldShowHaOption`; delegates schedule-hint
-  to `presenceModeHint` (D-05 stuck-mode warning included)
+- `person-card.ts`: imports `haOptionLabel`, `presenceModeHint` from
+  `./presence-mode.js`; exposes
+  `@property({ type: Boolean }) hasDeviceTrackers = false`; renders
+  ha `<option>` always (using `haOptionLabel` — ⚠ suffix when no
+  trackers, D-04 revised via quick task 260601-d04); delegates
+  schedule-hint to `presenceModeHint` (D-05 stuck-mode warning
+  included)
 - `persons-tab.ts`: imports `computeHasDeviceTrackers`; builds
   `hasDeviceTrackersMap` per person from `hass.states` attributes;
   forwards `.hasDeviceTrackers` to each `<climate-manager-person-card>`
@@ -123,26 +124,19 @@ Each task was committed atomically:
 None — plan executed exactly as written (stale "Live tracking"
 references in PATTERNS.md correctly ignored per label_decision).
 
-## Checkpoint: Pending Human Review
+## Human Verification — Completed via UAT 2026-06-01
 
-**Task 3** (`type="checkpoint:human-verify"`) requires visual
-verification in the live HA panel. Execution paused here per
-plan spec.
+All 9 UAT tests passed (10-UAT.md). Key results:
 
-Verification steps (from plan):
+- T-01/T-03: person WITH trackers → "HA home tracking" (no ⚠) ✅
+- T-02/T-04: person WITHOUT trackers → "HA home tracking ⚠" ✅
+- T-05/T-06: stuck-mode warning shown; no silent mode change ✅
+- T-07–T-09: HA persistent notification lifecycle verified ✅
 
-1. `make deploy`, then hard-refresh panel (Ctrl-Shift-R)
-2. Open Climate Manager panel → Persons tab
-3. Person WITH device trackers: confirm dropdown shows "HA home
-   tracking" option (4 options total); selecting it shows hint
-   "Presence mirrors Home Assistant home/away tracking."
-4. Person WITHOUT device trackers: confirm dropdown shows 3
-   options only (no "HA home tracking")
-5. Person stuck on mode=ha with no trackers: confirm inline warning
-   "HA home tracking requires a device tracker linked to this
-   person in HA." and mode did NOT change silently
-6. Collapsed person on ha mode: confirm badge reads
-   "HA home tracking"
+Note: D-04 implementation changed from plan (hide option via
+`shouldShowHaOption`) to always-visible with ⚠ suffix (via
+`haOptionLabel`) via quick task 260601-d04 — UAT reflects
+delivered behavior.
 
 ## Issues Encountered
 
