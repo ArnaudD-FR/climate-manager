@@ -760,18 +760,23 @@ export class RoomCard extends LitElement {
     if (!d || d.type !== "matter") return;
     const { entityId: matterId, fromTadoId } = d;
     if (fromTadoId === tadoId) return;
-    if (fromTadoId) {
-      const src = this.panelConfig?.matter_mappings?.[fromTadoId] ?? [];
-      await this.ws.setMatterMapping(
-        fromTadoId,
-        src.filter((id) => id !== matterId),
-      );
+    try {
+      if (fromTadoId) {
+        const src = this.panelConfig?.matter_mappings?.[fromTadoId] ?? [];
+        await this.ws.setMatterMapping(
+          fromTadoId,
+          src.filter((id) => id !== matterId),
+        );
+      }
+      const existing = this.panelConfig?.matter_mappings?.[tadoId] ?? [];
+      if (!existing.includes(matterId)) {
+        await this.ws.setMatterMapping(tadoId, [...existing, matterId]);
+      }
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
     }
-    const existing = this.panelConfig?.matter_mappings?.[tadoId] ?? [];
-    if (!existing.includes(matterId)) {
-      await this.ws.setMatterMapping(tadoId, [...existing, matterId]);
-    }
-    await this.panel.reloadConfig();
   }
 
   private async _onDropOnUnassign(e: DragEvent): Promise<void> {
