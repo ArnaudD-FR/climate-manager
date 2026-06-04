@@ -505,65 +505,20 @@ async def test_ws_reset_time_program_is_removed(hass, hass_ws_client):
 
 
 # ---------------------------------------------------------------------------
-# Test 9: reset_room_to_default_zone_program WS command (D-10)
+# Test 9: reset_room_to_default_zone_program WS command (Phase 15 D-06)
 # ---------------------------------------------------------------------------
 
 
-async def test_ws_reset_room_to_global_program_is_removed(hass, hass_ws_client):
-    """D-10: reset_room_to_global_program command is no longer registered.
-
-    Phase 14 (D-10): the command type string changed to
-    reset_room_to_default_zone_program. Sending the old name must return an
-    error.
-    """
-    await _setup_entry(hass)
-
-    client = await hass_ws_client()
-    await client.send_json_auto_id(
-        {
-            "type": f"{DOMAIN}/reset_room_to_global_program",
-            "room_id": "room-a",
-        }
-    )
-    msg = await client.receive_json()
-
-    assert msg.get("success") is False
-
-
-async def test_ws_reset_room_to_default_zone_program_copies_into_room(
+async def test_ws_reset_room_to_default_zone_program_is_removed(
     hass, hass_ws_client
 ):
-    """D-10: reset_room_to_default_zone_program reads from default_zone.time_program.
+    """Phase 15 (D-06): reset_room_to_default_zone_program command is no
+    longer registered.
 
-    Verifies:
-    - result.success is True
-    - target room room_mode becomes "custom"
-    - target room time_program deep-equals default_zone.time_program
-    - mutating target room's time_program does NOT bleed into
-      default_zone.time_program (deep copy)
-    - sibling room is untouched (T-03-09 sparse-merge semantics)
+    Sending the Phase 14 command name must return an error (both old and
+    new names are now gone).
     """
-    entry = await _setup_entry(hass)
-
-    # Sentinel default zone time program with one period per day
-    sentinel_program = {
-        day: [{"start": "06:00", "mode": "normal"}]
-        for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-    }
-    entry.runtime_data.runtime_config["default_zone"]["time_program"] = (
-        sentinel_program
-    )
-
-    # Seed room-a with stale data and room-b as a sibling that must remain
-    # untouched
-    sentinel_room_b = {
-        "room_mode": "global",
-        "time_program": {"mon": [{"start": "08:00", "mode": "reduced"}]},
-    }
-    entry.runtime_data.runtime_config["rooms"] = {
-        "room-a": {"room_mode": "global", "time_program": {}},
-        "room-b": dict(sentinel_room_b),
-    }
+    await _setup_entry(hass)
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
@@ -574,27 +529,7 @@ async def test_ws_reset_room_to_default_zone_program_copies_into_room(
     )
     msg = await client.receive_json()
 
-    assert msg["success"] is True
-    assert msg["result"]["success"] is True
-
-    rooms = entry.runtime_data.runtime_config["rooms"]
-
-    # Target room: mode must be "custom",
-    # time_program must equal default_zone.time_program
-    assert rooms["room-a"]["room_mode"] == "custom"
-    assert rooms["room-a"]["time_program"] == sentinel_program
-
-    # Sibling room must be completely untouched
-    assert rooms["room-b"] == sentinel_room_b
-
-    # Deep-copy proof: mutating room-a's time_program must NOT bleed into
-    # default_zone.time_program
-    rooms["room-a"]["time_program"]["mon"].append(
-        {"start": "22:00", "mode": "reduced"}
-    )
-    assert entry.runtime_data.runtime_config["default_zone"]["time_program"][
-        "mon"
-    ] == [{"start": "06:00", "mode": "normal"}]
+    assert msg.get("success") is False
 
 
 # ---------------------------------------------------------------------------
@@ -1143,9 +1078,9 @@ async def test_set_room_config_null_zone_id_is_idempotent_when_already_absent(
     entry = await _setup_entry(hass)
 
     # Seed a room with no zone_id (already a Default Zone member)
-    entry.runtime_data.runtime_config.setdefault("rooms", {})["living_room"] = {
-        "room_mode": "global"
-    }
+    entry.runtime_data.runtime_config.setdefault("rooms", {})[
+        "living_room"
+    ] = {}
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
@@ -1161,16 +1096,16 @@ async def test_set_room_config_null_zone_id_is_idempotent_when_already_absent(
     assert msg["result"]["success"] is True
     # Room must still equal its original value (no zone_id key added)
     living_room = entry.runtime_data.runtime_config["rooms"]["living_room"]
-    assert living_room == {"room_mode": "global"}
+    assert living_room == {}
 
 
 async def test_set_room_config_null_zone_id_preserves_other_keys(
     hass, hass_ws_client
 ):
-    """set_room_config with {zone_id: null, room_mode: 'custom'} pops zone_id but keeps other keys.
+    """set_room_config with {zone_id: null} pops zone_id but keeps other keys.
 
-    Verifies the pop is targeted — other keys in the patch are still applied via
-    the sparse-merge, and zone_id is correctly absent from the resulting room entry.
+    Verifies the pop is targeted — zone_id is correctly absent from the
+    resulting room entry (Phase 15 D-07: deprecated keys are silently dropped).
     """
     entry = await _setup_entry(hass)
 
@@ -1183,7 +1118,7 @@ async def test_set_room_config_null_zone_id_preserves_other_keys(
         {
             "type": f"{DOMAIN}/set_room_config",
             "room_id": "living_room",
-            "config": {"zone_id": None, "room_mode": "custom"},
+            "config": {"zone_id": None},
         }
     )
     msg = await client.receive_json()
@@ -1193,8 +1128,6 @@ async def test_set_room_config_null_zone_id_preserves_other_keys(
     living_room = entry.runtime_data.runtime_config["rooms"]["living_room"]
     # zone_id must NOT be present
     assert "zone_id" not in living_room
-    # room_mode must be applied via sparse-merge
-    assert living_room.get("room_mode") == "custom"
 
 
 # ---------------------------------------------------------------------------
