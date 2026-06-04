@@ -82,22 +82,24 @@ async def test_save_then_load_round_trips(hass):
 
 
 async def test_load_room_override_survives(hass):
-    """Test 4: A stored room override survives load and appears under rooms[area_id]."""
+    """Test 4: A stored room entry survives load (non-deprecated keys preserved).
+
+    Phase 15 (D-01/D-03): room-level time_program and room_mode are stripped
+    on load. Non-deprecated fields (preheat_max_lead_minutes, etc.) survive.
+    """
     store = ClimateManagerStore(hass)
 
-    _DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-    room_time_program = {d: [] for d in _DAYS}
-
     config_with_room = copy.deepcopy(DEFAULT_CONFIG)
+    # Use a Default Zone room (no zone_id) with a surviving non-deprecated key
     config_with_room["rooms"]["living_room"] = {
-        "time_program": room_time_program
+        "preheat_max_lead_minutes": 90,
     }
 
     await store.async_save(config_with_room)
     loaded = await store.async_load()
 
     assert "living_room" in loaded["rooms"]
-    assert loaded["rooms"]["living_room"] == {"time_program": room_time_program}
+    assert loaded["rooms"]["living_room"] == {"preheat_max_lead_minutes": 90}
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +213,7 @@ def test_validate_zone_assignment_valid_config_passes():
                 "time_program": {},
             }
         },
-        "rooms": {"living_room": {"zone_id": "uuid-1", "room_mode": "global"}},
+        "rooms": {"living_room": {"zone_id": "uuid-1"}},
     }
     validate_zone_assignment(config)  # must not raise
 
@@ -230,7 +232,7 @@ def test_validate_zone_assignment_default_zone_rooms_pass():
     """Rooms without zone_id (Default Zone members) pass validation (D-06)."""
     config = {
         "zones": {},
-        "rooms": {"bedroom": {"room_mode": "custom"}},  # no zone_id
+        "rooms": {"bedroom": {}},  # no zone_id
     }
     validate_zone_assignment(config)  # must not raise
 
@@ -267,7 +269,7 @@ async def test_save_accepts_room_without_zone_id(hass):
     """async_save succeeds when a room has no zone_id (Default Zone member — D-06)."""
     store = ClimateManagerStore(hass)
     config = copy.deepcopy(DEFAULT_CONFIG)
-    config["rooms"]["bedroom"] = {"room_mode": "global"}  # no zone_id
+    config["rooms"]["bedroom"] = {}  # no zone_id
     await store.async_save(config)
     loaded = await store.async_load()
     assert "bedroom" in loaded["rooms"]
@@ -343,3 +345,62 @@ async def test_load_new_format_reads_default_zone_directly(hass):
     # Day-fill: empty day lists in new-format default_zone.time_program are filled
     for day in _ALL_DAYS:
         assert result["default_zone"]["time_program"][day] != []
+
+
+# ---------------------------------------------------------------------------
+# Phase 15 compat shim tests (D-01, D-02, D-03)
+# ---------------------------------------------------------------------------
+
+
+async def test_load_strips_room_mode_from_room_records(hass):
+    """Phase 15 compat shim: room_mode and time_program are stripped from rooms.
+
+    Stores data with room records containing room_mode and time_program keys.
+    After async_load(), both keys must be absent from all room records.
+    Zone time programs must be unaffected (Pitfall 2 guard).
+    """
+    store = ClimateManagerStore(hass)
+    sentinel_zone_program = {
+        d: [{"start": "06:00", "mode": "normal"}] for d in _ALL_DAYS
+    }
+    await store._store.async_save(
+        {
+            "rooms": {
+                "room-a": {
+                    "room_mode": "custom",
+                    "time_program": sentinel_zone_program,
+                    "zone_id": "uuid-1",
+                },
+                "room-b": {
+                    "room_mode": "frost_protection",
+                },
+                "room-c": {
+                    "zone_id": "uuid-1",
+                    # no room_mode — should load unchanged
+                },
+            },
+            "zones": {
+                "uuid-1": {
+                    "name": "Test zone",
+                    "mode": "time_program",
+                    "time_program": sentinel_zone_program,
+                    "preheat_enabled": False,
+                }
+            },
+        }
+    )
+    result = await store.async_load()
+
+    # room_mode and time_program absent from all room records
+    for room_id, room_cfg in result["rooms"].items():
+        assert "room_mode" not in room_cfg, (
+            f"room_mode still present in {room_id}"
+        )
+        assert "time_program" not in room_cfg, (
+            f"time_program still present in {room_id}"
+        )
+    # zone time_program is untouched (Pitfall 2)
+    assert result["zones"]["uuid-1"]["time_program"] == sentinel_zone_program
+    # zone_id on room-a and room-c survives (only room_mode/time_program stripped)
+    assert result["rooms"]["room-a"]["zone_id"] == "uuid-1"
+    assert result["rooms"]["room-c"]["zone_id"] == "uuid-1"

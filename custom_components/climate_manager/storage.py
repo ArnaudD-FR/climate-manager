@@ -197,6 +197,14 @@ class ClimateManagerStore:
                 if not periods:
                     tp[day] = copy.deepcopy(_DEFAULT_DAILY_PROGRAM[day])
 
+        # Phase 15 compat shim (D-01/D-03): strip room_mode and time_program
+        # from all room records on every load.  Silent — no log emitted (D-02).
+        # pop() is safe regardless of storage format: absent key → no-op.
+        # Scope: result.get("rooms", {}) — NOT result.values() (Pitfall 2).
+        for room_cfg in result.get("rooms", {}).values():
+            room_cfg.pop("room_mode", None)
+            room_cfg.pop("time_program", None)
+
         return result
 
     async def async_save(self, config: dict) -> None:

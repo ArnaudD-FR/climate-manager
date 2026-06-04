@@ -31,7 +31,6 @@ from custom_components.climate_manager.const import (
     MODE_TIME_PROGRAM_PRESENCES,
     PERIOD_NORMAL,
     PREHEAT_CONVERGENCE_THRESHOLD,
-    ROOM_MODE_FROST,
 )
 
 
@@ -527,9 +526,7 @@ async def test_preheat_respects_frost_lock(hass):
     }
     # GAP-01: enable pre-heat at zone scope (room has no zone_id → Default Zone)
     rooms_config = {
-        "living": {
-            "room_mode": ROOM_MODE_FROST,  # frost-locked
-        }
+        "living": {}  # frost-locked via _frost_locked_rooms (Phase 15)
     }
     config = _make_preheat_config(
         persons_config=persons_config,
