@@ -59,74 +59,146 @@ temperature write.
   event types (presence, zone, heating). No config display-name lookup at
   log time — use the ID suffix.
 
+### EvalContext — per-cycle shared cache (eval_context.py)
+
+- **D-02:** New `EvalContext` dataclass (in its own `eval_context.py` or at
+  the top of `coordinator.py`) created once at the start of every
+  `async_evaluate` call. Replaces the upfront `_prefetch_calendars` pass.
+  ```python
+  class EvalContext:
+      now: datetime
+      hass: HomeAssistant
+      period_temperatures: dict[str, float]
+      _calendar_cache: dict[str, list]   # entity_id → events, filled on demand
+      _presence_cache: dict[str, bool]   # person_id → is_home, filled on demand
+
+      async def calendar_events(self, entity_id: str) -> list: ...
+      # fetches once per entity per cycle; subsequent calls return cached result
+  ```
+  Calendar events are fetched inside `PersonModeCalendar.is_present(ctx)` on
+  first access; all other modes never touch the calendar. A person assigned to
+  rooms in two different zones evaluates once — the second zone reads
+  `ctx._presence_cache[person_id]`.
+
 ### Zone State Machine (zone.py)
 
-- **D-02:** Zone state log captures **both period and mode** in the `state`
+- **D-03:** Zone state log captures **both period and mode** in the `state`
   field. Format: `state=<old_period>[<old_mode>]→<new_period>[<new_mode>]`.
   Example: `state=frost[time_program]→normal[time_program_presences]`.
   When only the period changes: `state=frost[time_program]→normal[time_program]`.
   When only the mode changes: `state=normal[time_program]→normal[off]`.
 
-- **D-03:** New `zone.py` module with:
-  - `ZoneMode` abstract base class with methods `get_room_states(ts: datetime)`
-    and `handle_switch(mode: str, reason: str)`.
+- **D-04:** New `zone.py` module. Key design rules:
+  - `ZoneMode` is a **plain base class** (not ABC). Unimplemented overloads
+    use `assert False, f"{type(self).__name__}.evaluate() not implemented"` —
+    no ABC machinery.
+  - `ZoneMode.__init__(self, zone: Zone)` receives a `weakref.ref[Zone]`
+    (stores as `self._zone_ref`). The `zone` property dereferences it with an
+    assert. ZoneMode holds **no config** — it reads `zone.time_program`,
+    `zone.rooms`, etc. through the weakref at call time.
+  - `time_program` lives on `Zone`, not `ZoneMode`. `ZoneMode.evaluate(ctx)`
+    reads `self.zone.time_program` when needed; no config parameters on the
+    method signature.
   - Concrete subclasses: `ZoneModeOff`, `ZoneModeTimeProgram`,
-    `ZoneModeProgramPresences`.
-  - `Zone` class with `_current_mode: ZoneMode`, `_current_period: str`, and
-    `change_mode(new_mode: ZoneMode, reason: str)` which applies the mode and
-    logs `zone | zone=<name> state=<old>→<new> reason=<why>` at INFO only when
-    state actually changes.
-  - Anti-spam: `Zone._current_mode` and `Zone._current_period` store last-logged
-    state; log fires only when these change. No separate log guard needed.
+    `ZoneModeProgramPresences`. Each overrides `evaluate(ctx: EvalContext)`.
+  - `Zone` class owns: `zone_id`, `_mode: ZoneMode`, `_time_program: dict`,
+    `_rooms: list[Room]`, `_current_period: str | None`.
+  - `Zone.evaluate(ctx)` delegates entirely to `self._mode.evaluate(ctx)`.
+  - `Zone.change_mode(new_mode: ZoneMode, reason: str)` replaces `_mode`
+    and is called by WS handlers on user config change.
+  - `Zone.update_config(time_program: dict)` updates `_time_program` (plain
+    setter, no logging — config change, not state transition).
+  - Anti-spam: `Zone._current_period` (updated by ZoneMode.evaluate) stores
+    last-logged period; log fires only when it changes.
 
 ### Person State Machine (person.py)
 
-- **D-04:** New `person.py` module with:
-  - `PersonMode` abstract base class with method `is_present(ts: datetime, **ctx)`.
+- **D-05:** New `person.py` module. Key design rules:
+  - `PersonMode` is a **plain base class**. Unimplemented overloads use
+    `assert False` — no ABC.
+  - `PersonMode.__init__(self, person: Person)` receives a `weakref.ref[Person]`.
+    PersonMode reads its own config through `self.person.<field>` at call time.
+    No config parameters on method signatures.
+  - `PersonMode.is_present(ctx: EvalContext) -> bool` — assert-guarded base.
+  - `PersonMode.next_occupied_at(ctx: EvalContext) -> datetime | None` —
+    base returns `None` (not overridden for HA/Force* modes). Only
+    `PersonModeScheduled` and `PersonModeCalendar` override this with a real
+    implementation (schedule forward-walk / calendar cache lookup).
   - Concrete subclasses: `PersonModeScheduled`, `PersonModeHA`,
     `PersonModeCalendar`, `PersonModeForcePresent`, `PersonModeForceAbsent`.
-  - `Person` class with `_current_mode: PersonMode`, `_last_home: bool | None`,
-    and `change_mode(new_mode: PersonMode, reason: str)` for mode transitions.
-  - `Person.evaluate(ts, **ctx) -> bool` calls `_current_mode.is_present(ts,
-    **ctx)`, compares result to `_last_home`, and logs
-    `presence | person=<name> home=<bool> reason=<source>` at INFO only when
-    the result flips. Updates `_last_home`.
-  - Anti-spam: `Person._last_home` tracks last-logged presence result; log
-    fires only when the result changes (present → absent or vice versa).
+  - `Person` class owns: `person_id`, `_mode: PersonMode`, `_last_home:
+    bool | None`, `room_ids: list[str]`, schedule/calendar config fields.
+  - `Person.evaluate(ctx) -> bool`: checks `ctx._presence_cache` first
+    (returns cached result if already evaluated this cycle); calls
+    `_mode.is_present(ctx)`; logs INFO on flip; stores in `_last_home` and
+    `ctx._presence_cache[person_id]`.
+  - `Person.change_mode(new_mode: PersonMode, reason: str)` called by WS
+    handlers.
+  - `Person.next_occupied_at(ctx)` delegates to `self._mode.next_occupied_at(ctx)`.
 
 ### Room Class (room.py)
 
-- **D-05:** New `room.py` module with `Room` as a plain class (no state
+- **D-06:** New `room.py` module with `Room` as a plain class (no state
   machine). `Room` owns:
   - `area_id: str`
-  - `trv_list: list[TRV]`
-  - Preheat state (migrated from coordinator's `_preheat_in_progress` dict)
-  - Calibration state (migrated from coordinator's calibration tracking)
-  - Methods: `compute_preheat(zone, ts)`, `record_preheat_sample(...)`,
-    `calibrate_trvs(hass, ...)`.
-  - Pre-heat logic lives on `Room` (not on a per-state subclass) — it is
-    common to all zone modes as specified by the user.
-  - Temperature resolution delegates to the assigned Zone:
-    `zone.get_room_states(ts)`.
+  - `assigned_persons: list[Person]` — Room knows its persons directly
+    (populated at coordinator init from person `room_ids` config).
+  - `_trv_groups: list[TRVGroup]` — logical push units (see D-07).
+  - Preheat state (migrated from coordinator's `_preheat_in_progress` dict).
+  - Calibration state (migrated from coordinator's calibration tracking).
+  - `Room.apply_setpoint(period: str, temp: float, ctx: EvalContext)` — pushes
+    temp to all TRV groups; called by ZoneMode subclasses.
+  - `Room.compute_preheat(ctx)`, `Room.record_preheat_sample(...)`,
+    `Room.calibrate_trvs(ctx)` — separate passes called by coordinator after
+    zone evaluation.
+  - Pre-heat logic lives on `Room` (not per-state) — common to all zone modes.
 
-### TRV Class (trv.py)
+### TRVGroup and TRV (trv.py)
 
-- **D-06:** New `trv.py` module with `TRV` class:
-  - Owns: `entity_id: str`, `last_pushed: float | str | None`, `platform: str`,
-    `matter_mapping: list[str] | None`.
-  - Async methods: `push_temperature(hass, desired_temp: float)`,
-    `push_off(hass, frost_temp: float)`, `calibrate(hass, offset: float)`.
-  - The `_push_if_changed` anti-flap guard moves into `TRV.push_temperature`.
-    Log line `heating | room=<name> temp=<T>°C zone=<zone> slot=<slot>` at
-    DEBUG fires inside `push_temperature` only when `last_pushed != desired_temp`
-    (i.e., a real setpoint change). The room name and zone name are passed as
-    parameters to `push_temperature` for the log context.
+- **D-07:** New `trv.py` module with two classes:
+  - **`TRVGroup`** — one logical push unit, contains one or more `TRV`
+    instances. Encapsulates the tado_x/Matter dispatch that currently lives in
+    `_push_temperatures` if/elif chain. `TRVGroup` is assembled at coordinator
+    init from `matter_mappings` config — by construction time, each group
+    contains the correct entity/entities to push to. At push time, no platform
+    branching: `TRVGroup.push(temp, slot, ctx)` iterates its TRVs.
+  - **`TRV`** — owns `entity_id`, `last_pushed`, `platform`. Async methods:
+    `push_temperature(temp, *, room_name, zone_name, slot, ctx)`,
+    `push_off(frost_temp, ctx)`, `calibrate(offset, ctx)`. The `_push_if_changed`
+    anti-flap guard and D-03 manual-override hold move verbatim into
+    `push_temperature`. DEBUG log fires only when `last_pushed != temp`.
 
 ### Module Layout
 
-- **D-07:** Four new modules in `custom_components/climate_manager/`:
-  `zone.py`, `person.py`, `room.py`, `trv.py`. Coordinator imports all four
-  and delegates. One file per domain object — independently testable.
+- **D-08:** Five new/refactored modules in `custom_components/climate_manager/`:
+  `eval_context.py` (or inline in coordinator), `zone.py`, `person.py`,
+  `room.py`, `trv.py`. One concept per file — independently testable.
+
+### Evaluate Call Flow
+
+- **D-09:** `coordinator.async_evaluate()` becomes:
+  ```
+  ctx = EvalContext(now, hass, period_temperatures)
+  for zone in self._zones.values():
+      await zone.evaluate(ctx)          # zone delegates to ZoneMode
+  # after zone passes:
+  for room in self._rooms.values():
+      await room.compute_preheat(ctx)   # pre-heat pass
+      await room.calibrate_trvs(ctx)    # calibration pass
+  ```
+  ZoneMode subclasses own all per-room dispatch:
+  - `ZoneModeOff.evaluate(ctx)`: iterates `self.zone.rooms`, calls
+    `room.apply_setpoint("frost_protection", frost_temp, ctx)` for each.
+  - `ZoneModeTimeProgram.evaluate(ctx)`: calls `evaluate_schedule(
+    zone.time_program, ctx.now)`, logs period change, iterates `zone.rooms`,
+    calls `room.apply_setpoint(period, temp, ctx)`.
+  - `ZoneModeProgramPresences.evaluate(ctx)`: same baseline as above; then
+    for each room, iterates `room.assigned_persons`, calls
+    `await person.evaluate(ctx)` (cached in ctx), passes `any_present` to
+    `compute_occupied_temp`, calls `room.apply_setpoint(period, temp, ctx)`.
+  `room.apply_setpoint` iterates `room._trv_groups`; each group iterates its
+  TRVs; each `TRV.push_temperature` does the anti-flap check and emits the
+  DEBUG heating log.
 
 ### Reason Field Content
 
@@ -249,16 +321,24 @@ temperature write.
 <specifics>
 ## Specific Ideas
 
-- Pre-heat logic must live on the `Room` base class (not per-state), because
-  it is common to all zone modes — explicitly confirmed by the user.
-- The `Zone.change_mode()` log line fires from within the domain object,
-  not from the coordinator. Same for `Person.evaluate()`. This centralizes
-  all logging decisions inside the domain model.
-- `TRV.push_temperature` receives room name and zone name as string parameters
-  for the DEBUG log line — the TRV itself doesn't know which room it belongs
-  to, so the caller (Room or coordinator) passes those strings.
-- Log format from ROADMAP.md success criteria is the contract — downstream
-  must match exactly: `presence | person=<name> home=<bool> reason=<source>`,
+- Pre-heat logic must live on `Room` (not per-state subclass) — common to
+  all zone modes; confirmed explicitly.
+- `ZoneMode` and `PersonMode` use `assert False` for unimplemented overloads,
+  not Python ABC. This gives a clear runtime crash rather than silent
+  `NotImplementedError`.
+- `ZoneMode` and `PersonMode` constructors each take a weakref to their owner
+  (`Zone` / `Person`). They read config through the weakref at call time —
+  no config parameters on method signatures, no config stored on the mode.
+- `Zone.update_config(time_program)` is a plain config setter (no logging).
+  Mode transitions go through `Zone.change_mode(new_mode, reason)`.
+- `Person.evaluate(ctx)` checks `ctx._presence_cache` first — a person
+  assigned to rooms in two zones evaluates exactly once per tick.
+- `TRVGroup` is assembled at init from `matter_mappings` config. At push time
+  there is no platform branching — the correct TRVs are already in the group.
+  `TRV.push_temperature` receives `room_name` and `zone_name` as keyword args
+  for the DEBUG log.
+- Log format from ROADMAP.md is the contract — match exactly:
+  `presence | person=<name> home=<bool> reason=<source>`,
   `zone | zone=<name> state=<old>→<new> reason=<why>`,
   `heating | room=<name> temp=<T>°C zone=<zone> slot=<slot>`.
 
