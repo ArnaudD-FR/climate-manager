@@ -783,8 +783,18 @@ async def test_mode_off_to_time_program_pushes_schedule_temp(hass):
     assert len(off_calls) == 1, (
         "Expected one set_hvac_mode=off call in MODE_OFF"
     )
-    assert coord._last_pushed.get(entity) == "off", (
-        "Expected 'off' sentinel in _last_pushed"
+    # After refactor: _last_pushed is owned by TRV.last_pushed (D-06/Pitfall 5).
+    # Access via coordinator domain object graph: _rooms[area]._trv_groups[i]._trvs[j]
+    bureau_room = coord._rooms.get("bureau")
+    bureau_trv_last = (
+        bureau_room._trv_groups[0]._trvs[0].last_pushed
+        if bureau_room
+        and bureau_room._trv_groups
+        and bureau_room._trv_groups[0]._trvs
+        else None
+    )
+    assert bureau_trv_last == "off", (
+        f"Expected 'off' sentinel in TRV.last_pushed (Pitfall 5), got {bureau_trv_last!r}"
     )
 
     # Tick 2: switch to MODE_TIME_PROGRAM — should push heat + schedule temp

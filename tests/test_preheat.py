@@ -471,16 +471,27 @@ async def test_preheat_trigger_fires(hass):
         runtime_config=config, rooms={"bedroom": ["climate.bedroom_trv"]}
     )
 
+    from custom_components.climate_manager.eval_context import EvalContext
+
     coord = ClimateManagerCoordinator(hass, data)
-    coord._frost_locked_rooms = set()
+    # Room.compute_preheat uses room._frost_locked (per-room bool, D-06).
+    bedroom_room = coord._rooms.get("bedroom")
+    if bedroom_room is not None:
+        bedroom_room._frost_locked = False
 
     now = datetime.datetime(2026, 6, 1, 6, 30, tzinfo=datetime.timezone.utc)
-    await coord._async_preheat_room("bedroom", config, now)
+    ctx = EvalContext(
+        now=now,
+        hass=hass,
+        period_temperatures=config["period_temperatures"],
+    )
+    if bedroom_room is not None:
+        await bedroom_room.compute_preheat(ctx)
     await hass.async_block_till_done()
 
-    assert coord._preheat_active.get("bedroom") is True
+    assert bedroom_room is not None and bedroom_room._preheat_active is True
     assert (
-        coord._preheat_target.get("bedroom")
+        bedroom_room._preheat_target
         == DEFAULT_PERIOD_TEMPERATURES[PERIOD_NORMAL]
     )
     # set_temperature must have been called
@@ -537,12 +548,22 @@ async def test_preheat_respects_frost_lock(hass):
         runtime_config=config, rooms={"living": ["climate.living_trv"]}
     )
 
+    from custom_components.climate_manager.eval_context import EvalContext
+
     coord = ClimateManagerCoordinator(hass, data)
-    # Mark room as frost-locked (set during _compute_desired_temps)
-    coord._frost_locked_rooms = {"living"}
+    # Mark room as frost-locked (per-room bool after D-06 migration).
+    living_room = coord._rooms.get("living")
+    if living_room is not None:
+        living_room._frost_locked = True
 
     now = datetime.datetime(2026, 6, 1, 6, 30, tzinfo=datetime.timezone.utc)
-    await coord._async_preheat_room("living", config, now)
+    ctx = EvalContext(
+        now=now,
+        hass=hass,
+        period_temperatures=config["period_temperatures"],
+    )
+    if living_room is not None:
+        await living_room.compute_preheat(ctx)
     await hass.async_block_till_done()
 
     # No set_temperature calls from preheat for a frost-locked room
@@ -669,19 +690,31 @@ async def test_sample_recorded_on_convergence(hass):
         preheat_samples={"study": []},
     )
 
+    from custom_components.climate_manager.eval_context import EvalContext
+
     coord = ClimateManagerCoordinator(hass, data)
-    coord._frost_locked_rooms = set()
+    study_room = coord._rooms.get("study")
+    if study_room is not None:
+        study_room._frost_locked = False
 
     now = datetime.datetime(2026, 6, 1, 6, 50, tzinfo=datetime.timezone.utc)
     start_time = datetime.datetime(
         2026, 6, 1, 6, 0, tzinfo=datetime.timezone.utc
     )
-    coord._preheat_in_progress["study"] = {
-        "start_time": start_time,
-        "target_temp": target_temp,
-    }
+    # Pre-seed in-progress state on Room (D-06 migration).
+    if study_room is not None:
+        study_room._preheat_in_progress = {
+            "start_time": start_time,
+            "target_temp": target_temp,
+        }
 
-    await coord._async_preheat_room("study", config, now)
+    ctx = EvalContext(
+        now=now,
+        hass=hass,
+        period_temperatures=config["period_temperatures"],
+    )
+    if study_room is not None:
+        await study_room.compute_preheat(ctx)
     await hass.async_block_till_done()
 
     # Sample should be recorded
@@ -691,7 +724,7 @@ async def test_sample_recorded_on_convergence(hass):
     assert "timestamp" in samples[0]
 
     # In-progress entry cleared
-    assert "study" not in coord._preheat_in_progress
+    assert study_room is not None and not study_room._preheat_in_progress
 
     # Store saved
     data.preheat_store.async_save.assert_called_once()
@@ -752,19 +785,31 @@ async def test_sample_discarded_when_period_starts(hass):
         preheat_samples={"kitchen": []},
     )
 
+    from custom_components.climate_manager.eval_context import EvalContext
+
     coord = ClimateManagerCoordinator(hass, data)
-    coord._frost_locked_rooms = set()
+    kitchen_room = coord._rooms.get("kitchen")
+    if kitchen_room is not None:
+        kitchen_room._frost_locked = False
 
     now = datetime.datetime(2026, 6, 1, 7, 5, tzinfo=datetime.timezone.utc)
     start_time = datetime.datetime(
         2026, 6, 1, 6, 0, tzinfo=datetime.timezone.utc
     )
-    coord._preheat_in_progress["kitchen"] = {
-        "start_time": start_time,
-        "target_temp": target_temp,
-    }
+    # Pre-seed in-progress state on Room (D-06 migration).
+    if kitchen_room is not None:
+        kitchen_room._preheat_in_progress = {
+            "start_time": start_time,
+            "target_temp": target_temp,
+        }
 
-    await coord._async_preheat_room("kitchen", config, now)
+    ctx = EvalContext(
+        now=now,
+        hass=hass,
+        period_temperatures=config["period_temperatures"],
+    )
+    if kitchen_room is not None:
+        await kitchen_room.compute_preheat(ctx)
     await hass.async_block_till_done()
 
     # No sample recorded (discard rule D-07)
@@ -772,7 +817,7 @@ async def test_sample_discarded_when_period_starts(hass):
     assert len(samples) == 0
 
     # In-progress entry cleared (discarded)
-    assert "kitchen" not in coord._preheat_in_progress
+    assert kitchen_room is not None and not kitchen_room._preheat_in_progress
 
     # Store NOT saved (no sample added)
     data.preheat_store.async_save.assert_not_called()
@@ -820,15 +865,25 @@ async def test_preheat_suppressed_for_ha_mode(hass):
         runtime_config=config, rooms={"bath": ["climate.bath_trv"]}
     )
 
+    from custom_components.climate_manager.eval_context import EvalContext
+
     coord = ClimateManagerCoordinator(hass, data)
-    coord._frost_locked_rooms = set()
+    bath_room = coord._rooms.get("bath")
+    if bath_room is not None:
+        bath_room._frost_locked = False
 
     now = datetime.datetime(2026, 6, 1, 6, 0, tzinfo=datetime.timezone.utc)
-    await coord._async_preheat_room("bath", config, now)
+    ctx = EvalContext(
+        now=now,
+        hass=hass,
+        period_temperatures=config["period_temperatures"],
+    )
+    if bath_room is not None:
+        await bath_room.compute_preheat(ctx)
     await hass.async_block_till_done()
 
-    assert coord._preheat_suppressed.get("bath") is True
-    assert coord._preheat_active.get("bath") is False
+    assert bath_room is not None and bath_room._preheat_suppressed is True
+    assert bath_room._preheat_active is False
 
 
 # ---------------------------------------------------------------------------
@@ -857,9 +912,19 @@ async def test_status_payload_preheat_fields(hass):
     entry.runtime_data.rooms = {"garage": []}
 
     coord = entry.runtime_data.coordinator
-    coord._preheat_active["garage"] = True
-    coord._preheat_target["garage"] = 20.0
-    coord._preheat_suppressed["garage"] = False
+    # After D-06 migration, preheat state lives on Room domain object.
+    # Force-rebuild domain objects so "garage" room exists in coord._rooms.
+    coord._build_domain_objects(config)
+    garage_room = coord._rooms.get("garage")
+    if garage_room is None:
+        # If room wasn't created (no entities), create it manually for the test.
+        from custom_components.climate_manager.room import Room
+
+        garage_room = Room(area_id="garage", hass=hass)
+        coord._rooms["garage"] = garage_room
+    garage_room._preheat_active = True
+    garage_room._preheat_target = 20.0
+    garage_room._preheat_suppressed = False
 
     payload = coord._build_status_payload()
     garage_entry = next(
@@ -902,10 +967,22 @@ async def test_ws_get_status_preheat_fields(hass, hass_ws_client):
     }
 
     coord = entry.runtime_data.coordinator
-    coord._preheat_active["office"] = True
-    coord._preheat_target["office"] = 21.0
-    coord._preheat_suppressed["office"] = False
-    # 'hall' has no entries in the preheat dicts — should default to False/None/False
+    # After D-06 migration, preheat state lives on Room domain object.
+    # Force-rebuild domain objects so "office" and "hall" rooms exist.
+    coord._build_domain_objects(entry.runtime_data.runtime_config)
+    from custom_components.climate_manager.room import Room
+
+    # Ensure office room exists (may be empty if no entity list provided).
+    if "office" not in coord._rooms:
+        coord._rooms["office"] = Room(area_id="office", hass=hass)
+    if "hall" not in coord._rooms:
+        coord._rooms["hall"] = Room(area_id="hall", hass=hass)
+
+    office_room = coord._rooms["office"]
+    office_room._preheat_active = True
+    office_room._preheat_target = 21.0
+    office_room._preheat_suppressed = False
+    # 'hall' room has default False/None/False — no changes needed
 
     client = await hass_ws_client()
     await client.send_json_auto_id({"type": f"{DOMAIN}/get_status"})
