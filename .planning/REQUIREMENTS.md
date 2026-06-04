@@ -66,7 +66,7 @@
 
 ### Architecture Cleanup
 
-- [ ] **ARCH-01**: Default Zone is stored as a first-class `ZoneConfig` under
+- [x] **ARCH-01**: Default Zone is stored as a first-class `ZoneConfig` under
   a single `default_zone` key; `global_mode`, `global_time_program`,
   `default_zone_name`, and `default_zone_preheat_enabled` flat keys are
   removed and migrated on load
