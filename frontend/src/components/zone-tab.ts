@@ -246,7 +246,7 @@ export class ZoneTab extends LitElement {
   private _onResetToDefault = async () => {
     try {
       if (this.isDefault) {
-        await this.ws.resetTimeProgram();
+        await this.ws.resetZoneTimeProgram("default", "default");
       } else {
         await this.ws.resetZoneTimeProgram(this.zoneId, "default");
       }
