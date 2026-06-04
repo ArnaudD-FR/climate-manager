@@ -543,9 +543,10 @@ export class GlobalSettingsTab extends LitElement {
     // Default Zone — use backend status for accuracy
     rows.push({
       id: "default",
-      name: this.config.default_zone_name,
-      mode: this.status?.global_mode ?? this.config.global_mode,
-      activePeriod: this.status?.active_period ?? null,
+      name: this.config.default_zone.name,
+      mode:
+        this.status?.zones?.["default"]?.mode ?? this.config.default_zone.mode,
+      activePeriod: this.status?.zones?.["default"]?.active_period ?? null,
     });
     // Custom zones — client-side active period evaluation
     for (const [zoneId, zone] of Object.entries(this.config.zones)) {

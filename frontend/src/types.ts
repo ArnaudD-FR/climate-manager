@@ -103,18 +103,9 @@ export interface ZoneConfig {
 
 /** Full integration configuration returned by climate_manager/get_config. */
 export interface ClimateConfig {
-  global_mode: string;
+  /** Phase 14 (D-01): Default Zone stored as first-class ZoneConfig. */
+  default_zone: ZoneConfig;
   period_temperatures: Record<string, number>;
-  global_time_program: DailyProgram;
-  /** D-03: Default Zone display name. Always present in get_config payloads. */
-  default_zone_name: string;
-  /**
-   * Phase 12 (GAP-01): Default Zone pre-heat enable flag.
-   * The Default Zone never appears in `zones{}`, so its enable flag lives
-   * here at the top level, mirroring the default_zone_name pattern.
-   * Sparse — absent means disabled (default false).
-   */
-  default_zone_preheat_enabled?: boolean;
   /** ZONE-01: custom zones keyed by UUID. Empty = all rooms in Default Zone. */
   zones: Record<string, ZoneConfig>;
   rooms: Record<string, RoomConfig>;
@@ -175,8 +166,8 @@ export interface RoomStatus {
 
 /** Payload pushed by subscribe_status and returned by get_status. */
 export interface StatusPayload {
-  global_mode: string;
-  active_period: string | null;
+  /** Phase 14 (D-13): per-zone mode and active period keyed by zone id. */
+  zones: Record<string, { mode: string; active_period: string | null }>;
   present_persons: string[];
   rooms_status: RoomStatus[];
 }

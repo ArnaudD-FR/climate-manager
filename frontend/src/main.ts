@@ -437,7 +437,7 @@ export class ClimateManagerPanel extends LitElement {
           class="tab-btn ${this._activeTab === "zone_default" ? "active" : ""}"
           @click=${() => this._setTab("zone_default")}
           @dblclick=${(e: Event) =>
-            this._onTabRename("default", this._config!.default_zone_name, e)}
+            this._onTabRename("default", this._config!.default_zone.name, e)}
         >
           ${this._editingTabId === "default"
             ? html`<input
@@ -454,7 +454,7 @@ export class ClimateManagerPanel extends LitElement {
                   class="zone-dot"
                   style="background:${getZoneColor(undefined).color}"
                 ></span
-                >${this._config.default_zone_name}`}
+                >${this._config.default_zone.name}`}
         </button>
         ${Object.entries(this._config.zones).map(
           ([zoneId, zone]) => html`
@@ -505,12 +505,7 @@ export class ClimateManagerPanel extends LitElement {
       return html`<climate-manager-zone-tab
         .config=${this._config!}
         .zoneId=${"default"}
-        .zoneConfig=${{
-          name: this._config!.default_zone_name,
-          mode: this._config!.global_mode,
-          time_program: this._config!.global_time_program,
-          preheat_enabled: this._config!.default_zone_preheat_enabled ?? false,
-        }}
+        .zoneConfig=${this._config!.default_zone}
         .isDefault=${true}
         .status=${this._status}
         .ws=${this._ws!}
