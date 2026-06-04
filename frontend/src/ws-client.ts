@@ -155,14 +155,6 @@ export class WsClient {
     });
   }
 
-  /** Reset room time_program to global_time_program (backend deep-copies). */
-  resetRoomToGlobalProgram(roomId: string): Promise<{ success: boolean }> {
-    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
-      type: "climate_manager/reset_room_to_global_program",
-      room_id: roomId,
-    });
-  }
-
   /** Sparse-merge a config delta into a specific room. */
   setRoomConfig(
     roomId: string,

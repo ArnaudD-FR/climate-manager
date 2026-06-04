@@ -26,12 +26,6 @@ export type DailyProgram = Record<
 /** Per-room configuration stored in ClimateConfig.rooms. */
 export interface RoomConfig {
   /**
-   * Room heating mode (D-20). Absent key implies "global".
-   * Legal values: "global" | "frost_protection" | "custom"
-   */
-  room_mode?: "global" | "frost_protection" | "custom";
-  time_program?: DailyProgram | null;
-  /**
    * Absent = Default Zone member (D-06); UUID string for custom zone (D-07).
    * Sparse model — never written as null.
    */
