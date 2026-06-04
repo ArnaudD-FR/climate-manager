@@ -64,6 +64,8 @@ from .const import (
     PRESENCE_HA,
     PRESENCE_PRESENT,
 )
+from .person import Person
+from .room import Room
 from .schedule import (
     compute_occupied_temp,
     evaluate_schedule,
@@ -73,6 +75,8 @@ from .schedule import (
     resolve_presence,
 )
 from .trv import (
+    TRV,
+    TRVGroup,
     get_tado_valve_devices,
     is_trv_entity,
     set_trv_off,
@@ -82,6 +86,7 @@ from .trv import (
     supports_hvac_off,
     supports_offset_calibration,
 )
+from .zone import Zone
 
 if TYPE_CHECKING:
     from . import ClimateManagerData
@@ -112,9 +117,14 @@ class ClimateManagerCoordinator:
         """
         self._hass = hass
         self._data = data
-        # Empty on construction → D-04: first async_evaluate is always a full push.
-        # Widened to float | str to accommodate the "off" sentinel for off-capable TRVs.
-        self._last_pushed: dict[str, float | str] = {}
+        # D-09 domain objects — instantiated from config at init and rebuilt
+        # on config change (fingerprint-based, T-16-13).
+        self._zones: dict[str, Zone] = {}
+        self._persons: dict[str, Person] = {}
+        self._rooms: dict[str, Room] = {}
+        # Fingerprint of the zones/persons/rooms config structure.
+        # Compared each cycle; rebuild triggered on change (T-16-13).
+        self._config_fingerprint: int = 0
         # Wave 2: track last evaluation results for status push and get_status WS command.
         self._last_active_period: str | None = None
         self._last_present_persons: list[str] = []
@@ -136,32 +146,152 @@ class ClimateManagerCoordinator:
         # User dismissal is detected on the next tick by querying hass.data
         # directly (no event listener needed — more robust across HA versions).
         self._ha_tracker_listeners: dict[str, list] = {}
-        # Per-cycle calendar event cache (D-13): maps entity_id → list of event
-        # dicts. Reset at the start of every async_evaluate cycle. Never
-        # persisted — populated fresh from calendar.get_events each cycle.
-        self._calendar_cache: dict[str, list] = {}
-        # D-04: tracks entity IDs for which the "unavailable" WARNING has
-        # already been issued. Entry is added on first failure and removed
+        # D-04: tracks entity IDs for which the calendar "unavailable" WARNING
+        # has already been issued. Entry is added on first failure and removed
         # on the next successful fetch so the warning re-fires after recovery.
+        # Retained here (not migrated to EvalContext) so the suppression persists
+        # across evaluation cycles (T-16-13 retention list).
         self._calendar_warn_issued: set[str] = set()
-        # Phase 12 pre-heat state (D-09, D-10).
-        # _preheat_in_progress: active pre-heat entries per room.
-        #   {area_id: {start_time: datetime, target_temp: float}}
-        # _preheat_active: True while a pre-heat is in progress.
-        # _preheat_target: temperature the room is pre-heating toward.
-        # _preheat_suppressed: True when all persons are ha-mode (no schedule).
-        # _frost_locked_rooms: snapshot from last _compute_desired_temps call
-        #   (stored so _async_preheat_room can guard against it — T-12-03).
-        self._preheat_in_progress: dict[str, dict] = {}
-        self._preheat_active: dict[str, bool] = {}
-        self._preheat_target: dict[str, float | None] = {}
-        self._preheat_suppressed: dict[str, bool] = {}
+        # _frost_locked_rooms: snapshot from last zone evaluation pass.
+        # Retained until consumed by Room (T-16-13 retention list).
         self._frost_locked_rooms: set[str] = set()
         # D-08 (Phase 13): cancel callbacks for Matter calibration
         # state_changed listeners. Keyed by entity_id (Matter or tado_x).
         # Single Callable per key — unlike _ha_tracker_listeners (list).
         # Cancel-all-then-rebuild via _async_refresh_matter_listeners().
         self._matter_cal_listeners: dict[str, Callable] = {}
+
+        # Build initial domain object graph from config.
+        self._build_domain_objects(data.runtime_config)
+
+    # ------------------------------------------------------------------
+    # D-09: Domain object graph construction
+    # ------------------------------------------------------------------
+
+    def _compute_config_fingerprint(self, config: dict) -> int:
+        """Compute a cheap fingerprint of the zones/persons/rooms config.
+
+        Used to detect WS-driven config mutations between ticks (T-16-13).
+        Hash covers the three dicts that affect domain object graph structure.
+        """
+        key_parts = (
+            repr(config.get("default_zone", {})),
+            repr(config.get("zones", {})),
+            repr(config.get("persons", {})),
+            repr(config.get("rooms", {})),
+        )
+        return hash("".join(key_parts))
+
+    def _build_domain_objects(self, config: dict) -> None:
+        """Construct Zone/Person/Room/TRVGroup graphs from stored config.
+
+        Called at __init__ and re-called when the config fingerprint changes
+        (i.e. a WS handler mutated runtime_config between ticks — T-16-13).
+        Domain objects are the SINGLE strong references so weakrefs in
+        ZoneMode/PersonMode instances resolve correctly (Pitfall 1).
+
+        Assembly order:
+        1. Zones — default + each custom zone UUID.
+        2. Persons — one per entry in config["persons"].
+        3. Rooms — one per area_id in self._data.rooms; each room gets:
+           a. TRVGroup via TRVGroup.from_room_config (Matter dedup — Pitfall 4).
+           b. _zone wired to its owning Zone.
+           c. assigned_persons populated from each person's room_ids.
+        4. zone._rooms populated from Room objects.
+        """
+        matter_mappings: dict[str, list[str]] = config.get(
+            "matter_mappings", {}
+        )
+
+        # -- Step 1: Zones ---------------------------------------------------
+        dz_cfg = config.get("default_zone", {})
+        default_zone = Zone(
+            zone_id="default",
+            hass=self._hass,
+            initial_mode=dz_cfg.get("mode", MODE_TIME_PROGRAM),
+            time_program=dz_cfg.get("time_program", {}),
+            preheat_enabled=dz_cfg.get("preheat_enabled", False),
+        )
+
+        zones: dict[str, Zone] = {"default": default_zone}
+        for zone_id, zone_cfg in config.get("zones", {}).items():
+            zones[zone_id] = Zone(
+                zone_id=zone_id,
+                hass=self._hass,
+                initial_mode=zone_cfg.get("mode", MODE_TIME_PROGRAM),
+                time_program=zone_cfg.get("time_program", {}),
+                preheat_enabled=zone_cfg.get("preheat_enabled", False),
+            )
+
+        # -- Step 2: Persons -------------------------------------------------
+        persons: dict[str, Person] = {}
+        for person_id, person_cfg in config.get("persons", {}).items():
+            p = Person(
+                person_id=person_id,
+                hass=self._hass,
+                person_config=person_cfg,
+                room_ids=person_cfg.get("room_ids", []),
+            )
+            persons[person_id] = p
+
+        # -- Step 3: Rooms + TRVGroups ---------------------------------------
+        rooms: dict[str, Room] = {}
+        for area_id, entity_ids in self._data.rooms.items():
+            room_cfg = config.get("rooms", {}).get(area_id, {})
+            zone_id = room_cfg.get("zone_id")
+            owning_zone: Zone = (
+                zones.get(zone_id, default_zone)
+                if zone_id is not None
+                else default_zone
+            )
+
+            room = Room(area_id=area_id, hass=self._hass)
+            room._zone = owning_zone  # wire owning zone reference
+
+            # Build TRVGroup from entity list + matter_mappings.
+            # room_name and zone_name used for DEBUG log short names.
+            group = TRVGroup.from_room_config(
+                hass=self._hass,
+                entity_ids=entity_ids,
+                matter_mappings=matter_mappings,
+                room_name=area_id,
+                zone_name=owning_zone.zone_id,
+            )
+            room._trv_groups = [group]
+
+            rooms[area_id] = room
+
+        # Populate assigned_persons on each room (from person.room_ids).
+        for person in persons.values():
+            for area_id in person.room_ids:
+                if area_id in rooms:
+                    rooms[area_id].assigned_persons.append(person)
+
+        # Populate zone._rooms from the assembled rooms.
+        for zone in zones.values():
+            zone._rooms = [
+                room for room in rooms.values() if room._zone is zone
+            ]
+
+        # Commit the new graph (single atomic update — Pitfall 1).
+        self._zones = zones
+        self._persons = persons
+        self._rooms = rooms
+        self._config_fingerprint = self._compute_config_fingerprint(config)
+
+    def _get_trv(self, entity_id: str) -> "TRV | None":
+        """Return the TRV domain object for entity_id, or None if not found.
+
+        Searches self._rooms for a TRV with the matching entity_id.
+        Used by legacy push methods (_push_if_changed, _push_off_safely)
+        that are scheduled for deletion in Task 2.
+        """
+        for room in self._rooms.values():
+            for group in room._trv_groups:
+                for trv in group._trvs:
+                    if trv.entity_id == entity_id:
+                        return trv
+        return None
 
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
@@ -181,15 +311,22 @@ class ClimateManagerCoordinator:
         period_temperatures: dict[str, float] = config["period_temperatures"]
         rooms: dict[str, list[str]] = self._data.rooms
 
-        # D-13: reset cache each cycle, then prefetch all unique calendar
-        # entity IDs referenced by persons or period states. This keeps the
-        # async get_events call here (coordinator) and out of schedule.py
-        # (D-05 — pure-Python contract maintained).
-        self._calendar_cache = {}
-        await self._prefetch_calendars(config, now)
+        # T-16-13: rebuild domain objects when WS handler mutated runtime_config.
+        # Fingerprint covers zones/persons/rooms structure; cheap hash comparison.
+        new_fp = self._compute_config_fingerprint(config)
+        if new_fp != self._config_fingerprint:
+            self._build_domain_objects(config)
+
+        # D-13: per-cycle calendar cache — reset as local dict, prefetched
+        # fresh each cycle (EvalContext owns the cache in the D-09 path;
+        # these legacy methods keep the per-cycle semantics via a local).
+        _calendar_cache: dict[str, list] = {}
+        await self._prefetch_calendars(config, now, _calendar_cache)
 
         # Presence list computed once — used for PASS 2 and status reporting.
-        self._last_present_persons = self._compute_present_persons(config, now)
+        self._last_present_persons = self._compute_present_persons(
+            config, now, _calendar_cache
+        )
 
         # Warn via persistent notification when an ha-mode person has no tracker.
         self._check_ha_tracker_warnings(config)
@@ -208,6 +345,7 @@ class ClimateManagerCoordinator:
             frost_locked_rooms,
             period_temperatures,
             now,
+            _calendar_cache,
         )
 
         self._last_room_periods = room_periods
@@ -263,11 +401,16 @@ class ClimateManagerCoordinator:
             self._build_status_payload(),
         )
 
-    async def _prefetch_calendars(self, config: dict, now: datetime) -> None:
+    async def _prefetch_calendars(
+        self,
+        config: dict,
+        now: datetime,
+        calendar_cache: dict,
+    ) -> None:
         """Fetch get_events for all unique calendar entity IDs in config.
 
-        Populates self._calendar_cache (entity_id → list of event dicts).
-        Called at the top of each async_evaluate cycle after the cache reset.
+        Populates the provided calendar_cache dict (entity_id → list of
+        event dicts). Called at the top of each async_evaluate cycle.
 
         D-13: one get_events call per unique entity_id per cycle (dedup via
         set). D-04: HomeAssistantError → WARNING issued once per unavailable
@@ -307,7 +450,7 @@ class ClimateManagerCoordinator:
                                 entity_ids.add(eid)
 
         async def _fetch_one(eid: str) -> None:
-            """Fetch events for one entity and store in _calendar_cache."""
+            """Fetch events for one entity and store in calendar_cache."""
             try:
                 result = await self._hass.services.async_call(
                     "calendar",
@@ -322,7 +465,7 @@ class ClimateManagerCoordinator:
                 )
                 # Landmine 2: entity service response is keyed by entity_id
                 events = (result or {}).get(eid, {}).get("events", [])
-                self._calendar_cache[eid] = events
+                calendar_cache[eid] = events
                 # D-04: clear warn-issued flag so the warning re-fires if
                 # the entity becomes unavailable again after recovery.
                 self._calendar_warn_issued.discard(eid)
@@ -338,7 +481,7 @@ class ClimateManagerCoordinator:
                         eid,
                     )
                     self._calendar_warn_issued.add(eid)
-                self._calendar_cache[eid] = []
+                calendar_cache[eid] = []
 
         await asyncio.gather(*[_fetch_one(eid) for eid in entity_ids])
 
@@ -411,12 +554,15 @@ class ClimateManagerCoordinator:
         frost_locked_rooms: set[str],
         period_temperatures: dict[str, float],
         now: datetime,
+        calendar_cache: dict | None = None,
     ) -> None:
         """PASS 2 — presence override for time_program_presences zones (EVAL-03).
 
         Mutates desired_temps and room_periods in place.
         All configured persons are considered — not scoped to zone members (D-11).
         """
+        if calendar_cache is None:
+            calendar_cache = {}
         present_locked_rooms: set[str] = set()
 
         for _person_id, person_config in config.get("persons", {}).items():
@@ -433,7 +579,7 @@ class ClimateManagerCoordinator:
             elif person_config.get("mode") == PRESENCE_CALENDAR:
                 cal_cfg = person_config.get("calendar_config") or {}
                 eid = cal_cfg.get("entity_id", "")
-                events = self._calendar_cache.get(eid, [])
+                events = calendar_cache.get(eid, [])
                 # D-02: read wakeup_advance_minutes (renamed from
                 # preheat_lead_minutes); fallback chain supports both old
                 # and new key names during migration window.
@@ -459,7 +605,7 @@ class ClimateManagerCoordinator:
                 is_present = resolve_presence(
                     person_config,
                     now,
-                    calendar_cache=self._calendar_cache,
+                    calendar_cache=calendar_cache,
                     start_of_local_day=dt_util.start_of_local_day,
                 )
 
@@ -626,10 +772,15 @@ class ClimateManagerCoordinator:
             else:
                 preheat_enabled = zone.get("preheat_enabled", False)
 
+        # Preheat state now lives on Room domain object (D-06 migration).
+        # Obtain room reference; fall back to a no-op if room is unknown.
+        _room = self._rooms.get(area_id)
+
         if not preheat_enabled:
-            self._preheat_active[area_id] = False
-            self._preheat_suppressed[area_id] = False
-            self._preheat_in_progress.pop(area_id, None)
+            if _room is not None:
+                _room._preheat_active = False
+                _room._preheat_suppressed = False
+                _room._preheat_in_progress = {}
             return
 
         preheat_max_lead = room_config.get(
@@ -661,8 +812,8 @@ class ClimateManagerCoordinator:
         # ----------------------------------------------------------------
         # Step 1: CONVERGENCE check (D-09)
         # ----------------------------------------------------------------
-        in_progress = self._preheat_in_progress.get(area_id)
-        if in_progress is not None and current_temp is not None:
+        in_progress = _room._preheat_in_progress if _room is not None else None
+        if in_progress and current_temp is not None:
             target_temp: float = in_progress["target_temp"]
             if current_temp >= target_temp - PREHEAT_CONVERGENCE_THRESHOLD:
                 # Target reached — record valid sample (D-07).
@@ -671,7 +822,8 @@ class ClimateManagerCoordinator:
                 start_time: datetime = in_progress["start_time"]
                 duration_min = int((now - start_time).total_seconds() / 60)
                 if duration_min < 1:
-                    del self._preheat_in_progress[area_id]
+                    if _room is not None:
+                        _room._preheat_in_progress = {}
                     return
                 samples = self._data.preheat_samples.setdefault(area_id, [])
                 samples.append(
@@ -685,8 +837,9 @@ class ClimateManagerCoordinator:
                     self._data.preheat_samples[area_id] = samples[
                         -PREHEAT_MAX_SAMPLES:
                     ]
-                del self._preheat_in_progress[area_id]
-                self._preheat_active[area_id] = False
+                if _room is not None:
+                    _room._preheat_in_progress = {}
+                    _room._preheat_active = False
                 # Persist on sample change (T-12-05 — bounded write rate).
                 if self._data.preheat_store is not None:
                     await self._data.preheat_store.async_save(
@@ -721,12 +874,12 @@ class ClimateManagerCoordinator:
             if pc.get("mode") in unpredictable:
                 continue
             currently_present = resolve_presence(
-                pc, now, self._calendar_cache, dt_util.start_of_local_day
+                pc, now, {}, dt_util.start_of_local_day
             )
             if currently_present:
                 continue  # already home — no arrival to pre-heat for
             candidate = next_occupied_at(
-                pc, now, self._calendar_cache, dt_util.start_of_local_day
+                pc, now, {}, dt_util.start_of_local_day
             )
             if candidate is not None:
                 if next_arrival is None or candidate < next_arrival:
@@ -747,12 +900,13 @@ class ClimateManagerCoordinator:
         # ----------------------------------------------------------------
         # Step 3: DISCARD check (D-07 / D-09)
         # ----------------------------------------------------------------
-        in_progress = self._preheat_in_progress.get(area_id)
-        if in_progress is not None:
+        in_progress = _room._preheat_in_progress if _room is not None else None
+        if in_progress:
             if next_occupied is None or now >= next_occupied:
                 # Period started before convergence → discard (D-07)
-                del self._preheat_in_progress[area_id]
-                self._preheat_active[area_id] = False
+                if _room is not None:
+                    _room._preheat_in_progress = {}
+                    _room._preheat_active = False
                 # Fall through to suppressed/inactive reporting below
 
         # ----------------------------------------------------------------
@@ -777,16 +931,18 @@ class ClimateManagerCoordinator:
                 pc.get("mode") in unpredictable_modes for pc in assigned_persons
             )
         )
-        self._preheat_suppressed[area_id] = (
-            next_occupied is None or presence_suppressed
-        )
+        if _room is not None:
+            _room._preheat_suppressed = (
+                next_occupied is None or presence_suppressed
+            )
 
         if (
             next_occupied is None
             or presence_suppressed
             or area_id in self._frost_locked_rooms
         ):
-            self._preheat_active[area_id] = False
+            if _room is not None:
+                _room._preheat_active = False
             return
 
         # D-08: compute learned lead. Bootstrap (< threshold samples) uses
@@ -804,7 +960,8 @@ class ClimateManagerCoordinator:
 
         if not (trigger_start <= now < next_occupied):
             # Outside lead window
-            self._preheat_active[area_id] = False
+            if _room is not None:
+                _room._preheat_active = False
             return
 
         # Determine the upcoming setpoint (the period's temperature at
@@ -816,7 +973,8 @@ class ClimateManagerCoordinator:
         upcoming_period = evaluate_schedule(time_program, next_occupied)
         upcoming_setpoint = period_temperatures.get(upcoming_period)
         if upcoming_setpoint is None:
-            self._preheat_active[area_id] = False
+            if _room is not None:
+                _room._preheat_active = False
             return
 
         # Guard: in TIME_PROGRAM mode the schedule heats regardless of
@@ -829,7 +987,8 @@ class ClimateManagerCoordinator:
                 current_period_temp is not None
                 and current_period_temp >= upcoming_setpoint
             ):
-                self._preheat_active[area_id] = False
+                if _room is not None:
+                    _room._preheat_active = False
                 return
 
         # Guard: if room already warm, no need to pre-heat
@@ -838,11 +997,15 @@ class ClimateManagerCoordinator:
             and current_temp
             >= upcoming_setpoint - PREHEAT_CONVERGENCE_THRESHOLD
         ):
-            self._preheat_active[area_id] = False
+            if _room is not None:
+                _room._preheat_active = False
             return
 
         # Fire set_temperature for all TRVs in the room
-        if area_id not in self._preheat_in_progress:
+        in_progress_now = (
+            _room._preheat_in_progress if _room is not None else {}
+        )
+        if not in_progress_now:
             for entity_id in entity_ids:
                 if is_trv_entity(self._hass, entity_id):
                     await self._push_safely(
@@ -850,13 +1013,15 @@ class ClimateManagerCoordinator:
                         upcoming_setpoint,
                         "PREHEAT",
                     )
-            self._preheat_in_progress[area_id] = {
-                "start_time": now,
-                "target_temp": upcoming_setpoint,
-            }
+            if _room is not None:
+                _room._preheat_in_progress = {
+                    "start_time": now,
+                    "target_temp": upcoming_setpoint,
+                }
 
-        self._preheat_active[area_id] = True
-        self._preheat_target[area_id] = upcoming_setpoint
+        if _room is not None:
+            _room._preheat_active = True
+            _room._preheat_target = upcoming_setpoint
 
     def _resolve_room_sensor(self, area_id: str, config: dict) -> str | None:
         """Return the temperature sensor entity_id for a room.
@@ -1314,7 +1479,10 @@ class ClimateManagerCoordinator:
         return (zone["mode"], zone["time_program"])
 
     def _compute_present_persons(
-        self, config: dict, now: datetime
+        self,
+        config: dict,
+        now: datetime,
+        calendar_cache: dict | None = None,
     ) -> list[str]:
         """Return the list of person IDs currently present, regardless of global mode.
 
@@ -1328,6 +1496,8 @@ class ClimateManagerCoordinator:
         entity state — person is present iff hass.states.get(person_id).state == 'home'.
         All other HA states (not_home, unknown, unavailable, zone names, None) → absent.
         """
+        if calendar_cache is None:
+            calendar_cache = {}
         persons_config: dict = config.get("persons", {})
         present: list[str] = []
         for person_id, person_config in persons_config.items():
@@ -1340,7 +1510,7 @@ class ClimateManagerCoordinator:
                 # CAL-01: calendar-mode — resolve from prefetched cache (D-05)
                 cal_cfg = person_config.get("calendar_config") or {}
                 eid = cal_cfg.get("entity_id", "")
-                events = self._calendar_cache.get(eid, [])
+                events = calendar_cache.get(eid, [])
                 # D-02: read wakeup_advance_minutes (renamed from
                 # preheat_lead_minutes); fallback chain supports both old
                 # and new key names during migration window.
@@ -1370,7 +1540,7 @@ class ClimateManagerCoordinator:
                 if resolve_presence(
                     person_config,
                     now,
-                    calendar_cache=self._calendar_cache,
+                    calendar_cache=calendar_cache,
                     start_of_local_day=dt_util.start_of_local_day,
                 ):
                     present.append(person_id)
@@ -1505,14 +1675,18 @@ class ClimateManagerCoordinator:
             )
 
             # D-10 / PREHEAT-04: per-room pre-heat status fields.
-            room_entry["preheat_active"] = self._preheat_active.get(
-                area_id, False
+            # State now lives on Room domain object (D-06 migration).
+            _room_obj = self._rooms.get(area_id)
+            room_entry["preheat_active"] = (
+                _room_obj._preheat_active if _room_obj is not None else False
             )
-            room_entry["preheat_target"] = self._preheat_target.get(
-                area_id, None
+            room_entry["preheat_target"] = (
+                _room_obj._preheat_target if _room_obj is not None else None
             )
-            room_entry["preheat_suppressed"] = self._preheat_suppressed.get(
-                area_id, False
+            room_entry["preheat_suppressed"] = (
+                _room_obj._preheat_suppressed
+                if _room_obj is not None
+                else False
             )
 
             auto = self._data.room_auto_sensors.get(area_id, {})
@@ -1597,8 +1771,9 @@ class ClimateManagerCoordinator:
         This ensures that when the TRV exits OFF it resumes at the frost setpoint rather
         than its previous arbitrary setpoint.
 
-        Anti-flap guard: if _last_pushed already records "off" for this entity, skip both
-        calls (same push-on-change parity as _push_if_changed).
+        Anti-flap guard: reads TRV.last_pushed from the domain object (Pitfall 5 — no
+        dual source of truth). Falls back to unchecked push when entity is not yet in
+        the domain graph.
 
         Error handling: if set_temperature raises, log a warning but still attempt
         set_hvac_mode=off (safety behavior preserved). If set_hvac_mode=off raises,
@@ -1608,7 +1783,9 @@ class ClimateManagerCoordinator:
         if state is None or state.state == "unavailable":
             return
 
-        if self._last_pushed.get(entity_id) == "off":
+        trv = self._get_trv(entity_id)
+        last_pushed = trv.last_pushed if trv is not None else None
+        if last_pushed == "off":
             return  # Anti-flap: already pushed off this evaluation cycle
 
         try:
@@ -1620,7 +1797,8 @@ class ClimateManagerCoordinator:
 
         try:
             await set_trv_off(self._hass, entity_id)
-            self._last_pushed[entity_id] = "off"
+            if trv is not None:
+                trv.last_pushed = "off"
         except Exception:  # noqa: BLE001
             _LOGGER.warning("Failed to push OFF to %s in MODE_OFF", entity_id)
 
@@ -1634,6 +1812,7 @@ class ClimateManagerCoordinator:
               the user adjusted it manually → skip this tick. Hold lifts automatically
               at the next period transition (desired_temp will then differ from last).
         Pitfall 3: on startup last=None → override hold is bypassed, push always fires.
+        Pitfall 5: reads last_pushed from TRV domain object (no coordinator dict).
         Pitfall 6: reads attributes["temperature"] (setpoint), not the measured room temp.
         """
         # WR-02: guard against removed or unavailable entities — skip completely
@@ -1642,7 +1821,8 @@ class ClimateManagerCoordinator:
         if state is None or state.state == "unavailable":
             return
 
-        last = self._last_pushed.get(entity_id)
+        trv = self._get_trv(entity_id)
+        last = trv.last_pushed if trv is not None else None
 
         # Clear stale MODE_OFF sentinel: "off" is a string, not a temperature.
         # float(reported) != "off" is always True in Python 3, which would cause
@@ -1665,4 +1845,5 @@ class ClimateManagerCoordinator:
                 return
 
         await set_trv_temperature(self._hass, entity_id, desired_temp)
-        self._last_pushed[entity_id] = desired_temp
+        if trv is not None:
+            trv.last_pushed = desired_temp
