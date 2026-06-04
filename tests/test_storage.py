@@ -343,3 +343,62 @@ async def test_load_new_format_reads_default_zone_directly(hass):
     # Day-fill: empty day lists in new-format default_zone.time_program are filled
     for day in _ALL_DAYS:
         assert result["default_zone"]["time_program"][day] != []
+
+
+# ---------------------------------------------------------------------------
+# Phase 15 compat shim tests (D-01, D-02, D-03)
+# ---------------------------------------------------------------------------
+
+
+async def test_load_strips_room_mode_from_room_records(hass):
+    """Phase 15 compat shim: room_mode and time_program are stripped from rooms.
+
+    Stores data with room records containing room_mode and time_program keys.
+    After async_load(), both keys must be absent from all room records.
+    Zone time programs must be unaffected (Pitfall 2 guard).
+    """
+    store = ClimateManagerStore(hass)
+    sentinel_zone_program = {
+        d: [{"start": "06:00", "mode": "normal"}] for d in _ALL_DAYS
+    }
+    await store._store.async_save(
+        {
+            "rooms": {
+                "room-a": {
+                    "room_mode": "custom",
+                    "time_program": sentinel_zone_program,
+                    "zone_id": "uuid-1",
+                },
+                "room-b": {
+                    "room_mode": "frost_protection",
+                },
+                "room-c": {
+                    "zone_id": "uuid-1",
+                    # no room_mode — should load unchanged
+                },
+            },
+            "zones": {
+                "uuid-1": {
+                    "name": "Test zone",
+                    "mode": "time_program",
+                    "time_program": sentinel_zone_program,
+                    "preheat_enabled": False,
+                }
+            },
+        }
+    )
+    result = await store.async_load()
+
+    # room_mode and time_program absent from all room records
+    for room_id, room_cfg in result["rooms"].items():
+        assert "room_mode" not in room_cfg, (
+            f"room_mode still present in {room_id}"
+        )
+        assert "time_program" not in room_cfg, (
+            f"time_program still present in {room_id}"
+        )
+    # zone time_program is untouched (Pitfall 2)
+    assert result["zones"]["uuid-1"]["time_program"] == sentinel_zone_program
+    # zone_id on room-a and room-c survives (only room_mode/time_program stripped)
+    assert result["rooms"]["room-a"]["zone_id"] == "uuid-1"
+    assert result["rooms"]["room-c"]["zone_id"] == "uuid-1"
