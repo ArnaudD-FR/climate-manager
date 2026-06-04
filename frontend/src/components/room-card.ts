@@ -984,7 +984,7 @@ export class RoomCard extends LitElement {
     const zoneId = this.config?.zone_id;
     const enabled = zoneId
       ? this.panelConfig?.zones?.[zoneId]?.preheat_enabled ?? false
-      : this.panelConfig?.default_zone_preheat_enabled ?? false;
+      : this.panelConfig?.default_zone?.preheat_enabled ?? false;
 
     const maxLead = this.config?.preheat_max_lead_minutes ?? 120;
     const preheatActive = this.roomStatus?.preheat_active ?? false;
