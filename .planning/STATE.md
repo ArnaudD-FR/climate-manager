@@ -4,12 +4,12 @@ milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
 status: executing
 stopped_at: Phase 16 context gathered
-last_updated: "2026-06-04T16:10:24.247Z"
-last_activity: 2026-06-04 -- Phase 15 execution started
+last_updated: "2026-06-04T20:26:59.327Z"
+last_activity: 2026-06-04 -- Phase 16 planning complete
 progress:
   total_phases: 8
   completed_phases: 6
-  total_plans: 25
+  total_plans: 32
   completed_plans: 25
   percent: 75
 ---
@@ -28,8 +28,8 @@ actually home. **Current focus:** Phase 16 — Presence & Heating Log Traces (ne
 
 Phase: 15 (remove-room-custom-scheduling) — COMPLETE
 Phase: 16 (presence-heating-log-traces) — PENDING
-Status: Executing Phase 15
-Last activity: 2026-06-04 -- Phase 15 execution started
+Status: Ready to execute
+Last activity: 2026-06-04 -- Phase 16 planning complete
 
 ## Performance Metrics
 
