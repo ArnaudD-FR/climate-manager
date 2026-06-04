@@ -43,9 +43,7 @@ def test_person_evaluate_emits_info_on_home_flip(caplog):
     ctx._presence_cache = {}
     ctx.now = datetime.datetime.now()
 
-    with caplog.at_context(
-        caplog.set_level(logging.INFO, logger=PERSON_LOGGER)
-    ):
+    with caplog.at_level(logging.INFO, logger=PERSON_LOGGER):
         person.evaluate_sync(ctx)
 
     records = [r for r in caplog.records if r.name == PERSON_LOGGER]
@@ -81,9 +79,7 @@ def test_person_no_log_on_same_home_value(caplog):
     ctx._presence_cache = {}
     ctx.now = datetime.datetime.now()
 
-    with caplog.at_context(
-        caplog.set_level(logging.INFO, logger=PERSON_LOGGER)
-    ):
+    with caplog.at_level(logging.INFO, logger=PERSON_LOGGER):
         person.evaluate_sync(ctx)
 
     records = [r for r in caplog.records if r.name == PERSON_LOGGER]
@@ -106,9 +102,7 @@ def test_person_name_strip_d01(caplog):
     ctx._presence_cache = {}
     ctx.now = datetime.datetime.now()
 
-    with caplog.at_context(
-        caplog.set_level(logging.INFO, logger=PERSON_LOGGER)
-    ):
+    with caplog.at_level(logging.INFO, logger=PERSON_LOGGER):
         person.evaluate_sync(ctx)
 
     records = [r for r in caplog.records if r.name == PERSON_LOGGER]
@@ -139,9 +133,7 @@ def test_person_reason_is_mode_name_only(caplog):
         ctx.now = datetime.datetime.now()
 
         caplog.clear()
-        with caplog.at_context(
-            caplog.set_level(logging.INFO, logger=PERSON_LOGGER)
-        ):
+        with caplog.at_level(logging.INFO, logger=PERSON_LOGGER):
             person.evaluate_sync(ctx)
 
         records = [r for r in caplog.records if r.name == PERSON_LOGGER]
