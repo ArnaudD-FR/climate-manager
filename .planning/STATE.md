@@ -4,8 +4,8 @@ milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
 status: executing
 stopped_at: Phase 16 context gathered
-last_updated: "2026-06-04T20:26:59.327Z"
-last_activity: 2026-06-04 -- Phase 16 planning complete
+last_updated: "2026-06-04T20:29:08.967Z"
+last_activity: 2026-06-04 -- Phase 16 execution started
 progress:
   total_phases: 8
   completed_phases: 6
@@ -22,14 +22,15 @@ See: .planning/PROJECT.md (updated 2026-05-29)
 
 **Core value:** A household's rooms are always at the right temperature at the
 right time, without manual intervention — driven by schedules and who is
-actually home. **Current focus:** Phase 16 — Presence & Heating Log Traces (next up).
+actually home. **Current focus:** Phase 16 — presence-heating-log-traces
 
 ## Current Position
 
-Phase: 15 (remove-room-custom-scheduling) — COMPLETE
+Phase: 16 (presence-heating-log-traces) — EXECUTING
+Plan: 1 of 7
 Phase: 16 (presence-heating-log-traces) — PENDING
-Status: Ready to execute
-Last activity: 2026-06-04 -- Phase 16 planning complete
+Status: Executing Phase 16
+Last activity: 2026-06-04 -- Phase 16 execution started
 
 ## Performance Metrics
 
