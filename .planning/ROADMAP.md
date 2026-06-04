@@ -262,7 +262,21 @@ to diagnose heating behaviour from HA logs without reading source code.
    `heating | room=<name> temp=<T>°C zone=<zone> slot=<slot>` at DEBUG level
 4. No log spam: repeated identical states do not produce duplicate lines
 
-**Plans**: TBD
+**Plans**: 7 plans
+- [ ] 16-01-PLAN.md — Wave 0 RED test scaffolds: test_eval_context,
+      test_zone, test_person, test_room_domain (OBS-01)
+- [ ] 16-02-PLAN.md — eval_context.py: EvalContext dataclass, lazy per-cycle
+      calendar cache + prefix validation (OBS-01)
+- [ ] 16-03-PLAN.md — trv.py: TRV + TRVGroup, anti-flap push, DEBUG heating
+      log, Matter dedup assembly (OBS-01)
+- [ ] 16-04-PLAN.md — person.py: PersonMode + five subclasses, Person.evaluate
+      INFO presence log + cache dedup (OBS-01)
+- [ ] 16-05-PLAN.md — room.py: Room plain class, apply_setpoint delegation,
+      compute_preheat + calibrate_trvs migration (OBS-01)
+- [ ] 16-06-PLAN.md — zone.py: Zone + ZoneMode three subclasses, INFO state
+      log (D-03 format) + anti-spam + first-tick suppression (OBS-01)
+- [ ] 16-07-PLAN.md — coordinator integration: build domain graph, rewrite
+      async_evaluate, delete monolith, update tests, human log verify (OBS-01)
 
 ### Phase 17: Person Scheduling Use-Case Docs
 
@@ -301,5 +315,5 @@ cleanly and they are committed alongside the README files.
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 3/3 | Complete   | 2026-06-03 |
 | 14. Default Zone Consolidation              | v1.3      | 4/4 | Complete    | 2026-06-04 |
 | 15. Remove Room Custom Scheduling           | v1.3      | 4/4 | Complete   | 2026-06-04 |
-| 16. Presence & Heating Log Traces           | v1.3      | 0/?            | Pending  | —          |
+| 16. Presence & Heating Log Traces           | v1.3      | 0/7            | Pending  | —          |
 | 17. Person Scheduling Use-Case Docs         | v1.3      | 0/?            | Pending  | —          |
