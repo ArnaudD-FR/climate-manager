@@ -21,8 +21,6 @@ Requirements addressed:
 - GLOBAL-01: Default Zone branches on global_mode (Off / Time program / Presences)
 - GLOBAL-02: Default Zone MODE_OFF → frost protection; custom zones unaffected (D-08)
 - GLOBAL-03: period_temperatures dict provides configurable temps per period mode
-- SCHED-05: per-room time program override (room_mode=custom) wins over zone
-            schedule when zone is active; zone MODE_OFF always overrides custom
 - EVAL-01..05: per-zone independent evaluation via _resolve_zone_config
 - PERSON-06: persons have associated room_ids
 - PERSON-07: present person → heat from first Normal/Comfort period to end of last
@@ -65,8 +63,6 @@ from .const import (
     PRESENCE_CALENDAR,
     PRESENCE_HA,
     PRESENCE_PRESENT,
-    ROOM_MODE_FROST,
-    ROOM_MODE_CUSTOM,
 )
 from .schedule import (
     compute_occupied_temp,
@@ -358,11 +354,8 @@ class ClimateManagerCoordinator:
         Returns (desired_temps, room_periods, frost_locked_rooms, mode_off_rooms).
 
         Priority order (highest to lowest):
-        1. frost_protection room_mode — wins unconditionally (EVAL-05 / D-20)
-        2. Zone MODE_OFF — always overrides, even custom room schedules (EVAL-01)
-        3. Custom room schedule (room_mode=custom) — wins over zone schedule
-           when the zone is active (SCHED-05 / EVAL-05)
-        4. Zone schedule (time_program / time_program_presences) — baseline
+        1. Zone MODE_OFF — always overrides (EVAL-01)
+        2. Zone schedule (time_program / time_program_presences) — baseline
         """
         desired_temps: dict[str, float] = {}
         room_periods: dict[str, str] = {}
@@ -370,55 +363,19 @@ class ClimateManagerCoordinator:
         mode_off_rooms: set[str] = set()
 
         for area_id in rooms:
-            room_config = config.get("rooms", {}).get(area_id, {})
-            room_mode = room_config.get("room_mode", "global")
-
-            if room_mode == ROOM_MODE_FROST:
-                # EVAL-05 / D-20: frost_protection room_mode wins unconditionally
-                desired_temps[area_id] = period_temperatures[
-                    PERIOD_FROST_PROTECTION
-                ]
-                room_periods[area_id] = PERIOD_FROST_PROTECTION
-                frost_locked_rooms.add(area_id)
-                mode_off_rooms.add(area_id)
-                continue
-
-            # Resolve zone mode for this room — needed for both custom and
-            # global room modes (EVAL-01: zone OFF always wins).
             zone_mode, zone_time_program = self._resolve_zone_config(
                 area_id, config
             )
 
             if zone_mode == MODE_OFF:
                 # EVAL-01: zone off → frost protection for all rooms in the
-                # zone, including those with a custom schedule (SCHED-05 only
-                # overrides the schedule selection, not the zone power state).
+                # zone.
                 desired_temps[area_id] = period_temperatures[
                     PERIOD_FROST_PROTECTION
                 ]
                 room_periods[area_id] = PERIOD_FROST_PROTECTION
                 frost_locked_rooms.add(area_id)
                 mode_off_rooms.add(area_id)
-                continue
-
-            if room_mode == ROOM_MODE_CUSTOM:
-                # EVAL-05 / SCHED-05: custom room schedule wins over the zone
-                # schedule when the zone is active (zone OFF is handled above).
-                room_program = (
-                    room_config.get("time_program")
-                    or config["default_zone"]["time_program"]
-                )
-                period_mode = evaluate_schedule(room_program, now)
-                temp = period_temperatures.get(period_mode)
-                if temp is None:
-                    _LOGGER.warning(
-                        "Unknown period mode %r for area %s — skipping",
-                        period_mode,
-                        area_id,
-                    )
-                    continue
-                desired_temps[area_id] = temp
-                room_periods[area_id] = period_mode
                 continue
 
             # Room follows its zone schedule (D-09)
@@ -511,11 +468,6 @@ class ClimateManagerCoordinator:
                     continue
                 if area_id in frost_locked_rooms:
                     # frost / zone.mode=off — presence cannot raise
-                    continue
-
-                room_config = config.get("rooms", {}).get(area_id, {})
-                if room_config.get("room_mode", "global") == ROOM_MODE_CUSTOM:
-                    # Custom room schedule wins; preserved v1.0 behavior
                     continue
 
                 # Presence override applies only when zone mode is time_program_presences
@@ -780,13 +732,7 @@ class ClimateManagerCoordinator:
                 if next_arrival is None or candidate < next_arrival:
                     next_arrival = candidate
 
-        room_cfg_step2 = config.get("rooms", {}).get(area_id, {})
-        if room_cfg_step2.get("room_mode") == ROOM_MODE_CUSTOM:
-            tp_step2 = room_cfg_step2.get("time_program") or config.get(
-                "default_zone", {}
-            ).get("time_program", {})
-        else:
-            _, tp_step2 = self._resolve_zone_config(area_id, config)
+        _, tp_step2 = self._resolve_zone_config(area_id, config)
         period_temperatures_step2: dict[str, float] = config.get(
             "period_temperatures", {}
         )
@@ -862,16 +808,8 @@ class ClimateManagerCoordinator:
             return
 
         # Determine the upcoming setpoint (the period's temperature at
-        # next_occupied). CR-02: for room_mode=custom rooms, use the room's
-        # own time_program rather than the zone program so the pre-heat target
-        # matches what _compute_desired_temps will push after the period starts.
-        room_cfg = config.get("rooms", {}).get(area_id, {})
-        if room_cfg.get("room_mode") == ROOM_MODE_CUSTOM:
-            time_program = room_cfg.get("time_program") or config.get(
-                "default_zone", {}
-            ).get("time_program", {})
-        else:
-            _, time_program = self._resolve_zone_config(area_id, config)
+        # next_occupied). Room always follows its zone program (Phase 15).
+        _, time_program = self._resolve_zone_config(area_id, config)
         period_temperatures: dict[str, float] = config.get(
             "period_temperatures", {}
         )

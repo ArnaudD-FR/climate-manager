@@ -82,22 +82,24 @@ async def test_save_then_load_round_trips(hass):
 
 
 async def test_load_room_override_survives(hass):
-    """Test 4: A stored room override survives load and appears under rooms[area_id]."""
+    """Test 4: A stored room entry survives load (non-deprecated keys preserved).
+
+    Phase 15 (D-01/D-03): room-level time_program and room_mode are stripped
+    on load. Non-deprecated fields (preheat_max_lead_minutes, etc.) survive.
+    """
     store = ClimateManagerStore(hass)
 
-    _DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-    room_time_program = {d: [] for d in _DAYS}
-
     config_with_room = copy.deepcopy(DEFAULT_CONFIG)
+    # Use a Default Zone room (no zone_id) with a surviving non-deprecated key
     config_with_room["rooms"]["living_room"] = {
-        "time_program": room_time_program
+        "preheat_max_lead_minutes": 90,
     }
 
     await store.async_save(config_with_room)
     loaded = await store.async_load()
 
     assert "living_room" in loaded["rooms"]
-    assert loaded["rooms"]["living_room"] == {"time_program": room_time_program}
+    assert loaded["rooms"]["living_room"] == {"preheat_max_lead_minutes": 90}
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +213,7 @@ def test_validate_zone_assignment_valid_config_passes():
                 "time_program": {},
             }
         },
-        "rooms": {"living_room": {"zone_id": "uuid-1", "room_mode": "global"}},
+        "rooms": {"living_room": {"zone_id": "uuid-1"}},
     }
     validate_zone_assignment(config)  # must not raise
 
@@ -230,7 +232,7 @@ def test_validate_zone_assignment_default_zone_rooms_pass():
     """Rooms without zone_id (Default Zone members) pass validation (D-06)."""
     config = {
         "zones": {},
-        "rooms": {"bedroom": {"room_mode": "custom"}},  # no zone_id
+        "rooms": {"bedroom": {}},  # no zone_id
     }
     validate_zone_assignment(config)  # must not raise
 
@@ -267,7 +269,7 @@ async def test_save_accepts_room_without_zone_id(hass):
     """async_save succeeds when a room has no zone_id (Default Zone member — D-06)."""
     store = ClimateManagerStore(hass)
     config = copy.deepcopy(DEFAULT_CONFIG)
-    config["rooms"]["bedroom"] = {"room_mode": "global"}  # no zone_id
+    config["rooms"]["bedroom"] = {}  # no zone_id
     await store.async_save(config)
     loaded = await store.async_load()
     assert "bedroom" in loaded["rooms"]
