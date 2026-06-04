@@ -9,6 +9,12 @@ Also implements off-capable TRV support (quick task 260526-ffr):
   - supports_hvac_off: checks if a TRV advertises HVACMode.OFF in its hvac_modes attribute
   - set_trv_off: issues a single climate.set_hvac_mode=off call for off-capable TRVs
 
+Domain classes (plan 16-03, D-07/D-10/D-11):
+  - TRV: owns entity_id, last_pushed, platform; async push_temperature,
+    push_off, calibrate. Anti-flap guard and DEBUG heating log.
+  - TRVGroup: assembled at init from matter_mappings; no platform branching
+    at push time; uses asyncio.gather for concurrent TRV pushes.
+
 Design decisions (from RESEARCH.md / CLAUDE.md):
 - Pattern 5: Two-call TRV service sequence
 - INFRA-04: Heat mode set first whenever the TRV is not already heating; the
@@ -16,11 +22,24 @@ Design decisions (from RESEARCH.md / CLAUDE.md):
 - ROOM-03: Unavailable or missing TRVs are silently skipped
 - T-01-07: hvac_mode is hardcoded "heat"
 - T-01-08: Guard on hass.states.get returning None or "unavailable"
+- D-01: Name strip — area_/zone_ prefixes stripped for log display
+- D-07: TRVGroup assembles push targets at init; push time is platform-agnostic
+- D-10: Anti-spam via TRV.last_pushed (no separate guard dict)
+- D-11: DEBUG log fires only when last_pushed != desired_temp
+- T-16-05: Exception-safe wrapper in push_temperature/push_off (never raises)
+- T-16-06: Matter dedup via frozenset at TRVGroup assembly
 """
+
+from __future__ import annotations
+
+import asyncio
+import logging
 
 from homeassistant.components.climate import HVACMode
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+
+_LOGGER = logging.getLogger(__name__)
 
 # TRV rooms control individual radiators; boilers/HVAC units have max_temp > 45°C.
 _TRV_MAX_TEMP_THRESHOLD = 45.0
@@ -249,3 +268,252 @@ async def set_trv_offset(
         {"entity_id": entity_id, "offset": round(offset, 1)},
         blocking=True,
     )
+
+
+# ---------------------------------------------------------------------------
+# Domain classes (plan 16-03, D-07/D-10/D-11)
+# ---------------------------------------------------------------------------
+
+
+def _short_name(entity_id: str) -> str:
+    """Strip domain/prefix for log display (D-01).
+
+    Examples:
+      person.alice   → alice
+      area_kitchen   → kitchen  (strip area_ prefix)
+      zone_main      → main     (strip zone_ prefix)
+      climate.trv    → trv
+      kitchen        → kitchen  (no change)
+    """
+    if "." in entity_id:
+        return entity_id.split(".", 1)[1]
+    for prefix in ("area_", "zone_"):
+        if entity_id.startswith(prefix):
+            return entity_id[len(prefix) :]
+    return entity_id
+
+
+class TRV:
+    """One physical TRV push unit (D-07).
+
+    Owns entity_id, platform, and last_pushed.  Encapsulates the anti-flap
+    guard and D-03 manual-override hold that previously lived in coordinator
+    _push_if_changed.  Emits a DEBUG heating log on every setpoint change
+    (D-11) but never on repeated identical setpoints (D-10).
+
+    All methods are exception-safe (T-16-05): they catch Exception, log a
+    WARNING, and never propagate into the evaluation loop.
+    """
+
+    def __init__(
+        self, hass: HomeAssistant, entity_id: str, platform: str | None
+    ) -> None:
+        self._hass = hass
+        self.entity_id = entity_id
+        self.platform = platform
+        self.last_pushed: float | str | None = None
+
+    async def push_temperature(
+        self,
+        desired_temp: float,
+        *,
+        room_name: str,
+        zone_name: str,
+        slot: str,
+        ctx: object,
+    ) -> None:
+        """Push desired_temp to the TRV entity.
+
+        Anti-flap guard (D-10): skip when last_pushed == desired_temp.
+        Manual-override hold (D-03): skip when TRV reports a temp different
+        from last_pushed (user adjusted manually).
+        Startup push (D-11): last_pushed=None bypasses both guards so the
+        first evaluation always pushes (intentional).
+        DEBUG log fires only when a push is about to happen (D-11).
+        Exception-safe: catches all exceptions and WARNING-logs (T-16-05).
+        """
+        try:
+            state = self._hass.states.get(self.entity_id)
+            if state is None or state.state in ("unavailable", "unknown"):
+                return
+
+            last = self.last_pushed
+
+            # Clear stale MODE_OFF sentinel — "off" is a string not a float.
+            # Leaving it as-is would make float(reported) != "off" always True,
+            # causing the D-03 hold to fire on every tick after MODE_OFF exit.
+            if isinstance(last, str):
+                last = None
+
+            # D-10: anti-spam — skip if already pushed this setpoint
+            if last is not None and last == desired_temp:
+                return
+
+            # D-03: manual-override hold — only active when we have a prior push
+            if last is not None:
+                reported = state.attributes.get("temperature")
+                if reported is not None and float(reported) != last:
+                    # User adjusted manually — hold until next period transition
+                    return
+
+            # All guards passed — emit DEBUG log then push (D-11)
+            _LOGGER.debug(
+                "heating | room=%s temp=%s°C zone=%s slot=%s",
+                _short_name(room_name),
+                desired_temp,
+                _short_name(zone_name),
+                slot,
+            )
+            await set_trv_temperature(self._hass, self.entity_id, desired_temp)
+            self.last_pushed = desired_temp
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("Failed to push temperature to %s", self.entity_id)
+
+    async def push_off(self, frost_temp: float, ctx: object) -> None:
+        """Pre-set frost setpoint then issue set_hvac_mode=off.
+
+        Mirrors coordinator _push_off_safely.  Anti-flap: skips when
+        last_pushed == "off" sentinel (D-10).  Never raises (T-16-05).
+
+        Step 1: set_temperature(frost_temp) — so TRV resumes at frost on
+                wake-up rather than its previous arbitrary setpoint.
+        Step 2: set_hvac_mode=off — sentinel stored only on success.
+        """
+        try:
+            state = self._hass.states.get(self.entity_id)
+            if state is None or state.state in ("unavailable", "unknown"):
+                return
+
+            if self.last_pushed == "off":
+                return  # Anti-flap: already pushed off
+
+            try:
+                await set_trv_temperature(
+                    self._hass, self.entity_id, frost_temp
+                )
+            except Exception:  # noqa: BLE001
+                _LOGGER.warning(
+                    "Failed to pre-set frost temp on %s before MODE_OFF",
+                    self.entity_id,
+                )
+
+            try:
+                await set_trv_off(self._hass, self.entity_id)
+                self.last_pushed = "off"
+            except Exception:  # noqa: BLE001
+                _LOGGER.warning(
+                    "Failed to push OFF to %s in MODE_OFF", self.entity_id
+                )
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning(
+                "Unexpected error in push_off for %s", self.entity_id
+            )
+
+    async def calibrate(self, offset: float, ctx: object) -> None:
+        """Apply temperature offset calibration to this TRV.
+
+        Thin wrapper delegating to set_trv_offset.  Full calibration logic
+        moves here in plan 16-04 (room).  Exception-safe (T-16-05).
+        """
+        try:
+            await set_trv_offset(self._hass, self.entity_id, offset)
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning(
+                "Failed to calibrate TRV %s with offset %s",
+                self.entity_id,
+                offset,
+            )
+
+
+class TRVGroup:
+    """One logical push unit assembled at coordinator init (D-07).
+
+    Contains one or more TRV instances resolved from matter_mappings at
+    assembly time.  At push time there is no platform branching — the correct
+    TRVs are already in the group.  Uses asyncio.gather for concurrent pushes.
+
+    Assembly rules (from coordinator _push_temperatures / Pitfall 4):
+      tado_x + mapped   → Matter entity_ids only (not the tado_x entity)
+      tado_x + unmapped → tado_x entity itself
+      matter + in dedup → skip (already covered by tado_x branch)
+      matter + not dedup → standalone push target
+      other platform    → standalone push target
+    """
+
+    def __init__(
+        self,
+        trvs: list[TRV],
+        room_name: str,
+        zone_name: str,
+    ) -> None:
+        self._trvs = trvs
+        self._room_name = room_name
+        self._zone_name = zone_name
+
+    @classmethod
+    def from_room_config(
+        cls,
+        hass: HomeAssistant,
+        entity_ids: list[str],
+        matter_mappings: dict[str, list[str]],
+        room_name: str,
+        zone_name: str,
+    ) -> "TRVGroup":
+        """Build a TRVGroup from a room's entity list and matter_mappings.
+
+        The matter_entity_set frozenset (T-16-06) prevents double-pushing
+        a Matter entity that is already covered by a tado_x mapping.
+        """
+        from homeassistant.helpers import (  # noqa: PLC0415
+            entity_registry as er,
+        )
+
+        entity_reg = er.async_get(hass)
+
+        # Frozenset of all Matter entity_ids referenced in any mapping value
+        # (T-16-06: dedup guard — Pitfall 4)
+        matter_entity_set: frozenset[str] = frozenset(
+            eid for eids in matter_mappings.values() for eid in eids
+        )
+
+        trvs: list[TRV] = []
+        for entity_id in entity_ids:
+            reg = entity_reg.async_get(entity_id)
+            platform = reg.platform if reg is not None else None
+            if platform == "tado_x":
+                mapped = matter_mappings.get(entity_id)
+                if mapped:
+                    # Mapped tado_x → use Matter entities only
+                    for m_eid in mapped:
+                        trvs.append(TRV(hass, m_eid, "matter"))
+                else:
+                    # Unmapped tado_x → use tado_x entity
+                    trvs.append(TRV(hass, entity_id, "tado_x"))
+            elif platform == "matter":
+                if entity_id not in matter_entity_set:
+                    # Standalone Matter entity — independent push target
+                    trvs.append(TRV(hass, entity_id, "matter"))
+                # else: skip — already in the group via tado_x mapping
+            else:
+                # Generic TRV entity
+                trvs.append(TRV(hass, entity_id, platform))
+
+        return cls(trvs, room_name, zone_name)
+
+    async def push(self, temp: float, slot: str, ctx: object) -> None:
+        """Push temp to all TRVs concurrently (asyncio.gather pattern).
+
+        No platform branching — TRVs are already resolved at assembly time.
+        """
+        await asyncio.gather(
+            *(
+                trv.push_temperature(
+                    temp,
+                    room_name=self._room_name,
+                    zone_name=self._zone_name,
+                    slot=slot,
+                    ctx=ctx,
+                )
+                for trv in self._trvs
+            )
+        )
