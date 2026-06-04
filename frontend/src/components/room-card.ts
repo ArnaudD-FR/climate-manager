@@ -3,30 +3,20 @@
  * Climate Manager Panel — Room Card component (UI-03).
  *
  * Expandable card per room. Header (always visible): room name + period
- * badge (D-32) + mode badge + compact 3-item status line (°C / humidity /
- * persons, D-14d). Expanded: TRV entity IDs, associated persons chips,
- * 3-way mode selector (D-20),
- * inline time-bar (when Custom mode, D-20).
+ * badge (D-32) + compact 3-item status line (°C / humidity / persons,
+ * D-14d). Expanded: TRV entity IDs, associated persons chips, zone picker.
  *
- * Auto-save on field blur and select change (D-08). Time-bar saves on
- * interaction end (D-09). Toast feedback on success/error (D-10).
+ * Auto-save on field blur and select change. Toast feedback on
+ * success/error (D-10).
  */
 
 import { LitElement, html, css, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 
-import type {
-  RoomConfig,
-  RoomStatus,
-  DailyProgram,
-  Period,
-  ClimateConfig,
-  Hass,
-} from "../types.js";
+import type { RoomConfig, RoomStatus, ClimateConfig, Hass } from "../types.js";
 import { PERIOD_DISPLAY_NAMES, PERIOD_COLORS, getZoneColor } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
-import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
 import {
   chipStyles,
   sectionLabelStyles,
@@ -35,7 +25,6 @@ import {
   scheduleHintStyles,
 } from "../shared-styles.js";
 
-import "./time-bar.js";
 import "./search-picker.js";
 
 export class RoomCard extends LitElement {
@@ -56,25 +45,8 @@ export class RoomCard extends LitElement {
   /** Auto-expands card and scrolls it into view for one render cycle. */
   @property({ type: Boolean }) autoExpand = false;
 
-  /** Expanded state. Defaults to true when room_mode is "custom". */
+  /** Expanded state. Defaults to collapsed. */
   @state() _expanded = false;
-
-  // Memoize days array — same pattern as global-settings-tab and person-card to
-  // prevent time-bar drag-preview from clearing on status-only re-renders.
-  // programToDays() creates new array references on every call. Without this,
-  // any re-render that happens while the WS round-trip is in flight (e.g. a
-  // subscribe_status push) passes a new `days` reference to the time-bar,
-  // causing its updated() hook to clear _dragPreviewDays and flash.
-  private _lastTimeProgram: DailyProgram | null | undefined = undefined;
-  private _cachedDays: Period[][] = [];
-  private get _days(): Period[][] {
-    const program = this.config?.time_program;
-    if (program !== this._lastTimeProgram) {
-      this._lastTimeProgram = program;
-      this._cachedDays = programToDays(program ?? undefined);
-    }
-    return this._cachedDays;
-  }
 
   connectedCallback() {
     super.connectedCallback();
@@ -244,8 +216,26 @@ export class RoomCard extends LitElement {
         cursor: pointer;
       }
 
-      .reset-btn:hover {
-        background: var(--secondary-background-color);
+      /* Zone picker select — same visual style as shared select styles */
+      .zone-select {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 16px;
+        font-family: inherit;
+        color: var(--primary-text-color);
+        background-color: var(
+          --card-background-color,
+          var(--secondary-background-color)
+        );
+        border: 1px solid var(--divider-color);
+        border-radius: 4px;
+        outline: none;
+        cursor: pointer;
+      }
+
+      .zone-select:focus {
+        border-color: var(--primary-color);
+        border-width: 2px;
       }
     `,
   ];
@@ -327,80 +317,8 @@ export class RoomCard extends LitElement {
   }
 
   // -----------------------------------------------------------------------
-  // Room mode handler (D-20)
-  // -----------------------------------------------------------------------
-
-  private async _onRoomModeChange(e: Event) {
-    const newMode = (e.target as HTMLSelectElement).value as
-      | "global"
-      | "frost_protection"
-      | "custom";
-
-    let payload: Partial<RoomConfig>;
-    if (newMode === "custom" && !this.config?.time_program) {
-      // First switch to Custom: seed from global program (deep copy)
-      payload = {
-        room_mode: "custom",
-        time_program: JSON.parse(
-          JSON.stringify(this.panelConfig.global_time_program),
-        ) as DailyProgram,
-      };
-    } else {
-      payload = { room_mode: newMode };
-    }
-
-    try {
-      await this.ws.setRoomConfig(this.roomId, payload);
-      await this.panel.reloadConfig();
-      this.panel.showToast("Saved", false);
-    } catch {
-      this.panel.showToast("Save failed — retrying...", true);
-    }
-  }
-
-  // -----------------------------------------------------------------------
   // Schedule override handlers
   // -----------------------------------------------------------------------
-
-  private async _onPeriodsChanged(e: CustomEvent) {
-    const { dayIndex, periods } = e.detail as {
-      dayIndex: number;
-      periods: Period[];
-    };
-
-    const currentProgram = this.config.time_program ?? {
-      mon: [],
-      tue: [],
-      wed: [],
-      thu: [],
-      fri: [],
-      sat: [],
-      sun: [],
-    };
-    const program: DailyProgram = { ...currentProgram };
-    const key = dayIndexToKey(dayIndex);
-    program[key] = periods;
-
-    try {
-      await this.ws.setRoomConfig(this.roomId, { time_program: program });
-      await this.panel.reloadConfig();
-      this.panel.showToast("Saved", false);
-    } catch {
-      this.panel.showToast("Save failed — retrying...", true);
-    }
-
-    e.stopPropagation();
-  }
-
-  private async _onResetToGlobal() {
-    try {
-      await this.ws.resetRoomToGlobalProgram(this.roomId);
-      await this.panel.reloadConfig();
-      this.panel.showToast("Saved", false);
-    } catch {
-      this.panel.showToast("Save failed — retrying...", true);
-    }
-  }
 
   // -----------------------------------------------------------------------
   // Zone assignment handler (ASSIGN-02)
@@ -438,17 +356,11 @@ export class RoomCard extends LitElement {
 
   /** D-32: render period badge for row 1 of the card header.
    *
-   * Returns empty when:
-   *   - resolvedMode is "frost_protection" (mode badge already conveys state)
-   *   - active_period is null/undefined (no active period to display)
-   *
+   * Returns empty when active_period is null/undefined.
    * Returns gray "Off" badge when globalMode is "off".
    * Otherwise returns a colored pill: "${name} · ${temp}°C".
    */
   private _renderPeriodBadge() {
-    const resolvedMode = this.config?.room_mode ?? "global";
-    if (resolvedMode === "frost_protection") return html``;
-
     const globalMode =
       this.status?.global_mode ?? this.panelConfig?.global_mode ?? "";
 
@@ -622,18 +534,6 @@ export class RoomCard extends LitElement {
     `;
   }
 
-  private _renderRoomModeDescription(resolvedMode: string) {
-    let text: string;
-    if (resolvedMode === "frost_protection") {
-      text = "Heating is disabled. Room kept at frost protection temperature.";
-    } else if (resolvedMode === "custom") {
-      text = "Room uses its own custom schedule. Zone Off mode still applies.";
-    } else {
-      text = "This room follows the zone's heating schedule.";
-    }
-    return html`<p class="schedule-hint">${text}</p>`;
-  }
-
   private _openEntityMoreInfo(entityId: string) {
     this.dispatchEvent(
       new CustomEvent("hass-more-info", {
@@ -645,21 +545,6 @@ export class RoomCard extends LitElement {
   }
 
   render() {
-    const resolvedMode = this.config?.room_mode ?? "global";
-
-    const badgeClass =
-      resolvedMode === "frost_protection"
-        ? "frost"
-        : resolvedMode === "custom"
-          ? "custom"
-          : "global";
-    const badgeText =
-      resolvedMode === "frost_protection"
-        ? "Off"
-        : resolvedMode === "custom"
-          ? "Custom program"
-          : "Zone program";
-
     return html`
       <ha-card>
         <div
@@ -672,13 +557,6 @@ export class RoomCard extends LitElement {
             <div class="card-header-top">
               <span class="room-name">${this.roomName}</span>
               ${this._renderPeriodBadge()}
-              <span
-                class="program-badge ${badgeClass}"
-                style=${badgeClass === "frost"
-                  ? `background: ${PERIOD_COLORS.frost_protection}; color: white;`
-                  : ""}
-                >${badgeText}</span
-              >
               <span
                 class="zone-badge"
                 style=${(() => {
@@ -703,41 +581,6 @@ export class RoomCard extends LitElement {
         ${this._expanded
           ? html`
               <div class="card-content">
-                <!-- 3-way room mode selector (D-20) -->
-                <div
-                  class="section-label"
-                  title="Zone: zone sched. Custom: room sched. Off: frost only."
-                >
-                  Mode
-                </div>
-                <div class="select-wrapper">
-                  <select
-                    class="mode-select"
-                    .value=${resolvedMode}
-                    @change=${this._onRoomModeChange}
-                  >
-                    <option
-                      value="frost_protection"
-                      ?selected=${resolvedMode === "frost_protection"}
-                    >
-                      Off
-                    </option>
-                    <option
-                      value="global"
-                      ?selected=${resolvedMode === "global"}
-                    >
-                      Zone program
-                    </option>
-                    <option
-                      value="custom"
-                      ?selected=${resolvedMode === "custom"}
-                    >
-                      Custom program
-                    </option>
-                  </select>
-                </div>
-                ${this._renderRoomModeDescription(resolvedMode)}
-
                 <!-- Zone picker (ASSIGN-02, D-12) -->
                 <div
                   class="section-label"
@@ -746,7 +589,7 @@ export class RoomCard extends LitElement {
                   Zone
                 </div>
                 <div class="select-wrapper">
-                  <select class="mode-select" @change=${this._onZoneChange}>
+                  <select class="zone-select" @change=${this._onZoneChange}>
                     <option value="" ?selected=${!this.config?.zone_id}>
                       ${this.panelConfig?.default_zone_name ?? "Default Zone"}
                     </option>
@@ -763,30 +606,6 @@ export class RoomCard extends LitElement {
                   </select>
                 </div>
 
-                <!-- Inline time-bar (only in Custom mode) -->
-                ${resolvedMode === "custom"
-                  ? html`
-                      <div
-                        class="section-label"
-                        title="Custom schedule — overrides the zone program"
-                      >
-                        Schedule
-                      </div>
-                      <div class="time-bar-section">
-                        <climate-manager-time-bar
-                          mode="schedule"
-                          .days=${this._days}
-                          @periods-changed=${this._onPeriodsChanged}
-                        ></climate-manager-time-bar>
-                      </div>
-                      <button
-                        class="reset-btn"
-                        @click=${() => void this._onResetToGlobal()}
-                      >
-                        Reset to global configuration
-                      </button>
-                    `
-                  : ""}
                 ${this._renderPersonsSection()}
 
                 <div
