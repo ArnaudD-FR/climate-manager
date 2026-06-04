@@ -233,7 +233,7 @@ assigning the room to a dedicated zone in MODE_OFF.
 6. All tests pass with no reference to `room_mode`
 
 **Plans**: 4 plans
-- [ ] 15-01-PLAN.md — backend core: delete ROOM_MODE_* constants, strip
+- [x] 15-01-PLAN.md — backend core: delete ROOM_MODE_* constants, strip
       coordinator room_mode branches, add storage compat shim + Wave 0 shim
       test, clean coordinator/preheat tests (ARCH-02)
 - [ ] 15-02-PLAN.md — websocket: remove reset_room_to_default_zone_program
@@ -300,6 +300,6 @@ cleanly and they are committed alongside the README files.
 | 12. Predictive Pre-heat                     | v1.3      | 7/7 | Complete   | 2026-06-03 |
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 3/3 | Complete   | 2026-06-03 |
 | 14. Default Zone Consolidation              | v1.3      | 4/4 | Complete    | 2026-06-04 |
-| 15. Remove Room Custom Scheduling           | v1.3      | 0/4            | Planned  | —          |
+| 15. Remove Room Custom Scheduling           | v1.3      | 1/4 | In Progress|  |
 | 16. Presence & Heating Log Traces           | v1.3      | 0/?            | Pending  | —          |
 | 17. Person Scheduling Use-Case Docs         | v1.3      | 0/?            | Pending  | —          |

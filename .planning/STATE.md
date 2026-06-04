@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
 status: executing
-last_updated: "2026-06-04T08:14:39.796Z"
-last_activity: 2026-06-04 -- Phase 15 planning complete
+last_updated: "2026-06-04T08:16:24.813Z"
+last_activity: 2026-06-04 -- Phase 15 execution started
 progress:
   total_phases: 8
   completed_phases: 5
@@ -21,15 +21,15 @@ See: .planning/PROJECT.md (updated 2026-05-29)
 
 **Core value:** A household's rooms are always at the right temperature at the
 right time, without manual intervention — driven by schedules and who is
-actually home. **Current focus:** Phase 15 — remove room custom scheduling
+actually home. **Current focus:** Phase 15 — remove-room-custom-scheduling
 presence schedules + TRV offset auto-calibration.
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-04 -- Phase 15 planning complete
+Phase: 15 (remove-room-custom-scheduling) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 15
+Last activity: 2026-06-04 -- Phase 15 execution started
 
 ## Performance Metrics
 
