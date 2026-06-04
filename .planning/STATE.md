@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
 status: executing
-last_updated: "2026-06-04T12:32:08.550Z"
-last_activity: 2026-06-04 -- Phase 15 execution started
+last_updated: "2026-06-04T17:30:00.000Z"
+last_activity: 2026-06-04 -- Phase 15 complete (visual verified, 2 bugs fixed)
 progress:
   total_phases: 8
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 25
-  completed_plans: 24
-  percent: 63
+  completed_plans: 25
+  percent: 75
 ---
 
 # Project State
@@ -21,13 +21,12 @@ See: .planning/PROJECT.md (updated 2026-05-29)
 
 **Core value:** A household's rooms are always at the right temperature at the
 right time, without manual intervention — driven by schedules and who is
-actually home. **Current focus:** Phase 15 — remove-room-custom-scheduling
-presence schedules + TRV offset auto-calibration.
+actually home. **Current focus:** Phase 16 — Presence & Heating Log Traces (next up).
 
 ## Current Position
 
-Phase: 15 (remove-room-custom-scheduling) — EXECUTING
-Plan: 1 of 4
+Phase: 15 (remove-room-custom-scheduling) — COMPLETE
+Phase: 16 (presence-heating-log-traces) — PENDING
 Status: Executing Phase 15
 Last activity: 2026-06-04 -- Phase 15 execution started
 
@@ -135,9 +134,10 @@ Last activity: 2026-06-03 - Completed quick task 260603-tf5: Add toast feedback 
 
 ## Session Continuity
 
-Last session: 2026-06-04T12:32:08.547Z
-Resume file: None
+Last session: 2026-06-04T17:30:00.000Z
+Stopped at: Phase 15 complete — visual verified, SUMMARY written, committed.
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Phase 16 (presence-heating-log-traces): discuss or plan
+- Phase 17 (person-scheduling-use-case-docs): discuss or plan

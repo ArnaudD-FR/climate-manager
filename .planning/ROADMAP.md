@@ -242,7 +242,7 @@ assigning the room to a dedicated zone in MODE_OFF.
 - [x] 15-03-PLAN.md — frontend: remove room_mode/time_program from RoomConfig,
       strip mode select/time-bar/badge/handlers from room-card, delete ws-client
       reset method, build (ARCH-02)
-- [ ] 15-04-PLAN.md — repo-wide sweep + full suite + deploy + human visual
+- [x] 15-04-PLAN.md — repo-wide sweep + full suite + deploy + human visual
       verification of Rooms tab (ARCH-02)
 
 ### Phase 16: Presence & Heating Log Traces
@@ -300,6 +300,6 @@ cleanly and they are committed alongside the README files.
 | 12. Predictive Pre-heat                     | v1.3      | 7/7 | Complete   | 2026-06-03 |
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 3/3 | Complete   | 2026-06-03 |
 | 14. Default Zone Consolidation              | v1.3      | 4/4 | Complete    | 2026-06-04 |
-| 15. Remove Room Custom Scheduling           | v1.3      | 3/4 | In Progress|  |
+| 15. Remove Room Custom Scheduling           | v1.3      | 4/4 | Complete   | 2026-06-04 |
 | 16. Presence & Heating Log Traces           | v1.3      | 0/?            | Pending  | —          |
 | 17. Person Scheduling Use-Case Docs         | v1.3      | 0/?            | Pending  | —          |
