@@ -301,7 +301,7 @@ export class ClimateManagerPanel extends LitElement {
    * the value just saved on the backend.
    */
   async reloadConfig(): Promise<void> {
-    await Promise.all([this._loadConfig(), this._loadStatus()]);
+    await this._loadConfig();
   }
 
   private async _onCreateZone(): Promise<void> {

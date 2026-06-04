@@ -819,6 +819,19 @@ class ClimateManagerCoordinator:
             self._preheat_active[area_id] = False
             return
 
+        # Guard: in TIME_PROGRAM mode the schedule heats regardless of
+        # presence. If the current period already provides the upcoming
+        # setpoint, pre-heat is redundant.
+        if zone_mode_ph == MODE_TIME_PROGRAM:
+            current_period = evaluate_schedule(time_program, now)
+            current_period_temp = period_temperatures.get(current_period)
+            if (
+                current_period_temp is not None
+                and current_period_temp >= upcoming_setpoint
+            ):
+                self._preheat_active[area_id] = False
+                return
+
         # Guard: if room already warm, no need to pre-heat
         if (
             current_temp is not None
