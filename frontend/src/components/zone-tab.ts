@@ -283,7 +283,7 @@ export class ZoneTab extends LitElement {
     program[key] = periods;
     try {
       if (this.isDefault) {
-        await this.ws.setTimeProgram(program);
+        await this.ws.setZoneTimeProgram("default", program);
       } else {
         await this.ws.setZoneTimeProgram(this.zoneId, program);
       }

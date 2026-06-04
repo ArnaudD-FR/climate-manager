@@ -927,28 +927,49 @@ def _make_ws_set_zone_time_program(entry: ClimateManagerConfigEntry):
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Validate and persist the time program for a custom zone.
+        """Validate and persist the time program for a zone.
 
-        Zone existence is checked first so that a non-existent zone_id returns
-        ERR_NOT_FOUND rather than ERR_INVALID_FORMAT when both conditions are true.
-        Program validation still runs BEFORE any mutation (Pitfall 6 / T-05-08).
+        Handles zone_id="default" as a sentinel for the Default Zone
+        (D-09, T-05-01 pattern). Custom zone existence is checked first so
+        that a non-existent zone_id returns ERR_NOT_FOUND rather than
+        ERR_INVALID_FORMAT when both conditions are true.
+        Program validation runs BEFORE any mutation (Pitfall 6 / T-05-08).
         """
         runtime_config = entry.runtime_data.runtime_config
-
-        # Zone existence check first — most specific error condition
-        if msg["zone_id"] not in runtime_config.get("zones", {}):
-            connection.send_error(
-                msg["id"],
-                websocket_api.ERR_NOT_FOUND,
-                f"Zone {msg['zone_id']!r} not found",
-            )
-            return
 
         # Validate BEFORE any mutation (Pitfall 6 / T-05-08)
         ok, err = validate_daily_program(msg["program"])
         if not ok:
             connection.send_error(
                 msg["id"], websocket_api.ERR_INVALID_FORMAT, err
+            )
+            return
+
+        if msg["zone_id"] == "default":
+            dz_backup = copy.deepcopy(
+                runtime_config["default_zone"]["time_program"]
+            )
+            runtime_config["default_zone"]["time_program"] = msg["program"]
+            try:
+                await entry.runtime_data.store.async_save(runtime_config)
+            except Exception as exc:  # noqa: BLE001
+                runtime_config["default_zone"]["time_program"] = dz_backup
+                connection.send_error(
+                    msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+                )
+                return
+            connection.send_result(msg["id"], {"success": True})
+            hass.async_create_task(
+                entry.runtime_data.coordinator.async_evaluate()
+            )
+            return
+
+        # Custom zone — existence check first (most specific error)
+        if msg["zone_id"] not in runtime_config.get("zones", {}):
+            connection.send_error(
+                msg["id"],
+                websocket_api.ERR_NOT_FOUND,
+                f"Zone {msg['zone_id']!r} not found",
             )
             return
 

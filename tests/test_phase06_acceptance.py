@@ -103,36 +103,37 @@ def test_zone_tab_isdefault_hides_delete():
 
 
 def test_zone_tab_isdefault_routes_global_endpoints():
-    """Verify zone-tab.ts routes Default Zone mode/time-program to global endpoints.
+    """Verify zone-tab.ts routes Default Zone mode/time-program via unified zone path.
 
-    Requirement: When isDefault=true, mode changes call ws.setGlobalMode (not
-    ws.setZoneMode), and time-bar changes call ws.setTimeProgram (not
-    ws.setZoneTimeProgram). This ensures Default Zone edits persist to the
-    global mode/time-program configuration.
+    Phase 14 (ARCH-01): Default Zone edits use the same ws.setZoneMode("default")
+    and ws.setZoneTimeProgram("default", ...) paths as custom zones — the old
+    setGlobalMode / setTimeProgram wrappers are removed.
     """
     zone_tab = Path(
         "/home/arnaud/dev/climate_manager/frontend/src/components/zone-tab.ts"
     ).read_text()
 
-    # Must call setGlobalMode for Default Zone
-    assert "this.ws.setGlobalMode" in zone_tab, (
-        "zone-tab.ts does not call ws.setGlobalMode for Default Zone mode changes"
+    # Phase 14: Default Zone mode changes via setZoneMode(this.zoneId, ...)
+    assert "this.ws.setZoneMode(" in zone_tab, (
+        "zone-tab.ts does not route Default Zone mode changes via setZoneMode"
     )
 
-    # Must call setTimeProgram for Default Zone
-    assert "this.ws.setTimeProgram" in zone_tab, (
-        "zone-tab.ts does not call ws.setTimeProgram for Default Zone time-program changes"
+    # Phase 14: Default Zone time-program changes via setZoneTimeProgram("default", ...)
+    assert 'setZoneTimeProgram("default"' in zone_tab, (
+        "zone-tab.ts does not route Default Zone time-program via setZoneTimeProgram"
     )
 
-    # Both calls should be in isDefault-conditional branches
+    # Branching logic still present for isDefault
     assert "this.isDefault" in zone_tab, (
         "zone-tab.ts does not check this.isDefault for branching logic"
     )
 
-    # Verify the branches exist: setGlobalMode and setZoneMode should both be present
-    # (one for Default Zone, one for custom zones)
-    assert "this.ws.setZoneMode" in zone_tab, (
-        "zone-tab.ts does not have custom zone branch calling ws.setZoneMode"
+    # Legacy wrappers must be absent (Phase 14 removal)
+    assert "this.ws.setGlobalMode" not in zone_tab, (
+        "zone-tab.ts still calls removed setGlobalMode"
+    )
+    assert "this.ws.setTimeProgram(" not in zone_tab, (
+        "zone-tab.ts still calls removed setTimeProgram"
     )
 
 

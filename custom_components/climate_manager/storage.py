@@ -157,12 +157,8 @@ class ClimateManagerStore:
                     # Custom zone — promote flag to the zone entry.
                     result["zones"][zone_id]["preheat_enabled"] = True
                 else:
-                    # No zone_id or dangling → Default Zone.
-                    # Phase 14: write to default_zone sub-key (D-11).
-                    if "default_zone" in result:
-                        result["default_zone"]["preheat_enabled"] = True
-                    else:
-                        result["default_zone_preheat_enabled"] = True
+                    # No zone_id or dangling → Default Zone (D-11).
+                    result["default_zone"]["preheat_enabled"] = True
 
         # Phase 14 compat shim (D-02/D-03): promote old flat keys to
         # default_zone sub-dict on every load.
