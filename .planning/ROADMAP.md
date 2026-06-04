@@ -213,19 +213,24 @@ a single `default_zone` key, eliminating the split across `global_mode`,
 - [x] 14-04-PLAN.md — frontend types/main/ws-client/components migration +
       rebuild/deploy + human verify (ARCH-01)
 
-### Phase 15: Remove Room Custom Scheduling
+### Phase 15: Remove Room-Level Mode Override
 
-**Goal**: The `room_mode: custom` path is removed from coordinator, storage,
-and frontend; rooms that need a different schedule use a dedicated zone instead.
+**Goal**: The `room_mode` field is removed from coordinator, storage,
+frontend, and tests entirely. Rooms follow their zone's schedule with no
+per-room override. The `frost_protection` room mode is superseded by
+assigning the room to a dedicated zone in MODE_OFF.
 **Depends on**: Phase 14
 **Requirements**: ARCH-02
 **Success Criteria** (what must be TRUE):
 
-1. `ROOM_MODE_CUSTOM` branch is absent from coordinator evaluation
-2. The custom schedule editor is removed from the Rooms tab
-3. Storage migration converts any existing custom-scheduled rooms to a new
-   single-room zone with the same schedule and `room_mode` reset to `global`
-4. All tests pass with no reference to `room_mode: custom`
+1. `room_mode` is absent from all room records in storage and coordinator
+2. `ROOM_MODE_CUSTOM`, `ROOM_MODE_GLOBAL`, and `ROOM_MODE_FROST` constants
+   are deleted from `const.py`
+3. The room mode picker and inline time-bar are removed from the Rooms tab
+4. Storage migration strips `room_mode` and `time_program` from every room
+   record on load (one-time compat shim, no write-back)
+5. The `reset_room_to_default_zone_program` WS command is removed
+6. All tests pass with no reference to `room_mode`
 
 **Plans**: TBD
 

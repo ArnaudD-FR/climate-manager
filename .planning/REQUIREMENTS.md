@@ -70,9 +70,11 @@
   a single `default_zone` key; `global_mode`, `global_time_program`,
   `default_zone_name`, and `default_zone_preheat_enabled` flat keys are
   removed and migrated on load
-- [ ] **ARCH-02**: `room_mode: custom` is removed from coordinator, storage,
-  and frontend; rooms that previously used custom scheduling are migrated to
-  a dedicated single-room zone with the same schedule
+- [ ] **ARCH-02**: `room_mode` is removed entirely from coordinator, storage,
+  and frontend; rooms always follow their zone's schedule with no per-room
+  override; storage migration strips `room_mode` and `time_program` from all
+  room records on load; `ROOM_MODE_*` constants and
+  `reset_room_to_default_zone_program` WS command are deleted
 
 ### Observability
 
