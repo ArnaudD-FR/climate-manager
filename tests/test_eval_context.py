@@ -9,7 +9,7 @@ Scenarios:
 - Two callers requesting the same entity trigger exactly one service call.
 """
 
-from unittest.mock import AsyncMock, patch
+from pytest_homeassistant_custom_component.common import async_mock_service
 
 from custom_components.climate_manager.eval_context import EvalContext
 
@@ -18,8 +18,8 @@ CALENDAR_ENTITY = "calendar.alice_work"
 
 
 async def test_calendar_events_fetches_once_per_entity(hass):
-    """EvalContext.calendar_events issues exactly one hass.services.async_call
-    for a given entity_id on the first access, then caches the result (D-02).
+    """EvalContext.calendar_events returns cached result without a service
+    call when _calendar_cache is pre-populated (D-02 cache hit path).
     """
     import datetime
 
@@ -33,27 +33,26 @@ async def test_calendar_events_fetches_once_per_entity(hass):
         {"start": "2026-06-04T08:00:00", "end": "2026-06-04T17:00:00"}
     ]
 
-    # Patch hass.services.async_call to capture calls
-    with patch.object(
-        hass.services, "async_call", new_callable=AsyncMock
-    ) as mock_call:
-        mock_call.return_value = None
-        # Prime the cache with fake events directly to avoid service response
-        # complexity — the test focuses on the call-count invariant.
-        ctx._calendar_cache[CALENDAR_ENTITY] = fake_events
+    # Register a mock calendar.get_events service to capture real calls
+    calendar_calls = async_mock_service(hass, "calendar", "get_events")
 
-        # First caller: should return cached result (cache was pre-populated)
-        result1 = await ctx.calendar_events(CALENDAR_ENTITY)
-        assert result1 == fake_events
+    # Prime the cache with fake events directly
+    ctx._calendar_cache[CALENDAR_ENTITY] = fake_events
 
-        # Second caller: same entity_id — must still return same list,
-        # no additional service call issued.
-        result2 = await ctx.calendar_events(CALENDAR_ENTITY)
-        assert result2 == fake_events
-        assert result1 is result2
+    # First caller: should return cached result (cache was pre-populated)
+    result1 = await ctx.calendar_events(CALENDAR_ENTITY)
+    assert result1 == fake_events
 
-        # Because cache was pre-populated, no service call was needed.
-        mock_call.assert_not_called()
+    # Second caller: same entity_id — must still return same list,
+    # no additional service call issued.
+    result2 = await ctx.calendar_events(CALENDAR_ENTITY)
+    assert result2 == fake_events
+    assert result1 is result2
+
+    # Because cache was pre-populated, no service call was needed.
+    assert len(calendar_calls) == 0, (
+        f"Expected no service calls on cache hit, got {len(calendar_calls)}"
+    )
 
 
 async def test_calendar_events_calls_service_on_cache_miss(hass):
