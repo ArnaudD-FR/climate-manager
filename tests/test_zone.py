@@ -32,7 +32,7 @@ def test_zone_period_change_emits_one_info_record(caplog):
     """
     zone = _make_zone("zone_main")
 
-    with caplog.at_context(caplog.set_level(logging.INFO, logger=ZONE_LOGGER)):
+    with caplog.at_level(logging.INFO, logger=ZONE_LOGGER):
         # Simulate a period transition from frost_protection to normal.
         zone._log_period_change(
             old_period="frost_protection",
@@ -66,7 +66,7 @@ def test_zone_name_strip_d01(caplog):
     """
     zone = _make_zone("zone_main")
 
-    with caplog.at_context(caplog.set_level(logging.INFO, logger=ZONE_LOGGER)):
+    with caplog.at_level(logging.INFO, logger=ZONE_LOGGER):
         zone._log_period_change(
             old_period="frost_protection",
             old_mode="off",
@@ -93,7 +93,7 @@ def test_zone_no_log_on_same_period(caplog):
     zone._current_period = "normal"
     zone._current_mode_name = "time_program"
 
-    with caplog.at_context(caplog.set_level(logging.INFO, logger=ZONE_LOGGER)):
+    with caplog.at_level(logging.INFO, logger=ZONE_LOGGER):
         # Same period + mode as _current — should NOT emit.
         if (
             "normal",
@@ -121,7 +121,7 @@ def test_zone_state_format_includes_period_and_mode(caplog):
     """
     zone = _make_zone("zone_living")
 
-    with caplog.at_context(caplog.set_level(logging.INFO, logger=ZONE_LOGGER)):
+    with caplog.at_level(logging.INFO, logger=ZONE_LOGGER):
         zone._log_period_change(
             old_period="frost_protection",
             old_mode="time_program",
@@ -146,7 +146,7 @@ def test_zone_mode_only_change_logged(caplog):
     """
     zone = _make_zone("zone_office")
 
-    with caplog.at_context(caplog.set_level(logging.INFO, logger=ZONE_LOGGER)):
+    with caplog.at_level(logging.INFO, logger=ZONE_LOGGER):
         zone._log_period_change(
             old_period="normal",
             old_mode="time_program",
