@@ -265,9 +265,9 @@ to diagnose heating behaviour from HA logs without reading source code.
 **Plans**: 7 plans
 - [x] 16-01-PLAN.md — Wave 0 RED test scaffolds: test_eval_context,
       test_zone, test_person, test_room_domain (OBS-01)
-- [ ] 16-02-PLAN.md — eval_context.py: EvalContext dataclass, lazy per-cycle
+- [x] 16-02-PLAN.md — eval_context.py: EvalContext dataclass, lazy per-cycle
       calendar cache + prefix validation (OBS-01)
-- [ ] 16-03-PLAN.md — trv.py: TRV + TRVGroup, anti-flap push, DEBUG heating
+- [x] 16-03-PLAN.md — trv.py: TRV + TRVGroup, anti-flap push, DEBUG heating
       log, Matter dedup assembly (OBS-01)
 - [ ] 16-04-PLAN.md — person.py: PersonMode + five subclasses, Person.evaluate
       INFO presence log + cache dedup (OBS-01)
@@ -315,5 +315,5 @@ cleanly and they are committed alongside the README files.
 | 13. Matter→Tado X Real-Time Calibration     | v1.3      | 3/3 | Complete   | 2026-06-03 |
 | 14. Default Zone Consolidation              | v1.3      | 4/4 | Complete    | 2026-06-04 |
 | 15. Remove Room Custom Scheduling           | v1.3      | 4/4 | Complete   | 2026-06-04 |
-| 16. Presence & Heating Log Traces           | v1.3      | 1/7 | In Progress|  |
+| 16. Presence & Heating Log Traces           | v1.3      | 3/7 | In Progress|  |
 | 17. Person Scheduling Use-Case Docs         | v1.3      | 0/?            | Pending  | —          |
