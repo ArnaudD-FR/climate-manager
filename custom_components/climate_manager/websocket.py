@@ -11,8 +11,6 @@ Registers 19 WebSocket commands for the panel ↔ backend protocol:
 - set_person_config: sparse-merges into persons[person_id]
 - subscribe_status: registers a push listener in connection.subscriptions
 - reset_period_temperatures: resets period_temperatures to DEFAULT_PERIOD_TEMPERATURES
-- reset_room_to_default_zone_program: deep-copies default_zone.time_program
-  into rooms[room_id].time_program (D-10; renamed from reset_room_to_global_program)
 - create_zone: creates new heating zone with UUID, persists; seeds time_program
   from default_zone.time_program (Pitfall 1)
 - rename_zone: renames custom zone or Default Zone (zone_id="default" → default_zone.name)
@@ -31,6 +29,10 @@ Registers 19 WebSocket commands for the panel ↔ backend protocol:
   triggers coordinator listener refresh (D-15/D-16, MCALIB-01/02)
 - suggest_matter_mappings: returns auto-detected Matter->Tado X mapping
   suggestions (read-only, no mutation)
+
+Removed in Phase 15 (D-06):
+- reset_room_to_default_zone_program: rooms no longer have independent
+  schedules; all rooms follow their zone exclusively
 
 Removed in Phase 14 (D-08/D-09):
 - set_global_mode: use set_zone_mode(zone_id="default") instead
@@ -117,9 +119,8 @@ def async_register_commands(
     )
     # D-09: reset_time_program removed; reset_zone_time_program handles
     # zone_id="default"
-    websocket_api.async_register_command(
-        hass, _make_ws_reset_room_to_default_zone_program(entry)
-    )
+    # D-06 (Phase 15): reset_room_to_default_zone_program removed; rooms follow
+    # their zone exclusively
     websocket_api.async_register_command(hass, _make_ws_create_zone(entry))
     websocket_api.async_register_command(hass, _make_ws_rename_zone(entry))
     websocket_api.async_register_command(hass, _make_ws_set_zone_mode(entry))
@@ -372,6 +373,10 @@ def _make_ws_set_room_config(entry: ClimateManagerConfigEntry):
         # GAP-01: preheat_enabled is no longer a valid room key; silently drop
         # it so legacy callers don't persist the deprecated room-level flag.
         incoming_config.pop("preheat_enabled", None)
+        # Phase 15 (D-07): room_mode is no longer a valid room key; silently
+        # drop it so legacy callers or residual frontend sends don't
+        # persist the field.
+        incoming_config.pop("room_mode", None)
         (
             entry.runtime_data.runtime_config.setdefault("rooms", {})
             .setdefault(msg["room_id"], {})
@@ -545,50 +550,6 @@ def _make_ws_reset_period_temperatures(entry: ClimateManagerConfigEntry):
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_reset_period_temperatures
-
-
-def _make_ws_reset_room_to_default_zone_program(
-    entry: ClimateManagerConfigEntry,
-):
-    """Factory: create reset_room_to_global_program handler."""
-
-    @websocket_api.websocket_command(
-        {
-            vol.Required(
-                "type"
-            ): f"{DOMAIN}/reset_room_to_default_zone_program",
-            vol.Required("room_id"): str,
-        }
-    )
-    @websocket_api.async_response
-    async def ws_reset_room_to_default_zone_program(
-        hass: HomeAssistant,
-        connection: websocket_api.ActiveConnection,
-        msg: dict,
-    ) -> None:
-        """Deep-copy default_zone.time_program into rooms[room_id].time_program.
-
-        D-10 (Phase 14): renamed from reset_room_to_global_program; reads from
-        runtime_config["default_zone"]["time_program"] (old flat key removed
-        in D-01).
-
-        T-03-09: setdefault + direct assignment pattern ensures only the
-                 targeted room's time_program and room_mode keys are modified;
-                 other rooms and other top-level keys are untouched.
-        T-03-09: copy.deepcopy ensures the room and Default Zone program never
-                 share list references.
-        """
-        runtime_config = entry.runtime_data.runtime_config
-        room_id = msg["room_id"]
-        default_zone_program = runtime_config["default_zone"]["time_program"]
-        room = runtime_config.setdefault("rooms", {}).setdefault(room_id, {})
-        room["room_mode"] = "custom"
-        room["time_program"] = copy.deepcopy(default_zone_program)
-        await entry.runtime_data.store.async_save(runtime_config)
-        connection.send_result(msg["id"], {"success": True})
-        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
-
-    return ws_reset_room_to_default_zone_program
 
 
 # ---------------------------------------------------------------------------
