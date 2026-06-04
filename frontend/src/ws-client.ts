@@ -35,14 +35,6 @@ export class WsClient {
     });
   }
 
-  /** Set the global heating mode. */
-  setGlobalMode(mode: string): Promise<{ success: boolean }> {
-    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
-      type: "climate_manager/set_global_mode",
-      mode,
-    });
-  }
-
   /** Update default temperatures for all four period modes. */
   setPeriodTemperatures(
     temperatures: Record<string, number>,
@@ -65,13 +57,6 @@ export class WsClient {
   resetPeriodTemperatures(): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
       type: "climate_manager/reset_period_temperatures",
-    });
-  }
-
-  /** Reset global time program to backend defaults. */
-  resetTimeProgram(): Promise<{ success: boolean }> {
-    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
-      type: "climate_manager/reset_time_program",
     });
   }
 
@@ -170,10 +155,12 @@ export class WsClient {
     });
   }
 
-  /** Reset room time_program to global_time_program (backend deep-copies). */
-  resetRoomToGlobalProgram(roomId: string): Promise<{ success: boolean }> {
+  /**
+   * Reset room time_program to the Default Zone program (D-10 rename).
+   */
+  resetRoomToDefaultZoneProgram(roomId: string): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
-      type: "climate_manager/reset_room_to_global_program",
+      type: "climate_manager/reset_room_to_default_zone_program",
       room_id: roomId,
     });
   }
