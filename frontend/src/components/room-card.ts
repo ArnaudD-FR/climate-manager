@@ -47,7 +47,7 @@ export class RoomCard extends LitElement {
   @property({ attribute: false }) roomStatus: RoomStatus | null = null;
   /** Full panel config — seeds custom program; provides persons list. */
   @property({ attribute: false }) panelConfig!: ClimateConfig;
-  /** Full live status — used for present_persons and global_mode in header. */
+  /** Full live status — used for present_persons and default zone mode. */
   @property({ attribute: false }) status:
     | import("../types.js").StatusPayload
     | null = null;
@@ -342,11 +342,11 @@ export class RoomCard extends LitElement {
 
     let payload: Partial<RoomConfig>;
     if (newMode === "custom" && !this.config?.time_program) {
-      // First switch to Custom: seed from global program (deep copy)
+      // First switch to Custom: seed from Default Zone program (deep copy)
       payload = {
         room_mode: "custom",
         time_program: JSON.parse(
-          JSON.stringify(this.panelConfig.global_time_program),
+          JSON.stringify(this.panelConfig.default_zone.time_program),
         ) as DailyProgram,
       };
     } else {
@@ -398,7 +398,7 @@ export class RoomCard extends LitElement {
 
   private async _onResetToGlobal() {
     try {
-      await this.ws.resetRoomToGlobalProgram(this.roomId);
+      await this.ws.resetRoomToDefaultZoneProgram(this.roomId);
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
@@ -413,11 +413,11 @@ export class RoomCard extends LitElement {
   private _getZoneName(): string {
     const zoneId = this.config?.zone_id;
     if (!zoneId) {
-      return this.panelConfig?.default_zone_name ?? "Default Zone";
+      return this.panelConfig?.default_zone?.name ?? "Default Zone";
     }
     return (
       this.panelConfig?.zones?.[zoneId]?.name ??
-      this.panelConfig?.default_zone_name ??
+      this.panelConfig?.default_zone?.name ??
       "Default Zone"
     );
   }
@@ -456,7 +456,9 @@ export class RoomCard extends LitElement {
     if (resolvedMode === "frost_protection") return html``;
 
     const globalMode =
-      this.status?.global_mode ?? this.panelConfig?.global_mode ?? "";
+      this.status?.zones?.["default"]?.mode ??
+      this.panelConfig?.default_zone?.mode ??
+      "";
 
     if (globalMode === "off") {
       return html`
@@ -502,7 +504,9 @@ export class RoomCard extends LitElement {
       tempVal != null && !isNaN(tempVal) ? `${tempVal.toFixed(1)}°C` : "—";
     const humidity = s?.humidity != null ? `${s.humidity}%` : "—";
     const globalMode =
-      this.status?.global_mode ?? this.panelConfig?.global_mode ?? "";
+      this.status?.zones?.["default"]?.mode ??
+      this.panelConfig?.default_zone?.mode ??
+      "";
     const isPresenceMode = globalMode === "time_program_presences";
     const modeLabels: Record<string, string> = {
       off: "Off",
@@ -1123,7 +1127,7 @@ export class RoomCard extends LitElement {
                 <div class="select-wrapper">
                   <select class="mode-select" @change=${this._onZoneChange}>
                     <option value="" ?selected=${!this.config?.zone_id}>
-                      ${this.panelConfig?.default_zone_name ?? "Default Zone"}
+                      ${this.panelConfig?.default_zone?.name ?? "Default Zone"}
                     </option>
                     ${Object.entries(this.panelConfig?.zones ?? {}).map(
                       ([zoneId, zone]) => html`

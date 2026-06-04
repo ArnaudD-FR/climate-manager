@@ -56,13 +56,13 @@ export class ZoneTab extends LitElement {
 
   /**
    * Zone ID: "default" for the Default Zone, UUID string for custom zones.
-   * "default" routes renameZone to backend default_zone_name sentinel (D-07).
+   * "default" routes renameZone to the default_zone sentinel (D-07).
    */
   @property({ attribute: false }) zoneId!: string;
 
   /**
    * Current zone's name, mode, and time_program.
-   * Default Zone: synthesized from global_mode + global_time_program.
+   * Default Zone: passed from config.default_zone directly (Phase 14 D-14).
    */
   @property({ attribute: false }) zoneConfig!: ZoneConfig;
 
@@ -235,11 +235,7 @@ export class ZoneTab extends LitElement {
     const newMode = (e.target as HTMLSelectElement).value;
     if (!newMode || newMode === this.zoneConfig.mode) return;
     try {
-      if (this.isDefault) {
-        await this.ws.setGlobalMode(newMode);
-      } else {
-        await this.ws.setZoneMode(this.zoneId, newMode);
-      }
+      await this.ws.setZoneMode(this.zoneId, newMode);
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
     } catch {
@@ -265,7 +261,7 @@ export class ZoneTab extends LitElement {
     try {
       await this.ws.resetZoneTimeProgram(this.zoneId, "global");
       await this.panel.reloadConfig();
-      this.panel.showToast(`Reset to ${this.config.default_zone_name}`, false);
+      this.panel.showToast(`Reset to ${this.config.default_zone.name}`, false);
     } catch {
       this.panel.showToast("Reset failed", true);
     }
@@ -274,7 +270,8 @@ export class ZoneTab extends LitElement {
   /**
    * Time-bar periods-changed — update the zone time program for the day.
    * When isDefault, writes go to the global time program via ws.setTimeProgram
-   * (the Default Zone is backed by global_time_program per Phase 4 D-02).
+   * When isDefault, writes go to the Default Zone program via
+   * ws.setZoneTimeProgram("default", ...) (Phase 14 D-09).
    */
   private _onPeriodsChanged = async (e: CustomEvent) => {
     const { dayIndex, periods } = e.detail as {
@@ -582,7 +579,7 @@ export class ZoneTab extends LitElement {
       <div class="reset-row">
         ${!this.isDefault
           ? html`<button class="reset-btn" @click=${this._onResetToGlobal}>
-              Reset to ${this.config.default_zone_name}
+              Reset to ${this.config.default_zone.name}
             </button>`
           : ""}
         <button class="reset-btn" @click=${this._onResetToDefault}>
