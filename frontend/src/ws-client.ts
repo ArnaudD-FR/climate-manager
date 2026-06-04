@@ -35,14 +35,6 @@ export class WsClient {
     });
   }
 
-  /** Set the global heating mode. */
-  setGlobalMode(mode: string): Promise<{ success: boolean }> {
-    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
-      type: "climate_manager/set_global_mode",
-      mode,
-    });
-  }
-
   /** Update default temperatures for all four period modes. */
   setPeriodTemperatures(
     temperatures: Record<string, number>,
@@ -65,13 +57,6 @@ export class WsClient {
   resetPeriodTemperatures(): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
       type: "climate_manager/reset_period_temperatures",
-    });
-  }
-
-  /** Reset global time program to backend defaults. */
-  resetTimeProgram(): Promise<{ success: boolean }> {
-    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
-      type: "climate_manager/reset_time_program",
     });
   }
 
@@ -113,6 +98,21 @@ export class WsClient {
       type: "climate_manager/rename_zone",
       zone_id: zoneId,
       name,
+    });
+  }
+
+  /**
+   * Enable or disable pre-heat for a zone (Phase 12 GAP-01).
+   * Pass zoneId="default" for the Default Zone or a UUID for custom zones.
+   */
+  setZonePreheat(
+    zoneId: string,
+    enabled: boolean,
+  ): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_zone_preheat",
+      zone_id: zoneId,
+      enabled,
     });
   }
 
@@ -189,6 +189,31 @@ export class WsClient {
     return this.hass.connection.subscribeMessage<StatusPayload>(callback, {
       type: "climate_manager/subscribe_status",
     });
+  }
+
+  /**
+   * Set or remove a Matter entity mapping for a tado_x zone entity.
+   * Pass an empty array for matterEntityIds to remove the mapping
+   * (D-01 sparse — absent key = no mapping).
+   */
+  setMatterMapping(
+    tadoEntityId: string,
+    matterEntityIds: string[],
+  ): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_matter_mapping",
+      tado_entity_id: tadoEntityId,
+      matter_entity_ids: matterEntityIds,
+    });
+  }
+
+  /** Return auto-detected Matter->Tado X mapping suggestions. */
+  suggestMatterMappings(): Promise<Record<string, string[]>> {
+    return this.hass.connection
+      .sendMessagePromise<{ mappings: Record<string, string[]> }>({
+        type: "climate_manager/suggest_matter_mappings",
+      })
+      .then((r) => r.mappings);
   }
 
   /** Enable or disable TRV offset auto-calibration globally. */
