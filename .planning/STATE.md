@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
-status: Phase 16 closed out (UAT 6/6, screenshots + architecture.md refreshed)
+status: executing
 stopped_at: Phase 17 context gathered
-last_updated: "2026-06-05T13:50:08.706Z"
-last_activity: "2026-06-05 -- Phase 16 complete; next: Phase 17 (use-case docs)"
+last_updated: "2026-06-05T14:08:17.296Z"
+last_activity: 2026-06-05 -- Phase 17 planning complete
 progress:
   total_phases: 8
   completed_phases: 7
-  total_plans: 32
+  total_plans: 35
   completed_plans: 32
   percent: 88
 ---
@@ -28,8 +28,8 @@ actually home. **Current focus:** Phase 16 — presence-heating-log-traces
 
 Phase: 16 (presence-heating-log-traces) — COMPLETE
 Plan: 7 of 7 complete
-Status: Phase 16 closed out (UAT 6/6, screenshots + architecture.md refreshed)
-Last activity: 2026-06-05 -- Phase 16 complete; next: Phase 17 (use-case docs)
+Status: Ready to execute
+Last activity: 2026-06-05 -- Phase 17 planning complete
 
 ## Performance Metrics
 
