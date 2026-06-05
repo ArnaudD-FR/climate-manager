@@ -152,16 +152,40 @@
 
 <!-- Mock hass — runs after panel.js defines climate-manager-panel -->
 <script type="module">
-  const weekdayProg = [
+  // rotating-shift-worker — Marc's two-zone home.
+  // Ground floor (Downstairs): Default Zone, time_program.
+  // First floor (Upstairs): custom zone, time_program_presences.
+  // Marc uses HA tracking mode — no schedule editor appears on his card.
+  // device_trackers must be non-empty for the clean "HA" badge (D-05, A3).
+
+  const ZONE_ID = 'zone-upstairs-9b2c';
+
+  const downstairsWD = [
+    { start: '00:00', mode: 'frost_protection' },
+    { start: '07:00', mode: 'normal' },
+    { start: '09:30', mode: 'reduced' },
+    { start: '18:00', mode: 'normal' },
+    { start: '22:30', mode: 'frost_protection' },
+  ];
+  const downstairsWE = [
+    { start: '00:00', mode: 'frost_protection' },
+    { start: '08:30', mode: 'normal' },
+    { start: '11:00', mode: 'comfort' },
+    { start: '14:00', mode: 'normal' },
+    { start: '23:00', mode: 'frost_protection' },
+  ];
+
+  const upstairsWD = [
     { start: '00:00', mode: 'frost_protection' },
     { start: '06:30', mode: 'normal' },
     { start: '09:00', mode: 'reduced' },
     { start: '17:00', mode: 'normal' },
     { start: '22:00', mode: 'frost_protection' },
   ];
-  const weekendProg = [
+  const upstairsWE = [
     { start: '00:00', mode: 'frost_protection' },
     { start: '08:00', mode: 'normal' },
+    { start: '10:00', mode: 'comfort' },
     { start: '23:00', mode: 'frost_protection' },
   ];
 
@@ -171,36 +195,89 @@
     };
   }
 
-  const defaultProg = mkProg(weekdayProg, weekendProg);
+  const downstairsProg = mkProg(downstairsWD, downstairsWE);
+  const upstairsProg = mkProg(upstairsWD, upstairsWE);
 
-  // D-10: rotating-shift-worker — HA person-entity tracking (ha mode).
-  // device_trackers is non-empty so the card renders the clean "HA" label
-  // (not "⚠ HA (no trackers)"). No schedule editor is shown (D-05).
   const CONFIG = {
     period_temperatures: {
       frost_protection: 7, reduced: 16, normal: 20, comfort: 22,
     },
+    // Downstairs (ground floor) is the Default Zone.
     default_zone: {
-      name: 'Home', mode: 'time_program', time_program: defaultProg,
+      name: 'Downstairs',
+      mode: 'time_program',
+      time_program: downstairsProg,
     },
-    zones: {},
+    // Upstairs (first floor) is a custom presence-driven zone.
+    zones: {
+      [ZONE_ID]: {
+        name: 'Upstairs',
+        mode: 'time_program_presences',
+        time_program: upstairsProg,
+      },
+    },
+    // bedroom is on the first floor → Upstairs zone.
+    // living_room and kitchen are ground floor → Default Zone (Downstairs).
     rooms: {
-      bedroom: {},
+      bedroom:     { zone_id: ZONE_ID },
+      living_room: {},
+      kitchen:     {},
     },
     persons: {
+      // D-05: ha mode — no schedule arrays. Card shows mode selector +
+      // explanatory hint only.
       'person.marc': {
         mode: 'ha',
         room_ids: ['bedroom'],
       },
     },
-    climate_entities: [],
+    climate_entities: [
+      'climate.bedroom_trv',
+      'climate.living_room_trv',
+      'climate.kitchen_trv',
+    ],
   };
 
+  // STATUS uses the Phase-14 zones record.
+  // Marc is home → bedroom present_person_count = 1.
   const STATUS = {
-    global_mode: 'time_program',
-    active_period: 'normal',
-    present_persons: [],
-    rooms_status: [],
+    zones: {
+      default: { mode: 'time_program', active_period: 'normal' },
+      [ZONE_ID]: { mode: 'time_program_presences', active_period: 'normal' },
+    },
+    present_persons: ['person.marc'],
+    rooms_status: [
+      {
+        area_id: 'bedroom',
+        name: 'Bedroom',
+        entity_ids: ['climate.bedroom_trv'],
+        temperature: 19.2,
+        humidity: 54,
+        active_period: 'normal',
+        present_person_count: 1,
+        has_trv: true,
+      },
+      {
+        area_id: 'living_room',
+        name: 'Living Room',
+        entity_ids: ['climate.living_room_trv'],
+        temperature: 20.5,
+        humidity: 46,
+        active_period: 'normal',
+        present_person_count: 0,
+        has_trv: true,
+      },
+      {
+        area_id: 'kitchen',
+        name: 'Kitchen',
+        entity_ids: ['climate.kitchen_trv'],
+        temperature: 21.1,
+        humidity: 43,
+        active_period: 'normal',
+        present_person_count: 0,
+        has_trv: true,
+      },
+    ],
   };
 
   const mockHass = {
@@ -218,16 +295,73 @@
       },
     },
     states: {
+      'climate.bedroom_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Bedroom TRV',
+          current_temperature: 19.2,
+          temperature: 20,
+        },
+      },
+      'climate.living_room_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Living Room TRV',
+          current_temperature: 20.5,
+          temperature: 20,
+        },
+      },
+      'climate.kitchen_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Kitchen TRV',
+          current_temperature: 21.1,
+          temperature: 20,
+        },
+      },
+      // D-05 / A3: device_trackers non-empty → clean "HA" badge (no warning).
       'person.marc': {
-        state: 'not_home',
+        state: 'home',
         attributes: {
           friendly_name: 'Marc',
           device_trackers: ['device_tracker.marc_phone'],
         },
       },
+      'device_tracker.marc_phone': {
+        state: 'home',
+        attributes: { friendly_name: 'Marc\'s Phone' },
+      },
     },
-    areas: {},
-    floors: {},
+    // Floor + area metadata drives the grouped-by-floor layout on person cards.
+    areas: {
+      bedroom: {
+        area_id: 'bedroom',
+        name: 'Bedroom',
+        floor_id: 'first_floor',
+      },
+      living_room: {
+        area_id: 'living_room',
+        name: 'Living Room',
+        floor_id: 'ground_floor',
+      },
+      kitchen: {
+        area_id: 'kitchen',
+        name: 'Kitchen',
+        floor_id: 'ground_floor',
+      },
+    },
+    floors: {
+      ground_floor: {
+        floor_id: 'ground_floor',
+        name: 'Ground Floor',
+        level: 0,
+      },
+      first_floor: {
+        floor_id: 'first_floor',
+        name: 'First Floor',
+        level: 1,
+      },
+    },
     callService() { return Promise.resolve(); },
   };
 
