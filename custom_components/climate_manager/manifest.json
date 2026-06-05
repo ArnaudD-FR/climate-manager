@@ -5,9 +5,9 @@
   "config_flow": true,
   "single_config_entry": true,
   "iot_class": "local_push",
-  "codeowners": [],
-  "documentation": "",
-  "issue_tracker": "",
+  "codeowners": ["@ArnaudD-FR"],
+  "documentation": "https://github.com/ArnaudD-FR/climate-manager",
+  "issue_tracker": "https://github.com/ArnaudD-FR/climate-manager/issues",
   "requirements": [],
   "dependencies": ["http", "frontend", "panel_custom"]
 }
