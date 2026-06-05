@@ -957,7 +957,6 @@ export class PersonCard extends LitElement {
                       >
                         Presence schedule
                       </div>
-                      <div class="section-label">Schedule type</div>
                       <div class="select-wrapper">
                         <select
                           class="mode-select"
