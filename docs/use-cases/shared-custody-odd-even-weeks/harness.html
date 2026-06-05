@@ -152,17 +152,42 @@
 
 <!-- Mock hass — runs after panel.js defines climate-manager-panel -->
 <script type="module">
-  const weekdayProg = [
+  // shared-custody-odd-even-weeks — Sofia's two-zone home.
+  // Ground floor: Default Zone "Home", time_program.
+  // First floor: custom zone "Child's Room", time_program_presences.
+  // Sofia uses scheduled / even_odd mode:
+  //   Even week → present all week; odd week → absent all week.
+  // The active week tab shown at capture time is computed by getWeekParity()
+  // in the panel using the real current date — accept whichever renders.
+  // STATUS is set as if Sofia is present (even-week scenario).
+
+  const ZONE_ID = 'zone-childroom-4d8e';
+
+  const homeWD = [
     { start: '00:00', mode: 'frost_protection' },
-    { start: '06:30', mode: 'normal' },
+    { start: '07:30', mode: 'normal' },
     { start: '09:00', mode: 'reduced' },
-    { start: '17:00', mode: 'normal' },
+    { start: '17:30', mode: 'normal' },
     { start: '22:00', mode: 'frost_protection' },
   ];
-  const weekendProg = [
+  const homeWE = [
     { start: '00:00', mode: 'frost_protection' },
-    { start: '08:00', mode: 'normal' },
+    { start: '08:00', mode: 'comfort' },
+    { start: '14:00', mode: 'normal' },
     { start: '23:00', mode: 'frost_protection' },
+  ];
+
+  const childRoomWD = [
+    { start: '00:00', mode: 'frost_protection' },
+    { start: '07:00', mode: 'normal' },
+    { start: '09:00', mode: 'reduced' },
+    { start: '16:00', mode: 'normal' },
+    { start: '21:00', mode: 'frost_protection' },
+  ];
+  const childRoomWE = [
+    { start: '00:00', mode: 'frost_protection' },
+    { start: '08:00', mode: 'comfort' },
+    { start: '20:30', mode: 'frost_protection' },
   ];
 
   function mkProg(wd, we) {
@@ -171,56 +196,93 @@
     };
   }
 
-  const defaultProg = mkProg(weekdayProg, weekendProg);
+  const homeProg = mkProg(homeWD, homeWE);
+  const childRoomProg = mkProg(childRoomWD, childRoomWE);
 
-  // D-11: shared-custody-odd-even-weeks — scheduled / even_odd.
-  // Even week = present all week; odd week = absent all week.
-  // The active week tab shown at capture time is computed by getWeekParity()
-  // in the panel using the real current date — accept whichever parity renders.
+  // Present-all-week: a single all-day "present" period for every day.
+  const allPresent = [{ start: '00:00', state: 'present' }];
+  const allAbsent  = [{ start: '00:00', state: 'absent'  }];
+
+  function mkWeekPresence(period) {
+    return {
+      mon: period, tue: period, wed: period, thu: period,
+      fri: period, sat: period, sun: period,
+    };
+  }
+
   const CONFIG = {
     period_temperatures: {
       frost_protection: 7, reduced: 16, normal: 20, comfort: 22,
     },
+    // Living room on ground floor — Default Zone "Home".
     default_zone: {
-      name: 'Home', mode: 'time_program', time_program: defaultProg,
+      name: 'Home',
+      mode: 'time_program',
+      time_program: homeProg,
     },
-    zones: {},
+    // Child's bedroom on first floor — custom presence-driven zone.
+    zones: {
+      [ZONE_ID]: {
+        name: "Child's Room",
+        mode: 'time_program_presences',
+        time_program: childRoomProg,
+      },
+    },
+    // child_bedroom → Child's Room zone; living_room → Default Zone.
     rooms: {
-      bedroom: {},
+      child_bedroom: { zone_id: ZONE_ID },
+      living_room:   {},
     },
     persons: {
+      // D-11: scheduled / even_odd.
+      // Even week = Sofia present all week (both rooms heated by her presence).
+      // Odd week  = Sofia absent all week (child's bedroom reverts to frost).
       'person.sofia': {
         mode: 'scheduled',
         schedule_type: 'even_odd',
-        room_ids: ['bedroom'],
-        schedule_even: {
-          mon: [{ start: '00:00', state: 'present' }],
-          tue: [{ start: '00:00', state: 'present' }],
-          wed: [{ start: '00:00', state: 'present' }],
-          thu: [{ start: '00:00', state: 'present' }],
-          fri: [{ start: '00:00', state: 'present' }],
-          sat: [{ start: '00:00', state: 'present' }],
-          sun: [{ start: '00:00', state: 'present' }],
-        },
-        schedule_odd: {
-          mon: [{ start: '00:00', state: 'absent' }],
-          tue: [{ start: '00:00', state: 'absent' }],
-          wed: [{ start: '00:00', state: 'absent' }],
-          thu: [{ start: '00:00', state: 'absent' }],
-          fri: [{ start: '00:00', state: 'absent' }],
-          sat: [{ start: '00:00', state: 'absent' }],
-          sun: [{ start: '00:00', state: 'absent' }],
-        },
+        room_ids: ['child_bedroom', 'living_room'],
+        schedule_even: mkWeekPresence(allPresent),
+        schedule_odd:  mkWeekPresence(allAbsent),
       },
     },
-    climate_entities: [],
+    climate_entities: [
+      'climate.child_bedroom_trv',
+      'climate.living_room_trv',
+    ],
   };
 
+  // STATUS set as if it is an even week (Sofia present).
   const STATUS = {
-    global_mode: 'time_program',
-    active_period: 'normal',
+    zones: {
+      default: { mode: 'time_program', active_period: 'normal' },
+      [ZONE_ID]: {
+        mode: 'time_program_presences',
+        active_period: 'normal',
+      },
+    },
     present_persons: ['person.sofia'],
-    rooms_status: [],
+    rooms_status: [
+      {
+        area_id: 'child_bedroom',
+        name: "Child's Bedroom",
+        entity_ids: ['climate.child_bedroom_trv'],
+        temperature: 18.8,
+        humidity: 55,
+        active_period: 'normal',
+        present_person_count: 1,
+        has_trv: true,
+      },
+      {
+        area_id: 'living_room',
+        name: 'Living Room',
+        entity_ids: ['climate.living_room_trv'],
+        temperature: 20.3,
+        humidity: 47,
+        active_period: 'normal',
+        present_person_count: 1,
+        has_trv: true,
+      },
+    ],
   };
 
   const mockHass = {
@@ -238,13 +300,52 @@
       },
     },
     states: {
+      'climate.child_bedroom_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: "Child's Bedroom TRV",
+          current_temperature: 18.8,
+          temperature: 20,
+        },
+      },
+      'climate.living_room_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Living Room TRV',
+          current_temperature: 20.3,
+          temperature: 20,
+        },
+      },
       'person.sofia': {
         state: 'home',
         attributes: { friendly_name: 'Sofia' },
       },
     },
-    areas: {},
-    floors: {},
+    // Floor + area metadata drives the grouped-by-floor layout on person cards.
+    areas: {
+      child_bedroom: {
+        area_id: 'child_bedroom',
+        name: "Child's Bedroom",
+        floor_id: 'first_floor',
+      },
+      living_room: {
+        area_id: 'living_room',
+        name: 'Living Room',
+        floor_id: 'ground_floor',
+      },
+    },
+    floors: {
+      ground_floor: {
+        floor_id: 'ground_floor',
+        name: 'Ground Floor',
+        level: 0,
+      },
+      first_floor: {
+        floor_id: 'first_floor',
+        name: 'First Floor',
+        level: 1,
+      },
+    },
     callService() { return Promise.resolve(); },
   };
 
