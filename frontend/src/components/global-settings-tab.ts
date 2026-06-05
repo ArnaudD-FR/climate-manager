@@ -275,17 +275,24 @@ export class GlobalSettingsTab extends LitElement {
         flex-shrink: 0;
       }
 
-      /* Reset button */
+      /* Reset row + button — matches zone-tab reset styling */
+      .reset-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+        justify-content: flex-end;
+      }
+
       .reset-btn {
-        margin-top: 16px;
-        padding: 8px 16px;
-        font-size: 14px;
-        font-family: inherit;
-        color: var(--primary-color, #03a9f4);
         background: none;
-        border: 1px solid var(--primary-color, #03a9f4);
+        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+        color: var(--secondary-text-color);
+        padding: 5px 12px;
         border-radius: 4px;
         cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
       }
 
       .reset-btn:hover {
@@ -668,9 +675,11 @@ export class GlobalSettingsTab extends LitElement {
             ${tempField("reduced", "Reduced")} ${tempField("normal", "Normal")}
             ${tempField("comfort", "Comfort")}
           </div>
-          <button class="reset-btn" @click=${this._onResetTemperatures}>
-            Reset to default
-          </button>
+          <div class="reset-row">
+            <button class="reset-btn" @click=${this._onResetTemperatures}>
+              Reset to default
+            </button>
+          </div>
         </div>
       </ha-card>
     `;

@@ -275,16 +275,24 @@ export class PersonCard extends LitElement {
         margin-top: 12px;
       }
 
+      /* Reset row + button — matches zone-tab reset styling */
+      .reset-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        margin-bottom: 8px;
+        justify-content: flex-end;
+      }
+
       .reset-btn {
-        margin-top: 12px;
-        padding: 8px 16px;
-        font-size: 14px;
-        font-family: inherit;
-        color: var(--primary-color, #03a9f4);
         background: none;
-        border: 1px solid var(--primary-color, #03a9f4);
+        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+        color: var(--secondary-text-color);
+        padding: 5px 12px;
         border-radius: 4px;
         cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
       }
 
       .reset-btn:hover {
@@ -1077,12 +1085,14 @@ export class PersonCard extends LitElement {
                           })}
                         `;
                       })()}
-                      <button
-                        class="reset-btn"
-                        @click=${() => void this._onResetSchedule()}
-                      >
-                        ${resetLabel}
-                      </button>
+                      <div class="reset-row">
+                        <button
+                          class="reset-btn"
+                          @click=${() => void this._onResetSchedule()}
+                        >
+                          ${resetLabel}
+                        </button>
+                      </div>
                     `
                   : ""}
 
