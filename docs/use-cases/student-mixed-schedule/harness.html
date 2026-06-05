@@ -69,7 +69,9 @@
         svg.setAttribute('viewBox', '0 0 24 24');
         svg.setAttribute('width', '24');
         svg.setAttribute('height', '24');
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const path = document.createElementNS(
+          'http://www.w3.org/2000/svg', 'path',
+        );
         path.setAttribute('d', pathData);
         svg.appendChild(path);
         root.appendChild(svg);
@@ -148,84 +150,146 @@
 
 <!-- Mock hass — runs after panel.js defines climate-manager-panel -->
 <script type="module">
+  // Lena — student with a different class timetable each weekday.
+  // Three rooms across two floors; no custom zones.
+
   const weekdayProg = [
     { start: '00:00', mode: 'frost_protection' },
-    { start: '06:30', mode: 'normal' },
+    { start: '07:00', mode: 'normal' },
     { start: '09:00', mode: 'reduced' },
     { start: '17:00', mode: 'normal' },
     { start: '22:00', mode: 'frost_protection' },
   ];
   const weekendProg = [
     { start: '00:00', mode: 'frost_protection' },
-    { start: '08:00', mode: 'normal' },
+    { start: '08:30', mode: 'normal' },
+    { start: '10:00', mode: 'comfort' },
     { start: '23:00', mode: 'frost_protection' },
   ];
 
   function mkProg(wd, we) {
-    return { mon: wd, tue: wd, wed: wd, thu: wd, fri: wd, sat: we, sun: we };
+    return {
+      mon: wd, tue: wd, wed: wd, thu: wd, fri: wd, sat: we, sun: we,
+    };
   }
 
   const defaultProg = mkProg(weekdayProg, weekendProg);
+
+  // Lena's schedule — each weekday has different class-time gaps.
+  // mon: 08:00–16:00 classes (long day).
+  const lenaMon = [
+    { start: '00:00', state: 'absent' },
+    { start: '07:00', state: 'present' },
+    { start: '08:00', state: 'absent' },
+    { start: '16:00', state: 'present' },
+  ];
+  // tue: late start, short afternoon slot.
+  const lenaTue = [
+    { start: '00:00', state: 'absent' },
+    { start: '07:00', state: 'present' },
+    { start: '10:00', state: 'absent' },
+    { start: '13:00', state: 'present' },
+  ];
+  // wed: heavy day, 08:00–18:00.
+  const lenaWed = [
+    { start: '00:00', state: 'absent' },
+    { start: '07:00', state: 'present' },
+    { start: '08:00', state: 'absent' },
+    { start: '18:00', state: 'present' },
+  ];
+  // thu: morning only, 09:00–12:00.
+  const lenaThu = [
+    { start: '00:00', state: 'absent' },
+    { start: '07:00', state: 'present' },
+    { start: '09:00', state: 'absent' },
+    { start: '12:00', state: 'present' },
+  ];
+  // fri: classes 08:00–14:00.
+  const lenaFri = [
+    { start: '00:00', state: 'absent' },
+    { start: '07:00', state: 'present' },
+    { start: '08:00', state: 'absent' },
+    { start: '14:00', state: 'present' },
+  ];
+  // sat + sun: home all day.
+  const lenaWE = [
+    { start: '00:00', state: 'present' },
+  ];
 
   const CONFIG = {
     period_temperatures: {
       frost_protection: 7, reduced: 16, normal: 20, comfort: 22,
     },
+    // Single Default Zone — no custom zones for this scenario.
     default_zone: {
       name: 'Home', mode: 'time_program', time_program: defaultProg,
     },
     zones: {},
     rooms: {
-      bedroom: {},
+      bedroom:     {},
+      study:       {},
+      living_room: {},
     },
     persons: {
       'person.lena': {
         mode: 'scheduled',
         schedule_type: 'single',
-        room_ids: ['bedroom'],
+        room_ids: ['bedroom', 'study'],
         schedule: {
-          mon: [
-            { start: '00:00', state: 'absent' },
-            { start: '08:00', state: 'present' },
-            { start: '09:00', state: 'absent' },
-            { start: '12:00', state: 'present' },
-            { start: '13:00', state: 'absent' },
-            { start: '17:00', state: 'present' },
-          ],
-          tue: [
-            { start: '00:00', state: 'absent' },
-            { start: '08:00', state: 'present' },
-            { start: '10:00', state: 'absent' },
-            { start: '18:00', state: 'present' },
-          ],
-          wed: [{ start: '00:00', state: 'present' }],
-          thu: [
-            { start: '00:00', state: 'absent' },
-            { start: '08:00', state: 'present' },
-            { start: '09:30', state: 'absent' },
-            { start: '13:00', state: 'present' },
-            { start: '14:30', state: 'absent' },
-            { start: '17:00', state: 'present' },
-          ],
-          fri: [
-            { start: '00:00', state: 'absent' },
-            { start: '08:00', state: 'present' },
-            { start: '11:00', state: 'absent' },
-            { start: '14:00', state: 'present' },
-          ],
-          sat: [{ start: '00:00', state: 'present' }],
-          sun: [{ start: '00:00', state: 'present' }],
+          mon: lenaMon,
+          tue: lenaTue,
+          wed: lenaWed,
+          thu: lenaThu,
+          fri: lenaFri,
+          sat: lenaWE,
+          sun: lenaWE,
         },
       },
     },
-    climate_entities: [],
+    climate_entities: [
+      'climate.bedroom_trv',
+      'climate.study_trv',
+      'climate.living_room_trv',
+    ],
   };
 
   const STATUS = {
-    global_mode: 'time_program',
-    active_period: 'normal',
-    present_persons: [],
-    rooms_status: [],
+    zones: {
+      default: { mode: 'time_program', active_period: 'normal' },
+    },
+    present_persons: ['person.lena'],
+    rooms_status: [
+      {
+        area_id: 'bedroom',
+        name: 'Bedroom',
+        entity_ids: ['climate.bedroom_trv'],
+        temperature: 20.1,
+        humidity: 56,
+        active_period: 'normal',
+        present_person_count: 1,
+        has_trv: true,
+      },
+      {
+        area_id: 'study',
+        name: 'Study',
+        entity_ids: ['climate.study_trv'],
+        temperature: 19.5,
+        humidity: 48,
+        active_period: 'normal',
+        present_person_count: 1,
+        has_trv: true,
+      },
+      {
+        area_id: 'living_room',
+        name: 'Living Room',
+        entity_ids: ['climate.living_room_trv'],
+        temperature: 20.7,
+        humidity: 45,
+        active_period: 'normal',
+        present_person_count: 0,
+        has_trv: true,
+      },
+    ],
   };
 
   const mockHass = {
@@ -243,21 +307,74 @@
       },
     },
     states: {
+      'climate.bedroom_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Bedroom TRV',
+          current_temperature: 20.1,
+          temperature: 20,
+        },
+      },
+      'climate.study_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Study TRV',
+          current_temperature: 19.5,
+          temperature: 20,
+        },
+      },
+      'climate.living_room_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Living Room TRV',
+          current_temperature: 20.7,
+          temperature: 20,
+        },
+      },
       'person.lena': {
-        state: 'not_home',
+        state: 'home',
         attributes: { friendly_name: 'Lena' },
       },
     },
-    areas: {},
-    floors: {},
+    areas: {
+      bedroom: {
+        area_id: 'bedroom',
+        name: 'Bedroom',
+        floor_id: 'first_floor',
+      },
+      study: {
+        area_id: 'study',
+        name: 'Study',
+        floor_id: 'first_floor',
+      },
+      living_room: {
+        area_id: 'living_room',
+        name: 'Living Room',
+        floor_id: 'ground_floor',
+      },
+    },
+    floors: {
+      ground_floor: {
+        floor_id: 'ground_floor',
+        name: 'Ground Floor',
+        level: 0,
+      },
+      first_floor: {
+        floor_id: 'first_floor',
+        name: 'First Floor',
+        level: 1,
+      },
+    },
     callService() { return Promise.resolve(); },
   };
 
+  // Create the element with hass already set so connectedCallback has it
   const panel = document.createElement('climate-manager-panel');
-  panel.hass = mockHass;
+  panel.hass   = mockHass;
   panel.narrow = false;
-  panel.panel = {};
+  panel.panel  = {};
   document.getElementById('mount').appendChild(panel);
+
   window.__panelReady = true;
   console.log('[harness] panel appended with hass');
 </script>
