@@ -5,7 +5,7 @@
 - ✅ **v1.0 MVP** — Phases 1-3 (shipped 2026-05-26)
 - ✅ **v1.1 Heating Zones** — Phases 4-6 (shipped 2026-05-28)
 - ✅ **v1.2 Presence & Calibration** — Phases 7-9 (shipped 2026-05-31)
-- 🚧 **v1.3 Calendar Presence & Pre-heat** — Phases 10-17 (16/17 done; Phase 17 pending)
+- 🚧 **v1.3 Calendar Presence & Pre-heat** — Phases 10-17 (17/17 done)
 
 ## Phases
 
@@ -278,7 +278,7 @@ to diagnose heating behaviour from HA logs without reading source code.
 - [x] 16-07-PLAN.md — coordinator integration: build domain graph, rewrite
       async_evaluate, delete monolith, update tests, human log verify (OBS-01)
 
-### Phase 17: Person Scheduling Use-Case Docs
+### Phase 17: Person Scheduling Use-Case Docs ✅ complete (2026-06-05)
 
 **Goal**: Five documented use cases with screenshots cover the full range of
 person scheduling modes; `make screenshots` produces all scenario screenshots
