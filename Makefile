@@ -5,7 +5,7 @@ HA_COMPONENT_DIR = /config/custom_components/climate_manager
 SRC_DIR = custom_components/climate_manager
 VERSION := $(shell python3 -c "import json; print(json.load(open('$(SRC_DIR)/manifest.json'))['version'])")
 
-.PHONY: build deploy test lint logs screenshots release
+.PHONY: build deploy test lint logs screenshots use-case-screenshots release
 
 build:
 	cd frontend && npm install --no-audit --no-fund && npm run build
@@ -43,3 +43,12 @@ screenshots: build
 		-e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
 		mcr.microsoft.com/playwright:v1.49.0-noble \
 		bash -c "cd /app/docs && npm install --no-audit --no-fund 2>/dev/null && node screenshot.js"
+	$(MAKE) use-case-screenshots
+
+use-case-screenshots:
+	@for dir in docs/use-cases/*/; do \
+		if [ -f "$$dir/Makefile" ]; then \
+			echo "--- $$dir ---"; \
+			$(MAKE) -C "$$dir" screenshots; \
+		fi \
+	done
