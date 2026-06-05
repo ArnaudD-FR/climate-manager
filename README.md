@@ -7,7 +7,8 @@ configurable through a full Lovelace dashboard panel.
 
 > **Core value:** Every room is always at the right temperature at the right
 > time, without manual intervention — driven by schedules and who is actually
-> home. Everything is configured from the dashboard panel — no YAML editing.
+> home. Everything is configured from the dashboard panel — no YAML editing, no
+> blueprints.
 
 ---
 
