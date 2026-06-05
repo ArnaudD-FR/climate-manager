@@ -196,17 +196,18 @@
   ];
 
   const CONFIG = {
-    global_mode: 'time_program',
     period_temperatures: { frost_protection: 7, reduced: 16, normal: 20, comfort: 22 },
-    global_time_program: defaultProg,
-    default_zone_name: 'Home',
+    // Phase 14 (D-11): Default Zone is an object (name/mode/time_program),
+    // replacing the old flat global_mode/global_time_program/default_zone_name.
+    default_zone: { name: 'Home', mode: 'time_program', time_program: defaultProg },
     zones: {
       [ZONE_ID]: { name: 'Upstairs', mode: 'time_program_presences', time_program: defaultProg },
     },
+    // Phase 15 (D-07): rooms have no room_mode — they follow their zone.
     rooms: {
-      bedroom:     { room_mode: 'global', zone_id: ZONE_ID },
-      kitchen:     { room_mode: 'global' },
-      living_room: { room_mode: 'custom', time_program: livingRoomProg },
+      bedroom:     { zone_id: ZONE_ID },
+      kitchen:     {},
+      living_room: {},
     },
     persons: {
       'person.alice': { mode: 'scheduled', room_ids: ['bedroom'],               schedule: mkProg(aliceWD, aliceWE) },

@@ -5,7 +5,7 @@ milestone_name: Calendar Presence & Pre-heat
 status: executing
 stopped_at: ""
 last_updated: "2026-06-05T19:53:29Z"
-last_activity: 2026-06-05 -- Phase 16 verified (UAT 6/6 pass)
+last_activity: 2026-06-05 -- Phase 16 complete (close-out done)
 progress:
   total_phases: 8
   completed_phases: 7
@@ -26,10 +26,10 @@ actually home. **Current focus:** Phase 16 — presence-heating-log-traces
 
 ## Current Position
 
-Phase: 16 (presence-heating-log-traces) — VERIFIED (UAT 6/6)
+Phase: 16 (presence-heating-log-traces) — COMPLETE
 Plan: 7 of 7 complete
-Status: Phase 16 verified; pending close-out (screenshots + architecture.md)
-Last activity: 2026-06-05 -- Phase 16 verified (UAT 6/6 pass)
+Status: Phase 16 closed out (UAT 6/6, screenshots + architecture.md refreshed)
+Last activity: 2026-06-05 -- Phase 16 complete; next: Phase 17 (use-case docs)
 
 ## Performance Metrics
 
@@ -140,5 +140,4 @@ Stopped at: context exhaustion at 77% (2026-06-05)
 
 ## Operator Next Steps
 
-- Phase 16 (presence-heating-log-traces): discuss or plan
 - Phase 17 (person-scheduling-use-case-docs): discuss or plan
