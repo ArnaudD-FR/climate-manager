@@ -56,10 +56,12 @@ block; on the Even tab, the weekend bars are plain manual periods.
 
 ## Rooms driven by Sofia
 
-Sofia's `room_ids: ['child_bedroom', 'living_room']` means both rooms react to
-her presence. When the schedule marks her present the Child's Bedroom heats
-normally; when absent it falls back to frost protection. The Living Room also
-follows her presence for its comfort-mode boost periods.
+Sofia is assigned to the **Child's Bedroom** only
+(`room_ids: ['child_bedroom']`). That room is in the presence-driven **Child's
+Room** zone, so it follows the schedule when she is marked present and falls
+back to Reduced when she is absent. The **Living Room** is in the **Home** zone
+on a plain time program — it is a shared family space that heats on schedule
+regardless of who is home, so it needs no person assigned.
 
 ## Screenshots
 
@@ -86,6 +88,5 @@ readings are shown for each TRV.
 The expanded Sofia card shows the **Even / Odd** week-switcher tabs and the
 schedule bars for the active week. The screenshot reflects whichever parity is
 current at capture time — the Odd tab shows Pronote-calendar weekdays with a
-Friday-noon split, the Even tab shows the manual weekend schedule. Room chips
-list Child's Bedroom (First Floor) and Living Room (Ground Floor), demonstrating
-the multi-floor room association.
+Friday-noon split, the Even tab shows the manual weekend schedule. The room chip
+lists Child's Bedroom (First Floor) — the only presence-gated room Sofia drives.
