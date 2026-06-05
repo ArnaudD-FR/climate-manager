@@ -4,11 +4,11 @@ Lena is a university student whose lecture timetable changes every day of the
 week: Monday is a long day of back-to-back sessions, Tuesday has a late-morning
 slot only, Wednesday is the heaviest day, Thursday is a short morning, and
 Friday finishes early afternoon. Weekends she is home all day. This scenario
-demonstrates how a **scheduled (single-week)** presence programme can express
-genuinely varied per-weekday absent blocks rather than a simple repeating
-pattern.
+demonstrates how a **Scheduled** / **Single week** presence programme can
+express genuinely varied per-weekday absent blocks rather than a simple
+repeating pattern.
 
-The zone is **presence-driven** (`time_program_presences`): all three rooms
+The zone is **presence-driven** (**Time program & presences**): all three rooms
 follow the time-program schedule while Lena is home and fall back to Reduced
 while she is at her lectures. She is present overnight — "absent" only covers
 the hours she is physically at university.
@@ -23,7 +23,7 @@ the hours she is physically at university.
 
 ## Presence configuration
 
-Lena uses **mode: scheduled**, **schedule_type: single**.
+Lena uses **Scheduled** presence mode with a **Single week** schedule.
 
 ### Schedule
 
@@ -42,10 +42,10 @@ physically at university.
 
 ## Rooms driven by Lena
 
-Lena's `room_ids` are **all three rooms**: bedroom, study, and living_room.
-Because the zone is `time_program_presences`, every room needs at least one
-assigned person to receive scheduled heat. All three rooms show a non-zero
-`present_person_count` when Lena is home.
+Lena's **Room associations** cover **all three rooms**: Bedroom, Study, and
+Living Room. Because the zone is **Time program & presences**, every room needs
+at least one assigned person to receive scheduled heat. All three rooms show a
+non-zero person count when Lena is home.
 
 | Room        | Tracked for presence |
 | ----------- | -------------------- |
@@ -59,9 +59,9 @@ assigned person to receive scheduled heat. All three rooms show a non-zero
 
 ![Overview — Lena present, single zone](screenshots/overview.png)
 
-The Overview shows the single Home zone in `time_program_presences` mode with
-the active period and Lena listed as currently present; all three rooms show a
-non-zero person count.
+The Overview shows the single Home zone in **Time program & presences** mode
+with the active period and Lena listed as currently present; all three rooms
+show a non-zero person count.
 
 ### Rooms
 
