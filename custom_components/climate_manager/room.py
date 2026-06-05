@@ -30,6 +30,7 @@ from .const import (
     DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
     MODE_TIME_PROGRAM,
     MODE_TIME_PROGRAM_PRESENCES,
+    PERIOD_FROST_PROTECTION,
     PREHEAT_CONVERGENCE_THRESHOLD,
     PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD,
     PREHEAT_MAX_SAMPLES,
@@ -101,6 +102,11 @@ class Room:
         # the config dict — per 16-PATTERNS preheat zone-enabled lookup).
         self._zone: object | None = None
 
+        # Effective period last applied to this room (status display). In
+        # presence mode each room resolves its own period, so the zone-level
+        # _current_period is not accurate per-room — track it here instead.
+        self._last_period: str | None = None
+
         # ---------------------------------------------------------------
         # Preheat state — migrated from coordinator dicts (D-06)
         # Original coordinator __init__ lines 155-159; keys collapsed to
@@ -139,6 +145,9 @@ class Room:
         Uses asyncio.gather for concurrent pushes (16-PATTERNS asyncio.gather
         pattern).  Zero groups is a no-op.
         """
+        # Record the effective period for status display before any early
+        # return so even TRV-less rooms surface the correct badge.
+        self._last_period = period
         if not self._trv_groups:
             return
         await asyncio.gather(
@@ -147,6 +156,7 @@ class Room:
 
     async def apply_off(self, frost_temp: float, ctx: "EvalContext") -> None:
         """Push MODE_OFF to all TRV groups: off for off-capable, frost for others."""
+        self._last_period = PERIOD_FROST_PROTECTION
         if not self._trv_groups:
             return
         await asyncio.gather(

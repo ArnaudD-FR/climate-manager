@@ -729,3 +729,40 @@ async def test_trvgroup_assembly_no_dedup_for_standalone_matter(hass):
 
     assert len(group._trvs) == 1
     assert group._trvs[0].entity_id == standalone_matter
+
+
+async def test_trvgroup_assembly_excludes_boiler(hass):
+    """Boiler/HVAC entities (max_temp > 45°C) are never push targets.
+
+    A Viessmann boiler climate entity advertises max_temp=60°C, so
+    is_trv_entity returns False — from_room_config must skip it instead of
+    building a TRV that would fail every push cycle.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    entity_reg = er.async_get(hass)
+
+    trv_entity = "climate.living_trv"
+    boiler_entity = "climate.e3_vitodens_200_0821_heating"
+
+    # TRV: no max_temp → is_trv_entity True. Boiler: max_temp 60 → False.
+    hass.states.async_set(trv_entity, "heat", {"temperature": 20.0})
+    hass.states.async_set(
+        boiler_entity, "heat", {"temperature": 50.0, "max_temp": 60.0}
+    )
+
+    trv_entry = MagicMock()
+    trv_entry.platform = "generic_thermostat"
+    entity_reg.async_get = lambda eid: trv_entry if eid == trv_entity else None
+
+    group = TRVGroup.from_room_config(
+        hass=hass,
+        entity_ids=[trv_entity, boiler_entity],
+        matter_mappings={},
+        room_name="area_living",
+        zone_name="zone_main",
+    )
+
+    # Only the TRV is a push target; the boiler is excluded.
+    assert len(group._trvs) == 1
+    assert group._trvs[0].entity_id == trv_entity

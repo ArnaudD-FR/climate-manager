@@ -478,6 +478,11 @@ class TRVGroup:
 
         trvs: list[TRV] = []
         for entity_id in entity_ids:
+            # Skip boiler/HVAC entities (max_temp > 45°C) so we never push a
+            # room setpoint to a boiler. Matches the is_trv_entity filter the
+            # coordinator applies on every other entity-iterating path.
+            if not is_trv_entity(hass, entity_id):
+                continue
             reg = entity_reg.async_get(entity_id)
             platform = reg.platform if reg is not None else None
             if platform == "tado_x":

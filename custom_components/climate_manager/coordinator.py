@@ -342,6 +342,12 @@ class ClimateManagerCoordinator:
         # ZoneModeProgramPresences.evaluate — same for all rooms in the zone.
         self._last_room_periods = {}
         for area_id, room in self._rooms.items():
+            # Per-room period wins: in presence mode each room resolves its
+            # own effective period (e.g. empty room → reduced) while the
+            # zone-level _current_period only holds the last room's value.
+            if room._last_period is not None:
+                self._last_room_periods[area_id] = room._last_period
+                continue
             zone = room._zone
             if zone is not None and zone._current_period is not None:
                 self._last_room_periods[area_id] = zone._current_period

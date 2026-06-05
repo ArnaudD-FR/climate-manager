@@ -67,6 +67,34 @@ async def test_apply_setpoint_two_groups_called_for_each(hass):
         )
 
 
+async def test_apply_setpoint_records_last_period(hass):
+    """apply_setpoint records the effective period on the Room for status.
+
+    In presence mode each room resolves its own period, so the per-room
+    _last_period (not the zone aggregate) is what the status badge must read.
+    Recorded even with zero TRV groups (TRV-less rooms still show a badge).
+    """
+    room = Room(area_id="area_bureau")
+    assert room._last_period is None
+
+    ctx = MagicMock()
+    # Empty room (nobody present) → reduced; no TRV groups.
+    await room.apply_setpoint(period="reduced", temp=18.0, ctx=ctx)
+    assert room._last_period == "reduced"
+
+    # A later occupied evaluation updates it.
+    await room.apply_setpoint(period="normal", temp=20.0, ctx=ctx)
+    assert room._last_period == "normal"
+
+
+async def test_apply_off_records_frost_period(hass):
+    """apply_off records frost_protection as the room's effective period."""
+    room = Room(area_id="area_bureau")
+    ctx = MagicMock()
+    await room.apply_off(frost_temp=7.0, ctx=ctx)
+    assert room._last_period == "frost_protection"
+
+
 def test_room_owns_preheat_state_as_scalars():
     """Room owns preheat state as scalar attributes (D-06) — migrated from
     coordinator's _preheat_in_progress dict.
