@@ -1,7 +1,7 @@
 # Maya — Predictive Pre-heat
 
 Maya wants her bedroom and bathroom to be warm when she wakes up, not to _start_
-heating when she gets out of bed. With **pre-heat** enabled on the Home zone,
+heating when she gets out of bed. With **Pre-heat** enabled on the Home zone,
 the coordinator looks ahead to the 06:30 Normal period and begins heating early
 — using each room's allowed lead time — so the rooms reach target temperature
 right as the morning period begins. Maya is home asleep overnight and that
@@ -15,14 +15,13 @@ counts as **present**, so pre-heat can run ahead of the wake-up step.
 | Bathroom    | Home (Default Zone) | First Floor  | Time program + pre-heat before wake-up |
 | Living Room | Home (Default Zone) | Ground Floor | Time program (no pre-heat lead)        |
 
-The Default Zone **Home** uses `time_program_presences` and has
-`preheat_enabled: true`. A room must have an assigned person in a presences zone
-to be pre-heated; a room with no assigned person would be set back, not
-pre-heated.
+The Default Zone **Home** uses **Time program & presences** and has **Pre-heat**
+enabled. A room must have an assigned person in a presences zone to be
+pre-heated; a room with no assigned person would be set back, not pre-heated.
 
 ## Presence configuration
 
-Maya uses `mode: 'scheduled'` (single week).
+Maya uses **Scheduled** presence mode (single week).
 
 | Day       | Present                              | Away          |
 | --------- | ------------------------------------ | ------------- |
@@ -35,20 +34,21 @@ actually out of the house. Pre-heat fires at ~05:50 on weekday mornings (up to
 
 Pre-heat tuning:
 
-- **`preheat_max_lead_minutes`** per room — Bedroom 60 min, Bathroom 90 min: the
+- **Max lead time (min)** per room — Bedroom 60 min, Bathroom 90 min: the
   maximum head-start the coordinator may take for that room ahead of the next
   warmer period.
-- Pre-heat is driven by the zone `preheat_enabled` flag and per-room lead time.
-  There is no `wakeup_advance_minutes` on Maya's config — that knob is for
-  calendar-mode persons only.
+- Pre-heat is driven by the zone **Pre-heat** toggle and each room's **Max lead
+  time (min)** setting. The **Wake-up advance** field applies only to
+  Calendar-mode persons and is not used here.
 
 ## Rooms driven by Maya
 
-`room_ids: ['bedroom', 'bathroom', 'living_room']` — all three rooms are in the
-Home zone (`time_program_presences`), so each must have an assigned person or it
-would never heat to its scheduled period. The Living Room has no
-`preheat_max_lead_minutes`, so it starts heating only when the 06:30 period
-arrives; it does not get an early start.
+Maya has **Bedroom**, **Bathroom**, and **Living Room** in her **Room
+associations** — all three rooms are in the Home zone (**Time program &
+presences**), so each must have an assigned person or it would never heat to its
+scheduled period. The Living Room has no **Max lead time (min)** configured, so
+it starts heating only when the 06:30 period arrives; it does not get an early
+start.
 
 ## Screenshots
 
@@ -64,10 +64,10 @@ step.
 
 ![Rooms](screenshots/rooms.png)
 
-The expanded Bedroom card shows the **Pre-heating → 20.0 °C** badge and its
-60-minute max lead setting. The Bathroom card likewise shows pre-heat active
-with its 90-minute lead. The Living Room card is in the overnight reduced period
-with no pre-heat badge.
+The expanded Bedroom card shows the **Pre-heating → 20.0°C** badge and its
+60-minute **Max lead time (min)** setting. The Bathroom card likewise shows
+pre-heat active with its 90-minute lead. The Living Room card is in the
+overnight Reduced period with no pre-heat badge.
 
 ### Persons tab — Maya card expanded
 

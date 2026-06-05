@@ -3,9 +3,9 @@
 Marc works irregular rotating shifts at a factory — early mornings one week,
 late nights the next. His home presence follows no predictable weekly pattern,
 so a fixed time-bar schedule would constantly be wrong. Instead the integration
-tracks the live `person.marc` HA entity using **HA home tracking**, which
-follows Marc's `person.*` / device_tracker state directly. Rooms heat while he
-is home and set back to Reduced when he leaves — no schedule editor needed.
+tracks Marc's HA person entity using **HA home tracking**, which follows his
+home/away state directly. Rooms heat while he is home and set back to Reduced
+when he leaves — no schedule editor needed.
 
 ## Household layout
 
@@ -15,30 +15,26 @@ is home and set back to Reduced when he leaves — no schedule editor needed.
 | Living Room | Downstairs (Default Zone) | Ground Floor | Marc is home |
 | Kitchen     | Downstairs (Default Zone) | Ground Floor | Marc is home |
 
-Both zones use `time_program_presences` mode. Rooms heat to their zone's
+Both zones use **Time program & presences** mode. Rooms heat to their zone's
 time-program schedule while Marc is home; when he leaves all rooms fall back to
 Reduced regardless of the scheduled period.
 
 ## Presence configuration
 
-Marc's person config uses `mode: 'ha'` (**HA home tracking**). No schedule
-arrays are stored. The integration reads `person.marc`'s `home` / `not_home`
-state from HA at each evaluation cycle, derived from
-`device_tracker.marc_phone`.
+Marc's person config uses **HA home tracking**. No schedule arrays are needed.
+The integration reads his HA person entity's home / not_home state at each
+evaluation cycle, derived from his phone's device tracker.
 
-Because `device_trackers` is set to a non-empty list in HA's person entity
-attributes, the panel renders the clean **HA** badge on Marc's card. If the
-tracker list were empty the card would show a warning badge instead.
-
-This mode is the right choice for anyone whose schedule is irregular enough that
-no weekly repeat pattern is practical — shift workers, on-call staff, or people
-with highly variable routines. The person card shows no schedule editor.
+The panel renders the **HA home tracking** badge on Marc's card. This mode is
+the right choice for anyone whose schedule is irregular enough that no weekly
+repeat pattern is practical — shift workers, on-call staff, or people with
+highly variable routines. The person card shows no schedule editor.
 
 ## Rooms driven by Marc
 
-Marc's `room_ids` are **all three rooms**: bedroom, living_room, and kitchen.
-Every room is gated by his presence — heating follows the zone schedule while he
-is home and sets back when he is away.
+Marc has all three rooms in his **Room associations**: Bedroom, Living Room, and
+Kitchen. Every room is gated by his presence — heating follows the zone schedule
+while he is home and sets back when he is away.
 
 | Room        | Tracked for presence |
 | ----------- | -------------------- |
@@ -52,8 +48,8 @@ is home and sets back when he is away.
 
 ![Overview](screenshots/overview.png)
 
-The Overview tab shows the two zones (Downstairs and Upstairs), both in
-`time_program_presences` mode, and Marc's presence state. All three rooms show a
+The Overview tab shows the two zones (Downstairs and Upstairs), both in **Time
+program & presences** mode, and Marc's presence state. All three rooms show a
 non-zero person count while he is home.
 
 ### Rooms tab
@@ -68,8 +64,8 @@ badge. Each card shows live temperature and humidity from the TRV.
 
 ![Persons](screenshots/persons.png)
 
-The expanded Marc card shows the mode selector set to **HA** (HA home tracking)
-and an explanatory hint. No schedule editor is rendered — this is the deliberate
-contrast with schedule-driven cards (e.g. simple-schedule or
+The expanded Marc card shows the Presence mode selector set to **HA home
+tracking** and an explanatory hint. No schedule editor is rendered — this is the
+deliberate contrast with schedule-driven cards (e.g. simple-schedule or
 student-mixed-schedule), where a time-bar editor appears on expand. All three
-room chips appear grouped by floor.
+room chips appear in his **Room associations**, grouped by floor.
