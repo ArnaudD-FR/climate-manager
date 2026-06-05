@@ -215,12 +215,15 @@
     period_temperatures: {
       frost_protection: 7, reduced: 16, normal: 20, comfort: 22,
     },
+    // Default Zone "Home": presence-driven — Alex must be present for the
+    // living areas to heat to their scheduled period.
     default_zone: {
       name: 'Home',
-      mode: 'time_program',
+      mode: 'time_program_presences',
       time_program: homeProg,
     },
-    // Custom "Bathrooms" zone — its own comfort-led program.
+    // Custom "Bathrooms" zone — schedule-only, no person needed. The
+    // bathrooms heat to comfort on their program regardless of who is home.
     zones: {
       [BATH_ZONE]: {
         name: 'Bathrooms',
@@ -228,7 +231,8 @@
         time_program: bathProg,
       },
     },
-    // Both bathrooms join the Bathrooms zone; living areas stay Default Zone.
+    // Both bathrooms join the Bathrooms zone (time_program — no person
+    // needed); living areas stay Default Zone (presences — Alex assigned).
     rooms: {
       main_bathroom: { zone_id: BATH_ZONE },
       ensuite:       { zone_id: BATH_ZONE },
@@ -239,6 +243,7 @@
       'person.alex': {
         mode: 'scheduled',
         schedule_type: 'single',
+        // Alex assigned only to Home-zone rooms; bathrooms need no person.
         room_ids: ['bedroom', 'living_room'],
         schedule: mkProg(alexWD, alexWE),
       },
@@ -252,11 +257,12 @@
   };
 
   // Snapshot: a weekday evening (~20:00) — both bathrooms in their comfort
-  // window while the rest of the home is in its normal evening period.
+  // window (time_program, present_person_count:0 is fine), while Home-zone
+  // rooms are normal because Alex is present.
   const STATUS = {
     zones: {
-      default: { mode: 'time_program', active_period: 'normal' },
-      [BATH_ZONE]: { mode: 'time_program', active_period: 'comfort' },
+      default:      { mode: 'time_program_presences', active_period: 'normal' },
+      [BATH_ZONE]:  { mode: 'time_program',           active_period: 'comfort' },
     },
     present_persons: ['person.alex'],
     rooms_status: [
