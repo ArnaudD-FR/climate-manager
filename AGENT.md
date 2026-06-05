@@ -5,8 +5,8 @@
 **Climate Manager**
 
 A Home Assistant custom integration that manages home climate controls through
-smart radiator thermostats. It provides global heating modes, weekday-based time
-programs, per-room schedule overrides, and person presence tracking — all
+smart radiator thermostats. It provides zone-based heating modes, weekday-based
+time programs, per-room zone assignment, and person presence tracking — all
 configurable through a full Lovelace dashboard panel. No equivalent integration
 exists that combines all of these in a single, cohesive system.
 
