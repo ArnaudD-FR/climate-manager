@@ -69,7 +69,9 @@
         svg.setAttribute('viewBox', '0 0 24 24');
         svg.setAttribute('width', '24');
         svg.setAttribute('height', '24');
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const path = document.createElementNS(
+          'http://www.w3.org/2000/svg', 'path',
+        );
         path.setAttribute('d', pathData);
         svg.appendChild(path);
         root.appendChild(svg);
@@ -148,41 +150,72 @@
 
 <!-- Mock hass — runs after panel.js defines climate-manager-panel -->
 <script type="module">
-  const weekdayProg = [
+  // Noah — two-zone household: shared living areas on Default Zone (Home),
+  // dedicated Home Office on a custom Office zone with work-hours program.
+  // Presence is delegated entirely to calendar.work_meetings.
+
+  const OFFICE_ZONE_ID = 'zone-office-7f3a';
+
+  // Home zone: comfortable residential schedule.
+  const homeWD = [
     { start: '00:00', mode: 'frost_protection' },
-    { start: '06:30', mode: 'normal' },
+    { start: '07:00', mode: 'normal' },
     { start: '09:00', mode: 'reduced' },
-    { start: '17:00', mode: 'normal' },
-    { start: '22:00', mode: 'frost_protection' },
+    { start: '18:00', mode: 'normal' },
+    { start: '22:30', mode: 'frost_protection' },
   ];
-  const weekendProg = [
+  const homeWE = [
     { start: '00:00', mode: 'frost_protection' },
-    { start: '08:00', mode: 'normal' },
+    { start: '08:30', mode: 'normal' },
+    { start: '10:00', mode: 'comfort' },
     { start: '23:00', mode: 'frost_protection' },
   ];
 
+  // Office zone: heat only during core working hours on weekdays;
+  // reduced the rest of the time.
+  const officeWD = [
+    { start: '00:00', mode: 'frost_protection' },
+    { start: '07:30', mode: 'normal' },
+    { start: '09:00', mode: 'comfort' },
+    { start: '18:30', mode: 'reduced' },
+    { start: '21:00', mode: 'frost_protection' },
+  ];
+  const officeWE = [
+    { start: '00:00', mode: 'frost_protection' },
+  ];
+
   function mkProg(wd, we) {
-    return { mon: wd, tue: wd, wed: wd, thu: wd, fri: wd, sat: we, sun: we };
+    return {
+      mon: wd, tue: wd, wed: wd, thu: wd, fri: wd, sat: we, sun: we,
+    };
   }
 
-  const defaultProg = mkProg(weekdayProg, weekendProg);
+  const homeProg   = mkProg(homeWD, homeWE);
+  const officeProg = mkProg(officeWD, officeWE);
 
   const CONFIG = {
     period_temperatures: {
       frost_protection: 7, reduced: 16, normal: 20, comfort: 22,
     },
     default_zone: {
-      name: 'Home', mode: 'time_program', time_program: defaultProg,
+      name: 'Home', mode: 'time_program', time_program: homeProg,
     },
-    zones: {},
+    zones: {
+      [OFFICE_ZONE_ID]: {
+        name: 'Office', mode: 'time_program', time_program: officeProg,
+      },
+    },
     rooms: {
-      office: {},
-      bedroom: {},
+      // Home Office is in the dedicated Office zone.
+      home_office:  { zone_id: OFFICE_ZONE_ID },
+      // Bedroom and Living Room are Default Zone members.
+      bedroom:      {},
+      living_room:  {},
     },
     persons: {
       'person.noah': {
         mode: 'calendar',
-        room_ids: ['office', 'bedroom'],
+        room_ids: ['home_office', 'bedroom'],
         calendar_config: {
           entity_id: 'calendar.work_meetings',
           event_means: 'absent',
@@ -191,14 +224,51 @@
         wakeup_advance_minutes: 60,
       },
     },
-    climate_entities: [],
+    climate_entities: [
+      'climate.home_office_trv',
+      'climate.bedroom_trv',
+      'climate.living_room_trv',
+    ],
   };
 
   const STATUS = {
-    global_mode: 'time_program',
-    active_period: 'normal',
+    zones: {
+      default:          { mode: 'time_program', active_period: 'normal' },
+      [OFFICE_ZONE_ID]: { mode: 'time_program', active_period: 'comfort' },
+    },
     present_persons: ['person.noah'],
-    rooms_status: [],
+    rooms_status: [
+      {
+        area_id: 'home_office',
+        name: 'Home Office',
+        entity_ids: ['climate.home_office_trv'],
+        temperature: 21.3,
+        humidity: 43,
+        active_period: 'comfort',
+        present_person_count: 1,
+        has_trv: true,
+      },
+      {
+        area_id: 'bedroom',
+        name: 'Bedroom',
+        entity_ids: ['climate.bedroom_trv'],
+        temperature: 19.6,
+        humidity: 55,
+        active_period: 'normal',
+        present_person_count: 1,
+        has_trv: true,
+      },
+      {
+        area_id: 'living_room',
+        name: 'Living Room',
+        entity_ids: ['climate.living_room_trv'],
+        temperature: 20.8,
+        humidity: 47,
+        active_period: 'normal',
+        present_person_count: 0,
+        has_trv: true,
+      },
+    ],
   };
 
   const mockHass = {
@@ -216,25 +286,78 @@
       },
     },
     states: {
+      'climate.home_office_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Home Office TRV',
+          current_temperature: 21.3,
+          temperature: 22,
+        },
+      },
+      'climate.bedroom_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Bedroom TRV',
+          current_temperature: 19.6,
+          temperature: 20,
+        },
+      },
+      'climate.living_room_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Living Room TRV',
+          current_temperature: 20.8,
+          temperature: 20,
+        },
+      },
       'person.noah': {
         state: 'home',
         attributes: { friendly_name: 'Noah' },
       },
       'calendar.work_meetings': {
         state: 'off',
-        attributes: { friendly_name: 'Work meetings' },
+        attributes: { friendly_name: 'Work Meetings' },
       },
     },
-    areas: {},
-    floors: {},
+    areas: {
+      home_office: {
+        area_id: 'home_office',
+        name: 'Home Office',
+        floor_id: 'first_floor',
+      },
+      bedroom: {
+        area_id: 'bedroom',
+        name: 'Bedroom',
+        floor_id: 'first_floor',
+      },
+      living_room: {
+        area_id: 'living_room',
+        name: 'Living Room',
+        floor_id: 'ground_floor',
+      },
+    },
+    floors: {
+      ground_floor: {
+        floor_id: 'ground_floor',
+        name: 'Ground Floor',
+        level: 0,
+      },
+      first_floor: {
+        floor_id: 'first_floor',
+        name: 'First Floor',
+        level: 1,
+      },
+    },
     callService() { return Promise.resolve(); },
   };
 
+  // Create the element with hass already set so connectedCallback has it
   const panel = document.createElement('climate-manager-panel');
-  panel.hass = mockHass;
+  panel.hass   = mockHass;
   panel.narrow = false;
-  panel.panel = {};
+  panel.panel  = {};
   document.getElementById('mount').appendChild(panel);
+
   window.__panelReady = true;
   console.log('[harness] panel appended with hass');
 </script>

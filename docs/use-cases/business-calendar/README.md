@@ -1,27 +1,69 @@
 # Noah — Business Calendar
 
-Noah's presence at home is driven by his work calendar: whenever a meeting or
-travel event appears in his calendar, he is away. This example shows how to use
-the **calendar** presence mode to delegate scheduling to a `calendar.*` entity.
+Noah works from a dedicated home office and attends meetings or travels
+frequently. Rather than encoding a fixed schedule he delegates his presence
+entirely to a calendar entity: whenever `calendar.work_meetings` has an active
+event, he is treated as away. This scenario showcases the **calendar** presence
+mode and two-zone layout — the Home Office sits in its own **Office** zone with
+a work-hours heating programme, while the shared living areas follow the
+standard **Home** Default Zone.
 
-## Configuration Summary
+## Household layout
 
-The table below is the Configuration Summary for this use case.
+| Room        | Zone         | Floor        | Heats when                            |
+| ----------- | ------------ | ------------ | ------------------------------------- |
+| Home Office | Office       | First Floor  | Work-hours comfort + reduced evenings |
+| Bedroom     | Default Zone | First Floor  | Residential programme + Noah present  |
+| Living Room | Default Zone | Ground Floor | Residential programme                 |
 
-| Property        | Value                                             |
-| --------------- | ------------------------------------------------- |
-| Presence mode   | `calendar`                                        |
-| Source          | `calendar.work_meetings` — events mean away       |
-| Gap handling    | `day_span` — absent for the whole day of an event |
-| Wake-up advance | 60 minutes (pre-heat before return)               |
-| Assigned rooms  | Office, Bedroom                                   |
+## Presence configuration
+
+Noah uses **mode: calendar**.
+
+| Setting         | Value                                       |
+| --------------- | ------------------------------------------- |
+| Calendar entity | `calendar.work_meetings`                    |
+| Event means     | absent — an active event means Noah is away |
+| Gap handling    | `day_span` — absent for the whole event day |
+| Wake-up advance | 60 minutes (pre-heat bedroom before return) |
+
+No schedule time-bar editor is shown for calendar-mode persons; the panel
+instead renders the calendar configuration selectors (entity picker, event
+meaning, gap handling, and wake-up advance).
+
+## Rooms driven by Noah
+
+Noah's `room_ids` are **home_office** and **bedroom**. When the calendar shows
+no active event he is present, and both rooms reflect a non-zero person count.
+
+| Room        | Tracked for presence |
+| ----------- | -------------------- |
+| Home Office | yes                  |
+| Bedroom     | yes                  |
+| Living Room | no (zone-only)       |
 
 ## Screenshots
 
-### Persons tab — Noah card expanded
+### Overview
 
-![Noah person card expanded](screenshots/persons.png)
+![Overview — Noah present, two zones](screenshots/overview.png)
 
-The expanded card shows the calendar config selectors (entity, event meaning,
-gap handling, and wake-up advance); no schedule time-bar editor is shown because
-calendar mode delegates presence to the linked entity.
+The Overview shows two zone pills — Home (Default Zone) and Office (custom zone)
+— each with its current active period; Noah is listed as present.
+
+### Rooms
+
+![Rooms tab — rooms grouped by zone](screenshots/rooms.png)
+
+The Rooms tab groups Home Office under the Office zone badge and Bedroom plus
+Living Room under the Home zone badge, illustrating how a custom zone segments a
+household.
+
+### Persons
+
+![Persons tab — Noah card expanded](screenshots/persons.png)
+
+The expanded Noah card shows the calendar configuration panel instead of a
+schedule grid: entity selector, event-means toggle, gap-handling selector, and
+wake-up advance field, plus the two room chips (Home Office, Bedroom) grouped by
+floor.
