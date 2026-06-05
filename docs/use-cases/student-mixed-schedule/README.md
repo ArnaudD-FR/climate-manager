@@ -5,15 +5,21 @@ week: Monday is a long day of back-to-back sessions, Tuesday has a late-morning
 slot only, Wednesday is the heaviest day, Thursday is a short morning, and
 Friday finishes early afternoon. Weekends she is home all day. This scenario
 demonstrates how a **scheduled (single-week)** presence programme can express
-genuinely varied per-weekday patterns rather than a simple repeating block.
+genuinely varied per-weekday absent blocks rather than a simple repeating
+pattern.
+
+The zone is **presence-driven** (`time_program_presences`): all three rooms
+follow the time-program schedule while Lena is home and fall back to Reduced
+while she is at her lectures. She is present overnight — "absent" only covers
+the hours she is physically at university.
 
 ## Household layout
 
-| Room        | Zone         | Floor        | Heats when                        |
-| ----------- | ------------ | ------------ | --------------------------------- |
-| Bedroom     | Default Zone | First Floor  | Follows zone + Lena present boost |
-| Study       | Default Zone | First Floor  | Follows zone + Lena present boost |
-| Living Room | Default Zone | Ground Floor | Zone programme only               |
+| Room        | Zone         | Floor        | Heats when                       |
+| ----------- | ------------ | ------------ | -------------------------------- |
+| Bedroom     | Default Zone | First Floor  | Zone schedule while Lena is home |
+| Study       | Default Zone | First Floor  | Zone schedule while Lena is home |
+| Living Room | Default Zone | Ground Floor | Zone schedule while Lena is home |
 
 ## Presence configuration
 
@@ -21,26 +27,31 @@ Lena uses **mode: scheduled**, **schedule_type: single**.
 
 ### Schedule
 
-| Day | Present                    | Absent                   |
-| --- | -------------------------- | ------------------------ |
-| Mon | 07:00–08:00, 16:00 onwards | 00:00–07:00, 08:00–16:00 |
-| Tue | 07:00–10:00, 13:00 onwards | 00:00–07:00, 10:00–13:00 |
-| Wed | 07:00–08:00, 18:00 onwards | 00:00–07:00, 08:00–18:00 |
-| Thu | 07:00–09:00, 12:00 onwards | 00:00–07:00, 09:00–12:00 |
-| Fri | 07:00–08:00, 14:00 onwards | 00:00–07:00, 08:00–14:00 |
-| Sat | all day (00:00 onwards)    | —                        |
-| Sun | all day (00:00 onwards)    | —                        |
+| Day | Present                        | Absent      |
+| --- | ------------------------------ | ----------- |
+| Mon | 00:00–08:00, 16:00 to midnight | 08:00–16:00 |
+| Tue | 00:00–10:00, 13:00 to midnight | 10:00–13:00 |
+| Wed | 00:00–08:00, 18:00 to midnight | 08:00–18:00 |
+| Thu | 00:00–09:00, 12:00 to midnight | 09:00–12:00 |
+| Fri | 00:00–08:00, 14:00 to midnight | 08:00–14:00 |
+| Sat | all day (00:00 onwards)        | —           |
+| Sun | all day (00:00 onwards)        | —           |
+
+Lena is present overnight. She is marked absent only during the hours she is
+physically at university.
 
 ## Rooms driven by Lena
 
-Lena's `room_ids` are **bedroom** and **study**. The living room is heated by
-the zone programme but not tracked for her presence.
+Lena's `room_ids` are **all three rooms**: bedroom, study, and living_room.
+Because the zone is `time_program_presences`, every room needs at least one
+assigned person to receive scheduled heat. All three rooms show a non-zero
+`present_person_count` when Lena is home.
 
 | Room        | Tracked for presence |
 | ----------- | -------------------- |
 | Bedroom     | yes                  |
 | Study       | yes                  |
-| Living Room | no (zone-only)       |
+| Living Room | yes                  |
 
 ## Screenshots
 
@@ -48,15 +59,16 @@ the zone programme but not tracked for her presence.
 
 ![Overview — Lena present, single zone](screenshots/overview.png)
 
-The Overview shows the single Home zone active period and Lena listed as
-currently present; her two linked rooms show a non-zero person count.
+The Overview shows the single Home zone in `time_program_presences` mode with
+the active period and Lena listed as currently present; all three rooms show a
+non-zero person count.
 
 ### Rooms
 
 ![Rooms tab — all three rooms in Default Zone](screenshots/rooms.png)
 
 All three rooms appear under the Default Zone group with live temperature and
-humidity readings, illustrating a single-zone student household.
+humidity readings, illustrating a single-zone presence-driven household.
 
 ### Persons
 
@@ -64,5 +76,5 @@ humidity readings, illustrating a single-zone student household.
 
 The expanded Lena card highlights the per-day time bars: each weekday row shows
 a distinct pattern of absent blocks reflecting the varying class timetable,
-while Saturday and Sunday are fully present. The room chips (Bedroom, Study)
-appear grouped under First Floor.
+while Saturday and Sunday are fully present. All three room chips appear grouped
+by floor.
