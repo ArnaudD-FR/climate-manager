@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
 status: executing
-stopped_at: context exhaustion at 77% (2026-06-05)
-last_updated: "2026-06-05T09:01:12.573Z"
-last_activity: 2026-06-04 -- Phase 16 execution started
+stopped_at: ""
+last_updated: "2026-06-05T19:53:29Z"
+last_activity: 2026-06-05 -- Phase 16 verified (UAT 6/6 pass)
 progress:
   total_phases: 8
   completed_phases: 7
@@ -26,11 +26,10 @@ actually home. **Current focus:** Phase 16 — presence-heating-log-traces
 
 ## Current Position
 
-Phase: 16 (presence-heating-log-traces) — EXECUTING
-Plan: 1 of 7
-Phase: 16 (presence-heating-log-traces) — PENDING
-Status: Executing Phase 16
-Last activity: 2026-06-04 -- Phase 16 execution started
+Phase: 16 (presence-heating-log-traces) — VERIFIED (UAT 6/6)
+Plan: 7 of 7 complete
+Status: Phase 16 verified; pending close-out (screenshots + architecture.md)
+Last activity: 2026-06-05 -- Phase 16 verified (UAT 6/6 pass)
 
 ## Performance Metrics
 
