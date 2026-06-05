@@ -253,6 +253,19 @@ class ClimateManagerCoordinator:
                 room for room in rooms.values() if room._zone is zone
             ]
 
+        # Carry forward anti-spam state from previous Zone/Person objects so a
+        # config-triggered rebuild doesn't reset log-state and spam the log.
+        for zone_id, zone in zones.items():
+            old = self._zones.get(zone_id)
+            if old is not None and old._current_period is not None:
+                zone._current_period = old._current_period
+                zone._current_mode_name = old._current_mode_name
+
+        for person_id, person in persons.items():
+            old_p = self._persons.get(person_id)
+            if old_p is not None and old_p._last_home is not None:
+                person._last_home = old_p._last_home
+
         # Commit the new graph (single atomic update — Pitfall 1).
         self._zones = zones
         self._persons = persons

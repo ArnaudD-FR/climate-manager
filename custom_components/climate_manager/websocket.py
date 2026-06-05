@@ -731,14 +731,20 @@ def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
                     msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
                 )
                 return
+        # Emit OBS-01 mode-change log on the live Zone before the next
+        # async_evaluate rebuild replaces the Zone object.
+        coord = entry.runtime_data.coordinator
+        live_zone = coord._zones.get(msg["zone_id"])
+        if live_zone is not None:
+            live_zone.change_mode(msg["mode"])
         connection.send_result(msg["id"], {"success": True})
         # Fire status immediately so the panel badge updates without waiting
         # for the full async_evaluate cycle (which pushes temps to TRVs first).
         hass.bus.async_fire(
             f"{DOMAIN}_status_update",
-            entry.runtime_data.coordinator._build_status_payload(),
+            coord._build_status_payload(),
         )
-        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+        hass.async_create_task(coord.async_evaluate())
 
     return ws_set_zone_mode
 
