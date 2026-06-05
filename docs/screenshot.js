@@ -31,7 +31,9 @@ const MDI_KEYS = [
 const mdiPaths = Object.fromEntries(MDI_KEYS.map((k) => [k, mdi[k]]));
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
-const SCREENSHOTS_DIR = path.join(__dirname, "screenshots");
+const SCREENSHOTS_DIR = process.env.OUTPUT_DIR
+  ? path.resolve(process.env.OUTPUT_DIR)
+  : path.join(__dirname, "screenshots");
 const PORT = 7654;
 
 // ---------------------------------------------------------------------------
@@ -104,8 +106,9 @@ async function main() {
   // ------------------------------------------------------------------
   // Load harness and wait for panel to be ready
   // ------------------------------------------------------------------
+  const HARNESS_PATH = process.env.HARNESS_PATH || "/docs/test-harness.html";
   console.log("Loading harness…");
-  await page.goto(`http://localhost:${PORT}/docs/test-harness.html`);
+  await page.goto(`http://localhost:${PORT}${HARNESS_PATH}`);
 
   // Wait for the tab-bar (means config loaded and panel rendered)
   await page.waitForFunction(
@@ -173,36 +176,51 @@ async function main() {
   // ------------------------------------------------------------------
   const out = (p) => path.join(SCREENSHOTS_DIR, p);
 
-  // 1. Overview (default "global" tab)
-  await page.screenshot({ path: out("overview.png") });
-  console.log("✓ overview.png");
+  if (process.env.HARNESS_PATH) {
+    // Scenario mode: capture only Overview + expanded Persons card (D-04)
+    // 1. Overview (default tab, already active on load)
+    await page.screenshot({ path: out("overview.png") });
+    console.log("✓ overview.png");
 
-  // 2. Rooms tab
-  await clickTab("Rooms");
-  await expandFirstCard("climate-manager-rooms-tab");
-  await page.screenshot({ path: out("rooms.png") });
-  console.log("✓ rooms.png");
+    // 2. Persons tab — expanded first person card
+    await clickTab("Persons");
+    await expandFirstCard("climate-manager-persons-tab");
+    await page.screenshot({ path: out("persons.png") });
+    console.log("✓ persons.png");
+  } else {
+    // Standard mode: existing 6-screenshot sequence (unchanged)
 
-  // 3. Persons tab
-  await clickTab("Persons");
-  await expandFirstCard("climate-manager-persons-tab");
-  await page.screenshot({ path: out("persons.png") });
-  console.log("✓ persons.png");
+    // 1. Overview (default "global" tab)
+    await page.screenshot({ path: out("overview.png") });
+    console.log("✓ overview.png");
 
-  // 4. Default Zone tab (Home)
-  await clickTab("Home");
-  await page.screenshot({ path: out("zone.png") });
-  console.log("✓ zone.png");
+    // 2. Rooms tab
+    await clickTab("Rooms");
+    await expandFirstCard("climate-manager-rooms-tab");
+    await page.screenshot({ path: out("rooms.png") });
+    console.log("✓ rooms.png");
 
-  // 5. Custom zone tab (Upstairs)
-  await clickTab("Upstairs");
-  await page.screenshot({ path: out("zone-upstairs.png") });
-  console.log("✓ zone-upstairs.png");
+    // 3. Persons tab
+    await clickTab("Persons");
+    await expandFirstCard("climate-manager-persons-tab");
+    await page.screenshot({ path: out("persons.png") });
+    console.log("✓ persons.png");
 
-  // 6. Overview again as global-settings alias (same component)
-  await clickTab("Overview");
-  await page.screenshot({ path: out("global-settings.png") });
-  console.log("✓ global-settings.png");
+    // 4. Default Zone tab (Home)
+    await clickTab("Home");
+    await page.screenshot({ path: out("zone.png") });
+    console.log("✓ zone.png");
+
+    // 5. Custom zone tab (Upstairs)
+    await clickTab("Upstairs");
+    await page.screenshot({ path: out("zone-upstairs.png") });
+    console.log("✓ zone-upstairs.png");
+
+    // 6. Overview again as global-settings alias (same component)
+    await clickTab("Overview");
+    await page.screenshot({ path: out("global-settings.png") });
+    console.log("✓ global-settings.png");
+  }
 
   // ------------------------------------------------------------------
   await browser.close();
