@@ -145,6 +145,14 @@ class Room:
             *(group.push(temp, period, ctx) for group in self._trv_groups)
         )
 
+    async def apply_off(self, frost_temp: float, ctx: "EvalContext") -> None:
+        """Push MODE_OFF to all TRV groups: off for off-capable, frost for others."""
+        if not self._trv_groups:
+            return
+        await asyncio.gather(
+            *(group.push_off(frost_temp, ctx) for group in self._trv_groups)
+        )
+
     # -------------------------------------------------------------------
     # Preheat pass (migrated from coordinator._async_preheat_room)
     # -------------------------------------------------------------------

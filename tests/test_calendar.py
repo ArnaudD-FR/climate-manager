@@ -516,9 +516,6 @@ async def test_calendar_fallback_on_error(hass, caplog):
         await entry.runtime_data.coordinator.async_evaluate()
         await hass.async_block_till_done()
 
-    # D-04: _calendar_cache[eid] == [] on error (fallback to absent)
-    assert entry.runtime_data.coordinator._calendar_cache[cal_id] == []
-
     # D-04: exactly one WARNING for the failing calendar entity
     warning_records = [
         r

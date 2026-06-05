@@ -517,3 +517,22 @@ class TRVGroup:
                 for trv in self._trvs
             )
         )
+
+    async def push_off(self, frost_temp: float, ctx: object) -> None:
+        """Push MODE_OFF: push_off for off-capable TRVs, frost temp for others."""
+        await asyncio.gather(
+            *(
+                (
+                    trv.push_off(frost_temp, ctx)
+                    if supports_hvac_off(trv._hass, trv.entity_id)
+                    else trv.push_temperature(
+                        frost_temp,
+                        room_name=self._room_name,
+                        zone_name=self._zone_name,
+                        slot="off",
+                        ctx=ctx,
+                    )
+                )
+                for trv in self._trvs
+            )
+        )

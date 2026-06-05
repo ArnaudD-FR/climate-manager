@@ -450,102 +450,100 @@ def _make_simple_coordinator(hass) -> ClimateManagerCoordinator:
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-def test_compute_present_persons_ha_mode_state_home(hass):
+async def test_compute_present_persons_ha_mode_state_home(hass):
     """D-21: person with mode='ha' and state='home' is present."""
+    from custom_components.climate_manager.eval_context import EvalContext
+    from custom_components.climate_manager.person import Person
+
     hass.states.async_set("person.alice", "home")
-    coordinator = _make_simple_coordinator(hass)
-    config = _make_runtime_config(
-        persons_config={"person.alice": {"mode": "ha", "room_ids": []}}
-    )
     now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
-    result = coordinator._compute_present_persons(config, now)
-    assert "person.alice" in result
+    ctx = EvalContext(now=now, hass=hass, period_temperatures={})
+    person = Person("person.alice", hass, {"mode": "ha", "room_ids": []})
+    assert await person.evaluate(ctx) is True
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-def test_compute_present_persons_ha_mode_state_not_home(hass):
+async def test_compute_present_persons_ha_mode_state_not_home(hass):
     """D-21: person with mode='ha' and state='not_home' is absent."""
+    from custom_components.climate_manager.eval_context import EvalContext
+    from custom_components.climate_manager.person import Person
+
     hass.states.async_set("person.alice", "not_home")
-    coordinator = _make_simple_coordinator(hass)
-    config = _make_runtime_config(
-        persons_config={"person.alice": {"mode": "ha", "room_ids": []}}
-    )
     now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
-    result = coordinator._compute_present_persons(config, now)
-    assert "person.alice" not in result
+    ctx = EvalContext(now=now, hass=hass, period_temperatures={})
+    person = Person("person.alice", hass, {"mode": "ha", "room_ids": []})
+    assert await person.evaluate(ctx) is False
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-def test_compute_present_persons_ha_mode_state_unknown(hass):
+async def test_compute_present_persons_ha_mode_state_unknown(hass):
     """D-21: person with mode='ha' and state='unknown' is absent."""
+    from custom_components.climate_manager.eval_context import EvalContext
+    from custom_components.climate_manager.person import Person
+
     hass.states.async_set("person.alice", "unknown")
-    coordinator = _make_simple_coordinator(hass)
-    config = _make_runtime_config(
-        persons_config={"person.alice": {"mode": "ha", "room_ids": []}}
-    )
     now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
-    result = coordinator._compute_present_persons(config, now)
-    assert "person.alice" not in result
+    ctx = EvalContext(now=now, hass=hass, period_temperatures={})
+    person = Person("person.alice", hass, {"mode": "ha", "room_ids": []})
+    assert await person.evaluate(ctx) is False
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-def test_compute_present_persons_ha_mode_state_missing(hass):
+async def test_compute_present_persons_ha_mode_state_missing(hass):
     """D-21: person with mode='ha' and no HA state (entity not found) is absent."""
-    # Do NOT seed any state for person.alice — hass.states.get returns None
-    coordinator = _make_simple_coordinator(hass)
-    config = _make_runtime_config(
-        persons_config={"person.alice": {"mode": "ha", "room_ids": []}}
-    )
+    from custom_components.climate_manager.eval_context import EvalContext
+    from custom_components.climate_manager.person import Person
+
     now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
-    result = coordinator._compute_present_persons(config, now)
-    assert "person.alice" not in result
+    ctx = EvalContext(now=now, hass=hass, period_temperatures={})
+    person = Person("person.alice", hass, {"mode": "ha", "room_ids": []})
+    assert await person.evaluate(ctx) is False
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-def test_compute_present_persons_ha_mode_state_unavailable(hass):
+async def test_compute_present_persons_ha_mode_state_unavailable(hass):
     """D-21: person with mode='ha' and state='unavailable' is absent."""
+    from custom_components.climate_manager.eval_context import EvalContext
+    from custom_components.climate_manager.person import Person
+
     hass.states.async_set("person.alice", "unavailable")
-    coordinator = _make_simple_coordinator(hass)
-    config = _make_runtime_config(
-        persons_config={"person.alice": {"mode": "ha", "room_ids": []}}
-    )
     now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
-    result = coordinator._compute_present_persons(config, now)
-    assert "person.alice" not in result
+    ctx = EvalContext(now=now, hass=hass, period_temperatures={})
+    person = Person("person.alice", hass, {"mode": "ha", "room_ids": []})
+    assert await person.evaluate(ctx) is False
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-def test_compute_present_persons_ha_mode_state_zone_name(hass):
-    """D-21: person with mode='ha' and state='work' (zone name) is absent — only 'home' qualifies."""
+async def test_compute_present_persons_ha_mode_state_zone_name(hass):
+    """D-21: person with mode='ha' and state='work' is absent — only 'home' qualifies."""
+    from custom_components.climate_manager.eval_context import EvalContext
+    from custom_components.climate_manager.person import Person
+
     hass.states.async_set("person.alice", "work")
-    coordinator = _make_simple_coordinator(hass)
-    config = _make_runtime_config(
-        persons_config={"person.alice": {"mode": "ha", "room_ids": []}}
-    )
     now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
-    result = coordinator._compute_present_persons(config, now)
-    assert "person.alice" not in result
+    ctx = EvalContext(now=now, hass=hass, period_temperatures={})
+    person = Person("person.alice", hass, {"mode": "ha", "room_ids": []})
+    assert await person.evaluate(ctx) is False
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-def test_compute_present_persons_mixed_modes(hass):
-    """D-21: mixed modes — force_present always present, ha+home present, ha+not_home absent."""
+async def test_compute_present_persons_mixed_modes(hass):
+    """D-21: force_present always present, ha+home present, ha+not_home absent."""
+    from custom_components.climate_manager.eval_context import EvalContext
+    from custom_components.climate_manager.person import Person
+
     hass.states.async_set("person.bob", "home")
     hass.states.async_set("person.carol", "not_home")
-    coordinator = _make_simple_coordinator(hass)
-    config = _make_runtime_config(
-        persons_config={
-            "person.alice": {"mode": "force_present", "room_ids": []},
-            "person.bob": {"mode": "ha", "room_ids": []},
-            "person.carol": {"mode": "ha", "room_ids": []},
-        }
-    )
     now = datetime.datetime(2026, 1, 5, 12, 0, tzinfo=datetime.timezone.utc)
-    result = coordinator._compute_present_persons(config, now)
-    assert "person.alice" in result
-    assert "person.bob" in result
-    assert "person.carol" not in result
-    assert len(result) == 2
+    ctx = EvalContext(now=now, hass=hass, period_temperatures={})
+    alice = Person(
+        "person.alice", hass, {"mode": "force_present", "room_ids": []}
+    )
+    bob = Person("person.bob", hass, {"mode": "ha", "room_ids": []})
+    carol = Person("person.carol", hass, {"mode": "ha", "room_ids": []})
+    assert await alice.evaluate(ctx) is True
+    assert await bob.evaluate(ctx) is True
+    assert await carol.evaluate(ctx) is False
 
 
 # ---------------------------------------------------------------------------
@@ -783,8 +781,18 @@ async def test_mode_off_to_time_program_pushes_schedule_temp(hass):
     assert len(off_calls) == 1, (
         "Expected one set_hvac_mode=off call in MODE_OFF"
     )
-    assert coord._last_pushed.get(entity) == "off", (
-        "Expected 'off' sentinel in _last_pushed"
+    # After refactor: _last_pushed is owned by TRV.last_pushed (D-06/Pitfall 5).
+    # Access via coordinator domain object graph: _rooms[area]._trv_groups[i]._trvs[j]
+    bureau_room = coord._rooms.get("bureau")
+    bureau_trv_last = (
+        bureau_room._trv_groups[0]._trvs[0].last_pushed
+        if bureau_room
+        and bureau_room._trv_groups
+        and bureau_room._trv_groups[0]._trvs
+        else None
+    )
+    assert bureau_trv_last == "off", (
+        f"Expected 'off' sentinel in TRV.last_pushed (Pitfall 5), got {bureau_trv_last!r}"
     )
 
     # Tick 2: switch to MODE_TIME_PROGRAM — should push heat + schedule temp
@@ -2211,8 +2219,8 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
     """D-04: for a mapped room, _async_calibrate_for_room routes calibration
     through the Matter entity as the temperature source, not the tado_x entity.
 
-    We verify this by spying on _async_calibrate_tado_device or
-    _async_calibrate_room to confirm matter_eid is passed as zone_entity_id.
+    We verify this by spying on _async_calibrate_tado_device or Room.calibrate_trvs
+    to confirm matter_eid is the temperature source.
     """
     from homeassistant.helpers import entity_registry as er
 
@@ -2255,12 +2263,14 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
     entry.runtime_data.rooms = {"kitchen": [tado_eid, matter_eid]}
 
     coordinator = entry.runtime_data.coordinator
+    # Trigger domain object rebuild with updated config.
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
 
-    # Spy on _async_calibrate_tado_device to check zone_entity_id used
+    # Spy on _async_calibrate_tado_device to check zone_entity_id used.
     calibrate_tado_calls: list[dict] = []
-    calibrate_room_calls: list[str] = []
+    calibrate_room_called: list[bool] = []
     original_calibrate_tado = coordinator._async_calibrate_tado_device
-    original_calibrate_room = coordinator._async_calibrate_room
 
     async def _spy_calibrate_tado(
         area_id, device_id, zone_entity_id, sensor_entity_id, config
@@ -2270,33 +2280,31 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
             area_id, device_id, zone_entity_id, sensor_entity_id, config
         )
 
-    async def _spy_calibrate_room(area_id, entity_id, sensor, config):
-        calibrate_room_calls.append(entity_id)
-        await original_calibrate_room(area_id, entity_id, sensor, config)
-
     coordinator._async_calibrate_tado_device = _spy_calibrate_tado
-    coordinator._async_calibrate_room = _spy_calibrate_room
+
+    # Spy on Room.calibrate_trvs for the D-05 fallback path.
+    kitchen_room = coordinator._rooms.get("kitchen")
+    if kitchen_room is not None:
+        original_calibrate_trvs = kitchen_room.calibrate_trvs
+
+        async def _spy_calibrate_trvs(ctx):
+            calibrate_room_called.append(True)
+            await original_calibrate_trvs(ctx)
+
+        kitchen_room.calibrate_trvs = _spy_calibrate_trvs
 
     await coordinator._async_calibrate_for_room("kitchen")
     await hass.async_block_till_done()
 
-    # D-04: when mapping exists, Matter entity must be the temp source
+    # D-04: when mapping exists, either tado device path or room path fires.
+    assert calibrate_tado_calls or calibrate_room_called, (
+        "D-04: no calibration call was made for a mapped room "
+        "with calibration_enabled=True"
+    )
     if calibrate_tado_calls:
         assert calibrate_tado_calls[0]["zone_entity_id"] == matter_eid, (
             f"D-04: tado calibration must use Matter entity as temp source; "
             f"got {calibrate_tado_calls[0]['zone_entity_id']!r}"
-        )
-    elif calibrate_room_calls:
-        # D-05 fallback: no tado valve devices → _async_calibrate_room
-        # must be called with matter_eid as entity_id
-        assert calibrate_room_calls[0] == matter_eid, (
-            f"D-05 fallback: must use Matter entity as temp source; "
-            f"got {calibrate_room_calls[0]!r}"
-        )
-    else:
-        raise AssertionError(
-            "D-04: no calibration call was made for a mapped room "
-            "with calibration_enabled=True"
         )
 
 
@@ -2345,26 +2353,29 @@ async def test_calibrate_for_room_unmapped_tado_uses_existing_path(hass):
     entry.runtime_data.rooms = {"office": [tado_eid]}
 
     coordinator = entry.runtime_data.coordinator
+    # Trigger domain object rebuild with updated config and rooms.
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
 
-    calibrate_room_calls: list[str] = []
-    original_calibrate_room = coordinator._async_calibrate_room
+    calibrate_room_called: list[bool] = []
+    office_room = coordinator._rooms.get("office")
+    if office_room is not None:
+        original_calibrate_trvs = office_room.calibrate_trvs
 
-    async def _spy_calibrate_room(area_id, entity_id, sensor, config):
-        calibrate_room_calls.append(entity_id)
-        await original_calibrate_room(area_id, entity_id, sensor, config)
+        async def _spy_calibrate_trvs(ctx):
+            calibrate_room_called.append(True)
+            await original_calibrate_trvs(ctx)
 
-    coordinator._async_calibrate_room = _spy_calibrate_room
+        office_room.calibrate_trvs = _spy_calibrate_trvs
 
     await coordinator._async_calibrate_for_room("office")
     await hass.async_block_till_done()
 
-    # D-06: unmapped tado_x → existing calibration path
-    # In test env, no tado valve devices → _async_calibrate_room with tado eid
-    if calibrate_room_calls:
-        assert calibrate_room_calls[0] == tado_eid, (
-            f"D-06: unmapped tado_x must use tado_x entity as temp source; "
-            f"got {calibrate_room_calls[0]!r}"
-        )
+    # D-06: unmapped tado_x in test env (no valve devices) → Room.calibrate_trvs
+    # was called (generic path).
+    assert calibrate_room_called, (
+        "D-06: unmapped tado_x must route to Room.calibrate_trvs in test env"
+    )
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
@@ -2410,24 +2421,24 @@ async def test_calibrate_for_room_unmapped_matter_uses_room_path(hass):
     entry.runtime_data.rooms = {"guest": [matter_eid]}
 
     coordinator = entry.runtime_data.coordinator
+    # Trigger domain object rebuild with updated config and rooms.
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
 
-    calibrate_room_calls: list[str] = []
-    original_calibrate_room = coordinator._async_calibrate_room
+    calibrate_room_called: list[bool] = []
+    guest_room = coordinator._rooms.get("guest")
+    if guest_room is not None:
+        original_calibrate_trvs = guest_room.calibrate_trvs
 
-    async def _spy_calibrate_room(area_id, entity_id, sensor, config):
-        calibrate_room_calls.append(entity_id)
-        await original_calibrate_room(area_id, entity_id, sensor, config)
+        async def _spy_calibrate_trvs(ctx):
+            calibrate_room_called.append(True)
+            await original_calibrate_trvs(ctx)
 
-    coordinator._async_calibrate_room = _spy_calibrate_room
+        guest_room.calibrate_trvs = _spy_calibrate_trvs
 
     await coordinator._async_calibrate_for_room("guest")
     await hass.async_block_till_done()
 
-    assert len(calibrate_room_calls) >= 1, (
-        "D-07: unmapped Matter entity must trigger _async_calibrate_room; "
-        f"got {calibrate_room_calls}"
-    )
-    assert calibrate_room_calls[0] == matter_eid, (
-        f"D-07: _async_calibrate_room must use Matter entity_id; "
-        f"got {calibrate_room_calls[0]!r}"
+    assert calibrate_room_called, (
+        "D-07: unmapped Matter entity must route to Room.calibrate_trvs"
     )

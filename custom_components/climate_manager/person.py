@@ -126,6 +126,18 @@ class PersonModeScheduled(PersonMode):
 
     async def is_present(self, ctx: "EvalContext") -> bool:
         person = self.person
+        # Pre-fetch calendar entities referenced in "calendar" period states
+        # so ctx._calendar_cache is populated before resolve_presence reads it.
+        schedule = person.person_config.get("schedule", {})
+        for day_slots in schedule.values():
+            if isinstance(day_slots, list):
+                for slot in day_slots:
+                    if slot.get("state") == "calendar":
+                        eid = (slot.get("calendar_config") or {}).get(
+                            "entity_id"
+                        )
+                        if eid:
+                            await ctx.calendar_events(eid)
         return resolve_presence(
             person.person_config,
             ctx.now,

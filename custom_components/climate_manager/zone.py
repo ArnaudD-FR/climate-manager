@@ -108,7 +108,7 @@ class ZoneModeOff(ZoneMode):
         zone = self.zone
         frost_temp: float = ctx.period_temperatures[PERIOD_FROST_PROTECTION]
         for room in zone.rooms:
-            await room.apply_setpoint(PERIOD_FROST_PROTECTION, frost_temp, ctx)
+            await room.apply_off(frost_temp, ctx)
         return PERIOD_FROST_PROTECTION, self.mode_name
 
 
@@ -236,6 +236,11 @@ class Zone:
     # ------------------------------------------------------------------
     # Properties read by ZoneMode subclasses through the weakref
     # ------------------------------------------------------------------
+
+    @property
+    def mode(self) -> str:
+        """Current mode string (e.g. 'time_program', 'off')."""
+        return self._mode.mode_name
 
     @property
     def rooms(self) -> list:
