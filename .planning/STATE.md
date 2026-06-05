@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
-status: executing
-stopped_at: ""
-last_updated: "2026-06-05T19:53:29Z"
-last_activity: 2026-06-05 -- Phase 16 complete (close-out done)
+status: Phase 16 closed out (UAT 6/6, screenshots + architecture.md refreshed)
+stopped_at: Phase 17 context gathered
+last_updated: "2026-06-05T13:50:08.706Z"
+last_activity: "2026-06-05 -- Phase 16 complete; next: Phase 17 (use-case docs)"
 progress:
   total_phases: 8
   completed_phases: 7
@@ -135,8 +135,8 @@ Last activity: 2026-06-03 - Completed quick task 260603-tf5: Add toast feedback 
 
 ## Session Continuity
 
-Last session: 2026-06-05T09:01:12.570Z
-Stopped at: context exhaustion at 77% (2026-06-05)
+Last session: 2026-06-05T20:17:51.697Z
+Stopped at: Phase 17 context gathered
 
 ## Operator Next Steps
 
