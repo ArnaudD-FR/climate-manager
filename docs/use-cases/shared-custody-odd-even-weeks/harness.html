@@ -155,11 +155,18 @@
   // shared-custody-odd-even-weeks — Sofia's two-zone home.
   // Ground floor: Default Zone "Home", time_program.
   // First floor: custom zone "Child's Room", time_program_presences.
-  // Sofia uses scheduled / even_odd mode:
-  //   Even week → present all week; odd week → absent all week.
+  // Sofia uses scheduled / even_odd mode with a MIXED schedule, because
+  // custody alternates weekly with the handover on FRIDAY AT NOON:
+  //   • Odd week  → child here for the working week: weekday presence is
+  //                 driven by the Pronote school calendar (per-period
+  //                 state:"calendar"); on Friday the Pronote calendar applies
+  //                 until 12:00, then the child leaves (absent). Weekend away.
+  //   • Even week → child arrives at the Friday-noon handover: away Mon–Thu,
+  //                 absent until Friday 12:00 then present, and the weekend is
+  //                 a hand-set MANUAL schedule.
+  // Friday is therefore split at 12:00 in BOTH week programs (the handover).
   // The active week tab shown at capture time is computed by getWeekParity()
   // in the panel using the real current date — accept whichever renders.
-  // STATUS is set as if Sofia is present (even-week scenario).
 
   const ZONE_ID = 'zone-childroom-4d8e';
 
@@ -199,16 +206,47 @@
   const homeProg = mkProg(homeWD, homeWE);
   const childRoomProg = mkProg(childRoomWD, childRoomWE);
 
-  // Present-all-week: a single all-day "present" period for every day.
-  const allPresent = [{ start: '00:00', state: 'present' }];
-  const allAbsent  = [{ start: '00:00', state: 'absent'  }];
+  // Pronote = the child's school timetable calendar. A class in session
+  // means the child is at school (absent); short gaps between classes stay
+  // absent, long gaps / after-school let them return home.
+  const PRONOTE = {
+    entity_id: 'calendar.pronote',
+    event_means: 'absent',
+    gap_handling: 'threshold',
+    gap_threshold_minutes: 60,
+  };
 
-  function mkWeekPresence(period) {
-    return {
-      mon: period, tue: period, wed: period, thu: period,
-      fri: period, sat: period, sun: period,
-    };
-  }
+  // Weekday driven entirely by the Pronote calendar.
+  const calDay = [{ start: '00:00', state: 'calendar', calendar_config: PRONOTE }];
+  const allAbsent = [{ start: '00:00', state: 'absent' }];
+
+  // Odd week — child here for the working week, handover OUT at Friday noon:
+  //   Mon–Thu Pronote-driven; Friday Pronote until 12:00 then absent;
+  //   weekend away.
+  const oddFri = [
+    { start: '00:00', state: 'calendar', calendar_config: PRONOTE },
+    { start: '12:00', state: 'absent' },
+  ];
+  const scheduleOdd = {
+    mon: calDay, tue: calDay, wed: calDay, thu: calDay,
+    fri: oddFri, sat: allAbsent, sun: allAbsent,
+  };
+
+  // Even week — handover IN at Friday noon, then a MANUAL weekend:
+  //   away Mon–Thu; Friday absent until 12:00 then present; Sat/Sun hand-set.
+  const evenFri = [
+    { start: '00:00', state: 'absent' },
+    { start: '12:00', state: 'present' },
+  ];
+  const weekendManual = [
+    { start: '00:00', state: 'present' },
+    { start: '14:00', state: 'absent' },
+    { start: '18:00', state: 'present' },
+  ];
+  const scheduleEven = {
+    mon: allAbsent, tue: allAbsent, wed: allAbsent, thu: allAbsent,
+    fri: evenFri, sat: weekendManual, sun: weekendManual,
+  };
 
   const CONFIG = {
     period_temperatures: {
@@ -234,15 +272,15 @@
       living_room:   {},
     },
     persons: {
-      // D-11: scheduled / even_odd.
-      // Even week = Sofia present all week (both rooms heated by her presence).
-      // Odd week  = Sofia absent all week (child's bedroom reverts to frost).
+      // D-11: scheduled / even_odd with mixed calendar + manual schedule.
+      // Odd week  = working week here (Pronote weekdays, leaves Friday noon).
+      // Even week = arrives Friday noon, manual weekend schedule.
       'person.sofia': {
         mode: 'scheduled',
         schedule_type: 'even_odd',
         room_ids: ['child_bedroom', 'living_room'],
-        schedule_even: mkWeekPresence(allPresent),
-        schedule_odd:  mkWeekPresence(allAbsent),
+        schedule_odd: scheduleOdd,
+        schedule_even: scheduleEven,
       },
     },
     climate_entities: [
@@ -251,7 +289,8 @@
     ],
   };
 
-  // STATUS set as if it is an even week (Sofia present).
+  // STATUS snapshot: child currently home (e.g. an even-week evening, or a
+  // weekday after school in the odd week) so Overview shows a present state.
   const STATUS = {
     zones: {
       default: { mode: 'time_program', active_period: 'normal' },
@@ -319,6 +358,14 @@
       'person.sofia': {
         state: 'home',
         attributes: { friendly_name: 'Sofia' },
+      },
+      // Pronote school-timetable calendar — drives weekday presence.
+      'calendar.pronote': {
+        state: 'on',
+        attributes: {
+          friendly_name: 'Pronote — Collège',
+          message: 'Mathématiques',
+        },
       },
     },
     // Floor + area metadata drives the grouped-by-floor layout on person cards.

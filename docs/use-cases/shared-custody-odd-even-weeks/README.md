@@ -1,50 +1,65 @@
 # Sofia — Shared Custody (Odd/Even Weeks)
 
 Sofia is a child who alternates between two homes under a shared-custody
-arrangement: she is present every other week and away the alternate weeks. The
-hand-over happens cleanly at week boundaries (ISO week numbering). This example
-shows how the **scheduled even/odd weeks** presence mode automates heating for
-exactly that pattern — no manual intervention required when the week flips.
+arrangement. The hand-over happens **every Friday at noon**, so one week she is
+here for the school days and leaves for the weekend, and the alternate week she
+arrives for the weekend and is away during the school days. This example shows
+how the **scheduled even/odd weeks** mode combines with a **per-day calendar**
+and a **manual weekend schedule** in a single person config — automating a
+genuinely mixed custody pattern with no manual intervention when the week flips.
 
 ## Household layout
 
-| Room            | Zone                       | Floor        | Heats when                      |
-| --------------- | -------------------------- | ------------ | ------------------------------- |
-| Child's Bedroom | Child's Room (custom zone) | First Floor  | Sofia present (even weeks)      |
-| Living Room     | Home (Default Zone)        | Ground Floor | Time program (always scheduled) |
+| Room            | Zone                       | Floor        | Heats when                       |
+| --------------- | -------------------------- | ------------ | -------------------------------- |
+| Child's Bedroom | Child's Room (custom zone) | First Floor  | Sofia present (per the schedule) |
+| Living Room     | Home (Default Zone)        | Ground Floor | Time program (always scheduled)  |
 
 The **Home** Default Zone runs a standard time program for the living room. The
 **Child's Room** custom zone uses `time_program_presences` mode — it heats
-according to its own schedule only when Sofia is marked present by the even/odd
-programme.
+according to its own schedule only when Sofia is marked present.
 
 ## Presence configuration
 
-Sofia's config uses `mode: 'scheduled'` with `schedule_type: 'even_odd'`. Two
-independent weekly programmes are stored:
+Sofia's config uses `mode: 'scheduled'` with `schedule_type: 'even_odd'`, but
+each week's program is itself **mixed**: weekdays are driven by the **Pronote**
+school calendar (a per-period `state: 'calendar'` pointing at
+`calendar.pronote`) and the weekend is a **hand-set manual** schedule. The
+custody hand-over at **Friday noon** means Friday is split at `12:00` in both
+programs.
 
-### Schedule (even / odd weeks)
+### Odd week — here for the school week, leaves Friday noon
 
-| Week parity | Mon             | Tue     | Wed     | Thu     | Fri     | Sat     | Sun     |
-| ----------- | --------------- | ------- | ------- | ------- | ------- | ------- | ------- |
-| Even week   | Present all day | Present | Present | Present | Present | Present | Present |
-| Odd week    | Absent all day  | Absent  | Absent  | Absent  | Absent  | Absent  | Absent  |
+| Mon–Thu          | Fri                          | Sat    | Sun    |
+| ---------------- | ---------------------------- | ------ | ------ |
+| Pronote calendar | Pronote until 12:00 → absent | Absent | Absent |
 
-Each day has a single period starting at `00:00` — either fully present or fully
-absent. The integration's coordinator reads the current ISO week number at each
-evaluation cycle and applies the matching schedule.
+On school days, the Pronote timetable drives presence: while a class event is
+active the child is at school (absent); after school and long gaps count as home
+(`event_means: 'absent'`, `gap_handling: 'threshold'`, 60 min).
+
+### Even week — arrives Friday noon, manual weekend
+
+| Mon–Thu | Fri                          | Sat (manual)                         | Sun (manual)                         |
+| ------- | ---------------------------- | ------------------------------------ | ------------------------------------ |
+| Absent  | Absent until 12:00 → present | Present, out 14:00–18:00, back 18:00 | Present, out 14:00–18:00, back 18:00 |
+
+The weekend days use hand-set present/absent periods (e.g. an afternoon out),
+which read as plain manual bars rather than calendar bars.
 
 **Note on screenshots:** The panel computes the active week parity from the real
 system clock at capture time (`getWeekParity(new Date())`). The persons
-screenshot will show whichever week tab is currently active. Both tabs (Even and
-Odd) exist on the card and can be toggled by the user in the live UI.
+screenshot shows whichever week tab is currently active; both **Even** and
+**Odd** tabs exist on the card and can be toggled in the live UI. On the Odd
+tab, the weekday bars carry an inline **Calendar: Pronote — Collège** config
+block; on the Even tab, the weekend bars are plain manual periods.
 
 ## Rooms driven by Sofia
 
 Sofia's `room_ids: ['child_bedroom', 'living_room']` means both rooms react to
-her presence. On even weeks (present) the Child's Bedroom heats normally; on odd
-weeks (absent) it falls back to frost protection. The Living Room also follows
-her presence for its comfort-mode boost periods.
+her presence. When the schedule marks her present the Child's Bedroom heats
+normally; when absent it falls back to frost protection. The Living Room also
+follows her presence for its comfort-mode boost periods.
 
 ## Screenshots
 
@@ -54,7 +69,7 @@ her presence for its comfort-mode boost periods.
 
 The Overview tab shows the two zones (Home and Child's Room) with their current
 modes. The Child's Room zone badge reflects `time_program_presences`. Sofia's
-presence state is shown as present (even-week capture).
+presence state reflects the active week at capture time.
 
 ### Rooms tab
 
@@ -70,6 +85,7 @@ readings are shown for each TRV.
 
 The expanded Sofia card shows the **Even / Odd** week-switcher tabs and the
 schedule bars for the active week. The screenshot reflects whichever parity is
-current at capture time. The Even tab shows all-present bars; the Odd tab shows
-all-absent bars. Room chips list Child's Bedroom (First Floor) and Living Room
-(Ground Floor), demonstrating the multi-floor room association.
+current at capture time — the Odd tab shows Pronote-calendar weekdays with a
+Friday-noon split, the Even tab shows the manual weekend schedule. Room chips
+list Child's Bedroom (First Floor) and Living Room (Ground Floor), demonstrating
+the multi-floor room association.
