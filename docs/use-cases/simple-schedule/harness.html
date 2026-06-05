@@ -69,7 +69,9 @@
         svg.setAttribute('viewBox', '0 0 24 24');
         svg.setAttribute('width', '24');
         svg.setAttribute('height', '24');
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const path = document.createElementNS(
+          'http://www.w3.org/2000/svg', 'path',
+        );
         path.setAttribute('d', pathData);
         svg.appendChild(path);
         root.appendChild(svg);
@@ -148,91 +150,124 @@
 
 <!-- Mock hass — runs after panel.js defines climate-manager-panel -->
 <script type="module">
+  // Emma — single-occupant household, no custom zones.
+  // Four rooms across two floors; Emma follows a standard office-week pattern.
+
   const weekdayProg = [
     { start: '00:00', mode: 'frost_protection' },
     { start: '06:30', mode: 'normal' },
     { start: '09:00', mode: 'reduced' },
-    { start: '17:00', mode: 'normal' },
+    { start: '17:30', mode: 'normal' },
     { start: '22:00', mode: 'frost_protection' },
   ];
   const weekendProg = [
     { start: '00:00', mode: 'frost_protection' },
     { start: '08:00', mode: 'normal' },
+    { start: '10:00', mode: 'comfort' },
+    { start: '14:00', mode: 'normal' },
     { start: '23:00', mode: 'frost_protection' },
   ];
 
   function mkProg(wd, we) {
-    return { mon: wd, tue: wd, wed: wd, thu: wd, fri: wd, sat: we, sun: we };
+    return {
+      mon: wd, tue: wd, wed: wd, thu: wd, fri: wd, sat: we, sun: we,
+    };
   }
 
   const defaultProg = mkProg(weekdayProg, weekendProg);
+
+  // Emma's weekday: absent overnight → present from 07:00 →
+  // absent at office 09:00–17:30 → present evening → absent at 23:00.
+  const emmaWD = [
+    { start: '00:00', state: 'absent' },
+    { start: '07:00', state: 'present' },
+    { start: '09:00', state: 'absent' },
+    { start: '17:30', state: 'present' },
+    { start: '23:00', state: 'absent' },
+  ];
+  // Weekends: home all day from midnight.
+  const emmaWE = [
+    { start: '00:00', state: 'present' },
+  ];
 
   const CONFIG = {
     period_temperatures: {
       frost_protection: 7, reduced: 16, normal: 20, comfort: 22,
     },
+    // Single Default Zone — no custom zones for this scenario.
     default_zone: {
       name: 'Home', mode: 'time_program', time_program: defaultProg,
     },
     zones: {},
     rooms: {
-      bedroom: {},
-      living_room: {},
+      living_room:  {},
+      kitchen:      {},
+      bedroom:      {},
+      home_office:  {},
     },
     persons: {
       'person.emma': {
         mode: 'scheduled',
         schedule_type: 'single',
-        room_ids: ['bedroom', 'living_room'],
-        schedule: {
-          mon: [
-            { start: '00:00', state: 'absent' },
-            { start: '07:00', state: 'present' },
-            { start: '09:00', state: 'absent' },
-            { start: '17:30', state: 'present' },
-            { start: '23:00', state: 'absent' },
-          ],
-          tue: [
-            { start: '00:00', state: 'absent' },
-            { start: '07:00', state: 'present' },
-            { start: '09:00', state: 'absent' },
-            { start: '17:30', state: 'present' },
-            { start: '23:00', state: 'absent' },
-          ],
-          wed: [
-            { start: '00:00', state: 'absent' },
-            { start: '07:00', state: 'present' },
-            { start: '09:00', state: 'absent' },
-            { start: '17:30', state: 'present' },
-            { start: '23:00', state: 'absent' },
-          ],
-          thu: [
-            { start: '00:00', state: 'absent' },
-            { start: '07:00', state: 'present' },
-            { start: '09:00', state: 'absent' },
-            { start: '17:30', state: 'present' },
-            { start: '23:00', state: 'absent' },
-          ],
-          fri: [
-            { start: '00:00', state: 'absent' },
-            { start: '07:00', state: 'present' },
-            { start: '09:00', state: 'absent' },
-            { start: '17:30', state: 'present' },
-            { start: '23:00', state: 'absent' },
-          ],
-          sat: [{ start: '00:00', state: 'present' }],
-          sun: [{ start: '00:00', state: 'present' }],
-        },
+        room_ids: ['bedroom', 'home_office'],
+        schedule: mkProg(emmaWD, emmaWE),
       },
     },
-    climate_entities: [],
+    climate_entities: [
+      'climate.living_room_trv',
+      'climate.kitchen_trv',
+      'climate.bedroom_trv',
+      'climate.home_office_trv',
+    ],
   };
 
   const STATUS = {
-    global_mode: 'time_program',
-    active_period: 'normal',
+    zones: {
+      default: { mode: 'time_program', active_period: 'normal' },
+    },
     present_persons: ['person.emma'],
-    rooms_status: [],
+    rooms_status: [
+      {
+        area_id: 'living_room',
+        name: 'Living Room',
+        entity_ids: ['climate.living_room_trv'],
+        temperature: 20.4,
+        humidity: 46,
+        active_period: 'normal',
+        present_person_count: 0,
+        has_trv: true,
+      },
+      {
+        area_id: 'kitchen',
+        name: 'Kitchen',
+        entity_ids: ['climate.kitchen_trv'],
+        temperature: 21.1,
+        humidity: 52,
+        active_period: 'normal',
+        present_person_count: 0,
+        has_trv: true,
+      },
+      {
+        area_id: 'bedroom',
+        name: 'Bedroom',
+        entity_ids: ['climate.bedroom_trv'],
+        temperature: 19.8,
+        humidity: 54,
+        active_period: 'normal',
+        present_person_count: 1,
+        has_trv: true,
+      },
+      {
+        area_id: 'home_office',
+        name: 'Home Office',
+        entity_ids: ['climate.home_office_trv'],
+        temperature: 20.2,
+        humidity: 49,
+        active_period: 'normal',
+        present_person_count: 1,
+        has_trv: true,
+      },
+    ],
   };
 
   const mockHass = {
@@ -250,21 +285,87 @@
       },
     },
     states: {
+      'climate.living_room_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Living Room TRV',
+          current_temperature: 20.4,
+          temperature: 20,
+        },
+      },
+      'climate.kitchen_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Kitchen TRV',
+          current_temperature: 21.1,
+          temperature: 20,
+        },
+      },
+      'climate.bedroom_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Bedroom TRV',
+          current_temperature: 19.8,
+          temperature: 20,
+        },
+      },
+      'climate.home_office_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Home Office TRV',
+          current_temperature: 20.2,
+          temperature: 20,
+        },
+      },
       'person.emma': {
         state: 'home',
         attributes: { friendly_name: 'Emma' },
       },
     },
-    areas: {},
-    floors: {},
+    areas: {
+      living_room: {
+        area_id: 'living_room',
+        name: 'Living Room',
+        floor_id: 'ground_floor',
+      },
+      kitchen: {
+        area_id: 'kitchen',
+        name: 'Kitchen',
+        floor_id: 'ground_floor',
+      },
+      bedroom: {
+        area_id: 'bedroom',
+        name: 'Bedroom',
+        floor_id: 'first_floor',
+      },
+      home_office: {
+        area_id: 'home_office',
+        name: 'Home Office',
+        floor_id: 'first_floor',
+      },
+    },
+    floors: {
+      ground_floor: {
+        floor_id: 'ground_floor',
+        name: 'Ground Floor',
+        level: 0,
+      },
+      first_floor: {
+        floor_id: 'first_floor',
+        name: 'First Floor',
+        level: 1,
+      },
+    },
     callService() { return Promise.resolve(); },
   };
 
+  // Create the element with hass already set so connectedCallback has it
   const panel = document.createElement('climate-manager-panel');
-  panel.hass = mockHass;
+  panel.hass   = mockHass;
   panel.narrow = false;
-  panel.panel = {};
+  panel.panel  = {};
   document.getElementById('mount').appendChild(panel);
+
   window.__panelReady = true;
   console.log('[harness] panel appended with hass');
 </script>
