@@ -324,12 +324,30 @@ class Person:
         finally:
             loop.close()
 
-    def change_mode(self, new_mode: PersonMode, reason: str) -> None:
-        """Replace the active mode (called by WS handlers on config change).
+    def change_mode(self, new_mode_key: str) -> None:
+        """Swap PersonMode and log the transition (user-driven, D-08/D-10).
 
-        No logging here — mode transitions are logged by the caller if needed.
+        Emits: presence | person=<name> mode=<old>→<new> reason=user
+        Resets _last_home so the next evaluate() always logs the new presence
+        state regardless of whether the boolean value changed.
         """
-        self._mode = new_mode
+        old_label = self._mode.reason_label
+        new_cls = _MODE_FACTORY.get(new_mode_key)
+        if new_cls is None:
+            _LOGGER.warning(
+                "Unknown mode %r for person %s — ignoring change_mode",
+                new_mode_key,
+                self.person_id,
+            )
+            return
+        self._mode = new_cls(self)
+        _LOGGER.info(
+            "presence | person=%s mode=%s→%s reason=user",
+            _short_name(self.person_id),
+            old_label,
+            self._mode.reason_label,
+        )
+        self._last_home = None
 
     def next_occupied_at(self, ctx: "EvalContext"):
         """Return the next datetime when the person will be home, or None."""

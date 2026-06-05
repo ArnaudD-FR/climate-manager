@@ -515,6 +515,12 @@ def _make_ws_set_person_config(entry: ClimateManagerConfigEntry):
         await entry.runtime_data.store.async_save(
             entry.runtime_data.runtime_config
         )
+        # Emit OBS-01 mode-change log on the live Person when mode changes.
+        if "mode" in incoming:
+            coord = entry.runtime_data.coordinator
+            live_person = coord._persons.get(msg["person_id"])
+            if live_person is not None:
+                live_person.change_mode(incoming["mode"])
         connection.send_result(msg["id"], {"success": True})
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
