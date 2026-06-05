@@ -91,6 +91,8 @@ _LOGGER = logging.getLogger(__name__)
 POLL_INTERVAL = timedelta(minutes=1)
 # Hardware-safe maximum for TRV temperature offset (±5°C for Tado X and most brands).
 _OFFSET_CLAMP = 5.0
+# Minimum time between calibration API calls per device to avoid 429s.
+_CALIBRATION_MIN_INTERVAL = timedelta(minutes=5)
 
 
 class ClimateManagerCoordinator:
@@ -971,6 +973,14 @@ class ClimateManagerCoordinator:
         threshold = config.get("calibration_threshold", 0.5)
         if abs(delta) <= threshold:
             return
+
+        last_changed = self._calibration_last_changed.get(device_id)
+        if last_changed:
+            elapsed = datetime.now(timezone.utc) - datetime.fromisoformat(
+                last_changed
+            )
+            if elapsed < _CALIBRATION_MIN_INTERVAL:
+                return
 
         existing_offset = self._calibration_last_offset.get(device_id, 0.0)
         new_offset = round(

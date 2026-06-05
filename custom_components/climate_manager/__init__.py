@@ -194,7 +194,9 @@ async def async_setup_entry(
     # Phase 3: register sidebar panel (panel_custom loaded via manifest dependency — Pitfall 7).
     # Append ?v=<version> to bust the browser cache on every new release.
     _manifest_path = Path(__file__).parent / "manifest.json"
-    _ver = json.loads(_manifest_path.read_text()).get("version", "1")
+    _ver = json.loads(
+        await hass.async_add_executor_job(_manifest_path.read_text)
+    ).get("version", "1")
     await panel_custom.async_register_panel(
         hass,
         frontend_url_path=DOMAIN,
