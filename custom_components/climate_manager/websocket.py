@@ -706,6 +706,10 @@ def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
                  never confused with a custom zone UUID.
         """
         runtime_config = entry.runtime_data.runtime_config
+        # Capture live Zone BEFORE any await so the periodic async_evaluate
+        # timer cannot rebuild coord._zones between mutation and change_mode.
+        coord = entry.runtime_data.coordinator
+        live_zone = coord._zones.get(msg["zone_id"])
         if msg["zone_id"] == "default":
             # D-08 / T-05-01: Default Zone sentinel — write to default_zone
             # sub-dict before any zones{} lookup.
@@ -737,10 +741,7 @@ def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
                     msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
                 )
                 return
-        # Emit OBS-01 mode-change log on the live Zone before the next
-        # async_evaluate rebuild replaces the Zone object.
-        coord = entry.runtime_data.coordinator
-        live_zone = coord._zones.get(msg["zone_id"])
+        # Emit OBS-01 mode-change log on the live Zone (captured pre-await).
         if live_zone is not None:
             live_zone.change_mode(msg["mode"])
         connection.send_result(msg["id"], {"success": True})
