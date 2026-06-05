@@ -177,12 +177,21 @@ async function main() {
   const out = (p) => path.join(SCREENSHOTS_DIR, p);
 
   if (process.env.HARNESS_PATH) {
-    // Scenario mode: capture only Overview + expanded Persons card (D-04)
+    // Scenario mode: Overview + Rooms (zone/room layout) + expanded Persons
+    // card (D-04). Overview shows the resulting present/absent state and the
+    // per-zone tabs; Rooms shows how rooms are grouped into zones; Persons
+    // shows the person ↔ room association and schedule.
     // 1. Overview (default tab, already active on load)
     await page.screenshot({ path: out("overview.png") });
     console.log("✓ overview.png");
 
-    // 2. Persons tab — expanded first person card
+    // 2. Rooms tab — expanded first room card (rooms grouped by zone)
+    await clickTab("Rooms");
+    await expandFirstCard("climate-manager-rooms-tab");
+    await page.screenshot({ path: out("rooms.png") });
+    console.log("✓ rooms.png");
+
+    // 3. Persons tab — expanded first person card
     await clickTab("Persons");
     await expandFirstCard("climate-manager-persons-tab");
     await page.screenshot({ path: out("persons.png") });
@@ -225,7 +234,7 @@ async function main() {
   // ------------------------------------------------------------------
   await browser.close();
   server.close();
-  console.log("\nDone! Screenshots saved to docs/screenshots/");
+  console.log(`\nDone! Screenshots saved to ${SCREENSHOTS_DIR}`);
 }
 
 main().catch((err) => {
