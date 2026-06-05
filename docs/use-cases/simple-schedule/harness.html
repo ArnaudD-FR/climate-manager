@@ -150,8 +150,10 @@
 
 <!-- Mock hass — runs after panel.js defines climate-manager-panel -->
 <script type="module">
-  // Emma — single-occupant household, no custom zones.
-  // Four rooms across two floors; Emma follows a standard office-week pattern.
+  // Emma — single-occupant household, presence-driven zone.
+  // Four rooms across two floors; Emma is assigned to all rooms.
+  // Zone mode is time_program_presences — rooms heat to schedule only
+  // while Emma is present; absent → rooms set back to Reduced.
 
   const weekdayProg = [
     { start: '00:00', mode: 'frost_protection' },
@@ -176,14 +178,13 @@
 
   const defaultProg = mkProg(weekdayProg, weekendProg);
 
-  // Emma's weekday: absent overnight → present from 07:00 →
-  // absent at office 09:00–17:30 → present evening → absent at 23:00.
+  // Emma's weekday: present overnight → absent at work 09:00–17:30 →
+  // present evening.  She is home (present) overnight — only absent
+  // during the hours she is physically out of the house.
   const emmaWD = [
-    { start: '00:00', state: 'absent' },
-    { start: '07:00', state: 'present' },
+    { start: '00:00', state: 'present' },
     { start: '09:00', state: 'absent' },
     { start: '17:30', state: 'present' },
-    { start: '23:00', state: 'absent' },
   ];
   // Weekends: home all day from midnight.
   const emmaWE = [
@@ -194,22 +195,26 @@
     period_temperatures: {
       frost_protection: 7, reduced: 16, normal: 20, comfort: 22,
     },
-    // Single Default Zone — no custom zones for this scenario.
+    // Single Default Zone — presence-driven so Emma's absence gates heating.
     default_zone: {
-      name: 'Home', mode: 'time_program', time_program: defaultProg,
+      name: 'Home',
+      mode: 'time_program_presences',
+      time_program: defaultProg,
     },
     zones: {},
     rooms: {
-      living_room:  {},
-      kitchen:      {},
-      bedroom:      {},
-      home_office:  {},
+      living_room: {},
+      kitchen:     {},
+      bedroom:     {},
+      home_office: {},
     },
     persons: {
       'person.emma': {
         mode: 'scheduled',
         schedule_type: 'single',
-        room_ids: ['bedroom', 'home_office'],
+        // Emma is assigned to all rooms so the zone gates heat in every room
+        // while she is away at work.
+        room_ids: ['bedroom', 'home_office', 'living_room', 'kitchen'],
         schedule: mkProg(emmaWD, emmaWE),
       },
     },
@@ -221,9 +226,10 @@
     ],
   };
 
+  // Snapshot: weekday evening ~19:00 — Emma is home.
   const STATUS = {
     zones: {
-      default: { mode: 'time_program', active_period: 'normal' },
+      default: { mode: 'time_program_presences', active_period: 'normal' },
     },
     present_persons: ['person.emma'],
     rooms_status: [
@@ -234,7 +240,7 @@
         temperature: 20.4,
         humidity: 46,
         active_period: 'normal',
-        present_person_count: 0,
+        present_person_count: 1,
         has_trv: true,
       },
       {
@@ -244,7 +250,7 @@
         temperature: 21.1,
         humidity: 52,
         active_period: 'normal',
-        present_person_count: 0,
+        present_person_count: 1,
         has_trv: true,
       },
       {
