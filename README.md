@@ -246,15 +246,15 @@ the panel for real households. Each folder is a self-contained showcase with a
 README, annotated screenshots (Overview, Rooms, Persons), and a mock harness
 that regenerates its screenshots via `make screenshots`.
 
-| Use case                                                                         | What it demonstrates                                                                                                     |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| [Simple schedule](docs/use-cases/simple-schedule/)                               | A single-week presence schedule for a standard office routine                                                            |
-| [Business calendar](docs/use-cases/business-calendar/)                           | Calendar-driven presence from a work `calendar.*` entity, plus a custom Office zone                                      |
-| [Student mixed schedule](docs/use-cases/student-mixed-schedule/)                 | A single-week schedule with different class times each weekday                                                           |
-| [Rotating shift worker](docs/use-cases/rotating-shift-worker/)                   | `ha` mode tracking the person/device location for irregular shifts, across two zones                                     |
-| [Shared custody (odd/even weeks)](docs/use-cases/shared-custody-odd-even-weeks/) | Even/odd weeks combining a Pronote school calendar on weekdays with a manual weekend schedule and a Friday-noon handover |
-| [Predictive pre-heat](docs/use-cases/predictive-preheat/)                        | Pre-heating rooms before a scheduled return, with per-room lead time and presence-only suppression                       |
-| [Bathroom comfort zone](docs/use-cases/bathroom-comfort-zone/)                   | A custom Bathrooms zone running its own comfort-led program separate from the rest of the home                           |
+| Use case                                                                         | What it demonstrates                                                                                                       |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [Simple schedule](docs/use-cases/simple-schedule/)                               | A single-week presence schedule for a standard office routine                                                              |
+| [Business calendar](docs/use-cases/business-calendar/)                           | Calendar presence mode driven by a work calendar, plus a custom Office zone                                                |
+| [Student mixed schedule](docs/use-cases/student-mixed-schedule/)                 | A single-week schedule with different class times each weekday                                                             |
+| [Rotating shift worker](docs/use-cases/rotating-shift-worker/)                   | HA home tracking presence for irregular shifts, across two zones                                                           |
+| [Shared custody (odd/even weeks)](docs/use-cases/shared-custody-odd-even-weeks/) | Even / Odd weeks combining a Pronote school calendar on weekdays with a manual weekend schedule and a Friday-noon handover |
+| [Predictive pre-heat](docs/use-cases/predictive-preheat/)                        | Pre-heating rooms so they are warm before the first event of the day, with a per-room lead time                            |
+| [Bathroom comfort zone](docs/use-cases/bathroom-comfort-zone/)                   | A custom Bathrooms zone running its own comfort-led program separate from the rest of the home                             |
 
 ---
 
