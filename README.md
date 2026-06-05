@@ -2,7 +2,7 @@
 
 A Home Assistant custom integration that manages home climate controls through
 smart radiator thermostats (TRVs). It provides zone-based heating modes, weekday
-time programs, per-room schedule overrides, and person presence tracking — all
+time programs, per-room zone assignment, and person presence tracking — all
 configurable through a full Lovelace dashboard panel.
 
 > **Core value:** Every room is always at the right temperature at the right
@@ -65,8 +65,9 @@ a room to appear in the panel, two conditions must be met:
   heating program (Normal, Comfort, Reduced, Frost Protection periods)
 - **Three heating modes per zone** — _Off_, _Time program_, _Time program &
   presences_
-- **Per-room overrides** — Each room can follow its zone program, use a custom
-  schedule, or be set to Off individually
+- **Per-room zone assignment** — Assign each room to a zone; the room follows
+  that zone's program. Move a room to an _Off_ zone to keep it at frost
+  protection
 - **Person presence** — Associate persons with rooms; in _Time program &
   presences_ mode the room only heats when someone is home
 - **Presence tracking modes** — Scheduled (weekly timetable), HA home tracking,
@@ -183,15 +184,20 @@ If present all day: room heats 06:00–22:00, holding Normal during the
 
 ![Persons tab](docs/screenshots/persons.png)
 
-### Per-room overrides
+### Rooms and zones
 
-Each room has a **mode** that can override its zone:
+Rooms do not carry their own schedule — each room belongs to a **zone** and
+follows that zone's program and mode. A room is in the **Default Zone** unless
+you assign it to a custom zone.
 
-| Room mode          | Behaviour                                                        |
-| ------------------ | ---------------------------------------------------------------- |
-| **Zone program**   | Follows the zone's schedule and mode                             |
-| **Custom program** | Uses its own schedule; zone Off still applies (frost protection) |
-| **Off**            | Frost protection only, regardless of zone                        |
+| Per-room setting       | Effect                                                         |
+| ---------------------- | -------------------------------------------------------------- |
+| **Zone**               | Which zone the room belongs to (Default Zone or a custom zone) |
+| **Associated persons** | Whose presence heats the room in _Time program & presences_    |
+| **Pre-heat lead**      | Max minutes the room may start heating early before an arrival |
+
+To turn a room off, assign it to a zone whose mode is **Off** (or create a
+dedicated Off zone for it).
 
 ![Rooms tab](docs/screenshots/rooms.png)
 
@@ -219,10 +225,9 @@ No YAML editing required.
 
 ### Rooms
 
-- Set per-room mode (Zone program / Custom program / Off)
-- Edit custom schedule (when in Custom mode)
+- Assign the room to a zone (Default Zone or a custom zone)
 - Assign persons to a room
-- Assign room to a zone
+- Set the pre-heat lead time
 
 ### Persons
 
