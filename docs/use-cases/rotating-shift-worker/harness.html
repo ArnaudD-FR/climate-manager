@@ -153,9 +153,10 @@
 <!-- Mock hass — runs after panel.js defines climate-manager-panel -->
 <script type="module">
   // rotating-shift-worker — Marc's two-zone home.
-  // Ground floor (Downstairs): Default Zone, time_program.
-  // First floor (Upstairs): custom zone, time_program_presences.
-  // Marc uses HA tracking mode — no schedule editor appears on his card.
+  // Both zones use time_program_presences so Marc's live presence gates
+  // heating in every room.  Rooms heat to the zone schedule while he is
+  // home; absent → rooms set back to Reduced.
+  // Marc uses HA home tracking mode — no schedule editor on his card.
   // device_trackers must be non-empty for the clean "HA" badge (D-05, A3).
 
   const ZONE_ID = 'zone-upstairs-9b2c';
@@ -202,10 +203,10 @@
     period_temperatures: {
       frost_protection: 7, reduced: 16, normal: 20, comfort: 22,
     },
-    // Downstairs (ground floor) is the Default Zone.
+    // Downstairs (ground floor) is the Default Zone — presence-driven.
     default_zone: {
       name: 'Downstairs',
-      mode: 'time_program',
+      mode: 'time_program_presences',
       time_program: downstairsProg,
     },
     // Upstairs (first floor) is a custom presence-driven zone.
@@ -224,11 +225,12 @@
       kitchen:     {},
     },
     persons: {
-      // D-05: ha mode — no schedule arrays. Card shows mode selector +
-      // explanatory hint only.
+      // D-05: ha mode (HA home tracking) — no schedule arrays.
+      // Card shows mode selector + explanatory hint only.
+      // Marc is assigned to all rooms so every room gates on his presence.
       'person.marc': {
         mode: 'ha',
-        room_ids: ['bedroom'],
+        room_ids: ['bedroom', 'living_room', 'kitchen'],
       },
     },
     climate_entities: [
@@ -238,11 +240,10 @@
     ],
   };
 
-  // STATUS uses the Phase-14 zones record.
-  // Marc is home → bedroom present_person_count = 1.
+  // Snapshot: Marc is home — all rooms present_person_count = 1.
   const STATUS = {
     zones: {
-      default: { mode: 'time_program', active_period: 'normal' },
+      default: { mode: 'time_program_presences', active_period: 'normal' },
       [ZONE_ID]: { mode: 'time_program_presences', active_period: 'normal' },
     },
     present_persons: ['person.marc'],
@@ -264,7 +265,7 @@
         temperature: 20.5,
         humidity: 46,
         active_period: 'normal',
-        present_person_count: 0,
+        present_person_count: 1,
         has_trv: true,
       },
       {
@@ -274,7 +275,7 @@
         temperature: 21.1,
         humidity: 43,
         active_period: 'normal',
-        present_person_count: 0,
+        present_person_count: 1,
         has_trv: true,
       },
     ],
