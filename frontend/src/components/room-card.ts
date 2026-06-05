@@ -311,12 +311,14 @@ export class RoomCard extends LitElement {
    * Otherwise returns a colored pill: "${name} · ${temp}°C".
    */
   private _renderPeriodBadge() {
-    const globalMode =
-      this.status?.zones?.["default"]?.mode ??
-      this.panelConfig?.default_zone?.mode ??
-      "";
+    const zoneId = this.config?.zone_id;
+    const zoneMode = zoneId
+      ? this.status?.zones?.[zoneId]?.mode ??
+        this.panelConfig?.zones?.[zoneId]?.mode
+      : this.status?.zones?.["default"]?.mode ??
+        this.panelConfig?.default_zone?.mode;
 
-    if (globalMode === "off") {
+    if (zoneMode === "off") {
       return html`
         <span
           class="program-badge"
@@ -359,10 +361,14 @@ export class RoomCard extends LitElement {
     const temp =
       tempVal != null && !isNaN(tempVal) ? `${tempVal.toFixed(1)}°C` : "—";
     const humidity = s?.humidity != null ? `${s.humidity}%` : "—";
-    const globalMode =
-      this.status?.zones?.["default"]?.mode ??
-      this.panelConfig?.default_zone?.mode ??
-      "";
+    const _zoneId = this.config?.zone_id;
+    const globalMode = _zoneId
+      ? this.status?.zones?.[_zoneId]?.mode ??
+        this.panelConfig?.zones?.[_zoneId]?.mode ??
+        ""
+      : this.status?.zones?.["default"]?.mode ??
+        this.panelConfig?.default_zone?.mode ??
+        "";
     const isPresenceMode = globalMode === "time_program_presences";
     const modeLabels: Record<string, string> = {
       off: "Off",
