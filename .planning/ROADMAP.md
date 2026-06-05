@@ -298,9 +298,9 @@ cleanly and they are committed alongside the README files.
 
 - [x] 17-01-PLAN.md — Screenshot tooling: OUTPUT_DIR/HARNESS_PATH env-var
       overrides + scenario-mode capture; root Makefile use-case delegation
-- [ ] 17-02-PLAN.md — Use-case folders: simple-schedule, business-calendar,
+- [x] 17-02-PLAN.md — Use-case folders: simple-schedule, business-calendar,
       student-mixed-schedule (harness + Makefile + README + screenshots)
-- [ ] 17-03-PLAN.md — Use-case folders: rotating-shift-worker,
+- [x] 17-03-PLAN.md — Use-case folders: rotating-shift-worker,
       shared-custody-odd-even-weeks; verify full root make screenshots
 
 ## Progress
@@ -323,4 +323,4 @@ cleanly and they are committed alongside the README files.
 | 14. Default Zone Consolidation              | v1.3      | 4/4 | Complete    | 2026-06-04 |
 | 15. Remove Room Custom Scheduling           | v1.3      | 4/4 | Complete   | 2026-06-04 |
 | 16. Presence & Heating Log Traces           | v1.3      | 7/7 | Complete   | 2026-06-05 |
-| 17. Person Scheduling Use-Case Docs         | v1.3      | 1/3 | In Progress|  |
+| 17. Person Scheduling Use-Case Docs         | v1.3      | 3/3 | Complete   | 2026-06-05 |
