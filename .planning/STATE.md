@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
-status: executing
-stopped_at: Phase 17 context gathered
-last_updated: "2026-06-05T14:09:57.330Z"
+status: milestone_complete
+stopped_at: Milestone complete (Phase 17 was final phase)
+last_updated: 2026-06-05T15:02:55.524Z
 last_activity: 2026-06-05 -- Phase 17 execution started
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 35
-  completed_plans: 32
+  completed_plans: 71
   percent: 88
 ---
 
@@ -22,20 +22,20 @@ See: .planning/PROJECT.md (updated 2026-05-29)
 
 **Core value:** A household's rooms are always at the right temperature at the
 right time, without manual intervention — driven by schedules and who is
-actually home. **Current focus:** Phase 17 — person-scheduling-use-case-docs
+actually home. **Current focus:** Milestone complete
 
 ## Current Position
 
-Phase: 17 (person-scheduling-use-case-docs) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 17
-Last activity: 2026-06-05 -- Phase 17 execution started
+Phase: 17
+Plan: Not started
+Status: Milestone complete
+Last activity: 2026-06-05
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 22
+- Total plans completed: 26
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -50,6 +50,7 @@ Last activity: 2026-06-05 -- Phase 17 execution started
 | 08 | 3 | - | - |
 | 09 | 4 | - | - |
 | 14 | 4 | - | - |
+| 17 | 4 | - | - |
 
 **Recent Trend:**
 

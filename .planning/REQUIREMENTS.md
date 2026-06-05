@@ -84,7 +84,7 @@
 
 ### Documentation
 
-- [ ] **DOC-01**: Five person-scheduling use-case documents with screenshots
+- [x] **DOC-01**: Five person-scheduling use-case documents with screenshots
   exist under `docs/use-cases/`; `make screenshots` captures all scenario
   screenshots cleanly
 
