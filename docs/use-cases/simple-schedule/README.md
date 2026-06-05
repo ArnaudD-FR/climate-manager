@@ -3,8 +3,8 @@
 Emma lives alone in a two-storey house and follows a standard office week. She
 leaves for work every weekday morning and returns in the late afternoon, while
 weekends are entirely hers at home. This scenario shows the simplest possible
-Climate Manager setup: a **single Default Zone** in `time_program_presences`
-mode, four rooms, and one person on a **scheduled (single-week)** presence
+Climate Manager setup: a **single Default Zone** in **Time program & presences**
+mode, four rooms, and one person on a **Scheduled** / **Single week** presence
 programme.
 
 The zone is **presence-driven**: rooms follow the time-program schedule while
@@ -23,8 +23,8 @@ house.
 
 ## Presence configuration
 
-Emma uses **mode: scheduled**, **schedule_type: single** — the same pattern
-repeats every week with no alternation.
+Emma uses **Scheduled** presence mode with a **Single week** schedule — the same
+pattern repeats every week with no alternation.
 
 ### Schedule
 
@@ -38,10 +38,10 @@ physically away at work (09:00–17:30 on weekdays).
 
 ## Rooms driven by Emma
 
-Emma's `room_ids` are **all four rooms**: bedroom, home_office, living_room, and
-kitchen. Because the zone is `time_program_presences`, every room needs at least
-one assigned person to receive scheduled heat. All four rooms show a non-zero
-`present_person_count` when Emma is home.
+Emma's **Room associations** cover **all four rooms**: Bedroom, Home Office,
+Living Room, and Kitchen. Because the zone is **Time program & presences**,
+every room needs at least one assigned person to receive scheduled heat. All
+four rooms show a non-zero person count when Emma is home.
 
 | Room        | Tracked for presence |
 | ----------- | -------------------- |
@@ -56,9 +56,9 @@ one assigned person to receive scheduled heat. All four rooms show a non-zero
 
 ![Overview — Emma present, single zone](screenshots/overview.png)
 
-The Overview tab shows the Default Zone (Home) in `time_program_presences` mode
-with the active period and Emma marked as currently present; all four rooms show
-a non-zero person count.
+The Overview tab shows the Default Zone (Home) in **Time program & presences**
+mode with the active period and Emma marked as currently present; all four rooms
+show a non-zero person count.
 
 ### Rooms
 
