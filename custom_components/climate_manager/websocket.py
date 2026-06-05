@@ -732,6 +732,12 @@ def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
                 )
                 return
         connection.send_result(msg["id"], {"success": True})
+        # Fire status immediately so the panel badge updates without waiting
+        # for the full async_evaluate cycle (which pushes temps to TRVs first).
+        hass.bus.async_fire(
+            f"{DOMAIN}_status_update",
+            entry.runtime_data.coordinator._build_status_payload(),
+        )
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_set_zone_mode
