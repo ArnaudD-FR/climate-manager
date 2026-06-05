@@ -2,27 +2,39 @@
 
 Bathrooms want a different heating rhythm from the rest of the house: warm for
 the morning and evening wash, cooler in between, and never left cold overnight.
-This example groups the two bathrooms into their own **custom zone** with a
-comfort-led program, while the rest of the home follows an ordinary day/night
-schedule. It showcases how zones let one part of the house run a completely
-different program from the default.
+This example groups the two bathrooms into their own custom **Bathrooms** zone
+with a `time_program` — they heat on schedule regardless of who is home. The
+living areas follow the **Home** Default Zone, which is `time_program_presences`
+— Alex's presence determines whether the living areas heat. This showcases the
+contrast between a pure-schedule zone and a presence-driven zone side by side.
 
 ## Household layout
 
-| Room          | Zone                    | Floor        | Program                 |
-| ------------- | ----------------------- | ------------ | ----------------------- |
-| Main Bathroom | Bathrooms (custom zone) | First Floor  | Comfort-led (see below) |
-| Ensuite       | Bathrooms (custom zone) | First Floor  | Comfort-led (see below) |
-| Living Room   | Home (Default Zone)     | Ground Floor | Normal day/night        |
-| Bedroom       | Home (Default Zone)     | First Floor  | Normal day/night        |
+| Room          | Zone                    | Floor        | Heats when                       |
+| ------------- | ----------------------- | ------------ | -------------------------------- |
+| Main Bathroom | Bathrooms (custom zone) | First Floor  | Comfort-led schedule — always    |
+| Ensuite       | Bathrooms (custom zone) | First Floor  | Comfort-led schedule — always    |
+| Living Room   | Home (Default Zone)     | Ground Floor | Domestic schedule — Alex present |
+| Bedroom       | Home (Default Zone)     | First Floor  | Domestic schedule — Alex present |
 
-Both bathrooms are assigned to the **Bathrooms** zone via `zone_id`; the living
-room and bedroom stay in the Default Zone. Zones share one weekly program, so
-adding a third bathroom is just another `zone_id` assignment.
+Both bathrooms are assigned to the **Bathrooms** zone via `zone_id`. They need
+no assigned person because the Bathrooms zone uses `time_program` — rooms in a
+`time_program` zone heat according to their zone's schedule regardless of
+presence. The living areas stay in the Default Zone (presences) and need Alex
+assigned so the schedule applies when he is home.
+
+## Zone modes compared
+
+| Zone        | Mode                     | Person needed | Heats when                        |
+| ----------- | ------------------------ | ------------- | --------------------------------- |
+| Bathrooms   | `time_program`           | No            | Schedule runs at all times        |
+| Home (Def.) | `time_program_presences` | Yes (Alex)    | Schedule runs only when Alex home |
+
+The key distinction: a `time_program` zone ignores presence entirely. A
+`time_program_presences` zone only applies the schedule when at least one
+assigned person is present; otherwise the room sets back to Reduced.
 
 ## Zone programs compared
-
-The two zones run side by side with different period schedules:
 
 ### Bathrooms zone — weekdays (Mon–Fri)
 
@@ -44,17 +56,17 @@ The two zones run side by side with different period schedules:
 | 19:00 | **Comfort** (evening)       |
 | 23:00 | Frost protection            |
 
-So the bathrooms are at comfort for the morning and evening wash, reduced during
+The bathrooms are at comfort for the morning and evening wash, reduced during
 the working day (normal at weekends), and never warmer than needed overnight —
-while the **Home** zone keeps the living areas on its usual normal/comfort
-day-night cycle.
+independent of whether anyone is home.
 
 ## Occupant
 
-A single occupant, **Alex** (`mode: 'scheduled'`), keeps the Persons tab
-populated. The bathrooms heat purely from their zone program — they do not
-depend on anyone's presence — which is exactly why a dedicated zone, rather than
-person-driven presence, is the right tool here.
+Alex (`mode: 'scheduled'`) is assigned to **bedroom** and **living_room** only.
+His presence gates the Home zone schedule for those two rooms. The bathrooms
+heat purely from their Bathrooms zone program — they do not depend on Alex's
+presence, which is exactly why `time_program` (not `time_program_presences`) is
+the right zone mode for them.
 
 ## Screenshots
 
@@ -62,16 +74,18 @@ person-driven presence, is the right tool here.
 
 ![Overview](screenshots/overview.png)
 
-The Overview lists both zones — **Home** in its normal evening period and
-**Bathrooms** showing its **comfort** active period.
+The Overview lists both zones — **Home** in its normal evening period
+(presence-driven, Alex is present) and **Bathrooms** showing its **comfort**
+active period (schedule-driven, no presence required).
 
 ### Rooms tab
 
 ![Rooms](screenshots/rooms.png)
 
 The expanded Main Bathroom card carries the **Bathrooms** zone badge and its
-comfort-period temperature, distinct from the Living Room and Bedroom which sit
-in the Default Zone.
+comfort-period temperature, with `present_person_count: 0` — comfort runs
+regardless. The Living Room and Bedroom cards sit in the Home zone with Alex's
+presence count of 1.
 
 ### Persons tab — Alex card expanded
 

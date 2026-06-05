@@ -150,19 +150,21 @@
 
 <!-- Mock hass — runs after panel.js defines climate-manager-panel -->
 <script type="module">
-  // predictive-preheat — Maya's home warms rooms BEFORE she returns.
-  // The Default Zone "Home" has preheat_enabled. Maya works office hours; her
-  // schedule gives the coordinator a predicted return (17:30) and
-  // wakeup_advance_minutes lets heating start early so the rooms are at
-  // temperature on arrival. The Bathroom has no person assigned, so its
-  // pre-heat is suppressed (presence-only suppression).
+  // predictive-preheat — Maya's bedroom and bathroom warm up BEFORE her
+  // 06:30 wake-up step so she gets out of bed into already-warm rooms.
+  // The Default Zone "Home" is time_program_presences with preheat_enabled.
+  // Maya is present overnight (asleep = present), absent 08:30–17:30 on
+  // weekdays. Pre-heat fires ahead of the 06:30 Normal period using each
+  // room's preheat_max_lead_minutes. The living_room has no lead time set so
+  // it waits for the period change. A room with no assigned person is set
+  // back, not pre-heated.
 
   const weekdayProg = [
     { start: '00:00', mode: 'frost_protection' },
     { start: '06:30', mode: 'normal' },
-    { start: '08:30', mode: 'reduced' },
+    { start: '09:00', mode: 'reduced' },
     { start: '17:00', mode: 'normal' },
-    { start: '22:00', mode: 'frost_protection' },
+    { start: '22:30', mode: 'frost_protection' },
   ];
   const weekendProg = [
     { start: '00:00', mode: 'frost_protection' },
@@ -178,8 +180,8 @@
 
   const homeProg = mkProg(weekdayProg, weekendProg);
 
-  // Maya: present overnight/mornings, away at the office 08:30–17:30,
-  // present again every evening; home all weekend.
+  // Maya: present overnight (asleep = present), absent 08:30–17:30
+  // weekdays, present again from 17:30; home all weekend.
   const mayaWD = [
     { start: '00:00', state: 'present' },
     { start: '08:30', state: 'absent' },
@@ -193,7 +195,8 @@
     period_temperatures: {
       frost_protection: 7, reduced: 16, normal: 20, comfort: 22,
     },
-    // Default Zone with pre-heat enabled (Phase 12, GAP-01).
+    // Default Zone with pre-heat enabled — rooms heat early ahead of the
+    // next warmer period when Maya is present (including overnight).
     default_zone: {
       name: 'Home',
       mode: 'time_program_presences',
@@ -202,57 +205,49 @@
     },
     zones: {},
     // Per-room max lead time the coordinator may use to reach target early.
+    // bathroom has a longer lead (tiles hold heat); living_room has none.
     rooms: {
-      living_room: { preheat_max_lead_minutes: 90 },
-      bedroom:     { preheat_max_lead_minutes: 120 },
-      bathroom:    {},
+      bedroom:     { preheat_max_lead_minutes: 60 },
+      bathroom:    { preheat_max_lead_minutes: 90 },
+      living_room: {},
     },
     persons: {
       'person.maya': {
         mode: 'scheduled',
         schedule_type: 'single',
-        room_ids: ['living_room', 'bedroom'],
+        // Maya assigned to all three rooms — all are in a presences zone
+        // so each room must have an assigned person to heat at all.
+        room_ids: ['bedroom', 'bathroom', 'living_room'],
         schedule: mkProg(mayaWD, mayaWE),
-        // Start heating 45 min before Maya's predicted return.
-        wakeup_advance_minutes: 45,
+        // No wakeup_advance_minutes — pre-heat is driven by the zone
+        // preheat_enabled + per-room preheat_max_lead_minutes.
       },
     },
     climate_entities: [
-      'climate.living_room_trv',
       'climate.bedroom_trv',
       'climate.bathroom_trv',
+      'climate.living_room_trv',
     ],
   };
 
-  // Snapshot: a weekday ~16:50 — Maya still out, pre-heat running so her two
-  // rooms reach 20°C before her 17:30 return. The bathroom (no schedule) is
-  // pre-heat suppressed.
+  // Snapshot: early morning (~05:50 weekday). Maya is home asleep → present.
+  // Bedroom and bathroom are still in frost_protection period but preheat
+  // is active, heating toward the 06:30 Normal step. Living room has no
+  // lead time so it waits; active_period reduced (no preheat yet).
   const STATUS = {
     zones: {
-      default: { mode: 'time_program_presences', active_period: 'normal' },
+      default: { mode: 'time_program_presences', active_period: 'reduced' },
     },
-    present_persons: [],
+    present_persons: ['person.maya'],
     rooms_status: [
-      {
-        area_id: 'living_room',
-        name: 'Living Room',
-        entity_ids: ['climate.living_room_trv'],
-        temperature: 18.4,
-        humidity: 46,
-        active_period: 'normal',
-        present_person_count: 0,
-        has_trv: true,
-        preheat_active: true,
-        preheat_target: 20,
-      },
       {
         area_id: 'bedroom',
         name: 'Bedroom',
         entity_ids: ['climate.bedroom_trv'],
-        temperature: 17.9,
-        humidity: 50,
-        active_period: 'normal',
-        present_person_count: 0,
+        temperature: 17.2,
+        humidity: 52,
+        active_period: 'reduced',
+        present_person_count: 1,
         has_trv: true,
         preheat_active: true,
         preheat_target: 20,
@@ -261,12 +256,23 @@
         area_id: 'bathroom',
         name: 'Bathroom',
         entity_ids: ['climate.bathroom_trv'],
-        temperature: 16.2,
-        humidity: 58,
+        temperature: 16.1,
+        humidity: 60,
         active_period: 'reduced',
-        present_person_count: 0,
+        present_person_count: 1,
         has_trv: true,
-        preheat_suppressed: true,
+        preheat_active: true,
+        preheat_target: 20,
+      },
+      {
+        area_id: 'living_room',
+        name: 'Living Room',
+        entity_ids: ['climate.living_room_trv'],
+        temperature: 15.8,
+        humidity: 48,
+        active_period: 'reduced',
+        present_person_count: 1,
+        has_trv: true,
       },
     ],
   };
@@ -286,19 +292,11 @@
       },
     },
     states: {
-      'climate.living_room_trv': {
-        state: 'heat',
-        attributes: {
-          friendly_name: 'Living Room TRV',
-          current_temperature: 18.4,
-          temperature: 20,
-        },
-      },
       'climate.bedroom_trv': {
         state: 'heat',
         attributes: {
           friendly_name: 'Bedroom TRV',
-          current_temperature: 17.9,
+          current_temperature: 17.2,
           temperature: 20,
         },
       },
@@ -306,12 +304,20 @@
         state: 'heat',
         attributes: {
           friendly_name: 'Bathroom TRV',
-          current_temperature: 16.2,
+          current_temperature: 16.1,
+          temperature: 20,
+        },
+      },
+      'climate.living_room_trv': {
+        state: 'heat',
+        attributes: {
+          friendly_name: 'Living Room TRV',
+          current_temperature: 15.8,
           temperature: 16,
         },
       },
       'person.maya': {
-        state: 'not_home',
+        state: 'home',
         attributes: { friendly_name: 'Maya' },
       },
     },
