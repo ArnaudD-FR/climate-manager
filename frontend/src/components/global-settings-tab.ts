@@ -555,16 +555,19 @@ export class GlobalSettingsTab extends LitElement {
         this.status?.zones?.["default"]?.mode ?? this.config.default_zone.mode,
       activePeriod: this.status?.zones?.["default"]?.active_period ?? null,
     });
-    // Custom zones — client-side active period evaluation
+    // Custom zones — prefer the backend status active period (it honors
+    // presence gating and gap-fill, so it matches the room cards). Fall back
+    // to client-side schedule evaluation only when status is unavailable.
     for (const [zoneId, zone] of Object.entries(this.config.zones)) {
+      const statusPeriod = this.status?.zones?.[zoneId]?.active_period;
       rows.push({
         id: zoneId,
         name: zone.name,
-        mode: zone.mode,
+        mode: this.status?.zones?.[zoneId]?.mode ?? zone.mode,
         activePeriod:
-          zone.mode !== MODE_OFF
-            ? getActivePeriod(zone.time_program, now)
-            : null,
+          zone.mode === MODE_OFF
+            ? null
+            : statusPeriod ?? getActivePeriod(zone.time_program, now),
       });
     }
     return rows;

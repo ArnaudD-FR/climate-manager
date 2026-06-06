@@ -128,16 +128,23 @@ class PersonModeScheduled(PersonMode):
         person = self.person
         # Pre-fetch calendar entities referenced in "calendar" period states
         # so ctx._calendar_cache is populated before resolve_presence reads it.
-        schedule = person.person_config.get("schedule", {})
-        for day_slots in schedule.values():
-            if isinstance(day_slots, list):
-                for slot in day_slots:
-                    if slot.get("state") == "calendar":
-                        eid = (slot.get("calendar_config") or {}).get(
-                            "entity_id"
-                        )
-                        if eid:
-                            await ctx.calendar_events(eid)
+        # Covers the single-week layout ("schedule") and the even/odd layout
+        # ("schedule_odd" / "schedule_even") — resolve_presence selects the
+        # active week by parity, so both weeks must be pre-fetched.
+        cfg = person.person_config
+        for key in ("schedule", "schedule_odd", "schedule_even"):
+            schedule = cfg.get(key, {})
+            if not isinstance(schedule, dict):
+                continue
+            for day_slots in schedule.values():
+                if isinstance(day_slots, list):
+                    for slot in day_slots:
+                        if slot.get("state") == "calendar":
+                            eid = (slot.get("calendar_config") or {}).get(
+                                "entity_id"
+                            )
+                            if eid:
+                                await ctx.calendar_events(eid)
         return resolve_presence(
             person.person_config,
             ctx.now,
