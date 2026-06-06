@@ -1,5 +1,6 @@
 {
   "name": "Climate Manager",
+  "zip_release": true,
   "filename": "climate_manager.zip",
   "render_readme": true,
   "homeassistant": "2025.1.0"
