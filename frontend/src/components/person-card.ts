@@ -113,6 +113,9 @@ export class PersonCard extends LitElement {
   // Whether the person has ≥1 device tracker in HA (D-04).
   // Forwarded from PersonsTab; gates the "HA home tracking" option.
   @property({ type: Boolean }) hasDeviceTrackers = false;
+  // D-22 (fresh-install fix): guard so schedule seed fires at most once
+  // per component instance (not on every config re-render).
+  private _scheduleSeeded = false;
 
   // Memoize days array — same pattern as global-settings-tab to prevent
   // time-bar drag-preview from clearing on status-only re-renders.
@@ -171,6 +174,10 @@ export class PersonCard extends LitElement {
           block: rect.height <= window.innerHeight ? "nearest" : "start",
         });
       }, 0);
+    }
+    // D-22: seed default schedule on fresh install when config first arrives.
+    if (changedProperties.has("config")) {
+      void this._seedScheduleIfNeeded();
     }
   }
 
@@ -360,6 +367,31 @@ export class PersonCard extends LitElement {
   // -----------------------------------------------------------------------
   // Save handlers
   // -----------------------------------------------------------------------
+
+  // D-22 (fresh-install fix): seed DEFAULT_SCHEDULE for a person that has
+  // never had a schedule configured. Fires automatically when the config
+  // property first arrives (via updated() above) — not only on user action.
+  // Guard: _scheduleSeeded prevents repeated calls across re-renders.
+  private async _seedScheduleIfNeeded(): Promise<void> {
+    if (this._scheduleSeeded) return;
+    if (!this.ws || !this.personId || !this.panel) return;
+    const effectiveMode = this.config?.mode ?? PRESENCE_MODE_SCHEDULED;
+    if (effectiveMode !== PRESENCE_MODE_SCHEDULED) return;
+    const hasSchedule =
+      !!this.config?.schedule &&
+      Object.values(this.config.schedule).some((day) => day.length > 0);
+    if (hasSchedule) return;
+    this._scheduleSeeded = true;
+    try {
+      await this.ws.setPersonConfig(this.personId, {
+        schedule: DEFAULT_SCHEDULE,
+      });
+      await this.panel.reloadConfig();
+    } catch {
+      // Non-fatal: reset flag so next config update retries.
+      this._scheduleSeeded = false;
+    }
+  }
 
   private async _onModeChange(e: Event) {
     const newMode = (e.target as HTMLSelectElement).value;

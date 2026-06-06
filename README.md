@@ -20,6 +20,7 @@ configurable through a full Lovelace dashboard panel.
 - [How it works](#how-it-works)
 - [Configuration](#configuration)
 - [Use cases](#use-cases)
+- [Comparison with similar integrations](#comparison-with-similar-integrations)
 - [Requirements](#requirements)
 - [Development](#development)
 - [License](#license)
@@ -255,6 +256,51 @@ that regenerates its screenshots via `make screenshots`.
 | [Shared custody (odd/even weeks)](docs/use-cases/shared-custody-odd-even-weeks/) | Even / Odd weeks combining a Pronote school calendar on weekdays with a manual weekend schedule and a Friday-noon handover |
 | [Predictive pre-heat](docs/use-cases/predictive-preheat/)                        | Pre-heating rooms so they are warm before the first event of the day, with a per-room lead time                            |
 | [Bathroom comfort zone](docs/use-cases/bathroom-comfort-zone/)                   | A custom Bathrooms zone running its own comfort-led program separate from the rest of the home                             |
+
+---
+
+## Comparison with similar integrations
+
+Climate Manager covers the full loop from scheduling and presence to TRV control
+in one cohesive system. The table below positions it against the most common
+alternatives.
+
+| Feature                                  | Climate Manager                       | [Better Thermostat][bt] | [Versatile Thermostat][vt] | [Generic Thermostat][gt] | [Schedy][sc]      |
+| ---------------------------------------- | ------------------------------------- | ----------------------- | -------------------------- | ------------------------ | ----------------- |
+| Zone-based weekly time programs          | Yes                                   | No                      | No                         | No                       | Custom rules      |
+| Per-room zone assignment                 | Yes                                   | No                      | No                         | No                       | No                |
+| Person presence tracking                 | Scheduled, HA home tracking, calendar | No                      | Via plugins                | No                       | Via rules         |
+| Calendar presence (HA `calendar.*`)      | Yes                                   | No                      | No                         | No                       | No                |
+| Even/odd week schedules                  | Yes                                   | No                      | No                         | No                       | No                |
+| Predictive pre-heat with learned inertia | Yes                                   | No                      | No                         | No                       | No                |
+| TRV temperature offset auto-calibration  | Yes                                   | Yes (MPC/PID/TPI)       | Yes (TPI)                  | No                       | No                |
+| Dedicated dashboard (no YAML)            | Yes                                   | No (YAML + automations) | Partial                    | No (YAML)                | No (YAML)         |
+| Works with any `climate` entity          | Yes                                   | Specific TRV models     | Yes                        | No (switches only)       | Yes               |
+| Installation                             | HACS / manual                         | HACS                    | HACS                       | Built-in HA              | AppDaemon package |
+
+**[Better Thermostat][bt]** focuses on per-TRV calibration algorithms (MPC, PID,
+TPI) and fixing the imprecise temperature readings common on radiator-mounted
+sensors. It has no scheduling engine of its own: time programs and presence
+logic must be added through separate automations.
+
+**[Versatile Thermostat][vt]** is a feature-rich per-room virtual thermostat
+with TPI control, motion and window detection, and preset management. Each
+instance controls one room independently. Multi-room coordination and zone-level
+scheduling require additional configuration outside the integration.
+
+**[Generic Thermostat][gt]** is the built-in HA baseline: a simple on/off
+controller for a switch-backed heater. No TRV support, no scheduling, no
+presence. It is the starting point many users outgrow.
+
+**[Schedy][sc]** (hass-apps) is a general-purpose scheduler that can drive any
+actor, including climate entities. It is highly flexible through inline Python
+rules but requires AppDaemon, YAML configuration, and manual rule authoring for
+every room and condition.
+
+[bt]: https://github.com/KartoffelToby/better_thermostat
+[vt]: https://github.com/jmcollin78/versatile_thermostat
+[gt]: https://www.home-assistant.io/integrations/generic_thermostat/
+[sc]: https://hass-apps.readthedocs.io/en/stable/apps/schedy/
 
 ---
 
