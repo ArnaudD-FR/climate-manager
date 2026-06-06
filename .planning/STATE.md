@@ -2,34 +2,34 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Calendar Presence & Pre-heat
-status: milestone_complete
-stopped_at: Milestone complete (Phase 17 was final phase)
-last_updated: 2026-06-05T15:02:55.524Z
-last_activity: 2026-06-05 -- Phase 17 execution started
+status: Awaiting next milestone
+stopped_at: Phase 17 context gathered
+last_updated: "2026-06-06T15:47:54.084Z"
+last_activity: 2026-06-06 — Milestone v1.3 completed and archived
 progress:
   total_phases: 8
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 35
-  completed_plans: 71
-  percent: 88
+  completed_plans: 43
+  percent: 100
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-29)
+See: .planning/PROJECT.md (updated 2026-06-06)
 
 **Core value:** A household's rooms are always at the right temperature at the
 right time, without manual intervention — driven by schedules and who is
-actually home. **Current focus:** Milestone complete
+actually home. **Current focus:** Planning next milestone (v1.3 shipped)
 
 ## Current Position
 
-Phase: 17
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-06-05
+Phase: Milestone v1.3 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-06 — Milestone v1.3 completed and archived
 
 ## Performance Metrics
 
@@ -64,38 +64,43 @@ _Updated after each plan completion_
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table. Recent decisions
-affecting current work:
+affecting current work (v1.3):
 
-- v1.2 arch: person `schedule_type`/`schedule_even`/`schedule_odd` are additive
-  — absent fields default to `single`, no storage migration needed
+- Coordinator is a Zone/Person/Room/TRVGroup domain graph evaluated via a
+  per-cycle EvalContext (Phase 16) — the home for future observability/features
 
-- v1.2 arch: even/odd week selected by ISO week parity
-  (`date.isocalendar().week % 2`) at evaluation time
+- Default Zone is a first-class `ZoneConfig` under `config["default_zone"]`;
+  the four legacy flat keys are migrated on load (ARCH-01). No per-room
+  `room_mode` override — rooms always follow their zone (ARCH-02)
 
-- v1.2 arch: single→even_odd seeds both week schedules from `schedule`;
-  even_odd→single preserves `schedule` unchanged
+- Calendar presence delegates to HA `calendar.get_events`, cached once per
+  evaluate cycle; CAL-04 wake-up advance flips an absent person present within
+  the lead so rooms pre-heat before return
 
-- v1.2 arch: TRV calibration guarded by `temperature_offset` attribute /
-  `tado_x.set_temperature_offset` service detection — incompatible or
-  sensor-less rooms silently skipped
+- Pre-heat enable is zone-scoped (GAP-01); lead time is learned per room from
+  observed heating cycles
 
-- v1.2 arch: calibration gated by configurable delta threshold (default 0.5°C)
-  to prevent jitter
-
-- Phase 9 (calibration) is independent of Phases 7-8 (scheduling) — can be
-  planned/executed in parallel
+- Matter→Tado X calibration is event-driven via `async_track_state_change_event`
+  with cancel-and-rebuild listener lifecycle
 
 ### Pending Todos
 
-- (cleared) TRV temperature offset auto-calibration — now scoped as Phase 9
+- (none active) — 3 future ideas parked in `.planning/todos/deferred/`
+  (per-zone boiler v1.4+, boiler demand control v2, multi-language v2)
 
 ### Blockers/Concerns
 
-None yet.
+None.
 
 ## Deferred Items
 
-Items acknowledged and deferred at milestone close on 2026-05-31:
+At v1.3 close (2026-06-06): **0 open tracking artifacts** — all 46 items the
+pre-close audit reported (41 quick-task summary markers, 1 UAT, 1 verification,
+3 todos) were resolved, not deferred. The 3 future feature ideas were moved to
+`.planning/todos/deferred/` (per-zone boiler → v1.4+, boiler demand control →
+v2, multi-language → v2).
+
+Historical — items acknowledged and deferred at milestone close on 2026-05-31:
 
 | Category    | Item                                              | Status              |
 | ----------- | ------------------------------------------------- | ------------------- |
@@ -143,4 +148,4 @@ Stopped at: Phase 17 context gathered
 
 ## Operator Next Steps
 
-- Phase 17 (person-scheduling-use-case-docs): discuss or plan
+- Start the next milestone with /gsd-new-milestone

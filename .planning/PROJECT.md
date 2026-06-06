@@ -3,32 +3,31 @@
 ## What This Is
 
 A Home Assistant custom integration that manages home climate controls through
-smart radiator thermostats. It provides global heating modes, weekday-based time
-programs, per-room schedule overrides, person presence tracking with even/odd
-week scheduling, and automatic TRV temperature offset calibration — all
-configurable through a full Lovelace dashboard panel without touching YAML.
+smart radiator thermostats. It provides zone-based heating modes, weekday time
+programs, person presence tracking (periodic schedules, even/odd weeks, and HA
+`calendar.*` sources), predictive pre-heat with learned thermal inertia, and
+automatic TRV temperature offset calibration — including real-time Matter→Tado X
+calibration — all configurable through a full Lovelace dashboard panel without
+touching YAML.
 
 ## Core Value
 
 A household's rooms are always at the right temperature at the right time,
 without manual intervention — driven by schedules and who is actually home.
 
-## Current Milestone: v1.3 Calendar Presence & Pre-heat
+## Current Milestone
 
-**Goal:** Presence can be driven from external calendars (Pronote school
-timetable, iCal work/holidays), rooms pre-heat automatically before occupied
-periods using adaptive inertia learning, and calibration becomes sub-minute
-via Matter→Tado X sensor mapping.
+**v1.3 Calendar Presence & Pre-heat shipped 2026-06-06.** Planning the next
+milestone — no active milestone in flight.
 
-**Target features:**
+### Candidate goals for the next milestone
 
-- Pronote presence source — child's school timetable maps to absent/present
-- iCal presence source — work/holiday calendar maps to absent/present
-- Predictive pre-heat — adaptive lead time with learned inertia factor; fixed
-  flow temp fallback (no boiler entity required)
-- Matter→Tado X sensor mapping — sub-minute calibration on Tado X free tier
-- Hide HA presence mode when person has no tracked device in HA
-- Rename HA presence mode label for clarity
+- Per-zone boiler declaration / flow-temp normalisation (deferred from v1.3,
+  parked in `todos/deferred/`)
+- Boiler demand control (v2)
+- Multi-language / i18n support (v2)
+- Holiday / specific-period manual overrides (v2)
+- HACS Default store publishing (currently SSH-deploy only)
 
 ## Current State
 
@@ -61,6 +60,20 @@ via Matter→Tado X sensor mapping.
   periodic coordinator pass, `set_calibration_config` WS command, Global
   Settings toggle; 9 quick-task calibration UI improvements post-phase
 
+**Shipped:** v1.3 Calendar Presence & Pre-heat (2026-06-06)
+
+- 8 phases (10-17), 35 plans; 304 files changed, +52,397/-3,873, 393 commits
+- Phases 10-11: presence mode UI (HA home tracking label + ⚠ stuck-mode hint)
+  and calendar presence backend (`calendar.*` sources, per-cycle `get_events`
+  cache, gap-handling modes, CAL-04 wake-up advance)
+- Phases 12-13: predictive pre-heat (zone opt-in, learned inertia, status UI)
+  and Matter→Tado X real-time calibration (`state_changed` listener, pairing UI)
+- Phases 14-15: Default Zone consolidated to a first-class `ZoneConfig`
+  (ARCH-01); per-room `room_mode` overrides removed (ARCH-02)
+- Phases 16-17: coordinator restructured into a Zone/Person/Room/TRVGroup
+  domain graph with structured log traces (OBS-01); seven persona use-case docs
+  with coordinator-generated screenshots (DOC-01)
+
 ## Requirements
 
 ### Validated
@@ -84,6 +97,18 @@ via Matter→Tado X sensor mapping.
   v1.2 (SCHED-01..06)
 - ✓ TRV temperature offset auto-calibration from room sensor — v1.2
   (CALIB-01..05)
+- ✓ Calendar presence sources (`calendar.*`, per-cycle cache, gap handling,
+  wake-up advance) — v1.3 (CAL-01..04)
+- ✓ Predictive pre-heat with learned thermal inertia (zone opt-in, status UI) —
+  v1.3 (PREHEAT-01..05)
+- ✓ Matter→Tado X real-time calibration on `state_changed` — v1.3
+  (MCALIB-01..02)
+- ✓ Presence mode UI: "HA home tracking" label + ⚠ stuck-mode hint — v1.3
+  (UI-01, UI-02)
+- ✓ Default Zone consolidated to first-class `ZoneConfig`; per-room mode
+  override removed — v1.3 (ARCH-01, ARCH-02)
+- ✓ Structured presence/zone/heating log traces — v1.3 (OBS-01)
+- ✓ Seven persona use-case docs with generated screenshots — v1.3 (DOC-01)
 
 ### Active
 
@@ -92,15 +117,15 @@ via Matter→Tado X sensor mapping.
 ### Out of Scope
 
 - Specific periods (holidays, holidays at home) — deferred to v2
-- Calendar-based presence detection (iCal, Pronote) — deferred to v2
-- GPS / HA zone-based presence detection — deferred to v2
-- Predictive pre-heat — deferred to v2
-- Per-zone temperature setpoints — deferred to v2
-- Boiler demand control — deferred to v2
+- GPS / HA zone-based presence detection — out (HA `person.*` home/away covers
+  the local-network case)
+- Per-zone temperature setpoints — deferred
+- Per-zone boiler declaration / flow-temp normalisation — deferred to v1.4+
+  (`todos/deferred/`)
+- Boiler demand control — deferred to v2 (`todos/deferred/`)
+- Multi-language support — deferred to v2 (`todos/deferred/`)
 - Custom card UI — using full Lovelace panel instead
 - HACS store publishing — development deploy only
-- Multi-language support — deferred
-- Matter/Tado X sensor mapping for real-time calibration — deferred to v2
 
 ## Context
 
@@ -113,14 +138,25 @@ via Matter→Tado X sensor mapping.
 - TRV push is concurrent via `asyncio.gather` — mode-change latency ~<1s vs
   ~10s sequential
 - ha-switch confirmed working in HA 2026.x (used for calibration toggle)
+- Calendar presence delegates to HA's `calendar.get_events` service, cached
+  once per evaluation cycle; falls back to absent on entity error (no log spam)
+- Pre-heat lead time is learned per room from observed heating cycles
+  (convergence after 3-5 cycles); non-converging samples excluded
+- Matter→Tado X calibration is event-driven via
+  `async_track_state_change_event`; listeners cancel-and-rebuild to avoid ghosts
+- As of HA 2026.x: `ha-select`/`ha-tabs`/`ha-textfield` are broken — the panel
+  uses native `<select>`/`<input>` and CSS button-tabs instead
+- Coordinator is a Zone/Person/Room/TRVGroup domain graph evaluated via a
+  per-cycle EvalContext (replaced the monolithic evaluate method in Phase 16)
 
 ## Constraints
 
 - **Tech stack**: Python custom integration — HA integration architecture
 - **TRV interface**: Standard HA `climate` entity only — no brand-specific APIs
 - **HA version**: Latest only — no legacy compatibility required
-- **Presence v1**: Periodic schedule only — no external calendar or GPS
-  dependencies
+- **Presence sources**: periodic schedules, even/odd weeks, and HA `calendar.*`
+  entities (since v1.3) — no external SDKs or GPS dependencies; calendar
+  integration is delegated to HA's own `calendar` domain
 
 ## Key Decisions
 
@@ -139,6 +175,16 @@ via Matter→Tado X sensor mapping.
 | TRV calibration via attribute guard   | Avoids service-call errors on non-Tado TRVs    | ✓ Good — incompatible rooms silently skipped, no log spam                              |
 | 0.5°C delta threshold for calibration | Prevents jitter from minor sensor fluctuation  | ✓ Good — smooths out calibration cycles in production                                  |
 | ha-switch for calibration toggle      | Standard HA component; simpler than native     | ✓ Good — confirmed visible and functional in HA 2026.x                                 |
+| Calendar presence via HA `calendar.*` | Reuse HA's calendar domain; no external SDKs   | ✓ Good — Pronote/iCal work through HA without extra deps                                |
+| Per-cycle `get_events` cache          | Avoid N fetches when persons share a calendar  | ✓ Good — one fetch per unique entity per evaluate cycle                                 |
+| Wake-up advance (CAL-04)              | Pre-empt return so rooms warm before arrival   | ✓ Good — flips absent→present within the lead; wired in v1.3 close                      |
+| Pre-heat enable is zone-scoped        | GAP-01: per-room toggle was the wrong altitude | ✓ Good — moved to zone after UAT; room keeps only max-lead                              |
+| Learned inertia for pre-heat lead     | Fixed lead over/under-shoots per room          | ✓ Good — converges after 3-5 cycles; bad samples excluded                               |
+| Matter calibration via state_changed  | Polling is too slow for free-tier Tado X       | ✓ Good — sub-minute; cancel-and-rebuild avoids ghost listeners                          |
+| Default Zone as first-class ZoneConfig| Four flat keys were a special-case sprawl      | ✓ Good — single `default_zone` key, unified code path, migrated on load (ARCH-01)       |
+| Remove per-room mode override         | Zones already express the same intent          | ✓ Good — rooms always follow their zone; frost = assign an Off zone (ARCH-02)           |
+| "HA home tracking" + ⚠, always shown  | Hiding the option hid the fix-it affordance    | ✓ Good — supersedes the original hide/rename spec (UI-01/02)                            |
+| Coordinator domain-object graph       | Monolithic evaluate was hard to trace/extend   | ✓ Good — Zone/Person/Room/TRVGroup + EvalContext; enabled OBS-01 log traces             |
 
 ## Evolution
 
@@ -161,4 +207,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-05-31 after v1.2 milestone*
+*Last updated: 2026-06-06 after v1.3 milestone*

@@ -1,5 +1,59 @@
 # Milestones
 
+## v1.3 Calendar Presence & Pre-heat (Shipped: 2026-06-06)
+
+**Phases completed:** 8 phases (10-17), 35 plans
+**Timeline:** 2026-05-31 → 2026-06-06 (6 days)
+**Codebase:** 304 files changed, +52,397/-3,873 lines, 393 commits since v1.2
+**Quick tasks shipped:** calendar gap modes + wake-up advance, Matter→Tado X
+pairing UI, auto-detect Matter mapping, use-case README terminology, table of
+contents, plus the audit-gap closure (CAL-04 wiring, UI-01/02 reconciliation)
+**Known deferred items at close:** 0 open tracking artifacts (all resolved at
+close); 3 future todos parked under `todos/deferred/` (per-zone boiler v1.4+,
+boiler demand control v2, multi-language v2)
+
+**Key accomplishments:**
+
+1. Calendar presence sources — persons driven by standard HA `calendar.*`
+   entities; coordinator caches `get_events` once per cycle, `event_means`
+   absent/present, per-period `calendar` state, three gap-handling modes
+   (exact / day-span / threshold), and graceful absent-fallback on entity
+   error. Wake-up advance (CAL-04) treats a calendar-absent person as present
+   once the active event ends within the lead so rooms pre-heat before return
+
+2. Predictive pre-heat — zone-scoped opt-in with per-room max lead time; the
+   coordinator starts heating ahead of the next Normal/Comfort period using a
+   thermal-inertia factor learned from observed heating cycles (convergence
+   after 3-5 cycles, non-converging samples excluded); room card shows
+   "Pre-heating (→ XX.X°C)" and a suppression warning when presence is
+   non-deterministic
+
+3. Matter→Tado X real-time calibration — room-level Matter-entity→Tado-X
+   mapping fires the calibration pass on `state_changed` for sub-minute
+   responsiveness instead of waiting for the poll; listener lifecycle managed
+   via the existing cancel-registry pattern (no ghost listeners);
+   drag-and-drop pairing UI on the room card
+
+4. Presence Mode UI — the HA presence option is labelled "HA home tracking"
+   and always shown, carrying a "⚠" suffix plus a stuck-mode hint when the
+   person entity has no linked device trackers (WebSocket keeps `"ha"` as the
+   internal key)
+
+5. Architecture consolidation — Default Zone is now a first-class `ZoneConfig`
+   under a single `default_zone` key with the four legacy flat keys migrated
+   on load (ARCH-01); per-room `room_mode`/`time_program` overrides removed
+   entirely — rooms always follow their zone (ARCH-02); unified default/custom
+   zone code path across coordinator, WebSocket, and frontend
+
+6. Coordinator domain-graph rewrite + observability — coordinator restructured
+   into Zone/Person/Room/TRVGroup domain objects evaluated via a per-cycle
+   EvalContext, emitting structured INFO presence/zone log lines and DEBUG TRV
+   heating lines with anti-spam dedup (OBS-01); shipped with seven persona
+   use-case showcases under `docs/use-cases/` whose screenshots are generated
+   by the real coordinator (DOC-01)
+
+---
+
 ## v1.2 Presence & Calibration (Shipped: 2026-05-31)
 
 **Phases completed:** 3 phases (7-9), 9 plans
