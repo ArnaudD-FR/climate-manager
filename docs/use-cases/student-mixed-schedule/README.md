@@ -13,6 +13,9 @@ follow the time-program schedule while Lena is home and fall back to Reduced
 while she is at her lectures. She is present overnight — "absent" only covers
 the hours she is physically at university.
 
+The screenshots are pinned to **Wednesday at 19:00** — Lena's longest day ended
+at 18:00, so all three rooms are now heating to Normal.
+
 ## Household layout
 
 | Room        | Zone         | Floor        | Heats when                       |
@@ -45,7 +48,7 @@ physically at university.
 Lena's **Room associations** cover **all three rooms**: Bedroom, Study, and
 Living Room. Because the zone is **Time program & presences**, every room needs
 at least one assigned person to receive scheduled heat. All three rooms show a
-non-zero person count when Lena is home.
+person count of 1/1 when Lena is home.
 
 | Room        | Tracked for presence |
 | ----------- | -------------------- |
@@ -59,22 +62,27 @@ non-zero person count when Lena is home.
 
 ![Overview — Lena present, single zone](screenshots/overview.png)
 
-The Overview shows the single Home zone in **Time program & presences** mode
-with the active period and Lena listed as currently present; all three rooms
-show a non-zero person count.
+The Overview tab shows one zone row: Home in **Time program & presences** mode
+with active period **Normal**, and Lena listed as currently present (green dot).
+The Temperatures panel below shows the four period setpoints (Frost protection
+7°C, Reduced 16°C, Normal 20°C, Comfort 22°C).
 
 ### Rooms
 
 ![Rooms tab — all three rooms in Default Zone](screenshots/rooms.png)
 
-All three rooms appear under the Default Zone group with live temperature and
-humidity readings, illustrating a single-zone presence-driven household.
+All three rooms appear grouped by floor — Bedroom and Study on the First Floor,
+Living Room on the Ground Floor — each showing a **Normal · 20°C** badge, the
+Home zone chip, live temperature and humidity, and a 1/1 person count confirming
+Lena is present.
 
 ### Persons
 
 ![Persons tab — Lena card expanded](screenshots/persons.png)
 
 The expanded Lena card highlights the per-day time bars: each weekday row shows
-a distinct pattern of absent blocks reflecting the varying class timetable,
-while Saturday and Sunday are fully present. All three room chips appear grouped
-by floor.
+a distinct absent block of a different width, reflecting the varying class
+timetable (Wednesday's bar is the widest; Tuesday's is the narrowest), while
+Saturday and Sunday are fully present. Room associations appear below the
+schedule, grouped by floor: Bedroom and Study on the First Floor, Living Room on
+the Ground Floor.
