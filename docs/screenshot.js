@@ -198,50 +198,62 @@ async function main() {
   const out = (p) => path.join(SCREENSHOTS_DIR, p);
 
   if (process.env.HARNESS_PATH) {
-    // Scenario mode: Overview + Rooms (zone/room layout) + expanded Persons
-    // card (D-04). Overview shows the resulting present/absent state and the
-    // per-zone tabs; Rooms shows how rooms are grouped into zones; Persons
-    // shows the person ↔ room association and schedule.
-    // 1. Overview (default tab, already active on load)
-    await page.screenshot({ path: out("overview.png") });
-    console.log("✓ overview.png");
+    // Scenario mode. Two kinds of capture:
+    //   • Result screenshots (Overview + Rooms) — these show *what happens* at
+    //     the variant's moment / world state (e.g. a person present vs. away),
+    //     so they are captured per variant and suffixed with VARIANT_ID.
+    //   • Configuration screenshots (Persons + per-zone schedules) — these show
+    //     the static setup and are captured once (on the CAPTURE_CONFIG run).
+    // Legacy single-moment scenarios set neither env var and keep the old
+    // unsuffixed filenames.
+    const variantId = process.env.VARIANT_ID || "";
+    const captureConfig = !variantId || process.env.CAPTURE_CONFIG === "1";
+    const ovName = variantId ? `overview-${variantId}.png` : "overview.png";
+    const roomsName = variantId ? `rooms-${variantId}.png` : "rooms.png";
 
-    // 2. Rooms tab — expanded first room card (rooms grouped by zone)
+    // Result: Overview (default tab, already active on load).
+    await page.screenshot({ path: out(ovName) });
+    console.log(`✓ ${ovName}`);
+
+    // Result: Rooms tab — expanded first room card (rooms grouped by zone).
     await clickTab("Rooms");
     await expandFirstCard("climate-manager-rooms-tab");
-    await page.screenshot({ path: out("rooms.png") });
-    console.log("✓ rooms.png");
+    await page.screenshot({ path: out(roomsName) });
+    console.log(`✓ ${roomsName}`);
 
-    // 3. Persons tab — expanded first person card
-    await clickTab("Persons");
-    await expandFirstCard("climate-manager-persons-tab");
-    await page.screenshot({ path: out("persons.png") });
-    console.log("✓ persons.png");
+    if (captureConfig) {
+      // Config: Persons tab — expanded first person card.
+      await clickTab("Persons");
+      await expandFirstCard("climate-manager-persons-tab");
+      await page.screenshot({ path: out("persons.png") });
+      console.log("✓ persons.png");
 
-    // 4. Zone schedule tabs — one screenshot per zone. The weekly time program
-    // is what actually bounds heating: a zone cannot heat before its first
-    // scheduled Normal/Comfort period or after the last one, even when an
-    // assigned person is present. Enumerate every zone tab (all tab buttons
-    // that are not the three fixed tabs or the "+" add button) and capture its
-    // schedule grid.
-    const slugify = (s) =>
-      s
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-    const zoneLabels = await page.evaluate(() => {
-      const host = document.querySelector("#mount climate-manager-panel");
-      const btns = [...(host?.shadowRoot?.querySelectorAll(".tab-btn") ?? [])];
-      const fixed = new Set(["Overview", "Rooms", "Persons", "+"]);
-      return btns
-        .map((b) => b.textContent.trim())
-        .filter((t) => t && !fixed.has(t));
-    });
-    for (const label of zoneLabels) {
-      await clickTab(label);
-      const file = `schedule-${slugify(label)}.png`;
-      await page.screenshot({ path: out(file) });
-      console.log(`✓ ${file}`);
+      // Config: zone schedule tabs — one screenshot per zone. The weekly time
+      // program is what actually bounds heating: a zone cannot heat before its
+      // first scheduled Normal/Comfort period or after the last one, even when
+      // an assigned person is present. Enumerate every zone tab (all tab
+      // buttons that are not the three fixed tabs or the "+" add button).
+      const slugify = (s) =>
+        s
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+      const zoneLabels = await page.evaluate(() => {
+        const host = document.querySelector("#mount climate-manager-panel");
+        const btns = [
+          ...(host?.shadowRoot?.querySelectorAll(".tab-btn") ?? []),
+        ];
+        const fixed = new Set(["Overview", "Rooms", "Persons", "+"]);
+        return btns
+          .map((b) => b.textContent.trim())
+          .filter((t) => t && !fixed.has(t));
+      });
+      for (const label of zoneLabels) {
+        await clickTab(label);
+        const file = `schedule-${slugify(label)}.png`;
+        await page.screenshot({ path: out(file) });
+        console.log(`✓ ${file}`);
+      }
     }
   } else {
     // Standard mode: existing 6-screenshot sequence (unchanged)

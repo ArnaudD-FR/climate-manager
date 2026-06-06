@@ -25,6 +25,7 @@ docs/use-cases/generate.py``).
 
 from __future__ import annotations
 
+import copy
 import datetime
 import importlib.util
 import json
@@ -57,6 +58,36 @@ def _load_scenarios() -> list[dict]:
     return scenarios
 
 
+def _variants(scenario: dict) -> list[dict]:
+    """Return the scenario's variants.
+
+    A scenario may declare ``variants`` — a list of ``{id, now, caption,
+    states}`` showing the same configuration at different moments / world
+    states (e.g. a person present vs. away). Legacy single-moment scenarios
+    (no ``variants`` key) yield one variant with ``id=None`` written to the
+    old ``scenario.json`` filename for back-compat.
+    """
+    if "variants" in scenario:
+        return scenario["variants"]
+    return [{"id": None, "now": scenario["now"]}]
+
+
+def _merge_states(base: dict, overrides: dict) -> dict:
+    """Deep-merge per-variant state overrides onto the base world states."""
+    merged = copy.deepcopy(base)
+    for entity_id, override in overrides.items():
+        if entity_id in merged:
+            if "state" in override:
+                merged[entity_id]["state"] = override["state"]
+            if "attributes" in override:
+                merged[entity_id].setdefault("attributes", {}).update(
+                    override["attributes"]
+                )
+        else:
+            merged[entity_id] = copy.deepcopy(override)
+    return merged
+
+
 def _register_calendar(hass, calendars: dict) -> None:
     """Register a calendar.get_events handler returning scenario events."""
 
@@ -77,15 +108,11 @@ def _register_calendar(hass, calendars: dict) -> None:
     )
 
 
-async def _generate_one(hass, scenario: dict) -> pathlib.Path:
-    now_dt = datetime.datetime.fromisoformat(scenario["now"])
+async def _generate_one(hass, scenario: dict) -> list[pathlib.Path]:
     world = scenario["hass"]
-
-    # Seed HA world: entity states (TRVs, persons, calendars).
-    for entity_id, state in world["states"].items():
-        hass.states.async_set(
-            entity_id, state["state"], state.get("attributes", {})
-        )
+    base_states = world["states"]
+    areas = world.get("areas", {})
+    humidity = scenario.get("humidity", {})
 
     # Mock the climate services the evaluation issues, plus calendar events.
     async_mock_service(hass, "climate", "set_temperature")
@@ -108,33 +135,55 @@ async def _generate_one(hass, scenario: dict) -> pathlib.Path:
     coord = entry.runtime_data.coordinator
     coord._build_domain_objects(scenario["config"])
 
-    # Pin the clock and run the real evaluation.
-    with freeze_time(now_dt):
-        await coord.async_evaluate(now_dt)
-        status = coord._build_status_payload()
-
-    # Inject cosmetic, non-engine fields (display names, humidity).
-    areas = world.get("areas", {})
-    humidity = scenario.get("humidity", {})
-    for room in status["rooms_status"]:
-        area_id = room["area_id"]
-        if area_id in areas:
-            room["name"] = areas[area_id]["name"]
-        if area_id in humidity:
-            room["humidity"] = humidity[area_id]
-
-    out = {
-        "now": scenario["now"],
-        "config": scenario["config"],
-        "status": status,
-        "hass": world,
-    }
     folder = _USE_CASES_DIR / scenario["slug"]
     folder.mkdir(parents=True, exist_ok=True)
-    out_path = folder / "scenario.json"
-    out_path.write_text(
-        json.dumps(out, indent=2, default=str, ensure_ascii=False) + "\n"
-    )
+    out_paths: list[pathlib.Path] = []
+
+    # One evaluation per variant — same config, different moment / world state
+    # (e.g. a person present vs. away). The coordinator computes each result.
+    for variant in _variants(scenario):
+        now_dt = datetime.datetime.fromisoformat(variant["now"])
+        states = _merge_states(base_states, variant.get("states", {}))
+
+        # Seed (or re-seed) the HA world for this variant.
+        for entity_id, state in states.items():
+            hass.states.async_set(
+                entity_id, state["state"], state.get("attributes", {})
+            )
+
+        # Pin the clock and run the real evaluation.
+        with freeze_time(now_dt):
+            await coord.async_evaluate(now_dt)
+            status = coord._build_status_payload()
+
+        # Inject cosmetic, non-engine fields (display names, humidity).
+        for room in status["rooms_status"]:
+            area_id = room["area_id"]
+            if area_id in areas:
+                room["name"] = areas[area_id]["name"]
+            if area_id in humidity:
+                room["humidity"] = humidity[area_id]
+
+        variant_world = dict(world)
+        variant_world["states"] = states
+        out = {
+            "now": variant["now"],
+            "variant": variant["id"],
+            "caption": variant.get("caption", ""),
+            "config": scenario["config"],
+            "status": status,
+            "hass": variant_world,
+        }
+        name = (
+            "scenario.json"
+            if variant["id"] is None
+            else f"scenario.{variant['id']}.json"
+        )
+        out_path = folder / name
+        out_path.write_text(
+            json.dumps(out, indent=2, default=str, ensure_ascii=False) + "\n"
+        )
+        out_paths.append(out_path)
 
     # Clean up so the next scenario (reusing this hass) starts fresh. The
     # integration registers a sidebar panel on setup but does not remove it on
@@ -145,7 +194,7 @@ async def _generate_one(hass, scenario: dict) -> pathlib.Path:
     frontend.async_remove_panel(hass, DOMAIN)
     await hass.config_entries.async_remove(entry.entry_id)
     await hass.async_block_till_done()
-    return out_path
+    return out_paths
 
 
 async def test_generate_use_cases(hass) -> None:
@@ -153,5 +202,6 @@ async def test_generate_use_cases(hass) -> None:
     scenarios = _load_scenarios()
     assert scenarios, "no docs/use-cases/<slug>/scenario.py files found"
     for scenario in scenarios:
-        path = await _generate_one(hass, scenario)
-        print(f"  wrote {path.relative_to(_REPO_ROOT)}")
+        paths = await _generate_one(hass, scenario)
+        for path in paths:
+            print(f"  wrote {path.relative_to(_REPO_ROOT)}")

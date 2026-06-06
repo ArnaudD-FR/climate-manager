@@ -49,11 +49,40 @@ _EMMA_WE = [
     {"start": "00:00", "state": "present"},
 ]
 
+# Two variants of the same configuration show the presence gate. In
+# "Scheduled" mode presence is computed from Emma's schedule + the current
+# time, so the contrast is just two moments: home in the evening (rooms follow
+# the schedule) vs. at work midday (rooms set back to Reduced). The coordinator
+# computes each result — the away TRV temperatures below are cosmetic only.
+_AWAY_TRVS = {
+    "climate.living_room_trv": {"attributes": {"current_temperature": 18.2}},
+    "climate.kitchen_trv": {"attributes": {"current_temperature": 18.6}},
+    "climate.bedroom_trv": {"attributes": {"current_temperature": 17.9}},
+    "climate.home_office_trv": {"attributes": {"current_temperature": 18.1}},
+    "person.emma": {"state": "not_home"},
+}
+
 SCENARIO = {
     "slug": "simple-schedule",
-    # Wednesday 19:00 — Emma is home for the evening (work hours ended at
-    # 17:30), so all her rooms heat to Normal.
-    "now": "2026-06-03T19:00:00+00:00",
+    "variants": [
+        {
+            "id": "present",
+            "now": "2026-06-03T19:00:00+00:00",
+            "caption": (
+                "Wednesday 19:00 — Emma is home for the evening, so every "
+                "room follows the schedule (Normal)."
+            ),
+        },
+        {
+            "id": "away",
+            "now": "2026-06-03T12:00:00+00:00",
+            "caption": (
+                "Wednesday 12:00 — Emma is at work, so the presence gate "
+                "sets every room back to Reduced."
+            ),
+            "states": _AWAY_TRVS,
+        },
+    ],
     "config": {
         "period_temperatures": {
             "frost_protection": 7,

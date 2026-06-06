@@ -7,15 +7,13 @@ Climate Manager setup: a **single Default Zone** in **Time program & presences**
 mode, four rooms, and one person on a **Scheduled** / **Single week** presence
 programme.
 
-The zone is **presence-driven**: rooms follow the time-program schedule while
-Emma is home and fall back to Reduced while she is at work (09:00–17:30). She is
-present overnight — "absent" only covers the hours she is physically out of the
-house.
+The whole point of the **Time program & presences** mode is the presence gate:
+rooms follow the schedule **while Emma is home** and fall back to **Reduced**
+while she is at work. The two states below show exactly that contrast.
 
-The screenshots are pinned to **Wednesday at 19:00** — Emma returned home at
-17:30, so all four rooms are heating to Normal.
+## Configuration
 
-## Household layout
+### Household layout
 
 | Room        | Zone         | Floor        | Heats when                       |
 | ----------- | ------------ | ------------ | -------------------------------- |
@@ -24,64 +22,28 @@ The screenshots are pinned to **Wednesday at 19:00** — Emma returned home at
 | Bedroom     | Default Zone | First Floor  | Zone schedule while Emma is home |
 | Home Office | Default Zone | First Floor  | Zone schedule while Emma is home |
 
-## Presence configuration
+Emma's **Room associations** cover all four rooms. Because the zone is **Time
+program & presences**, every room needs at least one assigned person to receive
+scheduled heat — a room with nobody assigned would never leave Reduced.
+
+### Presence configuration
 
 Emma uses **Scheduled** presence mode with a **Single week** schedule — the same
 pattern repeats every week with no alternation.
-
-### Schedule
 
 | Day     | Present                        | Absent      |
 | ------- | ------------------------------ | ----------- |
 | Mon–Fri | 00:00–09:00, 17:30 to midnight | 09:00–17:30 |
 | Sat–Sun | all day (00:00 onwards)        | —           |
 
-Emma is present overnight. She is marked absent only during the hours she is
-physically away at work (09:00–17:30 on weekdays).
-
-## Rooms driven by Emma
-
-Emma's **Room associations** cover **all four rooms**: Bedroom, Home Office,
-Living Room, and Kitchen. Because the zone is **Time program & presences**,
-every room needs at least one assigned person to receive scheduled heat. All
-four rooms show a person count of 1/1 when Emma is home.
-
-| Room        | Tracked for presence |
-| ----------- | -------------------- |
-| Bedroom     | yes                  |
-| Home Office | yes                  |
-| Living Room | yes                  |
-| Kitchen     | yes                  |
-
-## Screenshots
-
-### Overview
-
-![Overview — Emma present, single zone](screenshots/overview.png)
-
-The Overview tab shows one zone row: Home in **Time program & presences** mode
-with active period **Normal**, and Emma listed as currently present (green dot).
-The Temperatures panel below confirms the four period setpoints (Frost
-protection 7°C, Reduced 16°C, Normal 20°C, Comfort 22°C).
-
-### Rooms
-
-![Rooms tab — all four rooms in Default Zone](screenshots/rooms.png)
-
-All four rooms appear grouped by floor — Bedroom and Home Office on the First
-Floor, Kitchen and Living Room on the Ground Floor — each showing a **Normal ·
-20°C** badge, the Home zone chip, live temperature and humidity, and a 1/1
-person count confirming Emma is present.
-
-### Persons
+Emma is present overnight — "absent" only covers the hours she is physically
+away at work (09:00–17:30 on weekdays).
 
 ![Persons tab — Emma card expanded](screenshots/persons.png)
 
-The expanded Emma card shows her **Single week** presence schedule: every
-weekday row carries an identical Present/Absent/Present pattern (absent
-09:00–17:30), while Saturday and Sunday are fully present. Room associations
-appear below the schedule, grouped by floor: Bedroom and Home Office on the
-First Floor, Kitchen and Living Room on the Ground Floor.
+The expanded Emma card shows her **Single week** schedule: every weekday row
+carries an identical Present/Absent/Present pattern, while Saturday and Sunday
+are fully present. Room associations appear below, grouped by floor.
 
 ### Home zone schedule
 
@@ -93,5 +55,38 @@ followed.
 
 Weekdays heat Normal 06:30–09:00, drop to Reduced through the day, and return to
 Normal 17:30–22:00; weekends ramp Normal 08:00, Comfort 10:00–14:00, then Normal
-to 23:00. Outside those bands the zone holds Frost protection — so even when
-Emma is home overnight, nothing heats before 06:30 or after 22:00.
+to 23:00. Outside those bands the zone holds Frost protection.
+
+## What happens
+
+### When Emma is home — Wednesday 19:00
+
+She returned from work at 17:30, so the presence gate is open and the schedule
+applies.
+
+![Overview — Emma present, active period Normal](screenshots/overview-present.png)
+
+The Overview shows the Home zone in active period **Normal** and Emma listed as
+present (green dot).
+
+![Rooms — all four rooms Normal · 20°C, 1/1 present](screenshots/rooms-present.png)
+
+All four rooms carry a **Normal · 20°C** badge with a **1/1** person count — the
+schedule is being followed in every room Emma occupies.
+
+### When Emma is away — Wednesday 12:00
+
+She is at work, so the presence gate is closed even though the schedule itself
+would call for Reduced midday anyway — and crucially the rooms hold **Reduced**
+regardless of the schedule's warmer periods until she returns.
+
+![Overview — Emma absent, active period Reduced](screenshots/overview-away.png)
+
+The Overview now shows Emma absent (grey dot) and the zone fell back to
+**Reduced**.
+
+![Rooms — all four rooms Reduced · 16°C, 0/1 present](screenshots/rooms-away.png)
+
+Every room shows a **Reduced · 16°C** badge and a **0/1** person count, with the
+TRV temperatures drifting down. No room can reach its scheduled Normal period
+while Emma is out — that is the presence gate in action.
