@@ -22,9 +22,10 @@ rooms held at Reduced).
 | Living Room | Home (Default Zone) | Ground Floor | Time program + pre-heat before 06:30 |
 
 The Default Zone **Home** uses **Time program & presences** and has **Pre-heat**
-enabled. All three rooms have Maya in their **Room associations**, so all three
-are eligible for pre-heat. A room with nobody assigned would be set back, not
-pre-heated.
+enabled. Because the zone is presence-gated, pre-heat for each room follows the
+assigned person: all three rooms have Maya in their **Room associations**, so
+all three pre-heat when she is home. (In a plain **Time program** zone, rooms
+pre-heat on schedule with no person needed.)
 
 ### Presence configuration
 

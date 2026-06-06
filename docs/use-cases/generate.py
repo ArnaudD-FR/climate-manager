@@ -131,9 +131,13 @@ async def _generate_variant(
 
     # Mock the climate services the evaluation issues, plus calendar events.
     # These handlers are stateless; re-registering per variant just overwrites.
+    # A variant may override the calendar event set (e.g. a canceled class) via
+    # its own "calendars"; otherwise the scenario-level calendars are used.
     async_mock_service(hass, "climate", "set_temperature")
     async_mock_service(hass, "climate", "set_hvac_mode")
-    _register_calendar(hass, scenario.get("calendars", {}))
+    _register_calendar(
+        hass, variant.get("calendars", scenario.get("calendars", {}))
+    )
 
     # Pin HA's timezone to UTC so schedule "HH:MM" values are interpreted in
     # UTC — the same clock the browser harness is pinned to (no tz drift).

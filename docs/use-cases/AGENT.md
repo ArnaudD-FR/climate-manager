@@ -99,8 +99,9 @@ in UTC and reason about the schedules in UTC.
   **present**; only mark a person away for the hours they are actually out.
 - **Pre-heat**: a zone with pre-heat enabled starts its rooms early (up to each
   room's max lead time) so they reach target by the next warmer period / first
-  event of the day. Only rooms with an assigned schedule/calendar person are
-  pre-heated.
+  event of the day. In a plain **Time program** zone rooms pre-heat on schedule
+  with no person needed; in a **Time program & presences** zone pre-heat is
+  gated by the assigned person (it runs ahead of their next arrival).
 - **Wake-up advance** (Calendar mode): presence begins N minutes before the
   day's **first** calendar event — not an evening-return mechanism.
 

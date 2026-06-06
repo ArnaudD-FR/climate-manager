@@ -115,6 +115,26 @@ _AWAY = {
     "climate.child_bedroom_trv": {"attributes": {"current_temperature": 17.7}},
 }
 
+# "Last class canceled" calendar: only the morning class runs; the afternoon
+# class (13:30-16:00) is dropped. With no afternoon event the child returns home
+# after the 12:00 class and stays home, so by 14:00 gap-fill has already pulled
+# the Child's Room up to Normal (the bedroom warms sooner than the usual 16:00
+# return).
+_CALENDAR_CANCELED = {
+    "calendar.school": {
+        "events": [
+            {
+                "start": "2026-06-03T08:00:00+00:00",
+                "end": "2026-06-03T12:00:00+00:00",
+                "summary": "Cours",
+            },
+        ],
+    },
+}
+_CANCELED_TRVS = {
+    "climate.child_bedroom_trv": {"attributes": {"current_temperature": 19.6}},
+}
+
 SCENARIO = {
     "slug": "shared-custody-odd-even-weeks",
     "variants": [
@@ -136,6 +156,18 @@ SCENARIO = {
                 "Room sets back to Reduced."
             ),
             "states": _AWAY,
+        },
+        {
+            "id": "last-class-canceled",
+            "now": "2026-06-03T14:00:00+00:00",
+            "caption": (
+                "Wednesday 14:00, odd week, last class canceled — the child "
+                "has been home since the 12:00 class ended, so gap-fill holds "
+                "the Child's Room at Normal hours before her usual 16:00 "
+                "return."
+            ),
+            "calendars": _CALENDAR_CANCELED,
+            "states": _CANCELED_TRVS,
         },
     ],
     "config": {

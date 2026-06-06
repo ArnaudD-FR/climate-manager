@@ -116,3 +116,24 @@ The Overview shows Sofia absent (grey dot) and Child's Room fallen back to
 Child's Bedroom now shows **Reduced · 16°C** with **0/1** present. The Living
 Room is unchanged from its own schedule: the custody presence only governs the
 Child's Room.
+
+### When the last class is canceled (Wednesday 14:00)
+
+Normally the afternoon class runs 13:30–16:00, so at 14:00 the child is at
+school and the Child's Room is Reduced until her 16:00 return. With the last
+class canceled the school calendar has no afternoon event, so she has been home
+since the 12:00 class ended. Because she is now within the day's occupied window
+(between the 07:00–09:00 morning Normal period and the 16:00–21:00 evening one),
+**gap-fill** holds the room at Normal through the midday Reduced stretch.
+
+![Overview, Sofia present, Child's Room Normal at 14:00](screenshots/overview-last-class-canceled.png)
+
+The Overview shows Sofia present (green dot) and Child's Room already at
+**Normal** at 14:00, where on a normal school day it would still be Reduced.
+
+![Rooms, Child's Bedroom Normal · 20°C / 1·1 at 14:00](screenshots/rooms-last-class-canceled.png)
+
+Child's Bedroom shows **Normal · 20°C** with **1/1** present, the TRV already up
+to 19.6°C: the bedroom is warm hours sooner than her usual 16:00 return, with no
+schedule change, purely because gap-fill keeps a present child's room at the
+preceding Normal temperature.
