@@ -132,8 +132,9 @@ Items acknowledged and deferred at milestone close on 2026-05-31:
 | 260603-uo0 | Matter→Tado X drag-and-drop pairing UI + panel.js cache-bust | 2026-06-03 | — | [260603-uo0-matter-tado-x-drag-and-drop-pairing-ui-i](./quick/260603-uo0-matter-tado-x-drag-and-drop-pairing-ui-i/) |
 | 260603-tf5 | Add toast feedback to _onDropOnUnassign in room-card | 2026-06-03 | 2b9b30f | [260603-tf5-toast-missing-unassign-drop-room-card](./quick/260603-tf5-toast-missing-unassign-drop-room-card/) |
 | 260606-ncz | Add Table of Contents to the 7 use-case READMEs | 2026-06-06 | 0a86b37 | [260606-ncz-add-a-table-of-contents-to-each-of-the-7](./quick/260606-ncz-add-a-table-of-contents-to-each-of-the-7/) |
+| 260606-o30 | Close v1.3 audit gaps: wire CAL-04, remove dead helper, align UI text | 2026-06-06 | 7f9737f | [260606-o30-close-v1-3-audit-gaps-wire-cal-04-remove](./quick/260606-o30-close-v1-3-audit-gaps-wire-cal-04-remove/) |
 
-Last activity: 2026-06-06 - Completed quick task 260606-ncz: Add Table of Contents to the 7 use-case READMEs
+Last activity: 2026-06-06 - Completed quick task 260606-o30: Close v1.3 audit gaps (CAL-04 + UI drift)
 
 ## Session Continuity
 
