@@ -21,10 +21,10 @@ deploy: build
 release: build
 	@mkdir -p dist
 	@rm -f dist/climate_manager.zip
-	cd custom_components && zip -r ../dist/climate_manager.zip climate_manager/ \
-		-x "climate_manager/__pycache__/*" \
-		-x "climate_manager/*/__pycache__/*" \
-		-x "*.pyc" -x "*.pyo" -x "*.map" -x "*/.gitignore"
+	cd custom_components/climate_manager && zip -r ../../dist/climate_manager.zip . \
+		-x "./__pycache__/*" \
+		-x "*/__pycache__/*" \
+		-x "*.pyc" -x "*.pyo" -x "*.map" -x ".gitignore" -x "*/.gitignore"
 	@echo "Release archive: dist/climate_manager.zip (v$(VERSION))"
 
 test:
