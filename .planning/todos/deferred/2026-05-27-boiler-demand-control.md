@@ -5,6 +5,8 @@ area: general
 files:
   - custom_components/climate_manager/trv.py:21
   - custom_components/climate_manager/coordinator.py
+status: deferred
+deferred_to: v2 (boiler demand control)
 ---
 
 ## Problem

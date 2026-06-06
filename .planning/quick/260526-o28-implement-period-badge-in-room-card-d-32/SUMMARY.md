@@ -27,6 +27,7 @@ decisions:
 metrics:
   duration: "1 minute"
   completed: "2026-05-26"
+status: complete
 ---
 
 # Phase quick Plan 260526-o28: Period Badge in Room Card Header (D-32) Summary

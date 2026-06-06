@@ -32,6 +32,7 @@ metrics:
   completed: "2026-05-26"
   tasks_completed: 2
   files_changed: 4
+status: complete
 ---
 
 # Quick Task 260526-ffr: MODE_OFF native TRV off support

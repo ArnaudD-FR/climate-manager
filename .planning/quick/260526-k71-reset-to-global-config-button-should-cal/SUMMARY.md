@@ -28,6 +28,7 @@ metrics:
   tasks_completed: 2
   tasks_total: 3
   files_changed: 5
+status: complete
 ---
 
 # Quick Task 260526-k71: Reset-to-global delegates to new backend WS command

@@ -25,6 +25,7 @@ metrics:
   tasks_completed: 2
   tasks_total: 3
   files_changed: 2
+status: complete
 ---
 
 # Phase quick-260526-jvg Plan 01: Reset to Global Configuration Button — Room Card Summary

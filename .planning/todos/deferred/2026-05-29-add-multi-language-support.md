@@ -8,6 +8,8 @@ files:
   - frontend/src/components/person-card.ts
   - frontend/src/components/global-settings-tab.ts
   - frontend/src/types.ts
+status: deferred
+deferred_to: v2 (i18n)
 ---
 
 ## Problem

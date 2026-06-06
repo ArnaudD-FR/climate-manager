@@ -8,6 +8,7 @@ files_modified:
   - frontend/src/main.ts
   - frontend/src/components/room-card.ts
   - custom_components/climate_manager/www/panel.js
+status: complete
 ---
 
 # Quick Task 260521-ggx: Tab Persistence + Period Temperature

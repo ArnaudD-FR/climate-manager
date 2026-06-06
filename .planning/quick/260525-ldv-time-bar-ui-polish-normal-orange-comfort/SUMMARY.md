@@ -43,6 +43,7 @@ requirements-completed:
 
 duration: 10min
 completed: 2026-05-25
+status: complete
 ---
 
 # Quick Task 260525-ldv: Time-Bar UI Polish Summary

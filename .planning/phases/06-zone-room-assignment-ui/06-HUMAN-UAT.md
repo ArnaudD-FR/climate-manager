@@ -1,5 +1,5 @@
 ---
-status: passed
+status: complete
 phase: 06-zone-room-assignment-ui
 source: [06-VERIFICATION.md]
 started: 2026-05-28T17:25:00Z

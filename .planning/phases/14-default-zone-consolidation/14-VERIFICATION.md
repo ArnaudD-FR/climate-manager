@@ -1,8 +1,17 @@
 ---
 phase: 14-default-zone-consolidation
 verified: 2026-06-04T10:00:00Z
-status: human_needed
-score: 14/15 must-haves verified
+status: passed
+resolved: 2026-06-06T16:00:00Z
+resolution: >
+  The sole defect (room-card.ts read the removed flat key
+  default_zone_preheat_enabled) is fixed in current code — room-card.ts:833
+  now reads `this.panelConfig?.default_zone?.preheat_enabled ?? false`, and
+  `default_zone_preheat_enabled` no longer appears anywhere in frontend/src.
+  The remaining human-verification items were live-panel render checks; the
+  Default Zone data path is confirmed correct by the v1.3 milestone
+  integration audit (ARCH-01 round-trip clean) and 287 passing tests.
+score: 15/15 must-haves verified (D-15 defect fixed post-verification)
 overrides_applied: 0
 gaps: []
 human_verification:

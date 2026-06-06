@@ -3,6 +3,8 @@ created: 2026-05-27T00:00:00.000Z
 title: Per-zone boiler declaration with shared boiler support
 area: general
 files: []
+status: deferred
+deferred_to: v1.4+ (per-zone boiler / flow-temp normalisation)
 ---
 
 ## Problem

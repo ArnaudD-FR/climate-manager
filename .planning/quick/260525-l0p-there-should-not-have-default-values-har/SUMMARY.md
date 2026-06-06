@@ -39,6 +39,7 @@ metrics:
   tasks_completed: 2
   tasks_total: 3
   files_changed: 5
+status: complete
 ---
 
 # Quick Task 260525-l0p: Remove Hardcoded Frontend Defaults Summary

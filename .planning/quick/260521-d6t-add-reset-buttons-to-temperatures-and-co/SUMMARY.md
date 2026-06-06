@@ -25,6 +25,7 @@ metrics:
   tasks_completed: 2
   tasks_total: 3
   files_changed: 1
+status: complete
 ---
 
 # Quick Task 260521-d6t: Add Reset Buttons to Temperatures and Configuration Cards Summary
