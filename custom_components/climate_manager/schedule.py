@@ -191,6 +191,56 @@ def _is_calendar_active(
     return any(start <= now < end for start, end in parsed)
 
 
+def _active_window_end(
+    events: list[dict],
+    now: datetime.datetime,
+    gap_handling: str,
+    gap_threshold_minutes: int,
+    sol,
+) -> datetime.datetime | None:
+    """Return when the calendar-active window containing *now* ends.
+
+    This is the moment the person would transition back to "not absent"
+    (return home) under the given gap_handling, or None when *now* is not
+    inside an active window. Callers only invoke this once *now* is known
+    to be active, so a containing run is always found in that case.
+
+    Used by CAL-04 (D-10): a calendar-absent person is treated as present
+    once this end falls within the wake-up lead, so rooms pre-heat before
+    the person returns.
+    """
+    parsed = _parse_events(events, sol)
+    if not parsed:
+        return None
+
+    if gap_handling == GAP_HANDLING_DAY_SPAN:
+        if parsed[0][0] <= now < parsed[-1][1]:
+            return parsed[-1][1]
+        return None
+
+    # "exact" merges only touching/overlapping events (td=0); "threshold"
+    # also absorbs gaps up to gap_threshold_minutes. Either way the active
+    # window is the contiguous run of events (plus merged short gaps) that
+    # contains *now*, and it ends when that run ends — matching the present↔
+    # absent boundary _is_calendar_active draws for the same mode.
+    td = (
+        datetime.timedelta(minutes=gap_threshold_minutes)
+        if gap_handling == GAP_HANDLING_THRESHOLD
+        else datetime.timedelta(0)
+    )
+    run_start, run_end = parsed[0]
+    for start, end in parsed[1:]:
+        if start - run_end <= td:
+            run_end = max(run_end, end)
+        else:
+            if run_start <= now < run_end:
+                return run_end
+            run_start, run_end = start, end
+    if run_start <= now < run_end:
+        return run_end
+    return None
+
+
 def resolve_calendar_presence(
     events: list[dict],
     event_means: str,
@@ -214,8 +264,12 @@ def resolve_calendar_presence(
         gap_threshold_minutes: Only used when gap_handling="threshold".
             Gaps shorter than this are treated as active (person stays
             away); longer gaps trigger a return home.
-        preheat_lead_minutes: Reserved for future morning pre-heat (D-10).
-            Currently unused.
+        preheat_lead_minutes: Wake-up advance (CAL-04, D-10). When
+            event_means="absent" and an event is active, the person is
+            treated as present once that active window ends within this
+            many minutes, so rooms pre-heat before the person returns.
+            0 disables the wake-up advance. No effect when
+            event_means="present".
         start_of_local_day: Callable(date) → aware datetime. Tests may
             omit this; production callers MUST pass dt_util.start_of_local_day.
     """
@@ -228,7 +282,22 @@ def resolve_calendar_presence(
         events, now, gap_handling, gap_threshold_minutes, _sol
     )
     if event_means == "absent":
-        return not active
+        if not active:
+            return True
+        # CAL-04: the active window means "away", but once it ends within
+        # the wake-up lead, treat the person as present so the zone schedule
+        # applies and rooms pre-heat ahead of their return.
+        if preheat_lead_minutes and preheat_lead_minutes > 0:
+            window_end = _active_window_end(
+                events, now, gap_handling, gap_threshold_minutes, _sol
+            )
+            if (
+                window_end is not None
+                and window_end - now
+                <= datetime.timedelta(minutes=preheat_lead_minutes)
+            ):
+                return True
+        return False
     return active
 
 

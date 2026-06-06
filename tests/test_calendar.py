@@ -153,17 +153,17 @@ def test_calendar_mode_absent_no_event_when_means_present():
 
 
 @freeze_time("2026-06-01 14:00:00 UTC")
-def test_absent_for_full_event_duration():
-    """Active event → absent for its entire duration, no arrival pre-heat.
+def test_absent_deep_in_event_beyond_lead():
+    """Active event ending beyond the lead → absent (CAL-04).
 
-    Now = UTC 14:00. Event ends 15:00 UTC.
-    Person is absent until 15:00 regardless of preheat_lead_minutes.
+    Now = UTC 14:00. Event ends 17:00 UTC (180 min out), lead = 60.
+    Far from the end of the active window, so still absent.
     """
     now = dt_util.now()
     events = [
         _timed_event(
             "2026-06-01T08:00:00+00:00",
-            "2026-06-01T15:00:00+00:00",
+            "2026-06-01T17:00:00+00:00",
         )
     ]
     result = resolve_calendar_presence(
@@ -218,6 +218,117 @@ def test_allday_event_handling():
         start_of_local_day=dt_util.start_of_local_day,
     )
     assert result is False  # active all-day event, event_means=absent
+
+
+# ---------------------------------------------------------------------------
+# CAL-04 — wake-up advance: present once the active window ends within lead
+# ---------------------------------------------------------------------------
+
+
+@freeze_time("2026-06-01 14:00:00 UTC")
+def test_wakeup_advance_present_within_lead():
+    """Active event ends 30 min out, lead=60 → present (CAL-04)."""
+    now = dt_util.now()
+    events = [
+        _timed_event(
+            "2026-06-01T08:00:00+00:00",
+            "2026-06-01T14:30:00+00:00",  # ends 30 min from now
+        )
+    ]
+    result = resolve_calendar_presence(
+        events,
+        "absent",
+        now,
+        preheat_lead_minutes=60,
+        start_of_local_day=dt_util.start_of_local_day,
+    )
+    assert result is True
+
+
+@freeze_time("2026-06-01 14:00:00 UTC")
+def test_wakeup_advance_present_at_lead_boundary():
+    """Active event ends exactly lead minutes out → present (inclusive)."""
+    now = dt_util.now()
+    events = [
+        _timed_event(
+            "2026-06-01T08:00:00+00:00",
+            "2026-06-01T15:00:00+00:00",  # ends exactly 60 min from now
+        )
+    ]
+    result = resolve_calendar_presence(
+        events,
+        "absent",
+        now,
+        preheat_lead_minutes=60,
+        start_of_local_day=dt_util.start_of_local_day,
+    )
+    assert result is True
+
+
+@freeze_time("2026-06-01 14:00:00 UTC")
+def test_wakeup_advance_zero_disables():
+    """lead=0 disables the wake-up advance → absent during the event."""
+    now = dt_util.now()
+    events = [
+        _timed_event(
+            "2026-06-01T08:00:00+00:00",
+            "2026-06-01T14:30:00+00:00",  # ends 30 min from now
+        )
+    ]
+    result = resolve_calendar_presence(
+        events,
+        "absent",
+        now,
+        preheat_lead_minutes=0,
+        start_of_local_day=dt_util.start_of_local_day,
+    )
+    assert result is False
+
+
+@freeze_time("2026-06-01 14:00:00 UTC")
+def test_wakeup_advance_ignored_when_means_present():
+    """event_means='present' is unaffected by the wake-up advance.
+
+    An active event already means present; the lead must not change a
+    not-yet-ended event from present to anything else.
+    """
+    now = dt_util.now()
+    events = [
+        _timed_event(
+            "2026-06-01T08:00:00+00:00",
+            "2026-06-01T14:30:00+00:00",
+        )
+    ]
+    result = resolve_calendar_presence(
+        events,
+        "present",
+        now,
+        preheat_lead_minutes=60,
+        start_of_local_day=dt_util.start_of_local_day,
+    )
+    assert result is True
+
+
+def test_wakeup_advance_day_span_uses_window_end():
+    """day_span: in a gap, present once the LAST event ends within lead.
+
+    Events 09:00–10:00 and 11:00–13:00 (+02:00). At 12:30 the person is
+    inside the day-span window (absent), but the window ends 13:00 — 30
+    min out — so lead=60 flips them to present.
+    """
+    events = [
+        _ev("2026-06-02T09:00:00", "2026-06-02T10:00:00"),
+        _ev("2026-06-02T11:00:00", "2026-06-02T13:00:00"),
+    ]
+    now = _now("2026-06-02T12:30:00")
+    result = resolve_calendar_presence(
+        events,
+        "absent",
+        now,
+        gap_handling="day_span",
+        preheat_lead_minutes=60,
+    )
+    assert result is True, "day_span: window end within lead → present"
 
 
 # ---------------------------------------------------------------------------
@@ -918,7 +1029,11 @@ def test_gap_threshold_present_long_gap():
 
 
 def test_gap_threshold_in_event_always_absent():
-    """gap_handling='threshold': inside an active event → always absent."""
+    """gap_handling='threshold': inside an active event → absent.
+
+    preheat_lead_minutes=0 disables the CAL-04 wake-up advance so this
+    isolates the gap/event logic from the arrival pre-heat trigger.
+    """
     events = [
         _ev("2026-06-02T09:00:00", "2026-06-02T10:00:00"),
     ]
@@ -929,5 +1044,6 @@ def test_gap_threshold_in_event_always_absent():
         now,
         gap_handling="threshold",
         gap_threshold_minutes=0,
+        preheat_lead_minutes=0,
     )
     assert result is False, "threshold: inside event → absent"
