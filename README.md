@@ -2,12 +2,12 @@
 
 A Home Assistant custom integration that manages home climate controls through
 smart radiator thermostats (TRVs). It provides zone-based heating modes, weekday
-time programs, per-room zone assignment, and person presence tracking — all
+time programs, per-room zone assignment, and person presence tracking, all
 configurable through a full Lovelace dashboard panel.
 
 > **Core value:** Every room is always at the right temperature at the right
-> time, without manual intervention — driven by schedules and who is actually
-> home. Everything is configured from the dashboard panel — no YAML editing, no
+> time, without manual intervention, driven by schedules and who is actually
+> home. Everything is configured from the dashboard panel: no YAML editing, no
 > blueprints.
 
 ---
@@ -34,7 +34,7 @@ Climate Manager discovers rooms automatically from the HA **Area registry**. For
 a room to appear in the panel, two conditions must be met:
 
 1. **At least one `climate` entity** (TRV / thermostat) must be assigned to the
-   area — either directly on the entity, or via the device it belongs to.
+   area, either directly on the entity, or via the device it belongs to.
 2. **A temperature sensor** in the same area is strongly recommended. Without
    one, calibration is disabled and the Overview tab cannot show live room
    temperatures. Climate Manager auto-discovers the first `sensor` entity with
@@ -51,7 +51,7 @@ a room to appear in the panel, two conditions must be met:
    sensor is a standalone entity without a device, set its area directly via
    **Settings → Devices & Services → Entities**.
 4. After assigning all devices, restart Home Assistant (or reload the
-   integration) — Climate Manager picks up area assignments automatically.
+   integration), Climate Manager picks up area assignments automatically.
 
 > **Tip:** Room names shown in the panel are the HA area names. Rename areas in
 > **Settings → Areas & Zones** to control what appears in the panel.
@@ -62,25 +62,25 @@ a room to appear in the panel, two conditions must be met:
 
 ![Overview tab](docs/screenshots/overview.png)
 
-- **Zone-based scheduling** — Group rooms into zones, each with its own weekly
+- **Zone-based scheduling**: Group rooms into zones, each with its own weekly
   heating program (Normal, Comfort, Reduced, Frost Protection periods)
-- **Three heating modes per zone** — _Off_, _Time program_, _Time program &
+- **Three heating modes per zone**: _Off_, _Time program_, _Time program &
   presences_
-- **Per-room zone assignment** — Assign each room to a zone; the room follows
+- **Per-room zone assignment**: Assign each room to a zone; the room follows
   that zone's program. Move a room to an _Off_ zone to keep it at frost
   protection
-- **Person presence** — Associate persons with rooms; in _Time program &
+- **Person presence**: Associate persons with rooms; in _Time program &
   presences_ mode the room only heats when someone is home
-- **Presence tracking modes** — Scheduled (weekly timetable), HA home tracking,
+- **Presence tracking modes**: Scheduled (weekly timetable), HA home tracking,
   Force Present, Force Absent
-- **Gap-fill logic** — When a person is present, Reduced/Frost periods
-  sandwiched between Normal/Comfort periods are held at the preceding
-  Normal/Comfort temperature
-- **Live status** — Overview tab shows current period, temperature, and humidity
+- **Gap-fill logic**: When a person is present, Reduced/Frost periods sandwiched
+  between Normal/Comfort periods are held at the preceding Normal/Comfort
+  temperature
+- **Live status**: Overview tab shows current period, temperature, and humidity
   for every room
-- **TRV calibration** — Optional auto-calibration of TRV offsets toward a room
+- **TRV calibration**: Optional auto-calibration of TRV offsets toward a room
   temperature sensor (Tado X supported)
-- **TRV control** — Works with any HA `climate` entity; no brand-specific APIs
+- **TRV control**: Works with any HA `climate` entity; no brand-specific APIs
 
 ---
 
@@ -99,7 +99,7 @@ a room to appear in the panel, two conditions must be met:
 Two methods are available depending on whether you have SSH access to your HA
 host.
 
-#### Method 1 — File copy (no SSH required)
+#### Method 1: File copy (no SSH required)
 
 1. Download or clone this repository
 2. Copy `custom_components/climate_manager/` into your HA
@@ -107,7 +107,7 @@ host.
 3. Restart Home Assistant
 4. Go to Settings → Integrations → Add Integration → **Climate Manager**
 
-#### Method 2 — `make deploy` (requires SSH access)
+#### Method 2: `make deploy` (requires SSH access)
 
 Builds the frontend and deploys everything over SSH in one command.
 
@@ -175,7 +175,7 @@ When a zone is in _Time program & presences_ mode:
   schedule
 - **Person present** → room is heated from the first Normal/Comfort period to
   the last
-- **Gap-fill** — A Reduced or Frost period sandwiched between two Normal/Comfort
+- **Gap-fill**: A Reduced or Frost period sandwiched between two Normal/Comfort
   periods is held at the preceding Normal/Comfort temperature while someone is
   present
 
@@ -187,7 +187,7 @@ If present all day: room heats 06:00–22:00, holding Normal during the
 
 ### Rooms and zones
 
-Rooms do not carry their own schedule — each room belongs to a **zone** and
+Rooms do not carry their own schedule: each room belongs to a **zone** and
 follows that zone's program and mode. A room is in the **Default Zone** unless
 you assign it to a custom zone.
 

@@ -67,14 +67,13 @@ _ALEX_WE = [
     {"start": "00:00", "state": "present"},
 ]
 
-# Two variants of the same configuration. The key contrast is that the two
-# zones respond differently to presence. The Home zone is "Time program &
-# presences" — gated by Alex. The Bathrooms zone is plain "Time program" — it
-# follows its own comfort schedule no matter who is home, with nobody assigned.
-# present (20:00): Alex home → Home Normal, Bathrooms Comfort (from 19:00).
-# away (12:00): Alex at work → Home Reduced (gated), Bathrooms still driven
-# purely by its own schedule (Reduced midday) — the same it would show with or
-# without anyone assigned. The away TRV temperatures are cosmetic.
+# Alex uses Scheduled presence, so his present/away state comes from his
+# schedule and the clock (absent 08:30-18:00 on weekdays). The two variants are
+# therefore two moments: 20:00 (home, Home zone Normal) and 12:00 (at work, Home
+# zone Reduced). The Bathrooms zone is plain "Time program" with nobody
+# assigned, so across both moments it follows only its own clock (Comfort in the
+# evening, Reduced midday), never Alex's presence. The away TRV temperatures are
+# cosmetic.
 _AWAY = {
     "person.alex": {"state": "not_home"},
     "climate.bedroom_trv": {"attributes": {"current_temperature": 18.1}},
@@ -88,18 +87,17 @@ SCENARIO = {
             "id": "present",
             "now": "2026-06-03T20:00:00+00:00",
             "caption": (
-                "Wednesday 20:00 — Alex is home, so the Home zone is at "
-                "Normal; the Bathrooms zone is at Comfort on its own schedule "
-                "(comfort from 19:00)."
+                "Wednesday 20:00, Alex home: the Home zone is at Normal and "
+                "the Bathrooms zone is at Comfort (its 19:00 evening period)."
             ),
         },
         {
             "id": "away",
             "now": "2026-06-03T12:00:00+00:00",
             "caption": (
-                "Wednesday 12:00 — Alex is at work, so the Home zone sets back "
-                "to Reduced; the Bathrooms zone keeps following its own "
-                "schedule, unaffected by presence."
+                "Wednesday 12:00, Alex at work: the Home zone sets back to "
+                "Reduced. The Bathrooms zone shows Reduced too, but from its "
+                "own midday schedule, not from Alex's absence."
             ),
             "states": _AWAY,
         },

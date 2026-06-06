@@ -231,7 +231,7 @@ SCENARIO = {
             # Pronote school-timetable calendar — drives weekday presence.
             "calendar.pronote": {
                 "state": "off",
-                "attributes": {"friendly_name": "Pronote — Collège"},
+                "attributes": {"friendly_name": "Pronote Collège"},
             },
         },
         "areas": {
