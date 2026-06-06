@@ -131,8 +131,9 @@ Items acknowledged and deferred at milestone close on 2026-05-31:
 | 260602-kzf | Calendar gap handling modes + wake-up advance description | 2026-06-02 | — | [260602-kzf-calendar-gap-modes-and-wakeup-desc](./quick/260602-kzf-calendar-gap-modes-and-wakeup-desc/) |
 | 260603-uo0 | Matter→Tado X drag-and-drop pairing UI + panel.js cache-bust | 2026-06-03 | — | [260603-uo0-matter-tado-x-drag-and-drop-pairing-ui-i](./quick/260603-uo0-matter-tado-x-drag-and-drop-pairing-ui-i/) |
 | 260603-tf5 | Add toast feedback to _onDropOnUnassign in room-card | 2026-06-03 | 2b9b30f | [260603-tf5-toast-missing-unassign-drop-room-card](./quick/260603-tf5-toast-missing-unassign-drop-room-card/) |
+| 260606-ncz | Add Table of Contents to the 7 use-case READMEs | 2026-06-06 | 0a86b37 | [260606-ncz-add-a-table-of-contents-to-each-of-the-7](./quick/260606-ncz-add-a-table-of-contents-to-each-of-the-7/) |
 
-Last activity: 2026-06-03 - Completed quick task 260603-tf5: Add toast feedback to _onDropOnUnassign in room-card
+Last activity: 2026-06-06 - Completed quick task 260606-ncz: Add Table of Contents to the 7 use-case READMEs
 
 ## Session Continuity
 
