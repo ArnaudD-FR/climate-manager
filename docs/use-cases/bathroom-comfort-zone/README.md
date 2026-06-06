@@ -76,23 +76,27 @@ zone mode for them.
 
 ![Overview](screenshots/overview.png)
 
-The Overview lists both zones — **Home** in its normal evening period
-(presence-driven, Alex is present) and **Bathrooms** showing its **Comfort**
-active period (schedule-driven, no presence required).
+Captured at 20:00 on a Wednesday evening: Home zone is in its Normal active
+period (**Time program & presences**, Alex is present) and Bathrooms zone is in
+**Comfort** (**Time program**, schedule-driven regardless of presence). Alex
+appears in the Persons row with a green dot.
 
 ### Rooms tab
 
 ![Rooms](screenshots/rooms.png)
 
-The expanded Main Bathroom card carries the **Bathrooms** zone badge and its
-Comfort-period temperature, with a person count of 0 — Comfort runs regardless.
-The Living Room and Bedroom cards sit in the Home zone with Alex's presence
-count of 1.
+First Floor shows Bedroom (Normal · 20°C, Home, 1/1 with Alex), Ensuite (Comfort
+· 22°C, Bathrooms, 0 persons), and Main Bathroom (Comfort · 22°C, Bathrooms, 0
+persons). Ground Floor shows Living Room (Normal · 20°C, Home, 1/1). The
+expanded Bedroom card shows Alex in Associated Persons and the Bedroom TRV at
+19.4°C. The two bathroom cards have 0 in their person count — Comfort runs
+regardless.
 
 ### Persons tab — Alex card expanded
 
 ![Persons](screenshots/persons.png)
 
-Alex's card shows a simple **Single week** schedule with Bedroom and Living Room
-chips in his **Room associations** — confirming the bathrooms' Comfort schedule
-is driven by the zone, not by presence.
+Alex's card shows a **Single week** schedule: present overnight and in the
+evening, absent 08:30–18:00 on weekdays, present all weekend. Room associations
+list Bedroom (First Floor) and Living Room (Ground Floor) — confirming the
+bathrooms' Comfort schedule is driven by the zone, not by Alex's presence.

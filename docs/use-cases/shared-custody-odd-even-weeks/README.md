@@ -26,8 +26,8 @@ Sofia's presence mode is **Scheduled** with an **Even / Odd weeks** schedule,
 but each week's program is itself **mixed**: weekdays are driven by the
 **Pronote — Collège** Calendar source (each day's period is set to **Calendar**
 and watches that calendar) and the weekend is a **hand-set manual** schedule.
-The custody hand-over at **Friday noon** means Friday is split at `12:00` in
-both programs.
+The custody hand-over at **Friday noon** means Friday is split at 12:00 in both
+programs.
 
 ### Odd week — here for the school week, leaves Friday noon
 
@@ -36,10 +36,10 @@ both programs.
 | Pronote calendar | Pronote until 12:00 → absent | Absent | Absent |
 
 On school days, the Pronote — Collège timetable drives presence: while a class
-event is active the child is at school (absent); after school and short gaps
-count as home. The Calendar source is set to **Absent during events** with
-**Return home in long gaps only** and a **Minimum gap to return home** of 60
-minutes.
+event is active the child is at school (absent); after school she is home. The
+Calendar source is set to **Absent during events** and short gaps between
+classes do not count as home — only a gap longer than 60 minutes triggers a
+return home.
 
 ### Even week — arrives Friday noon, manual weekend
 
@@ -50,12 +50,9 @@ minutes.
 The weekend days use hand-set present/absent periods (e.g. an afternoon out),
 which read as plain manual bars rather than Calendar bars.
 
-**Note on screenshots:** The panel computes the active week parity from the real
-system clock at capture time. The persons screenshot shows whichever week tab is
-currently active; both **Even** and **Odd** tabs exist on the card and can be
-toggled in the live UI. On the Odd tab, the weekday bars carry an inline
-**Calendar source: Pronote — Collège** config block; on the Even tab, the
-weekend bars are plain manual periods.
+**Parity at capture:** The scenario is pinned to Wednesday 16:30 UTC, ISO week
+23 (odd week). The Persons screenshot shows the **Odd** tab active; both Even
+and Odd tabs exist on the card and can be toggled in the live UI.
 
 ## Rooms driven by Sofia
 
@@ -72,24 +69,28 @@ needs no person assigned.
 
 ![Overview](screenshots/overview.png)
 
-The Overview tab shows the two zones (Home and Child's Room) with their current
-modes. The Child's Room zone badge reflects **Time program & presences**.
-Sofia's presence state reflects the active week at capture time.
+Captured at 16:30 on a Wednesday (odd week, ISO 23): Home zone is in Reduced
+(**Time program**) and Child's Room zone is in Normal (**Time program &
+presences**). Sofia is present (green dot), having returned home after school.
 
 ### Rooms tab
 
 ![Rooms](screenshots/rooms.png)
 
-The Rooms tab lists Child's Bedroom (First Floor, Child's Room zone badge) and
-Living Room (Ground Floor, Default Zone badge). Temperature and humidity
-readings are shown for each TRV.
+Child's Bedroom (First Floor) shows a Normal · 20°C badge with the Child's Room
+zone chip and 1/1 person present; the expanded card shows Sofia in Associated
+Persons and the TRV reading 18.8°C. Living Room (Ground Floor) shows Reduced ·
+16°C with the Home zone badge and 0 persons — it heats on its own schedule with
+no presence gate.
 
 ### Persons tab — Sofia card expanded
 
 ![Persons](screenshots/persons.png)
 
-The expanded Sofia card shows the **Even / Odd** week-switcher tabs and the
-schedule bars for the active week. The screenshot reflects whichever parity is
-current at capture time — the Odd tab shows Pronote-calendar weekdays with a
-Friday-noon split, the Even tab shows the manual weekend schedule. The room chip
-lists Child's Bedroom (First Floor) — the only presence-gated room Sofia drives.
+The expanded Sofia card shows the **Even / Odd weeks** selector with the note
+"Week 23 is currently active (odd week)." The **Odd** tab is active, showing
+Mon–Thu as Calendar: pronote bars (all-day), Friday split with Calendar: pronote
+until noon and Absent from noon, then Absent on Saturday and Sunday. Below the
+schedule, the Calendar config panel displays the **Pronote — Collège** source
+for Mon's Calendar period. The room chip lists Child's Bedroom (First Floor) —
+the only presence-gated room Sofia drives.
