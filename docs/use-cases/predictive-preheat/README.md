@@ -9,15 +9,16 @@ counts as **present**, so pre-heat can run ahead of the wake-up step.
 
 ## Household layout
 
-| Room        | Zone                | Floor        | Heats when                             |
-| ----------- | ------------------- | ------------ | -------------------------------------- |
-| Bedroom     | Home (Default Zone) | First Floor  | Time program + pre-heat before wake-up |
-| Bathroom    | Home (Default Zone) | First Floor  | Time program + pre-heat before wake-up |
-| Living Room | Home (Default Zone) | Ground Floor | Time program (no pre-heat lead)        |
+| Room        | Zone                | Floor        | Heats when                           |
+| ----------- | ------------------- | ------------ | ------------------------------------ |
+| Bedroom     | Home (Default Zone) | First Floor  | Time program + pre-heat before 06:30 |
+| Bathroom    | Home (Default Zone) | First Floor  | Time program + pre-heat before 06:30 |
+| Living Room | Home (Default Zone) | Ground Floor | Time program + pre-heat before 06:30 |
 
 The Default Zone **Home** uses **Time program & presences** and has **Pre-heat**
-enabled. A room must have an assigned person in a presences zone to be
-pre-heated; a room with no assigned person would be set back, not pre-heated.
+enabled. All three rooms have Maya in their **Room associations**, so all three
+are eligible for pre-heat. A room with no assigned person in a presences zone
+would be set back, not pre-heated.
 
 ## Presence configuration
 
@@ -29,14 +30,15 @@ Maya uses **Scheduled** presence mode (single week).
 | Sat / Sun | All day                              | —             |
 
 Asleep at home overnight is **present** — absence is only for the hours Maya is
-actually out of the house. Pre-heat fires at ~05:50 on weekday mornings (up to
-60–90 minutes ahead of 06:30) while Maya is home asleep.
+actually out of the house. Pre-heat fires at ~05:50 on weekday mornings while
+Maya is home asleep, ahead of the 06:30 Normal period.
 
 Pre-heat tuning:
 
 - **Max lead time (min)** per room — Bedroom 60 min, Bathroom 90 min: the
-  maximum head-start the coordinator may take for that room ahead of the next
-  warmer period.
+  maximum head-start the coordinator may take for those rooms. The Living Room
+  has no explicit **Max lead time (min)** cap, so the zone's default applies and
+  it also begins pre-heating.
 - Pre-heat is driven by the zone **Pre-heat** toggle and each room's **Max lead
   time (min)** setting. The **Wake-up advance** field applies only to
   Calendar-mode persons and is not used here.
@@ -46,9 +48,7 @@ Pre-heat tuning:
 Maya has **Bedroom**, **Bathroom**, and **Living Room** in her **Room
 associations** — all three rooms are in the Home zone (**Time program &
 presences**), so each must have an assigned person or it would never heat to its
-scheduled period. The Living Room has no **Max lead time (min)** configured, so
-it starts heating only when the 06:30 period arrives; it does not get an early
-start.
+scheduled period. All three pre-heat toward 20.0°C ahead of the 06:30 step.
 
 ## Screenshots
 
@@ -56,23 +56,27 @@ start.
 
 ![Overview](screenshots/overview.png)
 
-Captured at ~05:50 on a weekday morning: Maya is home asleep (present), the
-system is already pre-heating the bedroom and bathroom toward the 06:30 Normal
-step.
+Captured at 05:50 on a Wednesday morning: Maya is home asleep (present, green
+dot), the Home zone is in its overnight Reduced active period (**Time program &
+presences**), and pre-heat is already running across all rooms ahead of the
+06:30 Normal step.
 
 ### Rooms tab
 
 ![Rooms](screenshots/rooms.png)
 
-The expanded Bedroom card shows the **Pre-heating → 20.0°C** badge and its
-60-minute **Max lead time (min)** setting. The Bathroom card likewise shows
-pre-heat active with its 90-minute lead. The Living Room card is in the
-overnight Reduced period with no pre-heat badge.
+All three rooms carry a **Pre-heating → 20.0°C** badge. The expanded Bathroom
+card shows Maya in Associated Persons, the Bathroom TRV at 16.5°C, and **Max
+lead time (min)** set to 90. Bedroom likewise shows the pre-heat badge with
+17.5°C current and 52% humidity. Living Room (Ground Floor) also shows
+Pre-heating → 20.0°C at 15.8°C — all three rooms are warming toward the 06:30
+Normal period.
 
 ### Persons tab — Maya card expanded
 
 ![Persons](screenshots/persons.png)
 
-Maya's card shows her weekday schedule, and her three room chips — Bedroom,
-Bathroom (First Floor), and Living Room (Ground Floor) — the rooms her presence
-gates in the Home zone.
+Maya's card shows her **Single week** schedule with present overnight and absent
+08:30–17:30 on weekdays. Room associations list Bathroom and Bedroom (First
+Floor) and Living Room (Ground Floor) — the three rooms whose pre-heat and
+schedule her presence gates in the Home zone.
