@@ -745,12 +745,8 @@ def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
         if live_zone is not None:
             live_zone.change_mode(msg["mode"])
         connection.send_result(msg["id"], {"success": True})
-        # Fire status immediately so the panel badge updates without waiting
-        # for the full async_evaluate cycle (which pushes temps to TRVs first).
-        hass.bus.async_fire(
-            f"{DOMAIN}_status_update",
-            coord._build_status_payload(),
-        )
+        # async_evaluate re-derives _last_zone_periods/_last_room_periods
+        # and fires the status event with fresh period data once done.
         hass.async_create_task(coord.async_evaluate())
 
     return ws_set_zone_mode
