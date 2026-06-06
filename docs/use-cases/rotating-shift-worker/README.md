@@ -14,6 +14,14 @@ gate, and **gap-fill**. Because 14:00 sits between the morning and evening
 Normal periods, a returning Marc is held at Normal even though the raw schedule
 says Reduced.
 
+## Table of Contents
+
+- [Configuration](#configuration)
+  - [Household layout](#household-layout)
+  - [Presence configuration](#presence-configuration)
+  - [Zone schedules](#zone-schedules)
+- [What happens](#what-happens)
+
 ## Configuration
 
 ### Household layout

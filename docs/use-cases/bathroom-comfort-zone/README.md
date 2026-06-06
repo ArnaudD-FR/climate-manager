@@ -9,6 +9,15 @@ presences** mode, where Alex's presence decides whether they heat. The two
 states below put those two zone modes side by side: as Alex comes and goes, the
 Home zone tracks him while the Bathrooms zone tracks only the clock.
 
+## Table of Contents
+
+- [Configuration](#configuration)
+  - [Household layout](#household-layout)
+  - [Zone modes compared](#zone-modes-compared)
+  - [Presence configuration](#presence-configuration)
+  - [Zone schedules](#zone-schedules)
+- [What happens](#what-happens)
+
 ## Configuration
 
 ### Household layout

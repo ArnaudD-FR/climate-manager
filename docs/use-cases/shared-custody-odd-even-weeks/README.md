@@ -13,6 +13,14 @@ home. The two states below show that contrast on the same odd week (Wednesday,
 ISO week 23), and how only the presence-gated Child's Room responds while the
 shared Living Room follows its own program regardless.
 
+## Table of Contents
+
+- [Configuration](#configuration)
+  - [Household layout](#household-layout)
+  - [Presence configuration](#presence-configuration)
+  - [Zone schedules](#zone-schedules)
+- [What happens](#what-happens)
+
 ## Configuration
 
 ### Household layout

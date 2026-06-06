@@ -14,6 +14,14 @@ back to Reduced; when the calendar is clear he is present and both zones'
 schedules apply. The two states below show that contrast around his one "Team
 sync" meeting (14:00–15:00).
 
+## Table of Contents
+
+- [Configuration](#configuration)
+  - [Household layout](#household-layout)
+  - [Presence configuration](#presence-configuration)
+  - [Zone schedules](#zone-schedules)
+- [What happens](#what-happens)
+
 ## Configuration
 
 ### Household layout

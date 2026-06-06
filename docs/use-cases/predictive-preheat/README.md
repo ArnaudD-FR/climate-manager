@@ -11,6 +11,14 @@ assigned person is present. The two states below show that: Maya home asleep
 (pre-heat warming the house ahead of the step) versus Maya out (no pre-heat, the
 rooms held at Reduced).
 
+## Table of Contents
+
+- [Configuration](#configuration)
+  - [Household layout](#household-layout)
+  - [Presence configuration](#presence-configuration)
+  - [Home zone schedule](#home-zone-schedule)
+- [What happens](#what-happens)
+
 ## Configuration
 
 ### Household layout

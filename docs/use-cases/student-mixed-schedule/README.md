@@ -13,6 +13,14 @@ schedule while Lena is home and fall back to **Reduced** while she is at her
 lectures. The two states below show that contrast on her heaviest day
 (Wednesday, away 08:00–18:00).
 
+## Table of Contents
+
+- [Configuration](#configuration)
+  - [Household layout](#household-layout)
+  - [Presence configuration](#presence-configuration)
+  - [Home zone schedule](#home-zone-schedule)
+- [What happens](#what-happens)
+
 ## Configuration
 
 ### Household layout

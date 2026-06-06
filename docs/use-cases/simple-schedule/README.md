@@ -11,6 +11,14 @@ The whole point of the **Time program & presences** mode is the presence gate:
 rooms follow the schedule while Emma is home and fall back to **Reduced** while
 she is at work. The two states below show exactly that contrast.
 
+## Table of Contents
+
+- [Configuration](#configuration)
+  - [Household layout](#household-layout)
+  - [Presence configuration](#presence-configuration)
+  - [Home zone schedule](#home-zone-schedule)
+- [What happens](#what-happens)
+
 ## Configuration
 
 ### Household layout
