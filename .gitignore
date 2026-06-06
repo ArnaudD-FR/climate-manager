@@ -28,3 +28,7 @@ Makefile.local
 
 # Generated panel bundle (built by `make build`; distributed via release archive)
 custom_components/climate_manager/www/panel.js
+
+# Generated use-case scenario data (built by `make use-case-data` from
+# each <slug>/scenario.py; screenshots are the committed deliverable)
+docs/use-cases/*/scenario.json
