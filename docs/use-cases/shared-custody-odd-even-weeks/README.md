@@ -7,8 +7,8 @@ arrives for the weekend and is away during the school days. This example shows
 how the **Even / Odd weeks** presence schedule combines with a **per-day
 Calendar** source and a **manual weekend schedule** in one person config.
 
-On a school day Sofia's presence is driven minute-by-minute by her **Pronote
-Collège** timetable: in class she is at school (absent), after class she is
+On a school day Sofia's presence is driven minute-by-minute by her **School
+calendar** timetable: in class she is at school (absent), after class she is
 home. The two states below show that contrast on the same odd week (Wednesday,
 ISO week 23), and how only the presence-gated Child's Room responds while the
 shared Living Room follows its own program regardless.
@@ -30,15 +30,15 @@ schedule regardless of who is home, so it needs no person assigned.
 ### Presence configuration
 
 Sofia's presence mode is **Scheduled** with an **Even / Odd weeks** schedule,
-and each week's program is itself mixed: weekdays driven by the **Pronote
-Collège** Calendar source, the weekend a hand-set manual schedule. The custody
+and each week's program is itself mixed: weekdays driven by the **School
+calendar** Calendar source, the weekend a hand-set manual schedule. The custody
 hand-over at **Friday noon** splits Friday at 12:00 in both programs.
 
 #### Odd week: here for the school week, leaves Friday noon
 
-| Mon–Thu          | Fri                          | Sat    | Sun    |
-| ---------------- | ---------------------------- | ------ | ------ |
-| Pronote calendar | Pronote until 12:00 → absent | Absent | Absent |
+| Mon–Thu         | Fri                                   | Sat    | Sun    |
+| --------------- | ------------------------------------- | ------ | ------ |
+| School calendar | School calendar to 12:00, then absent | Absent | Absent |
 
 On school days the timetable drives presence: while a class event is active the
 child is at school (absent); after school she is home. The Calendar source is
@@ -51,13 +51,23 @@ counts as a return home.
 | ------- | ---------------------------- | ------------------------------------ | ------------------------------------ |
 | Absent  | Absent until 12:00 → present | Present, out 14:00–18:00, back 18:00 | Present, out 14:00–18:00, back 18:00 |
 
-![Persons tab, Sofia card expanded](screenshots/persons.png)
+The expanded Sofia card has an **Even / Odd weeks** selector (it notes "Week 23
+is currently active (odd week)"), with a tab for each week. Both schedules are
+shown below.
 
-The expanded Sofia card shows the **Even / Odd weeks** selector noting "Week 23
-is currently active (odd week)." The **Odd** tab shows Mon–Thu as Calendar:
-pronote bars, Friday split at noon, then Absent on the weekend; below, the
-Calendar config panel displays the **Pronote Collège** source. The room chip
-lists Child's Bedroom, the only presence-gated room Sofia drives.
+![Persons tab, Sofia card, Even week](screenshots/persons-even.png)
+
+The **Even** week is the off week: Mon–Thu Absent, Friday flips to Present at
+noon (the hand-over), and the weekend is a hand-set manual schedule (Present
+with an afternoon out 14:00–18:00).
+
+![Persons tab, Sofia card, Odd week](screenshots/persons-odd.png)
+
+The **Odd** week is the school week: Mon–Thu are "Calendar: school" bars driven
+by the School calendar timetable, Friday flips to Absent at noon, and the
+weekend is Absent. Below the bars, the Calendar config panel shows the **School
+calendar** source. The room chip lists Child's Bedroom, the only presence-gated
+room Sofia drives.
 
 ### Zone schedules
 
@@ -76,7 +86,7 @@ when Sofia is present; otherwise it holds Reduced.
 
 ### When the school day is over (Wednesday 16:30)
 
-The last class ended at 16:00, so the Pronote calendar reports no active event
+The last class ended at 16:00, so the school calendar reports no active event
 and Sofia is home. The Child's Room presence gate opens.
 
 ![Overview, Sofia present, Child's Room Normal](screenshots/overview-present.png)
@@ -92,7 +102,7 @@ schedule, no presence involved.
 
 ### When a class is in session (Wednesday 10:00)
 
-A class runs 08:00–12:00, so the Pronote calendar marks the child at school. The
+A class runs 08:00–12:00, so the school calendar marks the child at school. The
 Child's Room presence gate closes.
 
 ![Overview, Sofia absent, Child's Room Reduced](screenshots/overview-away.png)

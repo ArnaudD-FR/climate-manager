@@ -222,11 +222,63 @@ async function main() {
     console.log(`✓ ${roomsName}`);
 
     if (captureConfig) {
-      // Config: Persons tab — expanded first person card.
+      // Config: Persons tab — expanded first person card. If the card has an
+      // Even / Odd week switcher, capture one screenshot per parity
+      // (persons-even.png / persons-odd.png) so both schedules are documented;
+      // otherwise capture a single persons.png.
       await clickTab("Persons");
       await expandFirstCard("climate-manager-persons-tab");
-      await page.screenshot({ path: out("persons.png") });
-      console.log("✓ persons.png");
+
+      // Detect week-switcher tabs inside the person card's shadow DOM.
+      const weekTabs = await page.evaluate(() => {
+        const host = document.querySelector("#mount climate-manager-panel");
+        const tab = host?.shadowRoot?.querySelector(
+          "climate-manager-persons-tab",
+        );
+        const card = tab?.shadowRoot?.querySelector(
+          "climate-manager-person-card",
+        );
+        const btns = [
+          ...(card?.shadowRoot?.querySelectorAll(".week-switcher .tab-btn") ??
+            []),
+        ];
+        return btns.map((b) => b.textContent.trim()).filter(Boolean);
+      });
+
+      // Click a week-switcher tab by its label, inside the person card.
+      const clickWeekTab = async (label) => {
+        const ok = await page.evaluate((text) => {
+          const host = document.querySelector("#mount climate-manager-panel");
+          const tab = host?.shadowRoot?.querySelector(
+            "climate-manager-persons-tab",
+          );
+          const card = tab?.shadowRoot?.querySelector(
+            "climate-manager-person-card",
+          );
+          const btns = [
+            ...(card?.shadowRoot?.querySelectorAll(".week-switcher .tab-btn") ??
+              []),
+          ];
+          const btn = btns.find((b) => b.textContent.trim() === text);
+          if (!btn) return false;
+          btn.click();
+          return true;
+        }, label);
+        if (!ok) throw new Error(`Week tab "${label}" not found`);
+        await page.waitForTimeout(500);
+      };
+
+      if (weekTabs.length > 0) {
+        for (const label of weekTabs) {
+          await clickWeekTab(label);
+          const file = `persons-${label.toLowerCase()}.png`;
+          await page.screenshot({ path: out(file) });
+          console.log(`✓ ${file}`);
+        }
+      } else {
+        await page.screenshot({ path: out("persons.png") });
+        console.log("✓ persons.png");
+      }
 
       // Config: zone schedule tabs — one screenshot per zone. The weekly time
       // program is what actually bounds heating: a zone cannot heat before its

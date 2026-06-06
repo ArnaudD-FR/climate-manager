@@ -54,21 +54,21 @@ def _week(wd, we):
 
 
 # --- Sofia's presence schedule (even/odd) ----------------------------------
-_PRONOTE = {
-    "entity_id": "calendar.pronote",
+_SCHOOL_CAL = {
+    "entity_id": "calendar.school",
     "event_means": "absent",
     "gap_handling": "threshold",
     "gap_threshold_minutes": 60,
 }
 
 _CAL_DAY = [
-    {"start": "00:00", "state": "calendar", "calendar_config": _PRONOTE}
+    {"start": "00:00", "state": "calendar", "calendar_config": _SCHOOL_CAL}
 ]
 _ALL_ABSENT = [{"start": "00:00", "state": "absent"}]
 
 # Odd week — child here for the working week; handover OUT at Friday noon.
 _ODD_FRI = [
-    {"start": "00:00", "state": "calendar", "calendar_config": _PRONOTE},
+    {"start": "00:00", "state": "calendar", "calendar_config": _SCHOOL_CAL},
     {"start": "12:00", "state": "absent"},
 ]
 _SCHEDULE_ODD = {
@@ -102,7 +102,7 @@ _SCHEDULE_EVEN = {
 }
 
 # Two variants on the same odd custody week (Wednesday, ISO week 23) show the
-# presence gate on the Child's Room zone. Presence is driven by the Pronote
+# presence gate on the Child's Room zone. Presence is driven by the school calendar
 # calendar (Absent during events): at 16:30 the school day is over (last class
 # ended 16:00) so the child is home and the room follows its schedule; at 10:00
 # a class is in session so the child is at school and the room sets back to
@@ -130,7 +130,7 @@ SCENARIO = {
             "now": "2026-06-03T10:00:00+00:00",
             "caption": (
                 "Wednesday 10:00, odd week — a class is in session, so the "
-                "Pronote calendar marks the child at school and the Child's "
+                "school calendar marks the child at school and the Child's "
                 "Room sets back to Reduced."
             ),
             "states": _AWAY,
@@ -164,7 +164,7 @@ SCENARIO = {
         },
         "persons": {
             # Scheduled / even_odd with mixed calendar + manual schedule.
-            # Odd week = working week here (Pronote weekdays, leaves Friday
+            # Odd week = working week here (school-calendar weekdays, leaves Friday
             # noon). Even week = arrives Friday noon, manual weekend schedule.
             "person.sofia": {
                 "mode": "scheduled",
@@ -187,10 +187,10 @@ SCENARIO = {
     # Cosmetic humidity per room.
     "humidity": {"child_bedroom": 55, "living_room": 47},
     # Calendar events for the pinned day. Two class blocks; the 16:00 block
-    # ends at 16:00 so at 16:30 the child is home (Pronote events absent,
+    # ends at 16:00 so at 16:30 the child is home (school-calendar events absent,
     # gap > 60 min threshold so no gap-fill back to absent).
     "calendars": {
-        "calendar.pronote": {
+        "calendar.school": {
             "events": [
                 {
                     "start": "2026-06-03T08:00:00+00:00",
@@ -228,10 +228,10 @@ SCENARIO = {
                 "state": "home",
                 "attributes": {"friendly_name": "Sofia"},
             },
-            # Pronote school-timetable calendar — drives weekday presence.
-            "calendar.pronote": {
+            # School-timetable calendar — drives weekday presence.
+            "calendar.school": {
                 "state": "off",
-                "attributes": {"friendly_name": "Pronote Collège"},
+                "attributes": {"friendly_name": "School calendar"},
             },
         },
         "areas": {

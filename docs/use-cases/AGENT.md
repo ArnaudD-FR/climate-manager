@@ -48,7 +48,10 @@ _harness.html?scenario=<slug>/scenario.json  +  screenshot.js (clock pinned)
   reproducible (no wall-clock drift). In scenario mode it captures Overview,
   Rooms, Persons, then **one `schedule-<zone>.png` per zone tab** (every tab
   that is not Overview/Rooms/Persons/`+`), so each zone's weekly time program is
-  documented — the schedule is what bounds heating, not presence.
+  documented (the schedule is what bounds heating, not presence). When the
+  expanded person card has an Even / Odd week switcher, the persons capture
+  produces `persons-even.png` and `persons-odd.png` (one per parity) instead of
+  a single `persons.png`, so both schedules are shown.
 - **`<slug>/Makefile`** — copies the business-calendar one verbatim, changing
   only `SLUG`. It passes `OUTPUT_DIR`, the shared `HARNESS_PATH` with
   `?scenario=`, and `SCENARIO_JSON`.
