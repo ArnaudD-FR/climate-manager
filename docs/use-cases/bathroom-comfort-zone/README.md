@@ -100,3 +100,22 @@ Alex's card shows a **Single week** schedule: present overnight and in the
 evening, absent 08:30–18:00 on weekdays, present all weekend. Room associations
 list Bedroom (First Floor) and Living Room (Ground Floor) — confirming the
 bathrooms' Comfort schedule is driven by the zone, not by Alex's presence.
+
+### Zone schedules
+
+The home uses two zones with different modes. **Home** runs in **Time program &
+presences** (gated by Alex). **Bathrooms** runs in **Time program** — it follows
+its comfort schedule on its own, no person required.
+
+![Home zone schedule](screenshots/schedule-home.png)
+
+The **Home** zone heats Normal 06:30–08:30 and 17:30–22:00 on weekdays, Comfort
+then Normal 08:00–23:00 at weekends.
+
+![Bathrooms zone schedule](screenshots/schedule-bathrooms.png)
+
+The **Bathrooms** zone is Comfort at wake-up (06:30–08:30), Reduced through the
+weekday, then Comfort again from 19:00; weekends run Comfort/Normal with Comfort
+from 19:00. Because the zone is in Time program mode the bathrooms reach Comfort
+on schedule even with nobody assigned — but still only inside the scheduled
+windows: outside them they fall back to Frost protection.

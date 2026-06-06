@@ -73,3 +73,20 @@ schedule editor is rendered — this is the deliberate contrast with
 schedule-driven cards, where a time-bar editor appears on expand. Room
 associations list Bedroom (First Floor) and Kitchen + Living Room (Ground
 Floor).
+
+### Zone schedules
+
+Both floors run in **Time program & presences** mode, so each zone's weekly
+schedule bounds heating; Marc's HA home tracking presence only gates it.
+
+![Downstairs zone schedule](screenshots/schedule-downstairs.png)
+
+**Downstairs** heats Normal 07:00–09:30, Reduced through midday, Normal
+18:00–22:30 on weekdays, with a Normal/Comfort weekend block 08:30–23:00.
+
+![Upstairs zone schedule](screenshots/schedule-upstairs.png)
+
+**Upstairs** heats Normal 06:30–09:00 and 17:00–22:00 on weekdays,
+Normal/Comfort 08:00–23:00 at weekends. Whichever shift Marc is on, neither
+floor heats outside these windows — the schedule, not his home/away state, sets
+the outer bounds.

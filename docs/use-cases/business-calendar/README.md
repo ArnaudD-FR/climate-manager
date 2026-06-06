@@ -100,3 +100,21 @@ Meetings), Event means (**Absent during events**), Gap handling (**Absent all
 day (first to last event)**), and **Wake-up advance** (30 min). Room
 associations appear below, grouped by floor: Bedroom and Home Office on the
 First Floor, Living Room on the Ground Floor.
+
+### Zone schedules
+
+Both zones run in **Time program & presences** mode, so the weekly schedule is
+the gate: presence only decides whether the schedule is followed — it can never
+heat a zone outside its scheduled Normal/Comfort window.
+
+![Home zone schedule](screenshots/schedule-home.png)
+
+The **Home** zone heats Normal 06:30–09:00, eases to Reduced through the work
+day, returns to Normal 17:00–22:00 on weekdays, and holds Comfort 08:00–23:00 at
+weekends; Frost protection fills the rest.
+
+![Office zone schedule](screenshots/schedule-office.png)
+
+The **Office** zone is Comfort only 08:00–18:00 on weekdays and Frost protection
+all weekend. Even when Noah works from home, the office cannot warm before 08:00
+or after 18:00 — the schedule, not his presence, draws that boundary.

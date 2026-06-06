@@ -82,3 +82,16 @@ weekday row carries an identical Present/Absent/Present pattern (absent
 09:00–17:30), while Saturday and Sunday are fully present. Room associations
 appear below the schedule, grouped by floor: Bedroom and Home Office on the
 First Floor, Kitchen and Living Room on the Ground Floor.
+
+### Home zone schedule
+
+The single **Home** zone runs in **Time program & presences** mode. The weekly
+schedule sets the heating window; Emma's presence only decides whether it is
+followed.
+
+![Home zone schedule](screenshots/schedule-home.png)
+
+Weekdays heat Normal 06:30–09:00, drop to Reduced through the day, and return to
+Normal 17:30–22:00; weekends ramp Normal 08:00, Comfort 10:00–14:00, then Normal
+to 23:00. Outside those bands the zone holds Frost protection — so even when
+Emma is home overnight, nothing heats before 06:30 or after 22:00.

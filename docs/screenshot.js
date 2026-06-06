@@ -217,6 +217,32 @@ async function main() {
     await expandFirstCard("climate-manager-persons-tab");
     await page.screenshot({ path: out("persons.png") });
     console.log("✓ persons.png");
+
+    // 4. Zone schedule tabs — one screenshot per zone. The weekly time program
+    // is what actually bounds heating: a zone cannot heat before its first
+    // scheduled Normal/Comfort period or after the last one, even when an
+    // assigned person is present. Enumerate every zone tab (all tab buttons
+    // that are not the three fixed tabs or the "+" add button) and capture its
+    // schedule grid.
+    const slugify = (s) =>
+      s
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    const zoneLabels = await page.evaluate(() => {
+      const host = document.querySelector("#mount climate-manager-panel");
+      const btns = [...(host?.shadowRoot?.querySelectorAll(".tab-btn") ?? [])];
+      const fixed = new Set(["Overview", "Rooms", "Persons", "+"]);
+      return btns
+        .map((b) => b.textContent.trim())
+        .filter((t) => t && !fixed.has(t));
+    });
+    for (const label of zoneLabels) {
+      await clickTab(label);
+      const file = `schedule-${slugify(label)}.png`;
+      await page.screenshot({ path: out(file) });
+      console.log(`✓ ${file}`);
+    }
   } else {
     // Standard mode: existing 6-screenshot sequence (unchanged)
 

@@ -94,3 +94,22 @@ until noon and Absent from noon, then Absent on Saturday and Sunday. Below the
 schedule, the Calendar config panel displays the **Pronote — Collège** source
 for Mon's Calendar period. The room chip lists Child's Bedroom (First Floor) —
 the only presence-gated room Sofia drives.
+
+### Zone schedules
+
+The two zones use different modes. **Home** (the living areas) runs in **Time
+program** — it follows its schedule regardless of who is in. **Child's Room**
+runs in **Time program & presences**, gated by Sofia's odd/even presence.
+
+![Home zone schedule](screenshots/schedule-home.png)
+
+The **Home** zone heats Normal 07:30–09:00 and 17:30–22:00 on weekdays, with a
+Comfort/Normal weekend block 08:00–23:00.
+
+![Child's Room zone schedule](screenshots/schedule-child-s-room.png)
+
+**Child's Room** heats Normal 07:00–09:00 and 16:00–21:00 on weekdays and
+Comfort 08:00–20:30 at weekends. On a present week it follows this schedule; on
+the off week it stays at Reduced. Either way it never heats before 07:00 or
+after 21:00 — the schedule sets the envelope, presence only decides whether it
+is honoured.

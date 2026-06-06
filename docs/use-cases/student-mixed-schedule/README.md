@@ -86,3 +86,15 @@ timetable (Wednesday's bar is the widest; Tuesday's is the narrowest), while
 Saturday and Sunday are fully present. Room associations appear below the
 schedule, grouped by floor: Bedroom and Study on the First Floor, Living Room on
 the Ground Floor.
+
+### Home zone schedule
+
+The single **Home** zone runs in **Time program & presences** mode — the weekly
+schedule bounds heating, Lena's per-day presence only gates it.
+
+![Home zone schedule](screenshots/schedule-home.png)
+
+Weekdays heat Normal 07:00–09:00, Reduced through the school day, then Normal
+17:00–22:00; weekends are Normal 08:30 then Comfort 10:00–23:00. Before 07:00
+and after 22:00 the zone is at Frost protection, so no amount of presence heats
+the flat overnight.

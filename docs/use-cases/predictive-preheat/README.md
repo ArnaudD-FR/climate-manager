@@ -80,3 +80,17 @@ Maya's card shows her **Single week** schedule with present overnight and absent
 08:30–17:30 on weekdays. Room associations list Bathroom and Bedroom (First
 Floor) and Living Room (Ground Floor) — the three rooms whose pre-heat and
 schedule her presence gates in the Home zone.
+
+### Home zone schedule
+
+The single **Home** zone runs in **Time program & presences** mode with
+**Pre-heat** enabled. The schedule still bounds heating — pre-heat only brings
+the _start_ of a scheduled period forward so each room reaches target on time.
+
+![Home zone schedule](screenshots/schedule-home.png)
+
+Weekdays heat Normal 06:30–09:00, Reduced midday, Normal 17:00–22:30; weekends
+hold Comfort 08:00–22:30. The 06:30 Normal period is the first of the weekday,
+so with pre-heat each room starts climbing before 06:30 (up to its Max lead
+time) to hit target by 06:30 — but the zone still cannot heat after the 22:30
+Frost boundary, present or not.

@@ -1,9 +1,9 @@
 # Building use-case docs
 
 This folder holds persona-driven showcases of Climate Manager. Each use case is
-a folder with a `README.md`, a `screenshots/` set (Overview, Rooms, Persons),
-and a generated `scenario.json`. This guide explains how they are built so new
-use cases stay correct and coherent.
+a folder with a `README.md`, a `screenshots/` set (Overview, Rooms, Persons, and
+one `schedule-<zone>.png` per zone tab), and a generated `scenario.json`. This
+guide explains how they are built so new use cases stay correct and coherent.
 
 ## Core principle — never hand-write status
 
@@ -45,7 +45,10 @@ _harness.html?scenario=<slug>/scenario.json  +  screenshot.js (clock pinned)
   clock **and timezone to UTC** at `scenario.now`, so the panel's live
   computations (zone active period, even/odd week parity, calendar "now") match
   the coordinator status in the same file. This also makes screenshots fully
-  reproducible (no wall-clock drift).
+  reproducible (no wall-clock drift). In scenario mode it captures Overview,
+  Rooms, Persons, then **one `schedule-<zone>.png` per zone tab** (every tab
+  that is not Overview/Rooms/Persons/`+`), so each zone's weekly time program is
+  documented — the schedule is what bounds heating, not presence.
 - **`<slug>/Makefile`** — copies the business-calendar one verbatim, changing
   only `SLUG`. It passes `OUTPUT_DIR`, the shared `HARNESS_PATH` with
   `?scenario=`, and `SCENARIO_JSON`.
@@ -127,8 +130,11 @@ stored values. Do not write `time_program_presences`, `room_ids`, `zone_id`,
 Each README is a conceptual showcase: persona intro, a Household layout table
 (Room | Zone | Floor | Heats when), a presence/schedule section, a "Rooms driven
 by …" section, and a Screenshots section embedding `overview.png`, `rooms.png`,
-`persons.png` with one annotated sentence each. 2-space indent, wrap at 80
-columns.
+`persons.png`, and each `schedule-<zone>.png` with one annotated sentence each.
+The zone-schedule annotation must state the **bounding rule**: the weekly time
+program sets the heating window, and presence only gates whether that schedule
+is followed — a zone never heats before its first scheduled Normal/Comfort
+period or after the last, present or not. 2-space indent, wrap at 80 columns.
 
 ## Adding a new use case
 
