@@ -31,6 +31,7 @@ import json
 import pathlib
 
 from freezegun import freeze_time
+from homeassistant.components import frontend
 from homeassistant.core import SupportsResponse
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -135,8 +136,14 @@ async def _generate_one(hass, scenario: dict) -> pathlib.Path:
         json.dumps(out, indent=2, default=str, ensure_ascii=False) + "\n"
     )
 
-    # Clean up so the next scenario starts from a fresh entry.
+    # Clean up so the next scenario (reusing this hass) starts fresh. The
+    # integration registers a sidebar panel on setup but does not remove it on
+    # unload, so drop it here to avoid an "Overwriting panel" error on the next
+    # setup.
     await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    frontend.async_remove_panel(hass, DOMAIN)
+    await hass.config_entries.async_remove(entry.entry_id)
     await hass.async_block_till_done()
     return out_path
 
