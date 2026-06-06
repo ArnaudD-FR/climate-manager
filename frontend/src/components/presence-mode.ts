@@ -34,15 +34,6 @@ export function computeHasDeviceTrackers(trackers: unknown): boolean {
 }
 
 /**
- * Return true — the "HA home tracking" option is always rendered (D-04).
- * When no trackers exist the option label carries a ⚠ suffix instead of
- * being hidden, so the user understands why the mode is unavailable.
- */
-export function shouldShowHaOption(hasDeviceTrackers: boolean): boolean {
-  return true;
-}
-
-/**
  * Return the display label for the "HA home tracking" select option (D-04).
  * Appends ⚠ when no device trackers are linked so the user sees the issue
  * directly in the dropdown without needing to select the option first.

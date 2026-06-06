@@ -58,11 +58,16 @@
 
 ### Presence Mode UI
 
-- [ ] **UI-01**: The "HA" presence mode option is hidden in the mode picker
-  for persons whose HA person entity has no linked device trackers
-  (`attributes.device_trackers` is empty or absent)
-- [ ] **UI-02**: The "HA" presence mode is renamed to "Live tracking" (or
-  equivalent clear label) everywhere it appears in the panel
+- [x] **UI-01**: The "HA" presence mode option is always shown in the mode
+  picker; for persons whose HA person entity has no linked device trackers
+  (`attributes.device_trackers` empty or absent) the option label carries a
+  "⚠" suffix and the card shows a stuck-mode hint, rather than hiding the
+  option. (Shipped design — supersedes the original "hide the option"
+  spec; see quick task 260601-d04.)
+- [x] **UI-02**: The "HA" presence mode is labelled "HA home tracking"
+  everywhere it appears in the panel (the WebSocket payload keeps `"ha"` as
+  the internal key). (Shipped label — supersedes the original "Live
+  tracking" wording.)
 
 ### Architecture Cleanup
 
