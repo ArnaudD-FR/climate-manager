@@ -22,8 +22,9 @@ Reduced regardless of the scheduled period.
 ## Presence configuration
 
 Marc's person config uses **HA home tracking**. No schedule arrays are needed.
-The integration reads his HA person entity's home / not_home state at each
-evaluation cycle, derived from his phone's device tracker.
+The integration reads his HA person entity's home / away state at each
+evaluation cycle, derived from his phone's device tracker. The hint on his card
+reads "Presence mirrors Home Assistant home/away tracking."
 
 The panel renders the **HA home tracking** badge on Marc's card. This mode is
 the right choice for anyone whose schedule is irregular enough that no weekly
@@ -32,9 +33,10 @@ highly variable routines. The person card shows no schedule editor.
 
 ## Rooms driven by Marc
 
-Marc has all three rooms in his **Room associations**: Bedroom, Living Room, and
-Kitchen. Every room is gated by his presence — heating follows the zone schedule
-while he is home and sets back when he is away.
+Marc has all three rooms in his **Room associations**: Bedroom (First Floor) and
+Kitchen + Living Room (Ground Floor). Every room is gated by his presence —
+heating follows the zone schedule while he is home and sets back when he is
+away.
 
 | Room        | Tracked for presence |
 | ----------- | -------------------- |
@@ -48,24 +50,26 @@ while he is home and sets back when he is away.
 
 ![Overview](screenshots/overview.png)
 
-The Overview tab shows the two zones (Downstairs and Upstairs), both in **Time
-program & presences** mode, and Marc's presence state. All three rooms show a
-non-zero person count while he is home.
+Captured at 14:00 on a Wednesday: Marc is home (green dot in the Persons row),
+Downstairs zone is in its Normal active period and Upstairs in Reduced — both
+zones show **Time program & presences** mode.
 
 ### Rooms tab
 
 ![Rooms](screenshots/rooms.png)
 
-The Rooms tab lists all three rooms grouped by floor. Bedroom is badged with the
-Upstairs zone colour; Living Room and Kitchen show the Downstairs (Default Zone)
-badge. Each card shows live temperature and humidity from the TRV.
+All three rooms show 1/1 person present. Bedroom (First Floor) carries the
+Upstairs zone badge and a Normal · 20°C period; Kitchen and Living Room (Ground
+Floor) carry the Downstairs badge, also at Normal · 20°C. The expanded Bedroom
+card shows Marc in Associated Persons and the Bedroom TRV reading 19.2°C.
 
 ### Persons tab — Marc card expanded
 
 ![Persons](screenshots/persons.png)
 
 The expanded Marc card shows the Presence mode selector set to **HA home
-tracking** and an explanatory hint. No schedule editor is rendered — this is the
-deliberate contrast with schedule-driven cards (e.g. simple-schedule or
-student-mixed-schedule), where a time-bar editor appears on expand. All three
-room chips appear in his **Room associations**, grouped by floor.
+tracking** and the hint "Presence mirrors Home Assistant home/away tracking." No
+schedule editor is rendered — this is the deliberate contrast with
+schedule-driven cards, where a time-bar editor appears on expand. Room
+associations list Bedroom (First Floor) and Kitchen + Living Room (Ground
+Floor).
