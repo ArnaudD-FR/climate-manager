@@ -47,9 +47,9 @@ counts as a return home.
 
 #### Even week: arrives Friday noon, manual weekend
 
-| Mon–Thu | Fri                          | Sat (manual)                         | Sun (manual)                         |
-| ------- | ---------------------------- | ------------------------------------ | ------------------------------------ |
-| Absent  | Absent until 12:00 → present | Present, out 14:00–18:00, back 18:00 | Present, out 14:00–18:00, back 18:00 |
+| Mon–Thu | Fri                                   | Sat (manual)                         | Sun (manual)                         |
+| ------- | ------------------------------------- | ------------------------------------ | ------------------------------------ |
+| Absent  | Absent to 12:00, then school calendar | Present, out 14:00–18:00, back 18:00 | Present, out 14:00–18:00, back 18:00 |
 
 The expanded Sofia card has an **Even / Odd weeks** selector (it notes "Week 23
 is currently active (odd week)"), with a tab for each week. Both schedules are
@@ -57,9 +57,10 @@ shown below.
 
 ![Persons tab, Sofia card, Even week](screenshots/persons-even.png)
 
-The **Even** week is the off week: Mon–Thu Absent, Friday flips to Present at
-noon (the hand-over), and the weekend is a hand-set manual schedule (Present
-with an afternoon out 14:00–18:00).
+The **Even** week is the off week: Mon–Thu Absent, Friday is Absent until the
+noon hand-over and then a "Calendar: school" bar for the afternoon, and the
+weekend is a hand-set manual schedule (Present with an afternoon out
+14:00–18:00).
 
 ![Persons tab, Sofia card, Odd week](screenshots/persons-odd.png)
 

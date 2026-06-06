@@ -81,10 +81,12 @@ _SCHEDULE_ODD = {
     "sun": _ALL_ABSENT,
 }
 
-# Even week — handover IN at Friday noon; manual weekend schedule.
+# Even week — handover IN at Friday noon; the afternoon then follows the school
+# calendar (the child is in this home's custody and may still be in class),
+# and the weekend is a hand-set manual schedule.
 _EVEN_FRI = [
     {"start": "00:00", "state": "absent"},
-    {"start": "12:00", "state": "present"},
+    {"start": "12:00", "state": "calendar", "calendar_config": _SCHOOL_CAL},
 ]
 _WEEKEND_MANUAL = [
     {"start": "00:00", "state": "present"},
