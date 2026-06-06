@@ -12,6 +12,10 @@ meeting or travel event is active Noah counts as away and every room sets back
 to Reduced; when the calendar is clear he is present and both zones' schedules
 apply normally.
 
+The screenshots are pinned to **Wednesday at 10:30** — no meeting is active (the
+only event is an afternoon "Team sync" at 14:00), so Noah is present and all
+three rooms are heating to their scheduled periods.
+
 ## Household layout
 
 | Room        | Zone        | Floor        | Heats when                        |
@@ -36,21 +40,21 @@ are in.
 
 Noah uses **Calendar** presence mode.
 
-| Setting              | Value                                |
-| -------------------- | ------------------------------------ |
-| Calendar source      | Work Meetings                        |
-| Absent during events | an active event means Noah is away   |
-| Gap handling         | Absent all day (first to last event) |
-| Wake-up advance      | 30 minutes                           |
+| Setting         | Value                                |
+| --------------- | ------------------------------------ |
+| Calendar source | Work Meetings                        |
+| Event means     | Absent during events                 |
+| Gap handling    | Absent all day (first to last event) |
+| Wake-up advance | 30 minutes                           |
 
 The **Wake-up advance** of 30 minutes shifts Noah's calendar-derived presence to
 begin 30 minutes before the **first calendar event of the day** so his rooms are
 warm before his first meeting — not a return-home mechanism.
 
 No schedule time-bar editor is shown for Calendar-mode persons; the panel
-instead renders the calendar configuration selectors (calendar source picker,
-**Absent during events** / **Present during events** toggle, gap-handling
-selector, and **Wake-up advance** field).
+instead renders the calendar configuration selectors (Calendar source picker,
+**Event means** selector, **Gap handling** selector, and **Wake-up advance**
+field).
 
 ## Rooms driven by Noah
 
@@ -65,8 +69,8 @@ zone would never heat to its scheduled period.
 | Bedroom     | Home   | yes                  |
 | Living Room | Home   | yes                  |
 
-When the calendar shows no active event Noah is present and all three rooms
-reflect a person count of 1 and heat according to their zone schedule.
+When the calendar shows no active event Noah is present and all three rooms show
+a person count of 1/1 and heat according to their zone schedule.
 
 ## Screenshots
 
@@ -74,23 +78,25 @@ reflect a person count of 1 and heat according to their zone schedule.
 
 ![Overview — Noah present, two zones](screenshots/overview.png)
 
-The Overview shows two zone pills — Home (Default Zone) and Office (custom zone)
-— both in **Time program & presences** mode, each with its current active
-period; Noah is listed as present.
+The Overview tab shows two zone rows — Home (Time program & presences, active
+period **Normal**) and Office (Time program & presences, active period
+**Comfort**) — with Noah listed as currently present (green dot).
 
 ### Rooms
 
 ![Rooms tab — rooms grouped by zone](screenshots/rooms.png)
 
-The Rooms tab groups Home Office under the Office zone badge and Bedroom plus
-Living Room under the Home zone badge. All three rooms show a person count of 1
-because Noah is present.
+The Rooms tab groups all three rooms by floor on the First Floor: Bedroom
+(**Normal · 20°C**, Home badge) and Home Office (**Comfort · 22°C**, Office
+badge). Living Room (**Normal · 20°C**, Home badge) appears on the Ground Floor.
+Each room shows a 1/1 person count because Noah is present.
 
 ### Persons
 
 ![Persons tab — Noah card expanded](screenshots/persons.png)
 
-The expanded Noah card shows the calendar configuration panel: calendar source
-selector, **Absent during events** toggle, gap-handling selector, and **Wake-up
-advance** field (30 min), plus the three room chips (Home Office, Bedroom,
-Living Room) grouped by floor.
+The expanded Noah card shows the calendar configuration: Calendar source (Work
+Meetings), Event means (**Absent during events**), Gap handling (**Absent all
+day (first to last event)**), and **Wake-up advance** (30 min). Room
+associations appear below, grouped by floor: Bedroom and Home Office on the
+First Floor, Living Room on the Ground Floor.

@@ -12,6 +12,9 @@ Emma is home and fall back to Reduced while she is at work (09:00–17:30). She 
 present overnight — "absent" only covers the hours she is physically out of the
 house.
 
+The screenshots are pinned to **Wednesday at 19:00** — Emma returned home at
+17:30, so all four rooms are heating to Normal.
+
 ## Household layout
 
 | Room        | Zone         | Floor        | Heats when                       |
@@ -41,7 +44,7 @@ physically away at work (09:00–17:30 on weekdays).
 Emma's **Room associations** cover **all four rooms**: Bedroom, Home Office,
 Living Room, and Kitchen. Because the zone is **Time program & presences**,
 every room needs at least one assigned person to receive scheduled heat. All
-four rooms show a non-zero person count when Emma is home.
+four rooms show a person count of 1/1 when Emma is home.
 
 | Room        | Tracked for presence |
 | ----------- | -------------------- |
@@ -56,21 +59,26 @@ four rooms show a non-zero person count when Emma is home.
 
 ![Overview — Emma present, single zone](screenshots/overview.png)
 
-The Overview tab shows the Default Zone (Home) in **Time program & presences**
-mode with the active period and Emma marked as currently present; all four rooms
-show a non-zero person count.
+The Overview tab shows one zone row: Home in **Time program & presences** mode
+with active period **Normal**, and Emma listed as currently present (green dot).
+The Temperatures panel below confirms the four period setpoints (Frost
+protection 7°C, Reduced 16°C, Normal 20°C, Comfort 22°C).
 
 ### Rooms
 
 ![Rooms tab — all four rooms in Default Zone](screenshots/rooms.png)
 
-All four rooms appear under the single Default Zone group, each with live
-temperature and humidity from their TRV entity.
+All four rooms appear grouped by floor — Bedroom and Home Office on the First
+Floor, Kitchen and Living Room on the Ground Floor — each showing a **Normal ·
+20°C** badge, the Home zone chip, live temperature and humidity, and a 1/1
+person count confirming Emma is present.
 
 ### Persons
 
 ![Persons tab — Emma card expanded](screenshots/persons.png)
 
-The expanded Emma card shows her single-week presence schedule: a repeating
-weekday bar absent only 09:00–17:30, alongside fully-present Saturday and Sunday
-bars. All four room chips appear grouped by floor.
+The expanded Emma card shows her **Single week** presence schedule: every
+weekday row carries an identical Present/Absent/Present pattern (absent
+09:00–17:30), while Saturday and Sunday are fully present. Room associations
+appear below the schedule, grouped by floor: Bedroom and Home Office on the
+First Floor, Kitchen and Living Room on the Ground Floor.
