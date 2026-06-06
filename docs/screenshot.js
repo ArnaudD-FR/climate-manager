@@ -90,7 +90,28 @@ async function main() {
   const browser = await chromium.launch({
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
-  const page = await browser.newPage();
+
+  // Scenario mode: when a generated scenario.json is provided, pin the browser
+  // clock + timezone to the scenario's moment so the panel's live computations
+  // (zone active period, even/odd week parity, calendar "now") match the
+  // coordinator-computed status in the same file. UTC throughout — schedule
+  // "HH:MM" values are authored and evaluated in UTC.
+  let pinnedTime = null;
+  const contextOptions = {};
+  if (process.env.SCENARIO_JSON) {
+    const scenario = JSON.parse(
+      fs.readFileSync(process.env.SCENARIO_JSON, "utf8"),
+    );
+    pinnedTime = new Date(scenario.now);
+    contextOptions.timezoneId = "UTC";
+  }
+
+  const context = await browser.newContext(contextOptions);
+  const page = await context.newPage();
+  if (pinnedTime) {
+    await page.clock.install({ time: pinnedTime });
+    await page.clock.pauseAt(pinnedTime);
+  }
   await page.setViewportSize({ width: 1280, height: 900 });
 
   // Capture browser-side logs and errors for debugging

@@ -5,7 +5,7 @@ HA_COMPONENT_DIR = /config/custom_components/climate_manager
 SRC_DIR = custom_components/climate_manager
 VERSION := $(shell python3 -c "import json; print(json.load(open('$(SRC_DIR)/manifest.json'))['version'])")
 
-.PHONY: build deploy test lint logs screenshots use-case-screenshots release
+.PHONY: build deploy test lint logs screenshots use-case-data use-case-screenshots release
 
 build:
 	cd frontend && npm install --no-audit --no-fund && npm run build
@@ -45,7 +45,10 @@ screenshots: build
 		bash -c "cd /app/docs && npm install --no-audit --no-fund 2>/dev/null && node screenshot.js"
 	$(MAKE) use-case-screenshots
 
-use-case-screenshots:
+use-case-data:
+	.venv/bin/python -m pytest tests/generate_use_cases.py -q
+
+use-case-screenshots: use-case-data
 	@for dir in docs/use-cases/*/; do \
 		if [ -f "$$dir/Makefile" ]; then \
 			echo "--- $$dir ---"; \

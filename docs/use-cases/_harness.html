@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Climate Manager – Test Harness</title>
+  <title>Climate Manager – Use-case Harness</title>
   <style>
     :root {
       --primary-color: #03a9f4;
@@ -148,150 +148,19 @@
 <!-- panel.js is a module; it runs before the sibling inline module below -->
 <script type="module" src="/custom_components/climate_manager/www/panel.js"></script>
 
-<!-- Mock hass — runs after panel.js defines climate-manager-panel -->
+<!-- Generic harness: render the panel from a generated scenario.json.
+     The scenario URL is passed as ?scenario=<path>. config + status come
+     straight from the coordinator output (no hand-written values). -->
 <script type="module">
-  // Noah — two-zone household: Home Office on a custom Office zone
-  // (work-hours program), Bedroom and Living Room on the Default Zone "Home"
-  // (domestic day/night program). BOTH zones are time_program_presences —
-  // Noah's work calendar drives presence for all rooms. When a calendar
-  // event is active (meeting / travel) he counts as away and all his rooms
-  // set back; when the calendar is clear he is present and both zones'
-  // schedules apply.
-
-  const OFFICE_ZONE_ID = 'zone-office-7f3a';
-
-  // Home zone: domestic day/night schedule.
-  const homeWD = [
-    { start: '00:00', mode: 'frost_protection' },
-    { start: '07:00', mode: 'normal' },
-    { start: '09:00', mode: 'reduced' },
-    { start: '18:00', mode: 'normal' },
-    { start: '22:30', mode: 'frost_protection' },
-  ];
-  const homeWE = [
-    { start: '00:00', mode: 'frost_protection' },
-    { start: '08:30', mode: 'normal' },
-    { start: '10:00', mode: 'comfort' },
-    { start: '23:00', mode: 'frost_protection' },
-  ];
-
-  // Office zone: comfort during core working hours on weekdays; frost
-  // protection outside those hours.
-  const officeWD = [
-    { start: '00:00', mode: 'frost_protection' },
-    { start: '08:00', mode: 'comfort' },
-    { start: '18:00', mode: 'frost_protection' },
-  ];
-  const officeWE = [
-    { start: '00:00', mode: 'frost_protection' },
-  ];
-
-  function mkProg(wd, we) {
-    return {
-      mon: wd, tue: wd, wed: wd, thu: wd, fri: wd, sat: we, sun: we,
-    };
+  const params = new URLSearchParams(location.search);
+  const scenarioUrl = params.get('scenario');
+  if (!scenarioUrl) {
+    console.error('[harness] missing ?scenario= query parameter');
   }
-
-  const homeProg   = mkProg(homeWD, homeWE);
-  const officeProg = mkProg(officeWD, officeWE);
-
-  const CONFIG = {
-    period_temperatures: {
-      frost_protection: 7, reduced: 16, normal: 20, comfort: 22,
-    },
-    // Both zones are presence-driven — the same calendar determines whether
-    // Noah is present for rooms in either zone.
-    default_zone: {
-      name: 'Home',
-      mode: 'time_program_presences',
-      time_program: homeProg,
-    },
-    zones: {
-      [OFFICE_ZONE_ID]: {
-        name: 'Office',
-        mode: 'time_program_presences',
-        time_program: officeProg,
-      },
-    },
-    rooms: {
-      // Home Office is in the dedicated Office zone.
-      home_office:  { zone_id: OFFICE_ZONE_ID },
-      // Bedroom and Living Room are Default Zone members.
-      bedroom:      {},
-      living_room:  {},
-    },
-    persons: {
-      'person.noah': {
-        mode: 'calendar',
-        // Noah is assigned to all three rooms so each room has a present
-        // person when the calendar is clear.
-        room_ids: ['home_office', 'bedroom', 'living_room'],
-        calendar_config: {
-          entity_id: 'calendar.work_meetings',
-          event_means: 'absent',
-          gap_handling: 'day_span',
-        },
-        // Presence begins 30 min before the first calendar event of the
-        // day so rooms are warm before the first meeting — NOT an
-        // evening-return pre-heat.
-        wakeup_advance_minutes: 30,
-      },
-    },
-    climate_entities: [
-      'climate.home_office_trv',
-      'climate.bedroom_trv',
-      'climate.living_room_trv',
-    ],
-  };
-
-  // Snapshot: a weekday with no meeting active — Noah is home/working.
-  // All three rooms reflect his presence; Office zone is in comfort;
-  // Home zone rooms are in normal.
-  const STATUS = {
-    zones: {
-      default: {
-        mode: 'time_program_presences',
-        active_period: 'normal',
-      },
-      [OFFICE_ZONE_ID]: {
-        mode: 'time_program_presences',
-        active_period: 'comfort',
-      },
-    },
-    present_persons: ['person.noah'],
-    rooms_status: [
-      {
-        area_id: 'home_office',
-        name: 'Home Office',
-        entity_ids: ['climate.home_office_trv'],
-        temperature: 21.3,
-        humidity: 43,
-        active_period: 'comfort',
-        present_person_count: 1,
-        has_trv: true,
-      },
-      {
-        area_id: 'bedroom',
-        name: 'Bedroom',
-        entity_ids: ['climate.bedroom_trv'],
-        temperature: 19.6,
-        humidity: 55,
-        active_period: 'normal',
-        present_person_count: 1,
-        has_trv: true,
-      },
-      {
-        area_id: 'living_room',
-        name: 'Living Room',
-        entity_ids: ['climate.living_room_trv'],
-        temperature: 20.8,
-        humidity: 47,
-        active_period: 'normal',
-        present_person_count: 1,
-        has_trv: true,
-      },
-    ],
-  };
+  const scenario = await (await fetch(scenarioUrl)).json();
+  const CONFIG = scenario.config;
+  const STATUS = scenario.status;
+  const world = scenario.hass || {};
 
   const mockHass = {
     connection: {
@@ -307,81 +176,19 @@
         return Promise.resolve(() => {});
       },
     },
-    states: {
-      'climate.home_office_trv': {
-        state: 'heat',
-        attributes: {
-          friendly_name: 'Home Office TRV',
-          current_temperature: 21.3,
-          temperature: 22,
-        },
-      },
-      'climate.bedroom_trv': {
-        state: 'heat',
-        attributes: {
-          friendly_name: 'Bedroom TRV',
-          current_temperature: 19.6,
-          temperature: 20,
-        },
-      },
-      'climate.living_room_trv': {
-        state: 'heat',
-        attributes: {
-          friendly_name: 'Living Room TRV',
-          current_temperature: 20.8,
-          temperature: 20,
-        },
-      },
-      'person.noah': {
-        state: 'home',
-        attributes: { friendly_name: 'Noah' },
-      },
-      'calendar.work_meetings': {
-        state: 'off',
-        attributes: { friendly_name: 'Work Meetings' },
-      },
-    },
-    areas: {
-      home_office: {
-        area_id: 'home_office',
-        name: 'Home Office',
-        floor_id: 'first_floor',
-      },
-      bedroom: {
-        area_id: 'bedroom',
-        name: 'Bedroom',
-        floor_id: 'first_floor',
-      },
-      living_room: {
-        area_id: 'living_room',
-        name: 'Living Room',
-        floor_id: 'ground_floor',
-      },
-    },
-    floors: {
-      ground_floor: {
-        floor_id: 'ground_floor',
-        name: 'Ground Floor',
-        level: 0,
-      },
-      first_floor: {
-        floor_id: 'first_floor',
-        name: 'First Floor',
-        level: 1,
-      },
-    },
+    states: world.states || {},
+    areas: world.areas || {},
+    floors: world.floors || {},
     callService() { return Promise.resolve(); },
   };
 
-  // Create the element with hass already set so connectedCallback has it
   const panel = document.createElement('climate-manager-panel');
-  panel.hass   = mockHass;
+  panel.hass = mockHass;
   panel.narrow = false;
-  panel.panel  = {};
+  panel.panel = {};
   document.getElementById('mount').appendChild(panel);
-
   window.__panelReady = true;
-  console.log('[harness] panel appended with hass');
+  console.log('[harness] panel appended with hass from', scenarioUrl);
 </script>
 </body>
 </html>
