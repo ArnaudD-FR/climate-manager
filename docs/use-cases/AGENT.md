@@ -19,7 +19,7 @@ the status.
 ## Pipeline
 
 ```text
-_scenarios/<slug>.py   →  make use-case-data   →  <slug>/scenario.json
+<slug>/scenario.py      →  make use-case-data   →  <slug>/scenario.json
    (user config +          (real coordinator        (config + computed
     world + now)            at pinned time)           status + world)
                                                           │
@@ -30,14 +30,14 @@ _harness.html?scenario=<slug>/scenario.json  +  screenshot.js (clock pinned)
                                               <slug>/screenshots/*.png
 ```
 
-- **`_scenarios/<slug>.py`** — a `SCENARIO` dict (see schema below). The only
-  file you author per use case besides the README.
-- **`tests/generate_use_cases.py`** (`make use-case-data`) — runs on the host
-  using the HA test harness. For each scenario it sets the integration's runtime
-  config, seeds the HA world, pins the clock, runs the **real**
-  `coordinator.async_evaluate()`, and writes `<slug>/scenario.json` from
-  `coordinator._build_status_payload()`. Display-only fields (room display
-  names, humidity) are injected from the scenario.
+- **`<slug>/scenario.py`** — a `SCENARIO` dict (see schema below), co-located in
+  the use-case folder. The only file you author per use case besides the README.
+- **`generate.py`** (`make use-case-data`) — runs on the host using the HA test
+  harness. For each scenario it sets the integration's runtime config, seeds the
+  HA world, pins the clock, runs the **real** `coordinator.async_evaluate()`,
+  and writes `<slug>/scenario.json` from `coordinator._build_status_payload()`.
+  Display-only fields (room display names, humidity) are injected from the
+  scenario.
 - **`_harness.html`** — one generic harness for all use cases. It reads
   `?scenario=<path>` and renders the panel from that JSON. There is no
   per-folder harness.
@@ -132,9 +132,8 @@ columns.
 
 ## Adding a new use case
 
-1. Create `_scenarios/<slug>.py` with a `SCENARIO` dict. Choose `now` to best
-   show the case (e.g. a working morning, a winter evening, an odd custody
-   week).
+1. Create `<slug>/scenario.py` with a `SCENARIO` dict. Choose `now` to best show
+   the case (e.g. a working morning, a winter evening, an odd custody week).
 2. Create `<slug>/Makefile` (copy business-calendar's, change `SLUG`) and
    `<slug>/README.md`.
 3. Run `make use-case-data` then `make -C docs/use-cases/<slug> screenshots` (or

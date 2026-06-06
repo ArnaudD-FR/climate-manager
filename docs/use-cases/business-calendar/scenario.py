@@ -4,7 +4,7 @@
 A scenario is the *user-authored* world: the zones / rooms / persons a user
 would configure, plus the surrounding Home Assistant state (TRV temperatures,
 person entities, calendar events) and a single pinned moment in time. The
-generator (tests/generate_use_cases.py) feeds this to the real coordinator and
+generator (docs/use-cases/generate.py) feeds this to the real coordinator and
 records the status it computes — no hand-written status values.
 
 See docs/use-cases/AGENT.md for the authoring guide.

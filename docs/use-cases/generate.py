@@ -3,7 +3,7 @@
 
 This is not a test in the assertion sense — it is a data generator that reuses
 the Home Assistant test harness (the `hass` fixture + custom-integration
-plugin). For every scenario under ``docs/use-cases/_scenarios/`` it:
+plugin). For every ``docs/use-cases/<slug>/scenario.py`` it:
 
 1. sets the integration's runtime config to the scenario's user-authored config,
 2. seeds the surrounding HA world (TRV temperatures, person entities, calendar
@@ -20,7 +20,7 @@ moment, so the screenshots are coherent by construction. No status values are
 hand-written. See ``docs/use-cases/AGENT.md``.
 
 Run via: ``make use-case-data`` (``.venv/bin/python -m pytest
-tests/generate_use_cases.py``).
+docs/use-cases/generate.py``).
 """
 
 from __future__ import annotations
@@ -39,17 +39,16 @@ from pytest_homeassistant_custom_component.common import (
 
 from custom_components.climate_manager.const import DOMAIN
 
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-_USE_CASES_DIR = _REPO_ROOT / "docs" / "use-cases"
-_SCEN_DIR = _USE_CASES_DIR / "_scenarios"
+_USE_CASES_DIR = pathlib.Path(__file__).resolve().parent
+_REPO_ROOT = _USE_CASES_DIR.parents[1]
 
 
 def _load_scenarios() -> list[dict]:
+    """Load every ``docs/use-cases/<slug>/scenario.py`` SCENARIO dict."""
     scenarios: list[dict] = []
-    for path in sorted(_SCEN_DIR.glob("*.py")):
-        if path.name.startswith("__"):
-            continue
-        spec = importlib.util.spec_from_file_location(path.stem, path)
+    for path in sorted(_USE_CASES_DIR.glob("*/scenario.py")):
+        mod_name = f"scenario_{path.parent.name.replace('-', '_')}"
+        spec = importlib.util.spec_from_file_location(mod_name, path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         if hasattr(module, "SCENARIO"):
@@ -145,7 +144,7 @@ async def _generate_one(hass, scenario: dict) -> pathlib.Path:
 async def test_generate_use_cases(hass) -> None:
     """Generate scenario.json for every use case (data generator, not a test)."""
     scenarios = _load_scenarios()
-    assert scenarios, "no scenarios found under docs/use-cases/_scenarios/"
+    assert scenarios, "no docs/use-cases/<slug>/scenario.py files found"
     for scenario in scenarios:
         path = await _generate_one(hass, scenario)
         print(f"  wrote {path.relative_to(_REPO_ROOT)}")

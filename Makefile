@@ -46,7 +46,7 @@ screenshots: build
 	$(MAKE) use-case-screenshots
 
 use-case-data:
-	.venv/bin/python -m pytest tests/generate_use_cases.py -q
+	.venv/bin/python -m pytest docs/use-cases/generate.py -q
 
 use-case-screenshots: use-case-data
 	@for dir in docs/use-cases/*/; do \
