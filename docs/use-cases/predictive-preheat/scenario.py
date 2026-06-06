@@ -48,12 +48,41 @@ _MAYA_WE = [
     {"start": "00:00", "state": "present"},
 ]
 
+# Two variants of the same configuration. The "present" star moment is 05:50,
+# BEFORE the 06:30 wake-up step: Maya is home asleep (present overnight), so the
+# zone pre-heat is already warming every room toward the morning Normal target.
+# The "away" moment is midday, when Maya is out and the presence gate sets the
+# rooms back to Reduced — no pre-heat runs for an empty house. The away TRV
+# temperatures are cosmetic.
+_AWAY = {
+    "person.maya": {"state": "not_home"},
+    "climate.bedroom_trv": {"attributes": {"current_temperature": 18.0}},
+    "climate.bathroom_trv": {"attributes": {"current_temperature": 17.4}},
+    "climate.living_room_trv": {"attributes": {"current_temperature": 18.2}},
+}
+
 SCENARIO = {
     "slug": "predictive-preheat",
-    # Wednesday 05:50 UTC — early morning, BEFORE the 06:30 wake-up step.
-    # Maya is home (present overnight). The zone pre-heat is active for
-    # bedroom and bathroom, which are still below their Normal target.
-    "now": "2026-06-03T05:50:00+00:00",
+    "variants": [
+        {
+            "id": "present",
+            "now": "2026-06-03T05:50:00+00:00",
+            "caption": (
+                "Wednesday 05:50 — Maya is home asleep, 40 minutes before the "
+                "06:30 Normal step, so pre-heat is already warming every room "
+                "toward 20.0°C."
+            ),
+        },
+        {
+            "id": "away",
+            "now": "2026-06-03T12:00:00+00:00",
+            "caption": (
+                "Wednesday 12:00 — Maya is out, so the presence gate holds "
+                "every room at Reduced and no pre-heat runs."
+            ),
+            "states": _AWAY,
+        },
+    ],
     "config": {
         "period_temperatures": {
             "frost_protection": 7,

@@ -67,11 +67,43 @@ _ALEX_WE = [
     {"start": "00:00", "state": "present"},
 ]
 
+# Two variants of the same configuration. The key contrast is that the two
+# zones respond differently to presence. The Home zone is "Time program &
+# presences" — gated by Alex. The Bathrooms zone is plain "Time program" — it
+# follows its own comfort schedule no matter who is home, with nobody assigned.
+# present (20:00): Alex home → Home Normal, Bathrooms Comfort (from 19:00).
+# away (12:00): Alex at work → Home Reduced (gated), Bathrooms still driven
+# purely by its own schedule (Reduced midday) — the same it would show with or
+# without anyone assigned. The away TRV temperatures are cosmetic.
+_AWAY = {
+    "person.alex": {"state": "not_home"},
+    "climate.bedroom_trv": {"attributes": {"current_temperature": 18.1}},
+    "climate.living_room_trv": {"attributes": {"current_temperature": 18.5}},
+}
+
 SCENARIO = {
     "slug": "bathroom-comfort-zone",
-    # Wednesday 20:00 UTC — weekday evening, inside the bathrooms' comfort
-    # window (comfort from 19:00). Alex is home; Home-zone rooms heat Normal.
-    "now": "2026-06-03T20:00:00+00:00",
+    "variants": [
+        {
+            "id": "present",
+            "now": "2026-06-03T20:00:00+00:00",
+            "caption": (
+                "Wednesday 20:00 — Alex is home, so the Home zone is at "
+                "Normal; the Bathrooms zone is at Comfort on its own schedule "
+                "(comfort from 19:00)."
+            ),
+        },
+        {
+            "id": "away",
+            "now": "2026-06-03T12:00:00+00:00",
+            "caption": (
+                "Wednesday 12:00 — Alex is at work, so the Home zone sets back "
+                "to Reduced; the Bathrooms zone keeps following its own "
+                "schedule, unaffected by presence."
+            ),
+            "states": _AWAY,
+        },
+    ],
     "config": {
         "period_temperatures": {
             "frost_protection": 7,

@@ -55,14 +55,45 @@ def _week(weekday, weekend):
     }
 
 
+# Both variants are pinned to the SAME moment — Wednesday 14:00, when both
+# zones' raw schedule period is its midday Reduced dip (Downstairs 09:30–18:00,
+# Upstairs 09:00–17:00). The only thing that changes is whether HA reports Marc
+# home. This isolates the presence gate AND the gap-fill rule: at 14:00 Marc is
+# *within* the day's occupied window (between the morning and evening Normal
+# periods), so when he is home every room is held at the preceding Normal
+# temperature even though the schedule itself says Reduced. When he is on shift,
+# the same rooms sit at Reduced. The coordinator computes both.
+_AWAY = {
+    "person.marc": {"state": "not_home"},
+    "device_tracker.marc_phone": {"state": "not_home"},
+    "climate.bedroom_trv": {"attributes": {"current_temperature": 17.6}},
+    "climate.living_room_trv": {"attributes": {"current_temperature": 18.0}},
+    "climate.kitchen_trv": {"attributes": {"current_temperature": 18.3}},
+}
+
 SCENARIO = {
     "slug": "rotating-shift-worker",
-    # Wednesday 14:00 — Marc is home (HA home tracking confirms presence),
-    # so all rooms in both zones heat to their current scheduled period.
-    # Downstairs zone at 14:00 on a weekday is in Reduced (09:30–18:00),
-    # Upstairs zone at 14:00 is in Reduced (09:00–17:00) — both rooms set
-    # back. The coordinator computes the correct active periods.
-    "now": "2026-06-03T14:00:00+00:00",
+    "variants": [
+        {
+            "id": "present",
+            "now": "2026-06-03T14:00:00+00:00",
+            "caption": (
+                "Wednesday 14:00 — Marc comes home off a morning shift while "
+                "the schedule is in its midday Reduced dip. Because he is "
+                "within the day's occupied window, every room is held at "
+                "Normal (gap-fill)."
+            ),
+        },
+        {
+            "id": "away",
+            "now": "2026-06-03T14:00:00+00:00",
+            "caption": (
+                "Wednesday 14:00 — Marc is on shift; HA reports him away, so "
+                "every room sits at Reduced."
+            ),
+            "states": _AWAY,
+        },
+    ],
     "config": {
         "period_temperatures": {
             "frost_protection": 7,

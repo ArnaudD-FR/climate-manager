@@ -47,11 +47,42 @@ def _week(weekday, weekend):
     }
 
 
+# Two variants of the same configuration show the presence gate. In "Calendar"
+# mode (Absent during events) Noah's presence is computed from his work
+# calendar vs. the current time: outside any meeting he counts as home, during
+# a meeting he counts as away. The single "Team sync" event runs 14:00–15:00,
+# so 10:30 is a working-from-home morning (present) and 14:30 is mid-meeting
+# (away). The away TRV temperatures are cosmetic.
+_AWAY = {
+    "person.noah": {"state": "not_home"},
+    "climate.home_office_trv": {"attributes": {"current_temperature": 19.6}},
+    "climate.bedroom_trv": {"attributes": {"current_temperature": 18.4}},
+    "climate.living_room_trv": {"attributes": {"current_temperature": 18.7}},
+}
+
 SCENARIO = {
     "slug": "business-calendar",
-    # Wednesday 10:30 — a normal working morning with no meeting active, so
-    # Noah counts as home and his rooms heat. (June 1 2026 is a Monday.)
-    "now": "2026-06-03T10:30:00+00:00",
+    "variants": [
+        {
+            "id": "present",
+            "now": "2026-06-03T10:30:00+00:00",
+            "caption": (
+                "Wednesday 10:30 — no meeting is active, so Noah counts as "
+                "working from home: the Office is at Comfort and the rest of "
+                "the house follows its schedule."
+            ),
+        },
+        {
+            "id": "away",
+            "now": "2026-06-03T14:30:00+00:00",
+            "caption": (
+                "Wednesday 14:30 — Noah is in the 'Team sync' meeting, so the "
+                "Calendar marks him away and every presence-gated room sets "
+                "back to Reduced."
+            ),
+            "states": _AWAY,
+        },
+    ],
     "config": {
         "period_temperatures": {
             "frost_protection": 7,

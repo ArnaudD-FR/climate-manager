@@ -101,11 +101,41 @@ _SCHEDULE_EVEN = {
     "sun": _WEEKEND_MANUAL,
 }
 
+# Two variants on the same odd custody week (Wednesday, ISO week 23) show the
+# presence gate on the Child's Room zone. Presence is driven by the Pronote
+# calendar (Absent during events): at 16:30 the school day is over (last class
+# ended 16:00) so the child is home and the room follows its schedule; at 10:00
+# a class is in session so the child is at school and the room sets back to
+# Reduced. The Home zone (living room) is a plain time program — it is the same
+# in both, unaffected by presence. The away TRV temperature is cosmetic.
+_AWAY = {
+    "person.sofia": {"state": "not_home"},
+    "climate.child_bedroom_trv": {"attributes": {"current_temperature": 17.7}},
+}
+
 SCENARIO = {
     "slug": "shared-custody-odd-even-weeks",
-    # Wednesday 16:30 UTC — ISO week 23 (odd week), after school (last class
-    # ends 16:00). The child is home; Child's Room zone is active.
-    "now": "2026-06-03T16:30:00+00:00",
+    "variants": [
+        {
+            "id": "present",
+            "now": "2026-06-03T16:30:00+00:00",
+            "caption": (
+                "Wednesday 16:30, odd week — the school day is over, so the "
+                "child is home and the Child's Room follows its schedule "
+                "(Normal)."
+            ),
+        },
+        {
+            "id": "away",
+            "now": "2026-06-03T10:00:00+00:00",
+            "caption": (
+                "Wednesday 10:00, odd week — a class is in session, so the "
+                "Pronote calendar marks the child at school and the Child's "
+                "Room sets back to Reduced."
+            ),
+            "states": _AWAY,
+        },
+    ],
     "config": {
         "period_temperatures": {
             "frost_protection": 7,

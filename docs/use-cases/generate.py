@@ -108,18 +108,33 @@ def _register_calendar(hass, calendars: dict) -> None:
     )
 
 
-async def _generate_one(hass, scenario: dict) -> list[pathlib.Path]:
+async def _generate_variant(
+    hass, scenario: dict, variant: dict
+) -> pathlib.Path:
+    """Generate one variant's scenario.json with a fresh integration setup.
+
+    Each variant gets its own setup → evaluate → teardown so no coordinator
+    state (cached calendar presence, pre-heat baselines) can leak between a
+    use case's present/away moments.
+    """
     world = scenario["hass"]
-    base_states = world["states"]
     areas = world.get("areas", {})
     humidity = scenario.get("humidity", {})
+    now_dt = datetime.datetime.fromisoformat(variant["now"])
+    states = _merge_states(world["states"], variant.get("states", {}))
+
+    # Seed the HA world for this variant (TRVs, persons, trackers).
+    for entity_id, state in states.items():
+        hass.states.async_set(
+            entity_id, state["state"], state.get("attributes", {})
+        )
 
     # Mock the climate services the evaluation issues, plus calendar events.
+    # These handlers are stateless; re-registering per variant just overwrites.
     async_mock_service(hass, "climate", "set_temperature")
     async_mock_service(hass, "climate", "set_hvac_mode")
     _register_calendar(hass, scenario.get("calendars", {}))
 
-    # Stand up the integration and inject the scenario config + discovery map.
     # Pin HA's timezone to UTC so schedule "HH:MM" values are interpreted in
     # UTC — the same clock the browser harness is pinned to (no tz drift).
     await hass.config.async_set_time_zone("UTC")
@@ -135,66 +150,57 @@ async def _generate_one(hass, scenario: dict) -> list[pathlib.Path]:
     coord = entry.runtime_data.coordinator
     coord._build_domain_objects(scenario["config"])
 
+    # Pin the clock and run the real evaluation.
+    with freeze_time(now_dt):
+        await coord.async_evaluate(now_dt)
+        status = coord._build_status_payload()
+
+    # Inject cosmetic, non-engine fields (display names, humidity).
+    for room in status["rooms_status"]:
+        area_id = room["area_id"]
+        if area_id in areas:
+            room["name"] = areas[area_id]["name"]
+        if area_id in humidity:
+            room["humidity"] = humidity[area_id]
+
+    variant_world = dict(world)
+    variant_world["states"] = states
+    out = {
+        "now": variant["now"],
+        "variant": variant["id"],
+        "caption": variant.get("caption", ""),
+        "config": scenario["config"],
+        "status": status,
+        "hass": variant_world,
+    }
     folder = _USE_CASES_DIR / scenario["slug"]
     folder.mkdir(parents=True, exist_ok=True)
-    out_paths: list[pathlib.Path] = []
+    name = (
+        "scenario.json"
+        if variant["id"] is None
+        else f"scenario.{variant['id']}.json"
+    )
+    out_path = folder / name
+    out_path.write_text(
+        json.dumps(out, indent=2, default=str, ensure_ascii=False) + "\n"
+    )
 
-    # One evaluation per variant — same config, different moment / world state
-    # (e.g. a person present vs. away). The coordinator computes each result.
-    for variant in _variants(scenario):
-        now_dt = datetime.datetime.fromisoformat(variant["now"])
-        states = _merge_states(base_states, variant.get("states", {}))
-
-        # Seed (or re-seed) the HA world for this variant.
-        for entity_id, state in states.items():
-            hass.states.async_set(
-                entity_id, state["state"], state.get("attributes", {})
-            )
-
-        # Pin the clock and run the real evaluation.
-        with freeze_time(now_dt):
-            await coord.async_evaluate(now_dt)
-            status = coord._build_status_payload()
-
-        # Inject cosmetic, non-engine fields (display names, humidity).
-        for room in status["rooms_status"]:
-            area_id = room["area_id"]
-            if area_id in areas:
-                room["name"] = areas[area_id]["name"]
-            if area_id in humidity:
-                room["humidity"] = humidity[area_id]
-
-        variant_world = dict(world)
-        variant_world["states"] = states
-        out = {
-            "now": variant["now"],
-            "variant": variant["id"],
-            "caption": variant.get("caption", ""),
-            "config": scenario["config"],
-            "status": status,
-            "hass": variant_world,
-        }
-        name = (
-            "scenario.json"
-            if variant["id"] is None
-            else f"scenario.{variant['id']}.json"
-        )
-        out_path = folder / name
-        out_path.write_text(
-            json.dumps(out, indent=2, default=str, ensure_ascii=False) + "\n"
-        )
-        out_paths.append(out_path)
-
-    # Clean up so the next scenario (reusing this hass) starts fresh. The
-    # integration registers a sidebar panel on setup but does not remove it on
-    # unload, so drop it here to avoid an "Overwriting panel" error on the next
-    # setup.
+    # Tear down so the next variant / scenario starts fresh. The integration
+    # registers a sidebar panel on setup but does not remove it on unload, so
+    # drop it here to avoid an "Overwriting panel" error on the next setup.
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     frontend.async_remove_panel(hass, DOMAIN)
     await hass.config_entries.async_remove(entry.entry_id)
     await hass.async_block_till_done()
-    return out_paths
+    return out_path
+
+
+async def _generate_one(hass, scenario: dict) -> list[pathlib.Path]:
+    return [
+        await _generate_variant(hass, scenario, variant)
+        for variant in _variants(scenario)
+    ]
 
 
 async def test_generate_use_cases(hass) -> None:

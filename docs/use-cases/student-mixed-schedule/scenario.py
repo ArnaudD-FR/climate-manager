@@ -69,11 +69,40 @@ _LENA_WE = [
     {"start": "00:00", "state": "present"},
 ]
 
+# Two variants of the same configuration show the presence gate. In
+# "Scheduled" mode presence comes from Lena's per-day schedule + the current
+# time, so the contrast is two moments on her heaviest day (Wednesday, absent
+# 08:00–18:00): home in the evening (rooms follow the schedule) vs. in lectures
+# midday (rooms set back to Reduced). The away TRV temperatures are cosmetic.
+_AWAY = {
+    "person.lena": {"state": "not_home"},
+    "climate.bedroom_trv": {"attributes": {"current_temperature": 17.8}},
+    "climate.study_trv": {"attributes": {"current_temperature": 18.1}},
+    "climate.living_room_trv": {"attributes": {"current_temperature": 18.4}},
+}
+
 SCENARIO = {
     "slug": "student-mixed-schedule",
-    # Wednesday 19:00 — Lena is home after a heavy class day (classes ended
-    # at 18:00), so all her rooms heat to Normal.
-    "now": "2026-06-03T19:00:00+00:00",
+    "variants": [
+        {
+            "id": "present",
+            "now": "2026-06-03T19:00:00+00:00",
+            "caption": (
+                "Wednesday 19:00 — Lena is home after a heavy class day "
+                "(classes ended at 18:00), so every room follows the "
+                "schedule (Normal)."
+            ),
+        },
+        {
+            "id": "away",
+            "now": "2026-06-03T12:00:00+00:00",
+            "caption": (
+                "Wednesday 12:00 — Lena is in lectures, so the presence gate "
+                "sets every room back to Reduced."
+            ),
+            "states": _AWAY,
+        },
+    ],
     "config": {
         "period_temperatures": {
             "frost_protection": 7,
