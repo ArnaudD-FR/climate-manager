@@ -89,6 +89,10 @@ a room to appear in the panel, two conditions must be met:
 
 ### HACS (recommended)
 
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ArnaudD-FR&repository=climate-manager&category=integration)
+
+Or add it manually:
+
 1. Open HACS → Integrations → ⋮ → Custom repositories
 2. Add `https://github.com/ArnaudD-FR/climate-manager` as an Integration
 3. Search for **Climate Manager** and install
