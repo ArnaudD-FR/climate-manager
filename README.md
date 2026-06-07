@@ -89,10 +89,10 @@ a room to appear in the panel, two conditions must be met:
 
 ### HACS (recommended)
 
-Climate Manager is available in [HACS](https://hacs.xyz) (Home Assistant
+<!-- Climate Manager is available in [HACS](https://hacs.xyz) (Home Assistant
 Community Store).
 
-Use this link to directly go to the repository in HACS
+Use this link to directly go to the repository in HACS -->
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ArnaudD-FR&repository=climate-manager&category=integration)
 
