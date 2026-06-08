@@ -652,9 +652,25 @@ export class ClimateManagerTimeBar extends LitElement {
 
     // Delete: remove this period from the source periods array.
     // Left neighbor (or implicit 00:00 fill) expands to cover the gap (D-05).
-    const newPeriods = (this.days[dayIndex] ?? []).filter(
+    let newPeriods = (this.days[dayIndex] ?? []).filter(
       (p) => p.start !== seg.period.start,
     );
+
+    // When the deleted period was the opening 00:00 entry, the schedule must
+    // still begin at 00:00. Promote the new first period to "00:00" so it
+    // explicitly covers from midnight instead of leaving a gap that
+    // _toSegments would silently synthesise — which causes the first block to
+    // appear to change state rather than disappear (D-05).
+    if (
+      seg.period.start === "00:00" &&
+      newPeriods.length > 0 &&
+      newPeriods[0].start !== "00:00"
+    ) {
+      newPeriods = [
+        { ...newPeriods[0], start: "00:00" },
+        ...newPeriods.slice(1),
+      ];
+    }
 
     this._closePopup();
     this._emitChange(dayIndex, newPeriods);
@@ -1153,6 +1169,7 @@ export class ClimateManagerTimeBar extends LitElement {
           : seg.period.mode?.replace(/_/g, " ") ?? "frost protection";
       const duration = seg.endMin - seg.startMin;
       const canSplit = duration >= 30;
+      const canDelete = (this.days[this._popup.dayIndex]?.length ?? 0) > 1;
 
       return html`
         <div class="popup-title">${timeRange} · ${modeLabel}</div>
@@ -1188,7 +1205,12 @@ export class ClimateManagerTimeBar extends LitElement {
           >
             Split period
           </button>
-          <button class="popup-btn danger" @click=${this._onDeleteSegment}>
+          <button
+            class="popup-btn danger"
+            ?disabled=${!canDelete}
+            style=${!canDelete ? "opacity:0.4;cursor:default" : ""}
+            @click=${this._onDeleteSegment}
+          >
             Delete period
           </button>
         </div>
