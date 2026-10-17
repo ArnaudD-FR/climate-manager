@@ -10,7 +10,7 @@
  * success/error (D-10).
  */
 
-import { LitElement, html, css, type PropertyValues } from "lit";
+import { LitElement, html, css, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import type { RoomConfig, RoomStatus, ClimateConfig, Hass } from "../types.js";
@@ -26,6 +26,7 @@ import {
   groupDndStyles,
 } from "../shared-styles.js";
 
+import { openMoreInfo } from "../ha-nav.js";
 import "./search-picker.js";
 
 export class RoomCard extends LitElement {
@@ -114,6 +115,17 @@ export class RoomCard extends LitElement {
         font-size: 16px;
         font-weight: 600;
         color: var(--primary-text-color);
+      }
+
+      /* Period badge → room period sensor more-info (history) */
+      .badge-link {
+        display: inline-flex;
+        cursor: pointer;
+      }
+
+      .badge-link:hover .program-badge {
+        filter: brightness(1.15);
+        text-decoration: underline;
       }
 
       /* Always-visible 3-item status line in the card header (D-14d, D-32) */
@@ -309,8 +321,27 @@ export class RoomCard extends LitElement {
    * Returns gray "Off" badge when globalMode is "off".
    * When pre-heat is active, shows amber "Pre-heating → XX.X°C" badge.
    * Otherwise returns a colored pill: "${name} · ${temp}°C".
+   * When the room period sensor exists, the badge opens its more-info
+   * dialog (state history) — the header click (expand) is not triggered.
    */
   private _renderPeriodBadge() {
+    const badge = this._renderPeriodBadgeContent();
+    const entityId = this.roomStatus?.period_entity_id;
+    if (badge === nothing || !entityId) return badge;
+    return html`
+      <span
+        class="badge-link"
+        title="Show period history"
+        @click=${(e: Event) => {
+          e.stopPropagation();
+          this._openEntityMoreInfo(entityId);
+        }}
+        >${badge}</span
+      >
+    `;
+  }
+
+  private _renderPeriodBadgeContent() {
     const zoneId = this.config?.zone_id;
     const zoneMode = zoneId
       ? this.status?.zones?.[zoneId]?.mode ??
@@ -339,7 +370,7 @@ export class RoomCard extends LitElement {
     }
 
     const period = this.roomStatus?.active_period ?? null;
-    if (period == null) return html``;
+    if (period == null) return nothing;
 
     const label = PERIOD_DISPLAY_NAMES[period] ?? period;
     const temp = this.panelConfig?.period_temperatures?.[period];
@@ -502,13 +533,7 @@ export class RoomCard extends LitElement {
   }
 
   private _openEntityMoreInfo(entityId: string) {
-    this.dispatchEvent(
-      new CustomEvent("hass-more-info", {
-        bubbles: true,
-        composed: true,
-        detail: { entityId },
-      }),
-    );
+    openMoreInfo(this, entityId);
   }
 
   // -----------------------------------------------------------------------

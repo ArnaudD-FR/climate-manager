@@ -37,6 +37,21 @@ _ZONE_PREFIX = "zone_"
 _ROOM_PREFIX = "room_"
 
 
+def zone_mode_unique_id(entry_id: str, zone_id: str) -> str:
+    """unique_id of a zone mode select."""
+    return f"{entry_id}_zone_{zone_id}_mode"
+
+
+def zone_period_unique_id(entry_id: str, zone_id: str) -> str:
+    """unique_id of a zone period sensor."""
+    return f"{entry_id}_zone_{zone_id}_period"
+
+
+def room_period_unique_id(entry_id: str, area_id: str) -> str:
+    """unique_id of a room period sensor."""
+    return f"{entry_id}_room_{area_id}_period"
+
+
 def zone_config(config: dict, zone_id: str) -> dict | None:
     """Return the stored ZoneConfig for zone_id, or None if unknown."""
     if zone_id == "default":

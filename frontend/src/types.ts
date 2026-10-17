@@ -141,6 +141,8 @@ export interface RoomStatus {
   temperature?: number | null;
   humidity?: number | null;
   active_period?: string | null;
+  /** Room period sensor entity_id (resolved from the HA entity registry). */
+  period_entity_id?: string | null;
   present_person_count: number;
   /** True when at least one entity reports current_temperature (TRV). */
   has_trv?: boolean;
@@ -158,10 +160,20 @@ export interface RoomStatus {
   preheat_suppressed?: boolean;
 }
 
+/** Per-zone live status entry inside StatusPayload.zones. */
+export interface ZoneStatus {
+  mode: string;
+  active_period: string | null;
+  /** Zone mode select entity_id (null when not registered). */
+  mode_entity_id?: string | null;
+  /** Zone period sensor entity_id (null when not registered). */
+  period_entity_id?: string | null;
+}
+
 /** Payload pushed by subscribe_status and returned by get_status. */
 export interface StatusPayload {
   /** Phase 14 (D-13): per-zone mode and active period keyed by zone id. */
-  zones: Record<string, { mode: string; active_period: string | null }>;
+  zones: Record<string, ZoneStatus>;
   present_persons: string[];
   rooms_status: RoomStatus[];
 }

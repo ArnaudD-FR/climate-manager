@@ -230,6 +230,11 @@ Changing the zone mode from the select (dashboard, automation, voice assistant)
 is equivalent to changing it in the panel. Entities of a deleted zone are
 removed automatically.
 
+The panel links straight to them: in a zone tab, the history icons next to
+**Mode** and **Current period** open the entity dialog, and the **History**
+button opens the HA history of the zone and all its rooms. On a room card, click
+the period badge to see that room's period history.
+
 ---
 
 ## Configuration

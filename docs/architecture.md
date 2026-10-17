@@ -298,6 +298,15 @@ Native entities exist so the HA recorder historises zone modes and periods
   `HomeAssistantError`.
 - Entity names and state labels come from `translations/en.json`
   (`translation_key`: `zone_mode`, `zone_period`, `room_period`).
+- **Panel access**: the status payload carries the resolved entity_ids
+  (`zones[id].mode_entity_id` / `period_entity_id`,
+  `rooms_status[].period_entity_id`), looked up by unique_id in the entity
+  registry each cycle — the panel never guesses an entity_id, so user renames
+  are followed. Helpers in `frontend/src/ha-nav.ts`: `openMoreInfo` (HA
+  more-info dialog), `navigateTo`, `historyPath`. Zone tab: history icons next
+  to Mode and Current period, plus a **History** button opening
+  `/history?entity_id=…` for the zone and its rooms. Room card: the period badge
+  opens the room period sensor's more-info.
 
 ---
 
@@ -329,6 +338,7 @@ Lit is bundled into `panel.js` — no dependency on HA's own Lit instance.
 | `ws-client.ts`                                 | Typed WS helpers (thin wrappers over `hass.connection`)                                                |
 | `types.ts`                                     | TypeScript interfaces for all WS message shapes (`ClimateConfig`, `StatusPayload`, `RoomStatus`, etc.) |
 | `toast.ts`                                     | Global toast notification utility                                                                      |
+| `ha-nav.ts`                                    | HA more-info / in-app navigation / History URL helpers                                                 |
 | `shared-styles.ts`                             | Shared CSS design tokens                                                                               |
 | `components/rooms-tab.ts` + `room-card.ts`     | Per-room config and schedule editor                                                                    |
 | `components/zone-tab.ts`                       | Zone management (create/rename/delete/mode/schedule)                                                   |

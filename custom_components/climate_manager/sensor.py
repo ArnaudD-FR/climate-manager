@@ -27,7 +27,9 @@ from .entity import (
     ClimateManagerEntity,
     async_add_entities_for_ids,
     room_device_info,
+    room_period_unique_id,
     zone_device_info,
+    zone_period_unique_id,
 )
 
 if TYPE_CHECKING:
@@ -91,7 +93,7 @@ class ZonePeriodSensor(_PeriodSensor):
     ) -> None:
         super().__init__(coordinator, entry)
         self._zone_id = zone_id
-        self._attr_unique_id = f"{entry.entry_id}_zone_{zone_id}_period"
+        self._attr_unique_id = zone_period_unique_id(entry.entry_id, zone_id)
         self._attr_device_info = zone_device_info(
             entry.runtime_data.runtime_config, zone_id
         )
@@ -114,7 +116,7 @@ class RoomPeriodSensor(_PeriodSensor):
     ) -> None:
         super().__init__(coordinator, entry)
         self._area_id = area_id
-        self._attr_unique_id = f"{entry.entry_id}_room_{area_id}_period"
+        self._attr_unique_id = room_period_unique_id(entry.entry_id, area_id)
         # The room device sits in its area and is named after it: HA would
         # generate sensor.<area>_<device>_period (area name twice). An
         # integration-set entity_id is used as-is (conflicts still resolved).

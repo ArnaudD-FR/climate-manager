@@ -115,6 +115,9 @@ class ClimateManagerData:
     #   timestamp}, ...]} loaded at setup and written only on sample change.
     preheat_store: "Store | None" = field(default=None)
     preheat_samples: dict = field(default_factory=dict)
+    # Config entry id — needed to resolve entity unique_ids (entity.py) when
+    # the status payload exposes entity_ids to the panel.
+    entry_id: str | None = field(default=None)
 
 
 # Modern typed ConfigEntry alias (Pattern 2 — entry.runtime_data pattern).
@@ -159,6 +162,7 @@ async def async_setup_entry(
         rooms=rooms,
         persons=persons,
         room_auto_sensors=room_auto_sensors,
+        entry_id=entry.entry_id,
     )
 
     # Phase 12: wire preheat Store and load sample data (D-06).

@@ -20,7 +20,7 @@
  *   await this.ws.X(); await this.panel.reloadConfig(); this.panel.showToast(…)
  */
 
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import type {
@@ -30,8 +30,11 @@ import type {
   Period,
   RoomConfig,
   StatusPayload,
+  ZoneStatus,
   Hass,
 } from "../types.js";
+import { PERIOD_COLORS, PERIOD_DISPLAY_NAMES } from "../types.js";
+import { historyPath, navigateTo, openMoreInfo } from "../ha-nav.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 import { programToDays, dayIndexToKey } from "./global-settings-tab.js";
@@ -179,6 +182,55 @@ export class ZoneTab extends LitElement {
 
       .select-wrapper {
         margin-bottom: 16px;
+      }
+
+      /* Mode label row: label + mode history icon + History page button */
+      .section-header {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-bottom: 8px;
+      }
+
+      .section-header .section-label {
+        margin-bottom: 0;
+      }
+
+      .spacer {
+        flex: 1;
+      }
+
+      .history-icon {
+        --mdc-icon-button-size: 28px;
+        --mdc-icon-size: 18px;
+        color: var(--secondary-text-color);
+      }
+
+      .history-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .history-link ha-icon {
+        --mdc-icon-size: 16px;
+      }
+
+      .current-period {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+        font-size: 14px;
+        color: var(--secondary-text-color);
+      }
+
+      .period-pill {
+        padding: 2px 10px;
+        border-radius: 12px;
+        color: white;
+        font-size: 13px;
+        font-weight: 500;
       }
 
       .section-divider {
@@ -472,6 +524,65 @@ export class ZoneTab extends LitElement {
   // Render
   // -------------------------------------------------------------------------
 
+  /** Live status of this zone (mode, period, entity_ids). */
+  private get _zoneStatus(): ZoneStatus | undefined {
+    return this.status?.zones?.[this.zoneId];
+  }
+
+  /** Small icon opening the HA more-info dialog (state history). */
+  private _renderHistoryIcon(
+    entityId: string | null | undefined,
+    label: string,
+  ) {
+    if (!entityId) return nothing;
+    return html`<ha-icon-button
+      class="history-icon"
+      .label=${label}
+      title=${label}
+      @click=${() => openMoreInfo(this, entityId)}
+    >
+      <ha-icon icon="mdi:chart-timeline-variant"></ha-icon>
+    </ha-icon-button>`;
+  }
+
+  /** HA History page for the zone entities + its rooms' period sensors. */
+  private _renderHistoryButton() {
+    const zone = this._zoneStatus;
+    const roomIds = new Set(this._getAssignedRoomIds());
+    const roomEntityIds = (this.status?.rooms_status ?? [])
+      .filter((r) => roomIds.has(r.area_id))
+      .map((r) => r.period_entity_id);
+    const path = historyPath([
+      zone?.mode_entity_id,
+      zone?.period_entity_id,
+      ...roomEntityIds,
+    ]);
+    if (!path) return nothing;
+    return html`<button
+      class="reset-btn history-link"
+      title="Open the HA history of this zone and its rooms"
+      @click=${() => navigateTo(path)}
+    >
+      <ha-icon icon="mdi:open-in-new"></ha-icon>
+      History
+    </button>`;
+  }
+
+  /** Current zone period (schedule period; frost protection when off). */
+  private _renderCurrentPeriod() {
+    const zone = this._zoneStatus;
+    const period = zone?.active_period;
+    if (!period) return nothing;
+    const color = PERIOD_COLORS[period] ?? "var(--secondary-text-color)";
+    return html`<div class="current-period">
+      Current period
+      <span class="period-pill" style="background: ${color};"
+        >${PERIOD_DISPLAY_NAMES[period] ?? period}</span
+      >
+      ${this._renderHistoryIcon(zone?.period_entity_id, "Period history")}
+    </div>`;
+  }
+
   private _renderModeDescription() {
     const mode = this.zoneConfig?.mode;
     if (mode === "off") {
@@ -541,11 +652,19 @@ export class ZoneTab extends LitElement {
 
     return html`
       <!-- 1. Mode picker -->
-      <div
-        class="section-label"
-        title="Controls how rooms in this zone are heated"
-      >
-        Mode
+      <div class="section-header">
+        <div
+          class="section-label"
+          title="Controls how rooms in this zone are heated"
+        >
+          Mode
+        </div>
+        ${this._renderHistoryIcon(
+          this._zoneStatus?.mode_entity_id,
+          "Mode history",
+        )}
+        <span class="spacer"></span>
+        ${this._renderHistoryButton()}
       </div>
       <div class="select-wrapper">
         <select class="mode-select" @change=${this._onModeChange}>
@@ -566,7 +685,7 @@ export class ZoneTab extends LitElement {
           </option>
         </select>
       </div>
-      ${this._renderModeDescription()}
+      ${this._renderModeDescription()} ${this._renderCurrentPeriod()}
 
       <!-- 4. Time-bar -->
       <climate-manager-time-bar

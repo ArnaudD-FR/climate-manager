@@ -26,6 +26,7 @@ import {
   getZoneColor,
 } from "../types.js";
 import { chipStyles } from "../shared-styles.js";
+import { openMoreInfo } from "../ha-nav.js";
 import type {
   Hass,
   ClimateConfig,
@@ -689,14 +690,7 @@ export class GlobalSettingsTab extends LitElement {
   }
 
   private _openEntityMoreInfo(entityId: string | null) {
-    if (!entityId) return;
-    this.dispatchEvent(
-      new CustomEvent("hass-more-info", {
-        bubbles: true,
-        composed: true,
-        detail: { entityId },
-      }),
-    );
+    openMoreInfo(this, entityId);
   }
 
   private _getFloorIcon(fid: string): string {

@@ -287,5 +287,61 @@ async def test_unload_makes_entities_unavailable(hass):
     assert hass.states.get("sensor.home_period").state == STATE_UNAVAILABLE
 
 
+@pytest.mark.freeze_time(MONDAY_0830)
+async def test_status_exposes_entity_ids(hass, hass_ws_client):
+    """get_status resolves entity_ids from the registry for the panel."""
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    area = ar.async_get(hass).async_create("Lounge")
+    entity_reg = er.async_get(hass)
+    trv = entity_reg.async_get_or_create(
+        "climate", "test", "lounge_trv", suggested_object_id="lounge_trv"
+    )
+    entity_reg.async_update_entity(trv.entity_id, area_id=area.id)
+    hass.states.async_set(trv.entity_id, "heat", {"temperature": 15.0})
+
+    entry = await _setup_entry(hass)
+    client = await hass_ws_client()
+
+    async def _get_status() -> dict:
+        await client.send_json_auto_id({"type": f"{DOMAIN}/get_status"})
+        msg = await client.receive_json()
+        assert msg["success"] is True
+        return msg["result"]
+
+    status = await _get_status()
+    assert status["zones"]["default"]["mode_entity_id"] == "select.home_mode"
+    assert status["zones"]["default"]["period_entity_id"] == (
+        "sensor.home_period"
+    )
+    lounge = next(r for r in status["rooms_status"] if r["area_id"] == "lounge")
+    assert lounge["period_entity_id"] == "sensor.lounge_period"
+
+    # A user-renamed entity_id is followed (never guessed by the panel).
+    entity_reg.async_update_entity(
+        "sensor.home_period", new_entity_id="sensor.house_period"
+    )
+    await hass.async_block_till_done()
+    status = await _get_status()
+    assert status["zones"]["default"]["period_entity_id"] == (
+        "sensor.house_period"
+    )
+
+    # A new zone exposes its entity_ids once its entities are added.
+    await client.send_json_auto_id(
+        {"type": f"{DOMAIN}/create_zone", "name": "Upstairs"}
+    )
+    zone_id = (await client.receive_json())["result"]["zone_id"]
+    await hass.async_block_till_done()
+    status = await _get_status()
+    assert status["zones"][zone_id]["mode_entity_id"] == (
+        "select.upstairs_mode"
+    )
+    assert status["zones"][zone_id]["period_entity_id"] == (
+        "sensor.upstairs_period"
+    )
+    assert entry.runtime_data.entry_id == entry.entry_id
+
+
 async def _async_noop(_config) -> None:
     """Stand-in for store.async_save."""

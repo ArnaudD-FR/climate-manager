@@ -51,6 +51,11 @@ from .const import (
     MODE_TIME_PROGRAM,
     PRESENCE_HA,
 )
+from .entity import (
+    room_period_unique_id,
+    zone_mode_unique_id,
+    zone_period_unique_id,
+)
 from .eval_context import EvalContext
 from .person import Person
 from .room import Room
@@ -919,9 +924,27 @@ class ClimateManagerCoordinator:
         Used by the Wave 2 subscribe_status WS command and the hass.bus event.
         Includes rooms_status so the Rooms tab populates from push events.
         """
-        from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
+        from homeassistant.helpers import (  # noqa: PLC0415
+            area_registry as ar,
+            entity_registry as er,
+        )
 
         _area_reg = ar.async_get(self._hass)
+        _entity_reg = er.async_get(self._hass)
+        entry_id = self._data.entry_id
+
+        def _entity_id(
+            platform: str, unique_id_fn: Callable[[str, str], str], item_id: str
+        ) -> str | None:
+            """Resolve a Climate Manager entity_id (None if not registered).
+
+            Entity IDs are user-renamable, so the panel never guesses them.
+            """
+            if entry_id is None:
+                return None
+            return _entity_reg.async_get_entity_id(
+                platform, DOMAIN, unique_id_fn(entry_id, item_id)
+            )
 
         # D-24: pre-compute persons join data for present_person_count
         persons_config: dict = self._data.runtime_config.get("persons", {})
@@ -937,6 +960,9 @@ class ClimateManagerCoordinator:
                     area_id, self._last_active_period
                 ),
                 "entity_ids": entity_ids,
+                "period_entity_id": _entity_id(
+                    "sensor", room_period_unique_id, area_id
+                ),
             }
 
             # D-24: count persons assigned to this area who are currently present
@@ -1007,18 +1033,26 @@ class ClimateManagerCoordinator:
 
             rooms_status.append(room_entry)
 
+        def _zone_status(zone_id: str, mode: str) -> dict:
+            return {
+                "mode": mode,
+                "active_period": self._last_zone_periods.get(zone_id),
+                "mode_entity_id": _entity_id(
+                    "select", zone_mode_unique_id, zone_id
+                ),
+                "period_entity_id": _entity_id(
+                    "sensor", zone_period_unique_id, zone_id
+                ),
+            }
+
         config = self._data.runtime_config
         return {
             "zones": {
-                "default": {
-                    "mode": config["default_zone"]["mode"],
-                    "active_period": self._last_zone_periods.get("default"),
-                },
+                "default": _zone_status(
+                    "default", config["default_zone"]["mode"]
+                ),
                 **{
-                    zone_id: {
-                        "mode": zone["mode"],
-                        "active_period": self._last_zone_periods.get(zone_id),
-                    }
+                    zone_id: _zone_status(zone_id, zone["mode"])
                     for zone_id, zone in config.get("zones", {}).items()
                 },
             },

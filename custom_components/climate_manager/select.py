@@ -23,6 +23,7 @@ from .entity import (
     async_add_entities_for_ids,
     zone_config,
     zone_device_info,
+    zone_mode_unique_id,
 )
 
 if TYPE_CHECKING:
@@ -59,7 +60,7 @@ class ZoneModeSelect(ClimateManagerEntity, SelectEntity):
     ) -> None:
         super().__init__(coordinator, entry)
         self._zone_id = zone_id
-        self._attr_unique_id = f"{entry.entry_id}_zone_{zone_id}_mode"
+        self._attr_unique_id = zone_mode_unique_id(entry.entry_id, zone_id)
         self._attr_device_info = zone_device_info(
             entry.runtime_data.runtime_config, zone_id
         )
