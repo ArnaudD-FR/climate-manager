@@ -33,6 +33,19 @@ PERIOD_REDUCED = "reduced"
 PERIOD_NORMAL = "normal"
 PERIOD_COMFORT = "comfort"
 
+# Ordered enums — select options / enum sensor options and WS schema gates.
+VALID_MODES: list[str] = [
+    MODE_OFF,
+    MODE_TIME_PROGRAM,
+    MODE_TIME_PROGRAM_PRESENCES,
+]
+VALID_PERIODS: list[str] = [
+    PERIOD_FROST_PROTECTION,
+    PERIOD_REDUCED,
+    PERIOD_NORMAL,
+    PERIOD_COMFORT,
+]
+
 # ---------------------------------------------------------------------------
 # Presence mode constants (PERSON-01; Pitfall 7 — define before use in schedule.py; D-21)
 # ---------------------------------------------------------------------------

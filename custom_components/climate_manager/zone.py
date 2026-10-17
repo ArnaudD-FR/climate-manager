@@ -144,7 +144,8 @@ class ZoneModeProgramPresences(ZoneMode):
     Computes the baseline period from the schedule, then per-room iterates
     room.assigned_persons calling await person.evaluate(ctx) (cached in ctx),
     passes any_present to compute_occupied_temp, and applies the resolved
-    setpoint via room.apply_setpoint.
+    setpoint via room.apply_setpoint. Returns the baseline (schedule) period
+    as the zone period — per-room periods may differ.
     """
 
     mode_name: str = "time_program_presences"
@@ -156,7 +157,6 @@ class ZoneModeProgramPresences(ZoneMode):
         # Baseline period from the zone time program
         baseline_period: str = evaluate_schedule(zone.time_program, ctx.now)
 
-        last_period = baseline_period
         for room in zone.rooms:
             # Evaluate presence for all assigned persons (cached in ctx)
             any_present = False
@@ -174,10 +174,10 @@ class ZoneModeProgramPresences(ZoneMode):
             )
 
             await room.apply_setpoint(occupied_period, occupied_temp, ctx)
-            last_period = occupied_period
 
-        # Return the last resolved period (or baseline if no rooms)
-        return last_period, self.mode_name
+        # The zone period is the zone time program's period; each room's
+        # presence-resolved period lives on room._last_period.
+        return baseline_period, self.mode_name
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +256,11 @@ class Zone:
     def preheat_enabled(self) -> bool:
         """Whether preheat is enabled for this zone."""
         return self._preheat_enabled
+
+    @property
+    def current_period(self) -> str | None:
+        """Zone period from the last evaluation (None before first tick)."""
+        return self._current_period
 
     # ------------------------------------------------------------------
     # Core evaluate

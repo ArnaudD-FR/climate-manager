@@ -1,0 +1,34 @@
+{
+  "entity": {
+    "select": {
+      "zone_mode": {
+        "name": "Mode",
+        "state": {
+          "off": "Off",
+          "time_program": "Time program",
+          "time_program_presences": "Time program & presences"
+        }
+      }
+    },
+    "sensor": {
+      "zone_period": {
+        "name": "Period",
+        "state": {
+          "frost_protection": "Frost protection",
+          "reduced": "Reduced",
+          "normal": "Normal",
+          "comfort": "Comfort"
+        }
+      },
+      "room_period": {
+        "name": "Period",
+        "state": {
+          "frost_protection": "Frost protection",
+          "reduced": "Reduced",
+          "normal": "Normal",
+          "comfort": "Comfort"
+        }
+      }
+    }
+  }
+}

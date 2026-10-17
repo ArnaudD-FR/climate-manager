@@ -31,14 +31,16 @@ endpoints are used.
 4. Wire preheat `Store` and load persisted samples
 5. Construct `ClimateManagerCoordinator` and run immediate evaluation (restart
    recovery — INFRA-03)
-6. Register minute-polling scheduler via `async_track_time_interval`
-7. Register 19 WebSocket commands via `cm_ws.async_register_commands`
-8. Serve `www/` directory as static path (`cache_headers=False`)
-9. Register sidebar panel via `panel_custom.async_register_panel`
-10. Register entity/device registry listeners for live room re-discovery
+6. Forward the `select` + `sensor` platforms (see [HA entities](#ha-entities))
+   and register the per-cycle `async_sync_devices` listener
+7. Register minute-polling scheduler via `async_track_time_interval`
+8. Register 19 WebSocket commands via `cm_ws.async_register_commands`
+9. Serve `www/` directory as static path (`cache_headers=False`)
+10. Register sidebar panel via `panel_custom.async_register_panel`
+11. Register entity/device registry listeners for live room re-discovery
 
 `async_unload_entry` cancels the scheduler and registry listeners before
-unloading platforms.
+unloading the `select` / `sensor` platforms.
 
 `ClimateManagerData` is a typed dataclass stored on `entry.runtime_data`. The
 global `hass.data` dict is never used.
@@ -113,6 +115,7 @@ config edit does not replay log lines.
 7. per-room calibration pass (Room.calibrate_trvs) if calibration_enabled
 8. per-room pre-heat pass (Room.compute_preheat)
 9. Fire climate_manager_status_update bus event
+10. Notify update listeners (HA entities, async_sync_devices)
 ```
 
 **Anti-flap push** (`TRV.push_temperature`): skip if `last_pushed == desired`.
@@ -146,10 +149,12 @@ unimplemented overloads raise `assert False`.
 
 `ZoneModeProgramPresences` resolves an effective period **per room** (empty room
 → reduced; occupied → schedule via `compute_occupied_temp`), so each `Room`
-tracks its own `_last_period` for the status badge rather than a single
-zone-level value. `TRVGroup.from_room_config` applies `is_trv_entity` so
-boiler/HVAC entities (`max_temp > 45 °C`) are never push targets, and dedups
-Matter entities already covered by a `tado_x` mapping.
+tracks its own `_last_period` (`Room.current_period`) for the status badge
+rather than a single zone-level value. The zone period (`Zone.current_period`)
+is always the zone time program's period (frost protection when Off).
+`TRVGroup.from_room_config` applies `is_trv_entity` so boiler/HVAC entities
+(`max_temp > 45 °C`) are never push targets, and dedups Matter entities already
+covered by a `tado_x` mapping.
 
 #### OBS-01 structured log traces
 
@@ -238,9 +243,11 @@ state via the config-entry closure (never `hass.data[DOMAIN]`).
 `send_result` → `coordinator.async_evaluate()` (background task).
 `set_zone_mode` / `set_person_config` additionally call `change_mode()` on the
 live domain object (captured **before** the `await`) so the OBS-01 user-driven
-log fires before the rebuild. The Default Zone is addressed by the sentinel
-`zone_id="default"` (writes `default_zone.*`); `set_global_mode` /
-`reset_time_program` / `reset_room_to_*` were removed in Phases 14–15.
+log fires before the rebuild — for `set_zone_mode` this lives in
+`coordinator.async_set_zone_mode`, shared with the zone mode `select` entity.
+The Default Zone is addressed by the sentinel `zone_id="default"` (writes
+`default_zone.*`); `set_global_mode` / `reset_time_program` / `reset_room_to_*`
+were removed in Phases 14–15.
 
 | Category    | Commands                                                                                                                             |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------ |
@@ -256,6 +263,41 @@ log fires before the rebuild. The Default Zone is addressed by the sentinel
 `subscribe_status` registers a listener for `climate_manager_status_update` bus
 events and pushes the status payload to the panel connection on each coordinator
 cycle.
+
+---
+
+### HA entities
+
+Native entities exist so the HA recorder historises zone modes and periods
+(history graphs, logbook, automations). Platform modules: `select.py`,
+`sensor.py`; shared base and device helpers in `entity.py`.
+
+| Entity                           | Device             | unique_id                       | State                                     |
+| -------------------------------- | ------------------ | ------------------------------- | ----------------------------------------- |
+| `select.<zone>_mode`             | zone               | `<entry>_zone_<zone_id>_mode`   | zone mode, read from `runtime_config`     |
+| `sensor.<zone>_period` (enum)    | zone               | `<entry>_zone_<zone_id>_period` | `Zone.current_period` (schedule period)   |
+| `sensor.<area_id>_period` (enum) | room (in its area) | `<entry>_room_<area_id>_period` | `Room.current_period` (presence-resolved) |
+
+- **Devices**: one per zone (`(DOMAIN, "zone_<zone_id>")`, named after the zone,
+  Default Zone = `zone_default`) and one per room (`(DOMAIN, "room_<area_id>")`,
+  named after and placed in its HA area). Room sensors set their `entity_id`
+  explicitly because HA 2026.x prefixes new entity IDs with the area name (would
+  yield `sensor.<area>_<area>_period`).
+- **Updates**: push-only. `ClimateManagerCoordinator.async_add_listener` is a
+  DataUpdateCoordinator-style hook fired at the end of every `async_evaluate`;
+  each entity writes its state, and HA only records a row when it changes.
+  Values are re-read by id from `coordinator.zones` / `coordinator.rooms`
+  because the domain graph is rebuilt on config change.
+- **Lifecycle**: `async_add_entities_for_ids` adds entities for zones/rooms that
+  appear (e.g. `create_zone`). `async_sync_devices` (listener registered in
+  `__init__.py`) removes the device of a deleted zone/room — which removes its
+  entities — and refreshes device names on zone/area rename.
+- **Control**: selecting an option calls `coordinator.async_set_zone_mode`
+  (persist with rollback → `Zone.change_mode` OBS-01 log → background
+  evaluation), the same path as the `set_zone_mode` WS command. Failures raise
+  `HomeAssistantError`.
+- Entity names and state labels come from `translations/en.json`
+  (`translation_key`: `zone_mode`, `zone_period`, `room_period`).
 
 ---
 
@@ -316,6 +358,7 @@ HA event loop (1 min tick)
       → person.evaluate(ctx)                    # presence (cached)
       → OBS-01 INFO logs on state change
       → hass.bus.async_fire(status_update)    # notify subscribed panels
+      → update listeners                      # entities → recorder history
 
 Panel (initial load)
   → climate_manager/get_config               # full config snapshot
@@ -339,6 +382,7 @@ Panel (mutation)
 | Sparse storage model                         | Absent keys fall back to `DEFAULT_CONFIG`; forward-compatible                                                                        |
 | Zone model (absent `zone_id` = Default Zone) | ZONE-04: room belongs to at most one zone by structure                                                                               |
 | Domain model + fingerprint rebuild           | Coordinator delegates to `Zone`/`Person`/`Room`/`TRV` objects; rebuilt only when config changes; anti-spam log state carried forward |
+| Native select/sensor entities per zone/room  | Recorder history of zone mode, zone period and room period; mode select reuses the WS `set_zone_mode` path                           |
 | `EvalContext` per cycle                      | One object threads `now` + calendar/presence caches through the call chain (D-02)                                                    |
 | OBS-01 anti-spammed logs                     | `zone`/`presence`/`heating` lines fire only on real state changes                                                                    |
 | Pre-heat learned lead                        | Average of last 5 convergence samples per room; bounded by max lead; skipped when room already warm                                  |

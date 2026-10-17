@@ -140,6 +140,9 @@ class ClimateManagerCoordinator:
         # Single Callable per key — unlike _ha_tracker_listeners (list).
         # Cancel-all-then-rebuild via _async_refresh_matter_listeners().
         self._matter_cal_listeners: dict[str, Callable] = {}
+        # Update listeners (HA entities) notified at the end of every
+        # async_evaluate cycle — DataUpdateCoordinator-style contract.
+        self._listeners: list[Callable[[], None]] = []
 
         # Build initial domain object graph from config.
         self._build_domain_objects(data.runtime_config)
@@ -272,6 +275,76 @@ class ClimateManagerCoordinator:
         self._rooms = rooms
         self._config_fingerprint = self._compute_config_fingerprint(config)
 
+    # ------------------------------------------------------------------
+    # Public read API + update listeners (HA entity platforms)
+    # ------------------------------------------------------------------
+
+    @property
+    def zones(self) -> dict[str, Zone]:
+        """Live Zone objects keyed by zone_id ("default" + custom UUIDs)."""
+        return self._zones
+
+    @property
+    def rooms(self) -> dict[str, Room]:
+        """Live Room objects keyed by area_id."""
+        return self._rooms
+
+    @callback
+    def async_add_listener(
+        self, update_callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """Register a callback fired after each evaluation; return unsub."""
+        self._listeners.append(update_callback)
+
+        @callback
+        def _remove_listener() -> None:
+            if update_callback in self._listeners:
+                self._listeners.remove(update_callback)
+
+        return _remove_listener
+
+    @callback
+    def _async_notify_listeners(self) -> None:
+        """Fire every registered update listener (copy: may unsub)."""
+        for update_callback in list(self._listeners):
+            update_callback()
+
+    async def async_set_zone_mode(self, zone_id: str, mode: str) -> None:
+        """Set a zone's mode, persist it, and schedule a re-evaluation.
+
+        Shared by the set_zone_mode WS command and the zone mode select
+        entity. zone_id="default" writes runtime_config["default_zone"]
+        (T-05-01 sentinel checked before any zones{} lookup).
+
+        Raises:
+            KeyError: zone_id is neither "default" nor a custom zone.
+            Exception: store.async_save failure (config rolled back).
+        """
+        runtime_config = self._data.runtime_config
+        # Capture live Zone BEFORE any await so the periodic async_evaluate
+        # timer cannot rebuild self._zones between mutation and change_mode.
+        live_zone = self._zones.get(zone_id)
+        if zone_id == "default":
+            zone_cfg = runtime_config["default_zone"]
+        else:
+            zones_cfg = runtime_config.get("zones", {})
+            if zone_id not in zones_cfg:
+                raise KeyError(zone_id)
+            zone_cfg = zones_cfg[zone_id]
+        old_mode = zone_cfg.get("mode")
+        zone_cfg["mode"] = mode
+        try:
+            await self._data.store.async_save(runtime_config)
+        except Exception:
+            zone_cfg["mode"] = old_mode
+            raise
+        # Emit OBS-01 mode-change log on the live Zone (captured pre-await).
+        if live_zone is not None:
+            live_zone.change_mode(mode)
+        # async_evaluate re-derives _last_zone_periods/_last_room_periods
+        # and notifies status subscribers + entities once done.
+        self._hass.async_create_task(self.async_evaluate())
+
     def _get_trv(self, entity_id: str) -> "TRV | None":
         """Return the TRV domain object for entity_id, or None if not found.
 
@@ -386,6 +459,7 @@ class ClimateManagerCoordinator:
             f"{DOMAIN}_status_update",
             self._build_status_payload(),
         )
+        self._async_notify_listeners()
 
     def _resolve_room_sensor(self, area_id: str, config: dict) -> str | None:
         """Return the temperature sensor entity_id for a room.

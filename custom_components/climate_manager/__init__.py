@@ -24,6 +24,13 @@ Phase 3 additions:
 - async_setup_entry registers sidebar panel via panel_custom.async_register_panel
 - manifest.json declares dependencies ["http", "frontend", "panel_custom"] (Pitfall 7)
 
+HA entities (zone history):
+- PLATFORMS = select + sensor: per-zone mode select and period sensor, plus a
+  per-room effective period sensor (entity.py / select.py / sensor.py)
+- Platforms are forwarded after the first evaluation so entities start with
+  real values; a coordinator listener runs async_sync_devices to drop the
+  devices of deleted zones/rooms and refresh renamed device names
+
 Bug fix — entity discovery refresh:
 - async_setup_entry registers listeners on entity_registry_updated and
   device_registry_updated events to re-run discover_rooms / discover_room_sensors
@@ -40,6 +47,7 @@ from typing import Callable
 from homeassistant.components import panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er, device_registry as dr
 from homeassistant.helpers.event import async_track_time_interval
@@ -52,13 +60,14 @@ from .discovery import (
     discover_rooms,
     suggest_matter_mappings,
 )
+from .entity import async_sync_devices
 from .storage import ClimateManagerStore
 from . import websocket as cm_ws
 from .const import DOMAIN
 
-# Entity platforms managed by this integration.
-# Empty in Phase 2 — pure backend, no platform entities (D-09).
-PLATFORMS: list[str] = []
+# Entity platforms managed by this integration: zone mode selects, zone and
+# room period sensors (recorder history of zone mode/state changes).
+PLATFORMS: list[Platform] = [Platform.SELECT, Platform.SENSOR]
 
 # Panel registration constants (Phase 3)
 # PANEL_URL: URL path where www/ directory is served (static files).
@@ -134,8 +143,9 @@ async def async_setup_entry(
     4. Assign all to entry.runtime_data.
     5. Construct ClimateManagerCoordinator and store on runtime_data.coordinator.
     6. Push correct temperatures immediately (INFRA-03 — restart recovery).
-    7. Register minute-polling scheduler; store cancel callback (D-01, Pitfall 1).
-    8. Register entity/device registry listeners for live room re-discovery.
+    7. Forward select/sensor platforms; sync zone/room devices per cycle.
+    8. Register minute-polling scheduler; store cancel callback (D-01, Pitfall 1).
+    9. Register entity/device registry listeners for live room re-discovery.
     """
     store = ClimateManagerStore(hass)
     runtime_config = await store.async_load()
@@ -170,6 +180,15 @@ async def async_setup_entry(
     # Auto-detect Matter→Tado X mappings on startup when none configured.
     if not entry.runtime_data.runtime_config.get("matter_mappings"):
         await _async_auto_detect_matter_mappings(hass, entry)
+
+    # HA entities: forwarded after the first evaluation so zone/room periods
+    # are known when entities are added. Device sync runs once now (purges
+    # zones deleted while HA was down) and after every evaluation.
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    async_sync_devices(hass, entry)
+    entry.async_on_unload(
+        coordinator.async_add_listener(lambda: async_sync_devices(hass, entry))
+    )
 
     # Register minute-polling scheduler; store cancel callback for clean unload (Pitfall 1).
     entry.runtime_data.cancel_scheduler = async_track_time_interval(
@@ -338,8 +357,7 @@ async def async_unload_entry(
     """Unload a Climate Manager config entry.
 
     Cancels the scheduler and registry listeners FIRST to prevent ghost listeners
-    (Pitfall 1, T-01-10), then unloads platform entities (PLATFORMS is empty in
-    Phase 2 — D-09).
+    (Pitfall 1, T-01-10), then unloads the select/sensor platform entities.
     """
     # Cancel scheduler before unloading platforms — no ghost listeners (Pitfall 1)
     if entry.runtime_data.cancel_scheduler is not None:

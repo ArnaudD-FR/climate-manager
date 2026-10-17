@@ -78,20 +78,17 @@ if TYPE_CHECKING:
 from .const import (
     DEFAULT_PERIOD_TEMPERATURES,
     DOMAIN,
-    MODE_OFF,
     MODE_TIME_PROGRAM,
-    MODE_TIME_PROGRAM_PRESENCES,
     PERIOD_COMFORT,
     PERIOD_FROST_PROTECTION,
     PERIOD_NORMAL,
     PERIOD_REDUCED,
+    VALID_MODES,
     _DEFAULT_DAILY_PROGRAM,
 )
 from .discovery import suggest_matter_mappings
 from .schedule import validate_daily_program
 from .trv import get_tado_valve_devices, is_trv_entity
-
-VALID_MODES = [MODE_OFF, MODE_TIME_PROGRAM, MODE_TIME_PROGRAM_PRESENCES]
 
 
 def async_register_commands(
@@ -704,50 +701,26 @@ def _make_ws_set_zone_mode(entry: ClimateManagerConfigEntry):
                  handler runs, regardless of zone_id value.
         T-14-05: sentinel check before zones dict lookup so Default Zone is
                  never confused with a custom zone UUID.
+        Logic lives in coordinator.async_set_zone_mode (shared with the
+        zone mode select entity).
         """
-        runtime_config = entry.runtime_data.runtime_config
-        # Capture live Zone BEFORE any await so the periodic async_evaluate
-        # timer cannot rebuild coord._zones between mutation and change_mode.
-        coord = entry.runtime_data.coordinator
-        live_zone = coord._zones.get(msg["zone_id"])
-        if msg["zone_id"] == "default":
-            # D-08 / T-05-01: Default Zone sentinel — write to default_zone
-            # sub-dict before any zones{} lookup.
-            old_val = runtime_config["default_zone"].get("mode")
-            runtime_config["default_zone"]["mode"] = msg["mode"]
-            try:
-                await entry.runtime_data.store.async_save(runtime_config)
-            except Exception as exc:  # noqa: BLE001
-                runtime_config["default_zone"]["mode"] = old_val
-                connection.send_error(
-                    msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
-                )
-                return
-        else:
-            if msg["zone_id"] not in runtime_config.get("zones", {}):
-                connection.send_error(
-                    msg["id"],
-                    websocket_api.ERR_NOT_FOUND,
-                    f"Zone {msg['zone_id']!r} not found",
-                )
-                return
-            zones_backup = copy.deepcopy(runtime_config.get("zones", {}))
-            runtime_config["zones"][msg["zone_id"]]["mode"] = msg["mode"]
-            try:
-                await entry.runtime_data.store.async_save(runtime_config)
-            except Exception as exc:  # noqa: BLE001
-                runtime_config["zones"] = zones_backup
-                connection.send_error(
-                    msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
-                )
-                return
-        # Emit OBS-01 mode-change log on the live Zone (captured pre-await).
-        if live_zone is not None:
-            live_zone.change_mode(msg["mode"])
+        try:
+            await entry.runtime_data.coordinator.async_set_zone_mode(
+                msg["zone_id"], msg["mode"]
+            )
+        except KeyError:
+            connection.send_error(
+                msg["id"],
+                websocket_api.ERR_NOT_FOUND,
+                f"Zone {msg['zone_id']!r} not found",
+            )
+            return
+        except Exception as exc:  # noqa: BLE001
+            connection.send_error(
+                msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+            )
+            return
         connection.send_result(msg["id"], {"success": True})
-        # async_evaluate re-derives _last_zone_periods/_last_room_periods
-        # and fires the status event with fresh period data once done.
-        hass.async_create_task(coord.async_evaluate())
 
     return ws_set_zone_mode
 

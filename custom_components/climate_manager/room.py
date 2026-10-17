@@ -132,6 +132,11 @@ class Room:
         self._calibration_last_delta: float | None = None
         self._calibration_last_offset: float = 0.0
 
+    @property
+    def current_period(self) -> str | None:
+        """Effective period last applied (None before first evaluation)."""
+        return self._last_period
+
     # -------------------------------------------------------------------
     # Core delegation
     # -------------------------------------------------------------------
