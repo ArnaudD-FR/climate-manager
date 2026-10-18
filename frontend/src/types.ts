@@ -143,6 +143,10 @@ export interface RoomStatus {
   active_period?: string | null;
   /** Room period sensor entity_id (resolved from the HA entity registry). */
   period_entity_id?: string | null;
+  /** Room temperature sensor (HA area setting or auto-discovered). */
+  temperature_entity_id?: string | null;
+  /** Room humidity sensor (HA area setting or auto-discovered). */
+  humidity_entity_id?: string | null;
   present_person_count: number;
   /** True when at least one entity reports current_temperature (TRV). */
   has_trv?: boolean;

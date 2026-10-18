@@ -316,6 +316,20 @@ async def test_status_exposes_entity_ids(hass, hass_ws_client):
     )
     lounge = next(r for r in status["rooms_status"] if r["area_id"] == "lounge")
     assert lounge["period_entity_id"] == "sensor.lounge_period"
+    assert lounge["temperature_entity_id"] is None
+    assert lounge["humidity_entity_id"] is None
+
+    # Room sensors (here auto-discovered) are exposed for the card history.
+    entry.runtime_data.room_auto_sensors = {
+        "lounge": {
+            "temperature": "sensor.lounge_temperature",
+            "humidity": "sensor.lounge_humidity",
+        }
+    }
+    status = await _get_status()
+    lounge = next(r for r in status["rooms_status"] if r["area_id"] == "lounge")
+    assert lounge["temperature_entity_id"] == "sensor.lounge_temperature"
+    assert lounge["humidity_entity_id"] == "sensor.lounge_humidity"
 
     # A user-renamed entity_id is followed (never guessed by the panel).
     entity_reg.async_update_entity(

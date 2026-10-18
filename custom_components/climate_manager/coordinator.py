@@ -997,6 +997,9 @@ class ClimateManagerCoordinator:
             humidity_sensor = getattr(
                 _area, "humidity_entity_id", None
             ) or auto.get("humidity")
+            # Exposed so the panel room card can graph their history.
+            room_entry["temperature_entity_id"] = temp_sensor or None
+            room_entry["humidity_entity_id"] = humidity_sensor or None
             if temp_sensor:
                 sensor_state = self._hass.states.get(temp_sensor)
                 if sensor_state is not None and sensor_state.state not in (

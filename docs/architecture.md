@@ -307,6 +307,14 @@ Native entities exist so the HA recorder historises zone modes and periods
   to Mode and Current period, plus a **History** button opening
   `/history?entity_id=…` for the zone and its rooms. Room card: the period badge
   opens the room period sensor's more-info.
+- **Room card history**: `rooms_status[]` also carries `temperature_entity_id` /
+  `humidity_entity_id` (HA area setting → auto-discovered sensor). The expanded
+  card embeds HA's native `history-graph` card (`createHistoryCard` →
+  `window.loadCardHelpers`) for the room period, temperature, humidity and TRVs
+  (Matter entities paired to a Tado X valve are skipped). It is created lazily
+  on expand and dropped on collapse (no history subscriptions for collapsed
+  cards); the time range (6 h – 7 days) is kept in `localStorage`. Without card
+  helpers (docs harness) only the "open in History" link is shown.
 
 ---
 
@@ -338,7 +346,7 @@ Lit is bundled into `panel.js` — no dependency on HA's own Lit instance.
 | `ws-client.ts`                                 | Typed WS helpers (thin wrappers over `hass.connection`)                                                |
 | `types.ts`                                     | TypeScript interfaces for all WS message shapes (`ClimateConfig`, `StatusPayload`, `RoomStatus`, etc.) |
 | `toast.ts`                                     | Global toast notification utility                                                                      |
-| `ha-nav.ts`                                    | HA more-info / in-app navigation / History URL helpers                                                 |
+| `ha-nav.ts`                                    | HA more-info / in-app navigation / History URL / history-graph card helpers                            |
 | `shared-styles.ts`                             | Shared CSS design tokens                                                                               |
 | `components/rooms-tab.ts` + `room-card.ts`     | Per-room config and schedule editor                                                                    |
 | `components/zone-tab.ts`                       | Zone management (create/rename/delete/mode/schedule)                                                   |

@@ -235,6 +235,11 @@ The panel links straight to them: in a zone tab, the history icons next to
 button opens the HA history of the zone and all its rooms. On a room card, click
 the period badge to see that room's period history.
 
+Expanding a room card also shows a **History** graph of the room: period
+timeline, measured temperature and humidity, and TRV temperature and target.
+Pick the time range (6 hours to 7 days) next to it, or open it in the HA history
+page.
+
 ---
 
 ## Configuration

@@ -26,8 +26,36 @@ import {
   groupDndStyles,
 } from "../shared-styles.js";
 
-import { openMoreInfo } from "../ha-nav.js";
+import {
+  createHistoryCard,
+  historyPath,
+  navigateTo,
+  openMoreInfo,
+  validEntityIds,
+  type LovelaceCard,
+} from "../ha-nav.js";
 import "./search-picker.js";
+
+/** History graph durations offered in the card (hours). */
+const HISTORY_HOURS: Array<[number, string]> = [
+  [6, "6 h"],
+  [24, "24 h"],
+  [72, "3 days"],
+  [168, "7 days"],
+];
+const HISTORY_HOURS_KEY = "climate-manager-history-hours";
+const DEFAULT_HISTORY_HOURS = 24;
+
+/** Stored history duration (shared by all room cards), or the default. */
+function loadHistoryHours(): number {
+  try {
+    const hours = Number(localStorage.getItem(HISTORY_HOURS_KEY));
+    if (HISTORY_HOURS.some(([h]) => h === hours)) return hours;
+  } catch {
+    // storage unavailable (private window, blocked site data)
+  }
+  return DEFAULT_HISTORY_HOURS;
+}
 
 export class RoomCard extends LitElement {
   @property({ type: String }) roomId!: string;
@@ -51,6 +79,11 @@ export class RoomCard extends LitElement {
   @state() _expanded = false;
   @state() private _dragActive = false;
   @state() private _dragType: "matter" | "tadox" | null = null;
+  /** Native history-graph card, created lazily while expanded. */
+  @state() private _historyCard: LovelaceCard | null = null;
+  @state() private _historyHours = loadHistoryHours();
+  /** Entities + duration the current history card was built for. */
+  private _historyKey = "";
 
   connectedCallback() {
     super.connectedCallback();
@@ -58,6 +91,12 @@ export class RoomCard extends LitElement {
   }
 
   updated(changedProperties: PropertyValues) {
+    if (this._expanded) {
+      void this._syncHistoryCard();
+      if (changedProperties.has("hass") && this._historyCard) {
+        this._historyCard.hass = this.hass;
+      }
+    }
     if (changedProperties.has("autoExpand") && this.autoExpand) {
       this._expanded = true;
       // setTimeout(0) defers past the microtask queue so Lit's next render
@@ -176,6 +215,42 @@ export class RoomCard extends LitElement {
       .card-content {
         padding: 12px 16px 16px;
         border-top: 1px solid var(--divider-color, #e0e0e0);
+      }
+
+      /* History section (native history-graph card) */
+      .history-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 16px 0 8px;
+      }
+
+      .history-header .section-label {
+        margin-bottom: 0;
+        flex: 1;
+      }
+
+      .history-hours {
+        padding: 2px 4px;
+        font-size: 13px;
+        font-family: inherit;
+        color: var(--primary-text-color);
+        background: var(--card-background-color);
+        border: 1px solid var(--divider-color);
+        border-radius: 4px;
+      }
+
+      .history-open {
+        --mdc-icon-button-size: 28px;
+        --mdc-icon-size: 18px;
+        color: var(--secondary-text-color);
+      }
+
+      .history-graph {
+        --ha-card-box-shadow: none;
+        --ha-card-border-width: 0;
+        --ha-card-background: transparent;
+        margin: 0 -16px;
       }
 
       /* No TRV badge */
@@ -534,6 +609,100 @@ export class RoomCard extends LitElement {
 
   private _openEntityMoreInfo(entityId: string) {
     openMoreInfo(this, entityId);
+  }
+
+  // -----------------------------------------------------------------------
+  // History (native HA history-graph card)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Room period, temperature and humidity sensors, then the room TRVs.
+   * Matter entities paired to a Tado X valve are skipped: they mirror it.
+   */
+  private _historyEntityIds(): string[] {
+    const s = this.roomStatus;
+    const paired = new Set(
+      Object.values(this.panelConfig?.matter_mappings ?? {}).flat(),
+    );
+    const trvs = (s?.entity_ids ?? []).filter((id) => !paired.has(id));
+    return validEntityIds([
+      s?.period_entity_id,
+      s?.temperature_entity_id,
+      s?.humidity_entity_id,
+      ...trvs,
+    ]);
+  }
+
+  /** (Re)build the history card when its entities or duration change. */
+  private async _syncHistoryCard(): Promise<void> {
+    const ids = this._historyEntityIds();
+    const key = `${ids.join(",")}|${this._historyHours}`;
+    if (key === this._historyKey) return;
+    this._historyKey = key;
+    let card: LovelaceCard | null = null;
+    try {
+      card = await createHistoryCard(ids, this._historyHours);
+    } catch {
+      card = null; // card helpers failed — keep the History link only
+    }
+    if (key !== this._historyKey) return; // superseded meanwhile
+    if (card) card.hass = this.hass;
+    this._historyCard = card;
+  }
+
+  /** Drop the card on collapse so its history subscription ends. */
+  private _resetHistoryCard() {
+    this._historyCard = null;
+    this._historyKey = "";
+  }
+
+  private _onHistoryHoursChange(e: Event) {
+    const hours = Number((e.target as HTMLSelectElement).value);
+    this._historyHours = hours;
+    try {
+      localStorage.setItem(HISTORY_HOURS_KEY, String(hours));
+    } catch {
+      // storage unavailable — keep the choice for this session only
+    }
+  }
+
+  private _renderHistorySection() {
+    const ids = this._historyEntityIds();
+    const path = historyPath(ids);
+    if (!path) return nothing;
+    return html`
+      <div class="history-header">
+        <div
+          class="section-label"
+          title="Period, temperature, humidity and TRV history"
+        >
+          History
+        </div>
+        <select
+          class="history-hours"
+          title="Time range"
+          @change=${this._onHistoryHoursChange}
+        >
+          ${HISTORY_HOURS.map(
+            ([hours, label]) => html`
+              <option value=${hours} ?selected=${hours === this._historyHours}>
+                ${label}
+              </option>
+            `,
+          )}
+        </select>
+        <ha-icon-button
+          class="history-open"
+          title="Open in the HA history page"
+          .label=${"Open in the HA history page"}
+          @click=${() => navigateTo(path)}
+          ><ha-icon icon="mdi:open-in-new"></ha-icon
+        ></ha-icon-button>
+      </div>
+      ${this._historyCard
+        ? html`<div class="history-graph">${this._historyCard}</div>`
+        : nothing}
+    `;
   }
 
   // -----------------------------------------------------------------------
@@ -901,6 +1070,7 @@ export class RoomCard extends LitElement {
           class="card-header-row"
           @click=${() => {
             this._expanded = !this._expanded;
+            if (!this._expanded) this._resetHistoryCard();
           }}
         >
           <div class="card-header-left">
@@ -965,6 +1135,7 @@ export class RoomCard extends LitElement {
                   Climate entities
                 </div>
                 ${this._renderClimateSection()} ${this._renderPreheatSection()}
+                ${this._renderHistorySection()}
               </div>
             `
           : ""}
