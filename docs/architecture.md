@@ -310,11 +310,13 @@ Native entities exist so the HA recorder historises zone modes and periods
 - **Room card history**: `rooms_status[]` also carries `temperature_entity_id` /
   `humidity_entity_id` (HA area setting → auto-discovered sensor). The expanded
   card embeds HA's native `history-graph` card (`createHistoryCard` →
-  `window.loadCardHelpers`) for the room period, temperature, humidity and TRVs
-  (Matter entities paired to a Tado X valve are skipped). It is created lazily
-  on expand and dropped on collapse (no history subscriptions for collapsed
-  cards); the time range (6 h – 7 days) is kept in `localStorage`. Without card
-  helpers (docs harness) only the "open in History" link is shown.
+  `window.loadCardHelpers`) for the room period, temperature, humidity and the
+  TRVs that receive setpoints (same rules as `TRVGroup`: a Tado X room with
+  paired Matter valves is shown as those valves; a Matter valve paired to a Tado
+  X room is not shown on its own). It is created lazily on expand and dropped on
+  collapse (no history subscriptions for collapsed cards); the time range (6 h –
+  7 days) is kept in `localStorage`. Without card helpers (docs harness) only
+  the "open in History" link is shown.
 
 ---
 

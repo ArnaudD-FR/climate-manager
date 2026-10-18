@@ -616,15 +616,21 @@ export class RoomCard extends LitElement {
   // -----------------------------------------------------------------------
 
   /**
-   * Room period, temperature and humidity sensors, then the room TRVs.
-   * Matter entities paired to a Tado X valve are skipped: they mirror it.
+   * Room period, temperature and humidity sensors, then the TRVs that
+   * actually receive setpoints (same rules as backend TRVGroup):
+   * a Tado X room with paired Matter valves is replaced by those valves
+   * (pushed locally); a Matter valve paired to a Tado X room is otherwise
+   * skipped (not pushed on its own).
    */
   private _historyEntityIds(): string[] {
     const s = this.roomStatus;
-    const paired = new Set(
-      Object.values(this.panelConfig?.matter_mappings ?? {}).flat(),
-    );
-    const trvs = (s?.entity_ids ?? []).filter((id) => !paired.has(id));
+    const mappings = this.panelConfig?.matter_mappings ?? {};
+    const paired = new Set(Object.values(mappings).flat());
+    const trvs = (s?.entity_ids ?? []).flatMap((id) => {
+      const mapped = mappings[id] ?? [];
+      if (mapped.length) return mapped;
+      return paired.has(id) ? [] : [id];
+    });
     return validEntityIds([
       s?.period_entity_id,
       s?.temperature_entity_id,
