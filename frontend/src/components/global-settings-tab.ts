@@ -78,7 +78,7 @@ export function getActivePeriod(
   for (const p of periods) {
     const [h = 0, m = 0] = p.start.split(":").map(Number);
     if (h * 60 + m <= nowMinutes) {
-      active = "mode" in p ? p.mode : null;
+      active = p.mode ?? null;
     }
   }
   return active;

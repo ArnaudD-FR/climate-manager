@@ -452,9 +452,7 @@ export class ClimateManagerTimeBar extends LitElement {
     const first = sorted[0];
     const firstMin = this._timeToMinutes(first.start);
     const working =
-      firstMin > 0
-        ? [{ start: "00:00", mode: first.mode, state: first.state }, ...sorted]
-        : sorted;
+      firstMin > 0 ? [{ ...first, start: "00:00" }, ...sorted] : sorted;
 
     const result: Array<{ period: Period; startMin: number; endMin: number }> =
       [];
@@ -631,12 +629,12 @@ export class ClimateManagerTimeBar extends LitElement {
 
     // Rebuild the periods array, replacing this segment's mode/state
     const newPeriods = (this.days[dayIndex] ?? []).map((p) => {
-      if (p.start === seg.period.start) {
-        return this.mode === "presence"
-          ? { ...p, state: modeKey }
-          : { ...p, mode: modeKey };
-      }
-      return p;
+      if (p.start !== seg.period.start) return p;
+      if (this.mode !== "presence") return { start: p.start, mode: modeKey };
+      // Keep calendar_config (presence periods); never mix mode and state.
+      return p.state !== undefined
+        ? { ...p, state: modeKey }
+        : { start: p.start, state: modeKey };
     });
 
     this._closePopup();
