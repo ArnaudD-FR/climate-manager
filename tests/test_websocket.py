@@ -1578,3 +1578,47 @@ async def test_ws_suggest_matter_mappings_returns_mappings(
     assert msg["success"] is True
     assert "mappings" in msg["result"]
     assert isinstance(msg["result"]["mappings"], dict)
+
+
+async def test_calibration_status_hides_matter_grouped_with_tado_x(
+    hass, hass_ws_client
+):
+    """get_calibration_status omits Matter valves grouped with a Tado X room.
+
+    They are calibrated through the Tado X Radiator Valve X rows; a
+    standalone Matter valve is still listed.
+    """
+    from homeassistant.helpers import area_registry as ar
+    from homeassistant.helpers import entity_registry as er
+
+    area = ar.async_get(hass).async_create("Lounge")
+    entity_reg = er.async_get(hass)
+    ids = {}
+    for platform, unique_id in (
+        ("tado_x", "lounge_room"),
+        ("matter", "lounge_grouped"),
+        ("matter", "lounge_standalone"),
+    ):
+        reg = entity_reg.async_get_or_create(
+            "climate", platform, unique_id, suggested_object_id=unique_id
+        )
+        entity_reg.async_update_entity(reg.entity_id, area_id=area.id)
+        hass.states.async_set(
+            reg.entity_id, "heat", {"current_temperature": 19.0}
+        )
+        ids[unique_id] = reg.entity_id
+
+    entry = await _setup_entry(hass)
+    entry.runtime_data.runtime_config["matter_mappings"] = {
+        ids["lounge_room"]: [ids["lounge_grouped"]]
+    }
+
+    client = await hass_ws_client()
+    await client.send_json_auto_id({"type": f"{DOMAIN}/get_calibration_status"})
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    listed = {t["entity_id"] for t in msg["result"]["trvs"]}
+    assert ids["lounge_standalone"] in listed
+    assert ids["lounge_grouped"] not in listed
+    assert ids["lounge_room"] not in listed

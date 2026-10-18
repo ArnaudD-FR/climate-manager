@@ -1142,6 +1142,14 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
 
         area_reg = ar.async_get(hass)
         room_auto_sensors = entry.runtime_data.room_auto_sensors
+        # Matter valves grouped with a Tado X room are calibrated through
+        # its Radiator Valve X rows (same dedup set as TRVGroup).
+        matter_mappings: dict[str, list[str]] = (
+            entry.runtime_data.runtime_config.get("matter_mappings", {})
+        )
+        grouped_matter: frozenset[str] = frozenset(
+            eid for eids in matter_mappings.values() for eid in eids
+        )
 
         trvs = []
         for area_id, entity_ids in rooms.items():
@@ -1239,6 +1247,8 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
                 reg_entry = entity_reg.async_get(entity_id)
                 if reg_entry and reg_entry.platform == "tado_x":
                     continue  # zone entity replaced by valve_devices above
+                if entity_id in grouped_matter:
+                    continue  # shown via its Tado X valve row
 
                 state = hass.states.get(entity_id)
                 if reg_entry and reg_entry.name:
