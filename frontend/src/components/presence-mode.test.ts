@@ -2,8 +2,7 @@
 /**
  * Unit tests for presence-mode helpers (UI-01, UI-02).
  *
- * Run: node --test --experimental-strip-types \
- *        frontend/src/components/presence-mode.test.ts
+ * Run: npm test (from frontend/)
  *
  * Covers all Phase 10 UI decisions:
  *   UI-02: MODE_LABEL_HA equals "HA home tracking"

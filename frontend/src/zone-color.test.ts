@@ -2,7 +2,7 @@
 /**
  * Unit tests for getZoneColor.
  *
- * Run: node --test --experimental-strip-types src/zone-color.test.ts
+ * Run: npm test (from frontend/)
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

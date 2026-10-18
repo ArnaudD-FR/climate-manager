@@ -2,8 +2,7 @@
 /**
  * Unit tests for getISOWeekNumber and getWeekParity helpers.
  *
- * Run: node --test --experimental-strip-types \
- *        src/components/week-parity.test.ts
+ * Run: npm test (from frontend/)
  *
  * Verifies that JS parity matches Python isocalendar().week % 2 logic.
  * Backend reference: schedule.py lines 156-157
