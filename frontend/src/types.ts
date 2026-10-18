@@ -275,7 +275,7 @@ export const PERIOD_DISPLAY_NAMES: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Zone color palette — 5 distinct colors for zone badges
+// Zone color palette — Default Zone + 8 distinct custom zone colors
 // ---------------------------------------------------------------------------
 
 export interface ZoneColor {
@@ -284,7 +284,7 @@ export interface ZoneColor {
   border: string;
 }
 
-/** Index 0 = Default Zone (violet). Indices 1-4 = custom zone palette. */
+/** Index 0 = Default Zone (violet). Indices 1+ = custom zone palette. */
 export const ZONE_COLORS: ZoneColor[] = [
   {
     background: "rgba(124, 58, 237, 0.12)",
@@ -311,18 +311,60 @@ export const ZONE_COLORS: ZoneColor[] = [
     color: "#be123c",
     border: "rgba(190, 18, 60, 0.25)",
   }, // rose
+  {
+    background: "rgba(22, 163, 74, 0.12)",
+    color: "#16a34a",
+    border: "rgba(22, 163, 74, 0.25)",
+  }, // green
+  {
+    background: "rgba(79, 70, 229, 0.12)",
+    color: "#4f46e5",
+    border: "rgba(79, 70, 229, 0.25)",
+  }, // indigo
+  {
+    background: "rgba(219, 39, 119, 0.12)",
+    color: "#db2777",
+    border: "rgba(219, 39, 119, 0.25)",
+  }, // pink
+  {
+    background: "rgba(71, 85, 105, 0.12)",
+    color: "#475569",
+    border: "rgba(71, 85, 105, 0.25)",
+  }, // slate
 ];
 
-/**
- * Returns a deterministic color for a zone.
- * Default Zone (no zone_id) → violet (index 0).
- * Custom zones → indices 1-4 via UUID hash, never overlapping with Default.
- */
-export function getZoneColor(zoneId: string | undefined): ZoneColor {
-  if (!zoneId) return ZONE_COLORS[0];
+/** Stable 32-bit string hash (preferred palette slot of a zone). */
+function zoneHash(zoneId: string): number {
   let hash = 0;
   for (let i = 0; i < zoneId.length; i++) {
     hash = (hash * 31 + zoneId.charCodeAt(i)) >>> 0;
   }
-  return ZONE_COLORS[1 + (hash % (ZONE_COLORS.length - 1))];
+  return hash;
+}
+
+/**
+ * Returns the color of a zone.
+ * Default Zone (no zone_id) → violet (index 0), never used by custom zones.
+ * Custom zones: walked in zoneIds order (config.zones = creation order),
+ * each takes its hash-preferred slot or the next free one, so zones never
+ * share a color until the palette is exhausted. A zone keeps its color when
+ * others are added after it.
+ */
+export function getZoneColor(
+  zoneId: string | undefined,
+  zoneIds: string[],
+): ZoneColor {
+  if (!zoneId) return ZONE_COLORS[0];
+  const slots = ZONE_COLORS.length - 1;
+  const used = new Set<number>();
+  for (const id of zoneIds) {
+    let slot = zoneHash(id) % slots;
+    if (used.size < slots) {
+      while (used.has(slot)) slot = (slot + 1) % slots;
+    }
+    if (id === zoneId) return ZONE_COLORS[1 + slot];
+    used.add(slot);
+  }
+  // Unknown zone (stale config): hash-preferred slot.
+  return ZONE_COLORS[1 + (zoneHash(zoneId) % slots)];
 }

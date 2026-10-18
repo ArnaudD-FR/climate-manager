@@ -612,6 +612,7 @@ export class GlobalSettingsTab extends LitElement {
             ${zoneRows.map((row) => {
               const color = getZoneColor(
                 row.id === "default" ? undefined : row.id,
+                Object.keys(this.config?.zones ?? {}),
               );
               const modeLabel = MODE_LABELS[row.mode] ?? row.mode;
               const periodLabel = row.activePeriod

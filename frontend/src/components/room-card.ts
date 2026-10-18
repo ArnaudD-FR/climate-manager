@@ -1080,7 +1080,10 @@ export class RoomCard extends LitElement {
               <span
                 class="zone-badge"
                 style=${(() => {
-                  const c = getZoneColor(this.config?.zone_id);
+                  const c = getZoneColor(
+                    this.config?.zone_id,
+                    Object.keys(this.panelConfig?.zones ?? {}),
+                  );
                   return `background:${c.background};color:${c.color};border-color:${c.border}`;
                 })()}
                 @click=${(e: Event) => {

@@ -452,7 +452,7 @@ export class ClimateManagerPanel extends LitElement {
               />`
             : html`<span
                   class="zone-dot"
-                  style="background:${getZoneColor(undefined).color}"
+                  style="background:${getZoneColor(undefined, []).color}"
                 ></span
                 >${this._config.default_zone.name}`}
         </button>
@@ -478,7 +478,10 @@ export class ClimateManagerPanel extends LitElement {
                   />`
                 : html`<span
                       class="zone-dot"
-                      style="background:${getZoneColor(zoneId).color}"
+                      style="background:${getZoneColor(
+                        zoneId,
+                        Object.keys(this._config?.zones ?? {}),
+                      ).color}"
                     ></span
                     >${zone.name}`}
             </button>
