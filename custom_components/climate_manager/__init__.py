@@ -379,5 +379,6 @@ async def async_unload_entry(
         for cancel in coordinator._matter_cal_listeners.values():
             cancel()
         coordinator._matter_cal_listeners.clear()
+        coordinator.cancel_availability_listeners()
 
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

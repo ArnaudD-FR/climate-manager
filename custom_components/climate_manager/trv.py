@@ -10,8 +10,9 @@ Also implements off-capable TRV support (quick task 260526-ffr):
   - set_trv_off: issues a single climate.set_hvac_mode=off call for off-capable TRVs
 
 Domain classes (plan 16-03, D-07/D-10/D-11):
-  - TRV: owns entity_id, last_pushed, platform; async push_temperature,
-    push_off, calibrate. Anti-flap guard and DEBUG heating log.
+  - TRV: owns entity_id, last_pushed, last_slot, platform; async
+    push_temperature, push_off, calibrate. Anti-flap guard, manual-override
+    hold lifted on period change, INFO push log, per-call timeout.
   - TRVGroup: assembled at init from matter_mappings; no platform branching
     at push time; uses asyncio.gather for concurrent TRV pushes.
 
@@ -25,7 +26,8 @@ Design decisions (from RESEARCH.md / CLAUDE.md):
 - D-01: Name strip — area_/zone_ prefixes stripped for log display
 - D-07: TRVGroup assembles push targets at init; push time is platform-agnostic
 - D-10: Anti-spam via TRV.last_pushed (no separate guard dict)
-- D-11: DEBUG log fires only when last_pushed != desired_temp
+- D-11: INFO push log fires only when a setpoint is actually sent; the
+  first push (startup, rebuild of a new TRV, back online) is forced
 - T-16-05: Exception-safe wrapper in push_temperature/push_off (never raises)
 - T-16-06: Matter dedup via frozenset at TRVGroup assembly
 """
@@ -38,6 +40,9 @@ import logging
 from homeassistant.components.climate import HVACMode
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+
+from .const import TRV_COMMAND_TIMEOUT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,16 +60,28 @@ def is_trv_entity(hass: HomeAssistant, entity_id: str) -> bool:
     Only returns False when the entity state is unknown (None) or max_temp exceeds the
     TRV threshold. Missing current_temperature is not treated as a disqualifier — a TRV
     can be present but not yet reporting sensor data.
+
+    When the entity has no state yet (its integration is still loading at HA
+    startup), max_temp is read from the entity registry capabilities so the
+    TRV is not dropped from its room until the next domain rebuild.
     """
     state = hass.states.get(entity_id)
-    if state is None:
-        return False
-    max_t = state.attributes.get("max_temp")
+    if state is not None:
+        max_t = state.attributes.get("max_temp")
+    else:
+        reg = er.async_get(hass).async_get(entity_id)
+        if reg is None:
+            return False
+        max_t = (reg.capabilities or {}).get("max_temp")
     return max_t is None or float(max_t) <= _TRV_MAX_TEMP_THRESHOLD
 
 
 async def set_trv_temperature(
-    hass: HomeAssistant, entity_id: str, temperature: float
+    hass: HomeAssistant,
+    entity_id: str,
+    temperature: float,
+    *,
+    force: bool = False,
 ) -> None:
     """Issue the two-call sequence to set a TRV's target temperature.
 
@@ -81,7 +98,8 @@ async def set_trv_temperature(
       auto mode ignore set_temperature until forced into heat mode (INFRA-04).
     - set_temperature is skipped when the reported "temperature" attribute
       already equals the desired value. When the attribute is absent we cannot
-      prove the setpoint and so issue the call.
+      prove the setpoint and so issue the call. force=True always issues it
+      (first push after startup or back-online: the HA state may be stale).
 
     Silently skips the entity if its state is None or "unavailable" (ROOM-03).
     Never uses any hvac_mode other than "heat" (INFRA-04).
@@ -107,7 +125,7 @@ async def set_trv_temperature(
     # coordinator's D-02 _push_if_changed check). Missing attribute means we
     # cannot prove the setpoint, so issue the call.
     current_setpoint = state.attributes.get("temperature")
-    if current_setpoint != temperature:
+    if force or current_setpoint != temperature:
         await hass.services.async_call(
             "climate",
             "set_temperature",
@@ -296,13 +314,15 @@ def _short_name(entity_id: str) -> str:
 class TRV:
     """One physical TRV push unit (D-07).
 
-    Owns entity_id, platform, and last_pushed.  Encapsulates the anti-flap
-    guard and D-03 manual-override hold that previously lived in coordinator
-    _push_if_changed.  Emits a DEBUG heating log on every setpoint change
-    (D-11) but never on repeated identical setpoints (D-10).
+    Owns entity_id, platform, last_pushed and last_slot.  Encapsulates the
+    anti-flap guard and D-03 manual-override hold that previously lived in
+    coordinator _push_if_changed.  Emits an INFO push log on every setpoint
+    sent (D-11) but never on repeated identical setpoints (D-10).
 
     All methods are exception-safe (T-16-05): they catch Exception, log a
-    WARNING, and never propagate into the evaluation loop.
+    WARNING, and never propagate into the evaluation loop.  Every service
+    call is bounded by TRV_COMMAND_TIMEOUT so an unresponsive valve cannot
+    stall the other rooms.
     """
 
     def __init__(
@@ -312,6 +332,24 @@ class TRV:
         self.entity_id = entity_id
         self.platform = platform
         self.last_pushed: float | str | None = None
+        # Period (slot) of the last successful push. The D-03 hold and the
+        # D-10 anti-spam only apply while the slot is unchanged.
+        self.last_slot: str | None = None
+        # True once the "hold" INFO log has been emitted for the current
+        # manual override (one log per hold, not one per tick).
+        self._holding = False
+
+    def reset_push_state(self) -> None:
+        """Forget the last push so the next one is forced (back online)."""
+        self.last_pushed = None
+        self.last_slot = None
+        self._holding = False
+
+    def carry_push_state(self, old: "TRV") -> None:
+        """Copy push state from the TRV it replaces on a domain rebuild."""
+        self.last_pushed = old.last_pushed
+        self.last_slot = old.last_slot
+        self._holding = old._holding
 
     async def push_temperature(
         self,
@@ -324,12 +362,15 @@ class TRV:
     ) -> None:
         """Push desired_temp to the TRV entity.
 
-        Anti-flap guard (D-10): skip when last_pushed == desired_temp.
-        Manual-override hold (D-03): skip when TRV reports a temp different
-        from last_pushed (user adjusted manually).
-        Startup push (D-11): last_pushed=None bypasses both guards so the
-        first evaluation always pushes (intentional).
-        DEBUG log fires only when a push is about to happen (D-11).
+        Anti-flap guard (D-10): skip when the slot is unchanged and
+        last_pushed == desired_temp.
+        Manual-override hold (D-03): skip when the slot is unchanged and the
+        TRV reports a temp different from last_pushed (user adjusted
+        manually). A new slot (period change) lifts the hold.
+        Startup push (D-11): last_pushed=None bypasses both guards and forces
+        set_temperature even if the reported setpoint already matches — the
+        HA state may be stale after a restart or reconnection.
+        INFO log fires only when a push is about to happen (D-11).
         Exception-safe: catches all exceptions and WARNING-logs (T-16-05).
         """
         try:
@@ -345,27 +386,54 @@ class TRV:
             if isinstance(last, str):
                 last = None
 
-            # D-10: anti-spam — skip if already pushed this setpoint
-            if last is not None and last == desired_temp:
-                return
+            same_slot = last is not None and slot == self.last_slot
 
-            # D-03: manual-override hold — only active when we have a prior push
-            if last is not None:
+            # D-03: manual-override hold until the next period transition
+            if same_slot:
                 reported = state.attributes.get("temperature")
                 if reported is not None and float(reported) != last:
-                    # User adjusted manually — hold until next period transition
+                    if not self._holding:
+                        self._holding = True
+                        _LOGGER.info(
+                            "hold | trv=%s reported=%s°C last=%s°C slot=%s",
+                            _short_name(self.entity_id),
+                            reported,
+                            last,
+                            slot,
+                        )
                     return
+                self._holding = False
 
-            # All guards passed — emit DEBUG log then push (D-11)
-            _LOGGER.debug(
-                "heating | room=%s temp=%s°C zone=%s slot=%s",
+            # D-10: anti-spam — skip if already pushed this setpoint
+            if same_slot and last == desired_temp:
+                return
+
+            # All guards passed — emit INFO log then push (D-11)
+            _LOGGER.info(
+                "push | room=%s trv=%s temp=%s°C slot=%s zone=%s",
                 _short_name(room_name),
+                _short_name(self.entity_id),
                 desired_temp,
-                _short_name(zone_name),
                 slot,
+                _short_name(zone_name),
             )
-            await set_trv_temperature(self._hass, self.entity_id, desired_temp)
+            async with asyncio.timeout(TRV_COMMAND_TIMEOUT):
+                await set_trv_temperature(
+                    self._hass,
+                    self.entity_id,
+                    desired_temp,
+                    force=self.last_pushed is None,
+                )
             self.last_pushed = desired_temp
+            self.last_slot = slot
+            self._holding = False
+        except TimeoutError:
+            _LOGGER.warning(
+                "timeout | trv=%s temp=%s°C after %ss",
+                self.entity_id,
+                desired_temp,
+                TRV_COMMAND_TIMEOUT,
+            )
         except Exception:  # noqa: BLE001
             _LOGGER.warning("Failed to push temperature to %s", self.entity_id)
 
@@ -378,6 +446,7 @@ class TRV:
         Step 1: set_temperature(frost_temp) — so TRV resumes at frost on
                 wake-up rather than its previous arbitrary setpoint.
         Step 2: set_hvac_mode=off — sentinel stored only on success.
+        Each step is bounded by TRV_COMMAND_TIMEOUT.
         """
         try:
             state = self._hass.states.get(self.entity_id)
@@ -387,10 +456,19 @@ class TRV:
             if self.last_pushed == "off":
                 return  # Anti-flap: already pushed off
 
+            _LOGGER.info(
+                "push | trv=%s off (frost=%s°C)",
+                _short_name(self.entity_id),
+                frost_temp,
+            )
             try:
-                await set_trv_temperature(
-                    self._hass, self.entity_id, frost_temp
-                )
+                async with asyncio.timeout(TRV_COMMAND_TIMEOUT):
+                    await set_trv_temperature(
+                        self._hass,
+                        self.entity_id,
+                        frost_temp,
+                        force=self.last_pushed is None,
+                    )
             except Exception:  # noqa: BLE001
                 _LOGGER.warning(
                     "Failed to pre-set frost temp on %s before MODE_OFF",
@@ -398,8 +476,17 @@ class TRV:
                 )
 
             try:
-                await set_trv_off(self._hass, self.entity_id)
+                async with asyncio.timeout(TRV_COMMAND_TIMEOUT):
+                    await set_trv_off(self._hass, self.entity_id)
                 self.last_pushed = "off"
+                self.last_slot = "off"
+                self._holding = False
+            except TimeoutError:
+                _LOGGER.warning(
+                    "timeout | trv=%s off after %ss",
+                    self.entity_id,
+                    TRV_COMMAND_TIMEOUT,
+                )
             except Exception:  # noqa: BLE001
                 _LOGGER.warning(
                     "Failed to push OFF to %s in MODE_OFF", self.entity_id
@@ -416,7 +503,8 @@ class TRV:
         moves here in plan 16-04 (room).  Exception-safe (T-16-05).
         """
         try:
-            await set_trv_offset(self._hass, self.entity_id, offset)
+            async with asyncio.timeout(TRV_COMMAND_TIMEOUT):
+                await set_trv_offset(self._hass, self.entity_id, offset)
         except Exception:  # noqa: BLE001
             _LOGGER.warning(
                 "Failed to calibrate TRV %s with offset %s",
@@ -504,6 +592,11 @@ class TRVGroup:
                 trvs.append(TRV(hass, entity_id, platform))
 
         return cls(trvs, room_name, zone_name)
+
+    @property
+    def trvs(self) -> list[TRV]:
+        """TRV push targets of this group."""
+        return self._trvs
 
     async def push(self, temp: float, slot: str, ctx: object) -> None:
         """Push temp to all TRVs concurrently (asyncio.gather pattern).

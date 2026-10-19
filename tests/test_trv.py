@@ -14,6 +14,7 @@ from pytest_homeassistant_custom_component.common import async_mock_service
 from custom_components.climate_manager.trv import (
     TRV,
     TRVGroup,
+    is_trv_entity,
     set_trv_off,
     set_trv_offset,
     set_trv_offset_by_device,
@@ -386,16 +387,16 @@ async def test_set_trv_offset_by_device_rounds_to_one_decimal(hass):
 # Tests 17-26: TRV class (plan 16-03, D-07/D-10/D-11)
 #
 # TRV(hass, entity_id, platform) owns last_pushed and the anti-flap guard.
-# push_temperature emits DEBUG heating log only when last_pushed != desired.
+# push_temperature emits an INFO push log only when a setpoint is sent.
 # push_off uses "off" sentinel anti-flap.
 # ---------------------------------------------------------------------------
 
 
 async def test_trv_push_temperature_first_call_pushes_and_logs(hass, caplog):
     """Test 17: Fresh TRV (last_pushed=None) push_temperature issues the service
-    call, sets last_pushed, and emits one DEBUG heating log line.
+    call, sets last_pushed, and emits one INFO push log line.
 
-    Log format: "heating | room=%s temp=%s°C zone=%s slot=%s" (D-11)
+    Log format: "push | room=%s trv=%s temp=%s°C slot=%s zone=%s" (D-11)
     Short-name strip: area_kitchen→kitchen, zone_main→main (D-01)
     """
     hass.states.async_set(CLIMATE_ENTITY, "heat", {"temperature": 18.0})
@@ -425,18 +426,21 @@ async def test_trv_push_temperature_first_call_pushes_and_logs(hass, caplog):
     # last_pushed updated
     assert trv.last_pushed == 20.0
 
-    # DEBUG log emitted with correct format
+    # INFO log emitted with correct format
     assert any(
-        "heating | room=kitchen temp=20.0°C zone=main slot=normal" in r.message
+        r.levelno == logging.INFO
+        and "push | room=kitchen trv=living_room_trv temp=20.0°C"
+        " slot=normal zone=main"
+        in r.message
         for r in caplog.records
-    ), f"Expected heating log; got: {[r.message for r in caplog.records]}"
+    ), f"Expected push log; got: {[r.message for r in caplog.records]}"
 
 
 async def test_trv_push_temperature_repeat_same_setpoint_no_push_no_log(
     hass, caplog
 ):
     """Test 18: Second push_temperature with same setpoint: no service call,
-    no DEBUG log (D-10 anti-spam — last_pushed == desired_temp).
+    no push log (D-10 anti-spam — last_pushed == desired_temp, same slot).
     """
     hass.states.async_set(CLIMATE_ENTITY, "heat", {"temperature": 20.0})
     async_mock_service(hass, "climate", "set_hvac_mode")
@@ -445,6 +449,7 @@ async def test_trv_push_temperature_repeat_same_setpoint_no_push_no_log(
     ctx = MagicMock()
     trv = TRV(hass, CLIMATE_ENTITY, "generic")
     trv.last_pushed = 20.0  # Simulate prior push
+    trv.last_slot = "normal"
 
     import logging
 
@@ -460,7 +465,7 @@ async def test_trv_push_temperature_repeat_same_setpoint_no_push_no_log(
         )
 
     assert len(temp_calls) == 0, "No push when last_pushed == desired_temp"
-    assert not any("heating |" in r.message for r in caplog.records), (
+    assert not any("push |" in r.message for r in caplog.records), (
         "No log when setpoint unchanged"
     )
 
@@ -469,7 +474,8 @@ async def test_trv_push_temperature_manual_override_hold(hass):
     """Test 19: Manual-override hold — TRV reports temp different from
     last_pushed → skip push (D-03 hold).
 
-    last_pushed=20.0 but TRV reports 24.0 (user overrode) → no push.
+    last_pushed=20.0 but TRV reports 24.0 (user overrode) → no push while
+    the slot is unchanged.
     """
     # TRV reports 24.0 (user manually set), but last_pushed is 20.0
     hass.states.async_set(CLIMATE_ENTITY, "heat", {"temperature": 24.0})
@@ -478,6 +484,7 @@ async def test_trv_push_temperature_manual_override_hold(hass):
     ctx = MagicMock()
     trv = TRV(hass, CLIMATE_ENTITY, "generic")
     trv.last_pushed = 20.0  # We last pushed 20.0
+    trv.last_slot = "normal"
 
     await trv.push_temperature(
         22.0,  # New desired temp different from both last_pushed and reported
@@ -531,7 +538,8 @@ async def test_trv_push_temperature_startup_fires(hass, caplog):
     """Test 22: Startup push (last_pushed=None) always fires and logs (D-11).
 
     This is the intentional startup push behavior — last_pushed=None means no
-    anti-flap, so the push always fires on first tick.
+    anti-flap, and set_temperature is forced even when the TRV already
+    reports the desired setpoint (its HA state may be stale).
     """
     hass.states.async_set(CLIMATE_ENTITY, "heat", {"temperature": 20.0})
     async_mock_service(hass, "climate", "set_hvac_mode")
@@ -555,13 +563,13 @@ async def test_trv_push_temperature_startup_fires(hass, caplog):
         )
 
     # Startup push fires even when TRV already reports the same temp
-    assert len(temp_calls) >= 0  # set_trv_temperature internal guard may skip
+    assert len(temp_calls) == 1
     # The key assertion: last_pushed is set after the startup push attempt
     assert trv.last_pushed == 20.0
 
     # Log fires on startup (first push always logs per D-11)
-    assert any("heating | room=kitchen" in r.message for r in caplog.records), (
-        "Startup push must emit heating log"
+    assert any("push | room=kitchen" in r.message for r in caplog.records), (
+        "Startup push must emit push log"
     )
 
 
@@ -766,3 +774,26 @@ async def test_trvgroup_assembly_excludes_boiler(hass):
     # Only the TRV is a push target; the boiler is excluded.
     assert len(group._trvs) == 1
     assert group._trvs[0].entity_id == trv_entity
+
+
+async def test_is_trv_entity_without_state_uses_registry(hass):
+    """A TRV whose integration is still loading (no state yet) is kept.
+
+    max_temp falls back to the entity registry capabilities so the valve is
+    part of its room's push targets from the first evaluation; a boiler is
+    still excluded, and an unknown entity too.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    reg = er.async_get(hass)
+    trv = reg.async_get_or_create(
+        "climate", "matter", "trv1", capabilities={"max_temp": 30}
+    )
+    boiler = reg.async_get_or_create(
+        "climate", "vicare", "boiler1", capabilities={"max_temp": 60}
+    )
+
+    assert hass.states.get(trv.entity_id) is None
+    assert is_trv_entity(hass, trv.entity_id)
+    assert not is_trv_entity(hass, boiler.entity_id)
+    assert not is_trv_entity(hass, "climate.never_registered")

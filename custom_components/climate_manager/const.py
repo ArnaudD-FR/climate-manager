@@ -63,6 +63,11 @@ PRESENCE_CALENDAR = "calendar"
 DEFAULT_GLOBAL_MODE = MODE_TIME_PROGRAM
 DEFAULT_PREHEAT_LEAD_MINUTES: int = 60
 
+# Max seconds to wait for one TRV service call (set_temperature,
+# set_hvac_mode, set_temperature_offset). A reachable-but-unresponsive valve
+# must never stall the evaluation of the other rooms.
+TRV_COMMAND_TIMEOUT: float = 30
+
 # Phase 12 pre-heat constants (D-01, PREHEAT-01, D-08, D-09, GAP-01)
 # preheat_enabled moved to zone scope (GAP-01):
 #   - Custom zone: zones[zone_id]["preheat_enabled"] (bool, absent=False)

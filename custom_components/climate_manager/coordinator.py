@@ -50,6 +50,7 @@ from .const import (
     DOMAIN,
     MODE_TIME_PROGRAM,
     PRESENCE_HA,
+    TRV_COMMAND_TIMEOUT,
 )
 from .entity import (
     room_period_unique_id,
@@ -78,6 +79,10 @@ POLL_INTERVAL = timedelta(minutes=1)
 _OFFSET_CLAMP = 5.0
 # Minimum time between calibration API calls per device to avoid 429s.
 _CALIBRATION_MIN_INTERVAL = timedelta(minutes=5)
+
+# TRV states meaning "not reachable": a transition from one of these (or from
+# no state at all) to a valid state re-applies the setpoint.
+_OFFLINE_STATES = ("unavailable", "unknown")
 
 
 class ClimateManagerCoordinator:
@@ -145,6 +150,17 @@ class ClimateManagerCoordinator:
         # Single Callable per key — unlike _ha_tracker_listeners (list).
         # Cancel-all-then-rebuild via _async_refresh_matter_listeners().
         self._matter_cal_listeners: dict[str, Callable] = {}
+        # Cancel callbacks for the TRV availability listeners, keyed by
+        # entity_id. A TRV coming back online (or appearing after startup)
+        # gets its setpoint re-applied immediately.
+        self._availability_listeners: dict[str, Callable] = {}
+        # Set when an entity without a TRV object (no state at the last
+        # rebuild) becomes available: the next evaluation rebuilds the graph.
+        self._rebuild_requested = False
+        # Only one evaluation runs at a time; a request arriving meanwhile
+        # is coalesced into one catch-up run (never lost, never stacked).
+        self._eval_lock = asyncio.Lock()
+        self._eval_requested = False
         # Update listeners (HA entities) notified at the end of every
         # async_evaluate cycle — DataUpdateCoordinator-style contract.
         self._listeners: list[Callable[[], None]] = []
@@ -167,6 +183,8 @@ class ClimateManagerCoordinator:
             repr(config.get("zones", {})),
             repr(config.get("persons", {})),
             repr(config.get("rooms", {})),
+            # Discovered climate entities per room (registry refresh).
+            repr(sorted(self._data.rooms.items())),
         )
         return hash("".join(key_parts))
 
@@ -274,11 +292,23 @@ class ClimateManagerCoordinator:
             if old_p is not None and old_p._last_home is not None:
                 person._last_home = old_p._last_home
 
+        # Carry forward TRV push state so a config edit doesn't re-force a
+        # push to every valve. Only TRVs new to the graph get a forced push.
+        old_trvs = {trv.entity_id: trv for trv in self._iter_trvs()}
+        for room in rooms.values():
+            for group in room._trv_groups:
+                for trv in group.trvs:
+                    old_trv = old_trvs.get(trv.entity_id)
+                    if old_trv is not None:
+                        trv.carry_push_state(old_trv)
+
         # Commit the new graph (single atomic update — Pitfall 1).
         self._zones = zones
         self._persons = persons
         self._rooms = rooms
         self._config_fingerprint = self._compute_config_fingerprint(config)
+        self._rebuild_requested = False
+        self._refresh_availability_listeners()
 
     # ------------------------------------------------------------------
     # Public read API + update listeners (HA entity platforms)
@@ -363,18 +393,106 @@ class ClimateManagerCoordinator:
                         return trv
         return None
 
+    def _iter_trvs(self):
+        """Yield every TRV push target of the current domain graph."""
+        for room in self._rooms.values():
+            for group in room._trv_groups:
+                yield from group.trvs
+
+    # ------------------------------------------------------------------
+    # TRV availability listeners — re-apply setpoint when back online
+    # ------------------------------------------------------------------
+
+    def _refresh_availability_listeners(self) -> None:
+        """Track every TRV and room climate entity for availability changes.
+
+        Covers the TRV push targets plus every climate entity of the rooms,
+        so an entity that had no state at the last rebuild (integration still
+        loading at HA startup) is picked up as soon as it appears.
+        Re-run on every _build_domain_objects; cancelled on unload.
+        """
+        from homeassistant.helpers.event import (  # noqa: PLC0415
+            async_track_state_change_event,
+        )
+
+        self.cancel_availability_listeners()
+        entity_ids = {trv.entity_id for trv in self._iter_trvs()}
+        for room_entity_ids in self._data.rooms.values():
+            entity_ids.update(room_entity_ids)
+        for entity_id in sorted(entity_ids):
+            self._availability_listeners[entity_id] = (
+                async_track_state_change_event(
+                    self._hass, entity_id, self._on_trv_state_changed
+                )
+            )
+
+    def cancel_availability_listeners(self) -> None:
+        """Cancel all TRV availability listeners."""
+        for cancel in self._availability_listeners.values():
+            cancel()
+        self._availability_listeners.clear()
+
+    @callback
+    def _on_trv_state_changed(self, event: object) -> None:
+        """Re-apply the setpoint of a TRV that just became available.
+
+        Fires on missing/unavailable/unknown → any valid state. The TRV's
+        push state is reset so the next push is forced (its setpoint may have
+        changed while offline) and the manual-override hold is lifted.
+        """
+        data = getattr(event, "data", {})
+        new_state = data.get("new_state")
+        if new_state is None or new_state.state in _OFFLINE_STATES:
+            return
+        old_state = data.get("old_state")
+        if old_state is not None and old_state.state not in _OFFLINE_STATES:
+            return
+        entity_id = new_state.entity_id
+        trv = self._get_trv(entity_id)
+        if trv is not None:
+            trv.reset_push_state()
+            _LOGGER.info(
+                "online | trv=%s back online, re-applying setpoint",
+                entity_id.split(".", 1)[-1],
+            )
+        else:
+            # Room entity left out of the graph (no state at the last
+            # rebuild): rebuild so its push targets are assembled.
+            _LOGGER.debug("%s became available — rebuilding rooms", entity_id)
+            self._rebuild_requested = True
+        self._hass.async_create_task(self.async_evaluate())
+
     async def async_evaluate(self, _utc_now: datetime | None = None) -> None:
         """Evaluate all managed rooms and push temperatures as needed.
 
-        Each room is evaluated independently via _resolve_zone_config — there is no
-        top-level global_mode branch. global_mode is the Default Zone's mode only (D-07/D-08).
+        Called immediately after registration (INFRA-03 startup push), every
+        minute by async_track_time_interval, after WS mutations and when a
+        TRV comes back online.
 
-        Called immediately after registration (INFRA-03 startup push) and then
-        every minute by async_track_time_interval.
+        Only one evaluation runs at a time. A call arriving while one runs
+        returns at once and schedules exactly one catch-up run, so stalled
+        evaluations never pile up and no trigger is lost.
 
         The _utc_now argument is provided by async_track_time_interval but is
         deliberately ignored — it carries UTC time (Pitfall 2). Local wall-clock
         time is always derived from dt_util.now() (INFRA-05 / DST-safe).
+        """
+        if self._eval_lock.locked():
+            self._eval_requested = True
+            _LOGGER.debug("Evaluation already running — coalescing request")
+            return
+        async with self._eval_lock:
+            self._eval_requested = True
+            while self._eval_requested:
+                self._eval_requested = False
+                await self._async_evaluate_once()
+
+    async def _async_evaluate_once(self) -> None:
+        """Run one evaluation cycle (see async_evaluate).
+
+        Each room is evaluated independently via its owning Zone — there is
+        no top-level global_mode branch. global_mode is the Default Zone's
+        mode only (D-07/D-08).
         """
         now = dt_util.now()
         config = self._data.runtime_config
@@ -383,7 +501,7 @@ class ClimateManagerCoordinator:
         # T-16-13: rebuild domain objects when WS handler mutated runtime_config.
         # Fingerprint covers zones/persons/rooms structure; cheap hash comparison.
         new_fp = self._compute_config_fingerprint(config)
-        if new_fp != self._config_fingerprint:
+        if new_fp != self._config_fingerprint or self._rebuild_requested:
             self._build_domain_objects(config)
 
         # D-09: build one EvalContext per cycle (OBS-01 / RESEARCH D-02).
@@ -393,18 +511,25 @@ class ClimateManagerCoordinator:
             period_temperatures=period_temperatures,
         )
 
-        # Zone evaluation loop — each Zone delegates to its ZoneMode which
-        # calls room.apply_setpoint → TRVGroup.push → TRV.push_temperature.
-        # ZoneModeProgramPresences also evaluates Person.evaluate (cached in ctx).
-        for zone in self._zones.values():
-            await zone.evaluate(ctx)
-
-        # Evaluate any persons not yet in ctx._presence_cache (those in
-        # time_program zones are never called by zone.evaluate, but we still
-        # need their presence state for status reporting — D-11 / INFRA-03).
+        # Evaluate every person first so ctx._presence_cache is complete
+        # before the zones run concurrently (no duplicate calendar fetch) and
+        # status reporting has every person's state (D-11 / INFRA-03).
         for person in self._persons.values():
-            if person.person_id not in ctx._presence_cache:
-                await person.evaluate(ctx)
+            await person.evaluate(ctx)
+
+        # All zones at once — each Zone delegates to its ZoneMode which pushes
+        # all its rooms concurrently: room.apply_setpoint → TRVGroup.push →
+        # TRV.push_temperature. Every valve receives its command at the same
+        # time; a slow valve only delays itself (TRV_COMMAND_TIMEOUT).
+        results = await asyncio.gather(
+            *(zone.evaluate(ctx) for zone in self._zones.values()),
+            return_exceptions=True,
+        )
+        for zone_id, result in zip(self._zones, results):
+            if isinstance(result, BaseException):
+                _LOGGER.warning(
+                    "Zone %s evaluation failed: %r", zone_id, result
+                )
 
         # Warn via persistent notification when an ha-mode person has no tracker.
         self._check_ha_tracker_warnings(config)
@@ -604,7 +729,10 @@ class ClimateManagerCoordinator:
         )
 
         try:
-            await set_trv_offset_by_device(self._hass, device_id, new_offset)
+            async with asyncio.timeout(TRV_COMMAND_TIMEOUT):
+                await set_trv_offset_by_device(
+                    self._hass, device_id, new_offset
+                )
             self._calibration_last_offset[device_id] = new_offset
             self._calibration_last_changed[device_id] = datetime.now(
                 timezone.utc

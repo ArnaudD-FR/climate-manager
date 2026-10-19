@@ -93,22 +93,30 @@ object graph and driving each evaluation cycle.
 `TRVGroup` graph from `runtime_config`. It is called on first evaluate and again
 whenever a WS handler changes the config — detected by a cheap structural
 **fingerprint** (`_config_fingerprint`); an unchanged fingerprint skips the
-rebuild. On rebuild, anti-spam log state is **carried forward** from the old
-objects (`Zone._current_period`/`_current_mode_name`, `Person._last_home`) so a
-config edit does not replay log lines.
+rebuild. The fingerprint also covers the discovered `runtime_data.rooms`, so a
+registry refresh rebuilds too. On rebuild, anti-spam log state is **carried
+forward** from the old objects (`Zone._current_period`/`_current_mode_name`,
+`Person._last_home`) so a config edit does not replay log lines, and so is each
+`TRV`'s push state (`last_pushed`, `last_slot`) so a config edit does not
+re-force a push to every valve.
 
-`ClimateManagerCoordinator.async_evaluate()` runs every minute and on startup:
+`ClimateManagerCoordinator.async_evaluate()` runs on startup, every minute,
+after WS mutations and when a TRV comes back online. Only **one evaluation runs
+at a time** (`_eval_lock`): a call arriving during a run returns immediately and
+sets `_eval_requested`, which triggers exactly one catch-up run — stalled runs
+never pile up and no trigger is lost. Each run is `_async_evaluate_once()`:
 
 ```text
 1. now = dt_util.now(); rebuild domain objects if fingerprint changed
+   (or an entity left out of the graph has appeared)
 2. ctx = EvalContext(now, hass, period_temperatures)   # per-cycle cache
-3. for zone in zones: await zone.evaluate(ctx)
-     → ZoneMode.evaluate resolves the period and, for each room,
-       await room.apply_setpoint(period, temp, ctx)
-         → TRVGroup.push → TRV.push_temperature (anti-flap + manual-hold)
-     → Zone emits OBS-01 INFO log on (period, mode) change
-4. for person not yet in ctx._presence_cache: await person.evaluate(ctx)
+3. for person in persons: await person.evaluate(ctx)   # fills presence cache
      → Person emits OBS-01 INFO log on home/away flip
+4. gather(zone.evaluate(ctx) for every zone)           # all zones at once
+     → ZoneMode.evaluate resolves the period and every room's setpoint,
+       then gather(room.apply_setpoint(period, temp, ctx) for its rooms)
+         → TRVGroup.push → gather(TRV.push_temperature)  # every valve
+     → Zone emits OBS-01 INFO log on (period, mode) change
 5. _check_ha_tracker_warnings (persistent notifications)
 6. snapshot status fields: _last_room_periods (per-room), _last_zone_periods,
    _last_present_persons
@@ -118,9 +126,31 @@ config edit does not replay log lines.
 10. Notify update listeners (HA entities, async_sync_devices)
 ```
 
-**Anti-flap push** (`TRV.push_temperature`): skip if `last_pushed == desired`.
-**Manual-override hold** (D-03): if the TRV reports a setpoint ≠ last pushed, a
-user adjusted it manually — hold until the next period transition. **Pre-heat**
+**Concurrent, bounded dispatch**: every valve of every room and zone receives
+its command at the same time (`asyncio.gather`, `return_exceptions=True` at the
+zone and coordinator levels so one failure never cancels the others). Each
+service call is bounded by `TRV_COMMAND_TIMEOUT` (30 s): an unresponsive valve
+logs `timeout |`, keeps its `last_pushed`, and is retried on the next cycle.
+Calibration calls are bounded the same way.
+
+**Anti-flap push** (`TRV.push_temperature`): skip if the period (`slot`) is
+unchanged and `last_pushed == desired`. **Manual-override hold** (D-03): if the
+TRV reports a setpoint ≠ last pushed within the same period, it was changed
+outside Climate Manager (Tado app, Tado schedule, user) — hold until the next
+period transition, where `last_slot` differs and the setpoint is re-applied.
+**Forced first push**: when `last_pushed is None` (startup, a TRV new to the
+graph, back online) `set_temperature` is sent even if the valve already reports
+the setpoint, since its HA state may be stale.
+
+**Back-online resync**: `_availability_listeners` track every TRV push target
+and every room climate entity. A transition from no state / `unavailable` /
+`unknown` to a valid state resets the TRV's push state (`online |` log) and
+triggers an evaluation, so a valve that was offline at a period change — or
+whose integration finished loading after Climate Manager — gets its setpoint
+right away. An entity with no TRV object (no state at the last rebuild) requests
+a rebuild instead. `is_trv_entity` reads `max_temp` from the entity registry
+capabilities when the entity has no state yet, so valves still loading at HA
+startup are part of the graph from the first evaluation. **Pre-heat**
 (`Room.compute_preheat`): triggers early heating ahead of the next occupied time
 (`schedule.next_occupied_at` for scheduled persons, else the next zone
 setpoint-increase). Lead time is learned (average of the last 5 convergence
@@ -139,13 +169,13 @@ The control logic lives in five collaborating object families. Each `*Mode` base
 class is a plain class (not an ABC) holding a `weakref` back-link to its owner;
 unimplemented overloads raise `assert False`.
 
-| File              | Classes                                                                  | Role                                                                                                                                       |
-| ----------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `eval_context.py` | `EvalContext`                                                            | Per-cycle cache passed through the whole call chain: `now`, `period_temperatures`, lazy `_calendar_cache`, `_presence_cache` (D-02)        |
-| `zone.py`         | `Zone`, `ZoneModeOff`, `ZoneModeTimeProgram`, `ZoneModeProgramPresences` | Resolves the active period; pushes setpoints to its rooms; emits the `zone` OBS-01 log on `(period, mode)` change                          |
-| `person.py`       | `Person`, `PersonModeScheduled/HA/Calendar/ForcePresent/ForceAbsent`     | Evaluates presence (cached in `ctx`); emits the `presence` OBS-01 log on home/away flip and on user mode change                            |
-| `room.py`         | `Room`                                                                   | Owns `_trv_groups`, `assigned_persons`, per-room pre-heat/calibration state, `_last_period` (status badge); `apply_setpoint`/`apply_off`   |
-| `trv.py`          | `TRV`, `TRVGroup`                                                        | `TRVGroup` is assembled once (resolving `matter_mappings` + boiler filter); `TRV` owns `last_pushed` anti-flap and the `heating` DEBUG log |
+| File              | Classes                                                                  | Role                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eval_context.py` | `EvalContext`                                                            | Per-cycle cache passed through the whole call chain: `now`, `period_temperatures`, lazy `_calendar_cache`, `_presence_cache` (D-02)           |
+| `zone.py`         | `Zone`, `ZoneModeOff`, `ZoneModeTimeProgram`, `ZoneModeProgramPresences` | Resolves the active period; pushes setpoints to its rooms; emits the `zone` OBS-01 log on `(period, mode)` change                             |
+| `person.py`       | `Person`, `PersonModeScheduled/HA/Calendar/ForcePresent/ForceAbsent`     | Evaluates presence (cached in `ctx`); emits the `presence` OBS-01 log on home/away flip and on user mode change                               |
+| `room.py`         | `Room`                                                                   | Owns `_trv_groups`, `assigned_persons`, per-room pre-heat/calibration state, `_last_period` (status badge); `apply_setpoint`/`apply_off`      |
+| `trv.py`          | `TRV`, `TRVGroup`                                                        | `TRVGroup` is assembled once (resolving `matter_mappings` + boiler filter); `TRV` owns `last_pushed`/`last_slot`, the hold and the `push` log |
 
 `ZoneModeProgramPresences` resolves an effective period **per room** (empty room
 → reduced; occupied → schedule via `compute_occupied_temp`), so each `Room`
@@ -158,15 +188,17 @@ covered by a `tado_x` mapping.
 
 #### OBS-01 structured log traces
 
-Emitted at `INFO` (heating at `DEBUG`) under
-`custom_components.climate_manager.*`. Each family is anti-spammed — it logs
-only on a real state change, never every tick.
+Emitted at `INFO` under `custom_components.climate_manager.*`. Each family is
+anti-spammed — it logs only on a real state change, never every tick.
 
-| Logger            | Format                                                                                 | Fires on                                          |
-| ----------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `zone`            | `zone \| zone=<name> state=<old>[<mode>]→<new>[<mode>] reason=<why>`                   | period or mode change (`time_program:` / `user:`) |
-| `presence`        | `presence \| person=<name> home=<bool> reason=<mode>` / `mode=<old>→<new> reason=user` | `_last_home` flip / user mode change              |
-| `heating` (DEBUG) | `heating \| room=<name> temp=<T>°C zone=<name> slot=<period>`                          | setpoint actually pushed to a TRV                 |
+| Logger           | Format                                                                                 | Fires on                                          |
+| ---------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `zone`           | `zone \| zone=<name> state=<old>[<mode>]→<new>[<mode>] reason=<why>`                   | period or mode change (`time_program:` / `user:`) |
+| `presence`       | `presence \| person=<name> home=<bool> reason=<mode>` / `mode=<old>→<new> reason=user` | `_last_home` flip / user mode change              |
+| `push`           | `push \| room=<name> trv=<name> temp=<T>°C slot=<period> zone=<name>`                  | setpoint actually sent to a TRV                   |
+| `hold`           | `hold \| trv=<name> reported=<T>°C last=<T>°C slot=<period>`                           | TRV changed outside Climate Manager (once)        |
+| `online`         | `online \| trv=<name> back online, re-applying setpoint`                               | TRV available again                               |
+| `timeout` (WARN) | `timeout \| trv=<entity_id> temp=<T>°C after <N>s`                                     | TRV did not answer within `TRV_COMMAND_TIMEOUT`   |
 
 To surface these, set `custom_components.climate_manager: info` (or `debug`)
 under `logger:` in `configuration.yaml` — custom integrations are filtered at
@@ -190,21 +222,21 @@ assignment changes.
 
 ### TRV control — `trv.py`
 
-| Function                                            | Purpose                                                                                                                                           |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `set_trv_temperature(hass, entity_id, temp)`        | Step 1: ensure `hvac_mode=heat`; Step 2: `set_temperature`. Two-step workaround for Tado X Matter auto mode.                                      |
-| `set_trv_off(hass, entity_id)`                      | `set_hvac_mode=off`                                                                                                                               |
-| `set_trv_offset(hass, entity_id, offset)`           | Entity-based temperature offset calibration                                                                                                       |
-| `set_trv_offset_by_device(hass, device_id, offset)` | Tado X Radiator Valve X device-based calibration                                                                                                  |
-| `supports_hvac_off(hass, entity_id)`                | Inspects `hvac_modes` attribute                                                                                                                   |
-| `supports_offset_calibration(hass, entity_id)`      | Checks `temperature_offset` attribute                                                                                                             |
-| `is_trv_entity(hass, entity_id)`                    | True for room TRVs; False for boiler/HVAC entities (`max_temp > 45 °C`). Applied in `TRVGroup.from_room_config` and every status/calibration path |
-| `get_tado_valve_devices(hass, area_id)`             | Returns Tado X Radiator Valve X devices in an area                                                                                                |
+| Function                                            | Purpose                                                                                                                                                                                              |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `set_trv_temperature(hass, entity_id, temp, force)` | Step 1: ensure `hvac_mode=heat`; Step 2: `set_temperature` (skipped if already set, unless `force`). Two-step workaround for Tado X Matter auto mode.                                                |
+| `set_trv_off(hass, entity_id)`                      | `set_hvac_mode=off`                                                                                                                                                                                  |
+| `set_trv_offset(hass, entity_id, offset)`           | Entity-based temperature offset calibration                                                                                                                                                          |
+| `set_trv_offset_by_device(hass, device_id, offset)` | Tado X Radiator Valve X device-based calibration                                                                                                                                                     |
+| `supports_hvac_off(hass, entity_id)`                | Inspects `hvac_modes` attribute                                                                                                                                                                      |
+| `supports_offset_calibration(hass, entity_id)`      | Checks `temperature_offset` attribute                                                                                                                                                                |
+| `is_trv_entity(hass, entity_id)`                    | True for room TRVs; False for boiler/HVAC entities (`max_temp > 45 °C`, read from the registry when there is no state yet). Applied in `TRVGroup.from_room_config` and every status/calibration path |
+| `get_tado_valve_devices(hass, area_id)`             | Returns Tado X Radiator Valve X devices in an area                                                                                                                                                   |
 
 The module also defines the `TRV` and `TRVGroup` domain classes (see
 [Domain model](#domain-model)). `TRVGroup` is assembled once per room and holds
 the resolved push targets; `TRV.push_temperature` wraps the two-call sequence
-with the anti-flap guard, manual-override hold, and the `heating` DEBUG log. The
+with the anti-flap guard, manual-override hold, timeout and the `push` log. The
 free functions above remain the low-level service-call layer the classes call
 into.
 

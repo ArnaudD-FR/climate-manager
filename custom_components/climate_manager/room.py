@@ -37,6 +37,7 @@ from .const import (
     PRESENCE_ABSENT,
     PRESENCE_HA,
     PRESENCE_PRESENT,
+    TRV_COMMAND_TIMEOUT,
 )
 from .schedule import (
     evaluate_schedule,
@@ -517,7 +518,8 @@ class Room:
         )
 
         try:
-            await set_trv_offset(self._hass, entity_id, new_offset)
+            async with asyncio.timeout(TRV_COMMAND_TIMEOUT):
+                await set_trv_offset(self._hass, entity_id, new_offset)
             self._calibration_last_changed = datetime.now(
                 timezone.utc
             ).isoformat(timespec="seconds")

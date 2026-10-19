@@ -19,6 +19,7 @@ Design decisions:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import weakref
 from typing import TYPE_CHECKING
@@ -64,6 +65,16 @@ def _short_name(entity_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+async def _gather_rooms(zone: "Zone", pushes) -> None:
+    """Run room pushes concurrently; one failing room never stops others."""
+    results = await asyncio.gather(*pushes, return_exceptions=True)
+    for result in results:
+        if isinstance(result, BaseException):
+            _LOGGER.warning(
+                "Room push failed in zone %s: %r", zone.zone_id, result
+            )
+
+
 class ZoneMode:
     """Plain base class for zone operation modes (D-04).
 
@@ -97,8 +108,7 @@ class ZoneMode:
 class ZoneModeOff(ZoneMode):
     """Zone mode: OFF — all rooms frost-locked (EVAL-01).
 
-    Iterates zone.rooms and calls room.apply_setpoint(PERIOD_FROST_PROTECTION,
-    frost_temp, ctx) for each room.
+    Calls room.apply_off(frost_temp, ctx) for all zone.rooms concurrently.
     """
 
     mode_name: str = "off"
@@ -107,8 +117,9 @@ class ZoneModeOff(ZoneMode):
         """Frost-lock all rooms in the zone."""
         zone = self.zone
         frost_temp: float = ctx.period_temperatures[PERIOD_FROST_PROTECTION]
-        for room in zone.rooms:
-            await room.apply_off(frost_temp, ctx)
+        await _gather_rooms(
+            zone, (room.apply_off(frost_temp, ctx) for room in zone.rooms)
+        )
         return PERIOD_FROST_PROTECTION, self.mode_name
 
 
@@ -133,8 +144,10 @@ class ZoneModeTimeProgram(ZoneMode):
                 zone.zone_id,
             )
             return period, self.mode_name
-        for room in zone.rooms:
-            await room.apply_setpoint(period, temp, ctx)
+        await _gather_rooms(
+            zone,
+            (room.apply_setpoint(period, temp, ctx) for room in zone.rooms),
+        )
         return period, self.mode_name
 
 
@@ -157,6 +170,9 @@ class ZoneModeProgramPresences(ZoneMode):
         # Baseline period from the zone time program
         baseline_period: str = evaluate_schedule(zone.time_program, ctx.now)
 
+        # Resolve every room's setpoint first (presence is cached in ctx by
+        # the coordinator), then push all rooms at once.
+        pushes = []
         for room in zone.rooms:
             # Evaluate presence for all assigned persons (cached in ctx)
             any_present = False
@@ -173,7 +189,11 @@ class ZoneModeProgramPresences(ZoneMode):
                 ctx.period_temperatures,
             )
 
-            await room.apply_setpoint(occupied_period, occupied_temp, ctx)
+            pushes.append(
+                room.apply_setpoint(occupied_period, occupied_temp, ctx)
+            )
+
+        await _gather_rooms(zone, pushes)
 
         # The zone period is the zone time program's period; each room's
         # presence-resolved period lives on room._last_period.
