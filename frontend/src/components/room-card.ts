@@ -1065,7 +1065,25 @@ export class RoomCard extends LitElement {
             </p>
           `
         : ""}
+      ${enabled ? this._renderInertia() : ""}
     `;
+  }
+
+  /** Learned inertia line: rate, sample count and today's lead. */
+  private _renderInertia() {
+    const rate = this.roomStatus?.preheat_rate ?? null;
+    const samples = this.roomStatus?.preheat_samples ?? 0;
+    const lead = this.roomStatus?.preheat_lead ?? null;
+    const leadText = lead != null ? ` · lead today ${lead} min` : "";
+    if (rate == null) {
+      return html`<p class="schedule-hint">
+        Learning inertia: ${Math.min(samples, 3)}/3 runs${leadText}
+      </p>`;
+    }
+    return html`<p class="schedule-hint">
+      Inertia: ${rate.toFixed(1)} min/&deg;C (${samples}
+      ${samples === 1 ? "run" : "runs"})${leadText}
+    </p>`;
   }
 
   render() {

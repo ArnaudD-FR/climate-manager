@@ -28,7 +28,7 @@ endpoints are used.
 1. Construct `ClimateManagerStore` and load merged config
 2. Run discovery (rooms, persons, room sensors)
 3. Assign all to `entry.runtime_data` (typed `ClimateManagerData` dataclass)
-4. Wire preheat `Store` and load persisted samples
+4. Wire the pre-heat `PreheatStore` and load samples + running runs
 5. Construct `ClimateManagerCoordinator` and run immediate evaluation (restart
    recovery — INFRA-03)
 6. Forward the `select` + `sensor` platforms (see [HA entities](#ha-entities))
@@ -78,8 +78,17 @@ Default temperatures: frost=5°C, reduced=18°C, normal=20°C, comfort=22°C.
   `wakeup_advance_minutes`).
 - **Save**: calls `validate_zone_assignment()` before every write.
 
-Preheat convergence samples persist separately under key
-`climate_manager_preheat` (a bare `Store`, not `ClimateManagerStore`).
+Pre-heat inertia persists separately under key `climate_manager_preheat`
+(`preheat.PreheatStore`, version 2, not `ClimateManagerStore`):
+
+```text
+{"rooms": {area_id: {"samples": [sample, ...], "run": run | null}}}
+sample = {timestamp, duration_minutes, start_temp, target_temp, rate, censored}
+run    = {start_time, start_temp, target_temp, until, converged, measuring}
+```
+
+The v1 layout (`{area_id: [{duration_minutes, timestamp}]}`) has no start
+temperature, so the migration drops it and learning starts over.
 
 ---
 
@@ -153,25 +162,37 @@ a rebuild instead. `is_trv_entity` reads `max_temp` from the entity registry
 capabilities when the entity has no state yet, so valves still loading at HA
 startup are part of the graph from the first evaluation.
 
-**Pre-heat** (`Room.compute_preheat`): starts early heating ahead of the next
-occupied time (`schedule.next_occupied_at` for scheduled persons, else the next
-zone setpoint increase), inside the learned lead window (average of the last 5
-convergence samples, bounded by `preheat_max_lead_minutes`, default 120 min).
-The run lives in `Room._preheat_in_progress` (`start_time`, `target_temp`,
-`until`, `converged`). Until `until`, `Room.apply_setpoint` keeps the upcoming
-setpoint whenever it is warmer than the zone's scheduled one, and the room
-period is `preheat` (room period sensor state, panel badge, history timeline).
-Reaching the target records one sample but keeps holding until `until`; at the
-occupied time the zone setpoint takes over. A run that never converged is
-discarded without a sample; a run whose reason vanished (pre-heat disabled, zone
-off, presence suppressed, occupied time no longer within the max lead) is
-cancelled. Skipped when the room is already at/above the upcoming setpoint
-(`room_temp ≥ upcoming − PREHEAT_CONVERGENCE_THRESHOLD`); `room_temp` comes from
-the room temperature sensor, else the first TRV. Running pre-heats survive a
-domain rebuild. **Calibration** (`Room.calibrate_trvs`): incremental offset
-toward the room reference sensor. Tado X Radiator Valve X uses the device-based
-offset call; other TRVs use entity-based. Clamped ±5°C with a threshold guard to
-avoid jitter.
+**Pre-heat** (`Room.compute_preheat`, model in `preheat.py`): starts early
+heating ahead of the next occupied time (`schedule.next_occupied_at` for
+scheduled persons, else the next zone setpoint increase). Each room learns a
+heating rate in min/°C: the median of its last 7 samples (`learned_rate`). The
+lead is recomputed every tick as `rate × (upcoming − room_temp) × 1.1`, bounded
+to [10 min, `preheat_max_lead_minutes`] (default 120 min), so a colder room
+starts earlier; while fewer than 3 samples exist, or the room temperature is
+unknown, the max lead is used. The run lives in `Room._preheat_in_progress`
+(`start_time`, `start_temp`, `target_temp`, `until`, `converged`, `measuring`).
+Until `until`, `Room.apply_setpoint` keeps the upcoming setpoint whenever it is
+warmer than the zone's scheduled one, and the room period is `preheat` (room
+period sensor state, panel badge, history timeline). Reaching the target
+(`room_temp ≥ target − PREHEAT_CONVERGENCE_THRESHOLD`) records one sample but
+keeps holding until `until`. Not reached by `until`: the run switches to
+**measuring** (no hold; the zone setpoint is already the target) and records the
+real duration once reached, so a lead that was too short grows. A measuring run
+ends **censored** (elapsed time as a lower bound of the rate) when the zone
+setpoint drops below the target or after 2 × max lead. A start gap under 0.5 °C
+yields no sample. A run whose reason vanished (pre-heat disabled, zone off,
+presence suppressed, occupied time no longer within the max lead) is cancelled
+without a sample. Skipped when the room is already at/above the upcoming
+setpoint; `room_temp` comes from the room temperature sensor, else the first
+TRV. The run is saved to the pre-heat store on each state change (start,
+convergence, measuring, end): a domain rebuild carries it over
+(`carry_preheat_state`) and a restart restores it (`restore_preheat_run`), so
+the hold and the measurement keep their original start time. The status payload
+exposes `preheat_rate`, `preheat_samples` and `preheat_lead` (shown in the room
+card). **Calibration** (`Room.calibrate_trvs`): incremental offset toward the
+room reference sensor. Tado X Radiator Valve X uses the device-based offset
+call; other TRVs use entity-based. Clamped ±5°C with a threshold guard to avoid
+jitter.
 
 ---
 
@@ -203,15 +224,15 @@ covered by a `tado_x` mapping.
 Emitted at `INFO` under `custom_components.climate_manager.*`. Each family is
 anti-spammed — it logs only on a real state change, never every tick.
 
-| Logger           | Format                                                                                          | Fires on                                          |
-| ---------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `zone`           | `zone \| zone=<name> state=<old>[<mode>]→<new>[<mode>] reason=<why>`                            | period or mode change (`time_program:` / `user:`) |
-| `presence`       | `presence \| person=<name> home=<bool> reason=<mode>` / `mode=<old>→<new> reason=user`          | `_last_home` flip / user mode change              |
-| `push`           | `push \| room=<name> trv=<name> temp=<T>°C slot=<period> zone=<name>`                           | setpoint actually sent to a TRV                   |
-| `hold`           | `hold \| trv=<name> reported=<T>°C last=<T>°C slot=<period>`                                    | TRV changed outside Climate Manager (once)        |
-| `preheat`        | `preheat \| room=<id> target=<T>°C until=<HH:MM> lead=<N>min` / `… target reached after <N>min` | pre-heat start / convergence sample               |
-| `online`         | `online \| trv=<name> back online, re-applying setpoint`                                        | TRV available again                               |
-| `timeout` (WARN) | `timeout \| trv=<entity_id> temp=<T>°C after <N>s`                                              | TRV did not answer within `TRV_COMMAND_TIMEOUT`   |
+| Logger           | Format                                                                                       | Fires on                                          |
+| ---------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `zone`           | `zone \| zone=<name> state=<old>[<mode>]→<new>[<mode>] reason=<why>`                         | period or mode change (`time_program:` / `user:`) |
+| `presence`       | `presence \| person=<name> home=<bool> reason=<mode>` / `mode=<old>→<new> reason=user`       | `_last_home` flip / user mode change              |
+| `push`           | `push \| room=<name> trv=<name> temp=<T>°C slot=<period> zone=<name>`                        | setpoint actually sent to a TRV                   |
+| `hold`           | `hold \| trv=<name> reported=<T>°C last=<T>°C slot=<period>`                                 | TRV changed outside Climate Manager (once)        |
+| `preheat`        | `preheat \| room=<id> target=<T>°C until=<HH:MM> lead=<N>min rate=<R>` / `… reached after …` | pre-heat start / sample (or `censored`)           |
+| `online`         | `online \| trv=<name> back online, re-applying setpoint`                                     | TRV available again                               |
+| `timeout` (WARN) | `timeout \| trv=<entity_id> temp=<T>°C after <N>s`                                           | TRV did not answer within `TRV_COMMAND_TIMEOUT`   |
 
 To surface these, set `custom_components.climate_manager: info` (or `debug`)
 under `logger:` in `configuration.yaml` — custom integrations are filtered at
@@ -450,7 +471,7 @@ Panel (mutation)
 | Native select/sensor entities per zone/room  | Recorder history of zone mode, zone period and room period; mode select reuses the WS `set_zone_mode` path                           |
 | `EvalContext` per cycle                      | One object threads `now` + calendar/presence caches through the call chain (D-02)                                                    |
 | OBS-01 anti-spammed logs                     | `zone`/`presence`/`heating` lines fire only on real state changes                                                                    |
-| Pre-heat learned lead                        | Average of last 5 convergence samples per room; bounded by max lead; skipped when room already warm                                  |
+| Pre-heat learned inertia                     | Median rate (min/°C) of the last 7 samples × gap × 1.1, bounded [10, max lead]; censored samples avoid a short bias; run persisted   |
 | Calendar cache per cycle                     | One `get_events` call per unique calendar entity per minute tick                                                                     |
 | WebSocket over REST                          | Session already established; no auth token management from JS                                                                        |
 | Lit bundled in panel.js                      | Avoids HA Lit version conflicts; larger bundle is acceptable trade-off                                                               |

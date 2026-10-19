@@ -78,12 +78,18 @@ TRV_COMMAND_TIMEOUT: float = 30
 # Sparse room key (still per-room):
 #   preheat_max_lead_minutes (int, absent=DEFAULT_PREHEAT_MAX_LEAD_MINUTES)
 DEFAULT_PREHEAT_MAX_LEAD_MINUTES: int = 120  # D-01 / PREHEAT-01
-# Min valid samples before learned lead is preferred over default (D-08)
+# Min samples before the learned heating rate replaces the max lead (D-08)
 PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD: int = 3
-# Max stored samples per room (D-08)
-PREHEAT_MAX_SAMPLES: int = 5
+# Samples kept per room; the learned rate is their median (D-08)
+PREHEAT_MAX_SAMPLES: int = 7
 # °C tolerance for convergence detection (D-09)
 PREHEAT_CONVERGENCE_THRESHOLD: float = 0.2
+# Safety margin added to the learned lead (rate × gap × (1 + margin))
+PREHEAT_LEAD_MARGIN: float = 0.1
+# Shortest lead: radiator warm-up time even for a tiny gap
+PREHEAT_MIN_LEAD_MINUTES: int = 10
+# Smallest start gap (°C) that yields a meaningful rate sample
+PREHEAT_MIN_SAMPLE_DELTA: float = 0.5
 
 GAP_HANDLING_EXACT = "exact"
 GAP_HANDLING_DAY_SPAN = "day_span"

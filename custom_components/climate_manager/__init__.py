@@ -44,7 +44,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Callable
 
-from homeassistant.components import panel_custom
+from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -61,6 +61,7 @@ from .discovery import (
     suggest_matter_mappings,
 )
 from .entity import async_sync_devices
+from .preheat import PreheatStore, empty_preheat_data
 from .storage import ClimateManagerStore
 from . import websocket as cm_ws
 from .const import DOMAIN
@@ -109,12 +110,11 @@ class ClimateManagerData:
     cancel_registry_listeners: "list[Callable[[], None]]" = field(
         default_factory=list
     )
-    # Phase 12 pre-heat store + in-memory samples (D-06).
-    # preheat_store: the Store instance for persisting inertia samples.
-    # preheat_samples: per-room sample lists {area_id: [{duration_minutes,
-    #   timestamp}, ...]} loaded at setup and written only on sample change.
+    # Pre-heat store + in-memory data (preheat.py for the layout):
+    # {"rooms": {area_id: {"samples": [...], "run": {...} | None}}}.
+    # Loaded at setup; written on sample / run state change only.
     preheat_store: "Store | None" = field(default=None)
-    preheat_samples: dict = field(default_factory=dict)
+    preheat_data: dict = field(default_factory=empty_preheat_data)
     # Config entry id — needed to resolve entity unique_ids (entity.py) when
     # the status payload exposes entity_ids to the panel.
     entry_id: str | None = field(default=None)
@@ -168,10 +168,11 @@ async def async_setup_entry(
     # Phase 12: wire preheat Store and load sample data (D-06).
     # key="climate_manager_preheat" — separate from main Store to keep
     # sample data isolated from room/person config (RESEARCH Open Q2).
-    preheat_store = Store(hass, version=1, key="climate_manager_preheat")
-    preheat_samples: dict = await preheat_store.async_load() or {}
+    preheat_store = PreheatStore(hass)
     entry.runtime_data.preheat_store = preheat_store
-    entry.runtime_data.preheat_samples = preheat_samples
+    entry.runtime_data.preheat_data = (
+        await preheat_store.async_load() or empty_preheat_data()
+    )
 
     # Phase 2: wire coordinator and scheduler
     coordinator = ClimateManagerCoordinator(hass, entry.runtime_data)
@@ -380,5 +381,8 @@ async def async_unload_entry(
             cancel()
         coordinator._matter_cal_listeners.clear()
         coordinator.cancel_availability_listeners()
+
+    # Drop the sidebar panel so a reload can register it again.
+    frontend.async_remove_panel(hass, DOMAIN, warn_if_unknown=False)
 
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

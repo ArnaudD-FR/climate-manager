@@ -7,6 +7,8 @@ Tests cover:
 - Coordinator _async_preheat pass: trigger, frost-lock guard, default lead,
   learned lead, convergence sample recording, discard, suppression, status
   payload fields (Plan 02, Task 2)
+- Inertia model (preheat.py): rate-based lead, measuring past the occupied
+  time, censored samples, run persistence across a restart
 
 Plan 01 tests are pure Python (no hass fixture).
 Plan 02 coordinator tests use the hass fixture and MockConfigEntry pattern
@@ -22,10 +24,15 @@ from pytest_homeassistant_custom_component.common import (
     async_mock_service,
 )
 
+from custom_components.climate_manager.preheat import (
+    compute_lead,
+    empty_preheat_data,
+    learned_rate,
+    make_sample,
+)
 from custom_components.climate_manager.schedule import next_occupied_at
 from custom_components.climate_manager.const import (
     DEFAULT_PERIOD_TEMPERATURES,
-    DEFAULT_PREHEAT_LEAD_MINUTES,
     DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
     DOMAIN,
     MODE_TIME_PROGRAM_PRESENCES,
@@ -409,14 +416,14 @@ def _make_mock_data(
     *,
     runtime_config: dict,
     rooms: dict,
-    preheat_samples: dict | None = None,
+    preheat_data: dict | None = None,
 ) -> MagicMock:
     """Build a mock ClimateManagerData suitable for coordinator init."""
     data = MagicMock()
     data.runtime_config = runtime_config
     data.rooms = rooms
     data.room_auto_sensors = {}
-    data.preheat_samples = preheat_samples or {}
+    data.preheat_data = preheat_data or empty_preheat_data()
     data.preheat_store = AsyncMock()
     data.preheat_store.async_save = AsyncMock()
     return data
@@ -574,75 +581,56 @@ async def test_preheat_respects_frost_lock(hass):
 
 
 # ---------------------------------------------------------------------------
-# Test: default lead 60 min used when < 3 valid samples (D-08)
+# Test: inertia model — learned rate and lead (preheat.py)
 # ---------------------------------------------------------------------------
+
+
+def _rate_samples(*rates: float) -> list[dict]:
+    return [{"rate": r, "censored": False} for r in rates]
 
 
 def test_default_lead_time():
-    """With 1 valid sample (< threshold=3), learned lead = DEFAULT 60 min.
+    """Fewer than 3 samples, or unknown room temp → max lead."""
+    max_lead = DEFAULT_PREHEAT_MAX_LEAD_MINUTES
+    assert learned_rate(_rate_samples(10, 12)) is None
+    assert compute_lead(None, 3.0, max_lead) == max_lead
+    assert compute_lead(10.0, None, max_lead) == max_lead
 
-    This is a pure-Python test; no hass needed.
-    Lead window: [07:00 - 60min, 07:00) = [06:00, 07:00).
-    now=06:30 → inside the window.
-    """
-    now = datetime.datetime(2026, 6, 1, 6, 30, tzinfo=datetime.timezone.utc)
-    next_occ = datetime.datetime(2026, 6, 1, 7, 0, tzinfo=datetime.timezone.utc)
-    samples = [{"duration_minutes": 30, "timestamp": "2026-05-01T10:00:00"}]
 
-    # With 1 sample < threshold=3, lead = DEFAULT_PREHEAT_LEAD_MINUTES (60)
-    from custom_components.climate_manager.const import (
-        PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD,
+def test_learned_rate_is_median_of_last_samples():
+    """Median of the last 7 rates: one odd day does not move it."""
+    assert learned_rate(_rate_samples(10, 12, 11)) == 11
+    assert learned_rate(_rate_samples(10, 12, 11, 90)) == 11.5
+    # Only the last 7 count: the three 100s drop out.
+    assert learned_rate(_rate_samples(100, 100, 100, *[10] * 7)) == 10
+
+
+def test_lead_formula_and_bounds():
+    """lead = rate × gap × 1.1, bounded to [10, max lead]."""
+    assert compute_lead(10.0, 3.0, 120) == pytest.approx(33.0)
+    # Colder room → longer lead for the same learned rate.
+    assert compute_lead(10.0, 5.0, 120) > compute_lead(10.0, 3.0, 120)
+    # Tiny / negative gap → minimum lead; huge gap → max lead.
+    assert compute_lead(10.0, 0.2, 120) == 10
+    assert compute_lead(10.0, -1.0, 120) == 10
+    assert compute_lead(30.0, 5.0, 120) == 120
+
+
+def test_make_sample():
+    """rate = duration / gap; no sample for a gap under 0.5 °C."""
+    t0 = _dt(2026, 6, 1, 6, 0)
+    sample = make_sample(t0, _dt(2026, 6, 1, 6, 45), 17.0, 20.0, censored=False)
+    assert sample["duration_minutes"] == 45
+    assert sample["rate"] == 15.0
+    assert sample["censored"] is False
+    assert (
+        make_sample(t0, _dt(2026, 6, 1, 6, 45), 19.6, 20.0, censored=False)
+        is None
     )
-
-    lead = DEFAULT_PREHEAT_LEAD_MINUTES  # fallback
-    if len(samples) >= PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD:
-        import statistics
-
-        lead = min(
-            statistics.mean(s["duration_minutes"] for s in samples),
-            DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
-        )
-
-    trigger_start = next_occ - datetime.timedelta(minutes=lead)
-    assert trigger_start <= now < next_occ
-    assert lead == DEFAULT_PREHEAT_LEAD_MINUTES
-
-
-# ---------------------------------------------------------------------------
-# Test: learned lead = avg of last 5 capped at max (D-08)
-# ---------------------------------------------------------------------------
-
-
-def test_learned_lead_average():
-    """With >= 3 valid samples, learned lead = average, capped at max (D-08)."""
-    import statistics
-    from custom_components.climate_manager.const import (
-        PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD,
+    assert (
+        make_sample(t0, _dt(2026, 6, 1, 6, 45), None, 20.0, censored=True)
+        is None
     )
-
-    # 5 samples: average = 110 min, which exceeds DEFAULT_PREHEAT_MAX_LEAD_MINUTES=120
-    # wait — 110 < 120 so no cap needed
-    samples = [
-        {"duration_minutes": 100, "timestamp": "t1"},
-        {"duration_minutes": 110, "timestamp": "t2"},
-        {"duration_minutes": 115, "timestamp": "t3"},
-        {"duration_minutes": 105, "timestamp": "t4"},
-        {"duration_minutes": 120, "timestamp": "t5"},
-    ]
-    assert len(samples) >= PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD
-    avg = statistics.mean(s["duration_minutes"] for s in samples)
-    lead = min(avg, DEFAULT_PREHEAT_MAX_LEAD_MINUTES)
-    assert lead == min(110.0, DEFAULT_PREHEAT_MAX_LEAD_MINUTES)
-
-    # Verify cap: samples averaging above max_lead
-    samples_high = [
-        {"duration_minutes": 130, "timestamp": "t1"},
-        {"duration_minutes": 140, "timestamp": "t2"},
-        {"duration_minutes": 150, "timestamp": "t3"},
-    ]
-    avg_high = statistics.mean(s["duration_minutes"] for s in samples_high)
-    lead_high = min(avg_high, DEFAULT_PREHEAT_MAX_LEAD_MINUTES)
-    assert lead_high == DEFAULT_PREHEAT_MAX_LEAD_MINUTES
 
 
 # ---------------------------------------------------------------------------
@@ -688,7 +676,6 @@ async def test_sample_recorded_on_convergence(hass):
     data = _make_mock_data(
         runtime_config=config,
         rooms={"study": ["climate.study_trv"]},
-        preheat_samples={"study": []},
     )
 
     from custom_components.climate_manager.eval_context import EvalContext
@@ -706,9 +693,11 @@ async def test_sample_recorded_on_convergence(hass):
     if study_room is not None:
         study_room._preheat_in_progress = {
             "start_time": start_time,
+            "start_temp": 17.0,
             "target_temp": target_temp,
             "until": start_time + datetime.timedelta(hours=1),
             "converged": False,
+            "measuring": False,
         }
 
     ctx = EvalContext(
@@ -721,9 +710,10 @@ async def test_sample_recorded_on_convergence(hass):
     await hass.async_block_till_done()
 
     # Sample should be recorded
-    samples = data.preheat_samples.get("study", [])
+    samples = data.preheat_data["rooms"]["study"]["samples"]
     assert len(samples) == 1
     assert samples[0]["duration_minutes"] == 50  # 06:50 - 06:00
+    assert samples[0]["rate"] == pytest.approx(16.67)  # 50 min / 3 °C
     assert "timestamp" in samples[0]
 
     # Run converged (held) or ended — never left unconverged
@@ -732,7 +722,7 @@ async def test_sample_recorded_on_convergence(hass):
     assert not ip or ip["converged"]
 
     # Store saved
-    data.preheat_store.async_save.assert_called_once()
+    data.preheat_store.async_save.assert_called()
 
 
 # ---------------------------------------------------------------------------
@@ -740,14 +730,12 @@ async def test_sample_recorded_on_convergence(hass):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.freeze_time("2026-06-01 07:05:00")
+@pytest.mark.freeze_time("2026-06-01 06:30:00")
 async def test_sample_discarded_when_period_starts(hass):
     """In-progress room; next_occupied is None (force_absent person) and temp
-    not reached — entry should be discarded without recording a sample.
+    not reached — the run is cancelled without recording a sample.
 
-    Expected: entry discarded, no sample recorded, no store save.
-    This exercises the D-07 / D-09 discard condition:
-    next_occupied is None → discard immediately.
+    Expected: run cleared (also in the store), no sample recorded.
     """
     from custom_components.climate_manager.coordinator import (
         ClimateManagerCoordinator,
@@ -787,7 +775,6 @@ async def test_sample_discarded_when_period_starts(hass):
     data = _make_mock_data(
         runtime_config=config,
         rooms={"kitchen": ["climate.kitchen_trv"]},
-        preheat_samples={"kitchen": []},
     )
 
     from custom_components.climate_manager.eval_context import EvalContext
@@ -797,7 +784,7 @@ async def test_sample_discarded_when_period_starts(hass):
     if kitchen_room is not None:
         kitchen_room._frost_locked = False
 
-    now = datetime.datetime(2026, 6, 1, 7, 5, tzinfo=datetime.timezone.utc)
+    now = datetime.datetime(2026, 6, 1, 6, 30, tzinfo=datetime.timezone.utc)
     start_time = datetime.datetime(
         2026, 6, 1, 6, 0, tzinfo=datetime.timezone.utc
     )
@@ -805,9 +792,11 @@ async def test_sample_discarded_when_period_starts(hass):
     if kitchen_room is not None:
         kitchen_room._preheat_in_progress = {
             "start_time": start_time,
+            "start_temp": current_temp,
             "target_temp": target_temp,
             "until": start_time + datetime.timedelta(hours=1),
             "converged": False,
+            "measuring": False,
         }
 
     ctx = EvalContext(
@@ -820,14 +809,12 @@ async def test_sample_discarded_when_period_starts(hass):
     await hass.async_block_till_done()
 
     # No sample recorded (discard rule D-07)
-    samples = data.preheat_samples.get("kitchen", [])
-    assert len(samples) == 0
+    entry = data.preheat_data["rooms"]["kitchen"]
+    assert entry["samples"] == []
 
-    # In-progress entry cleared (discarded)
+    # In-progress entry cleared (discarded), also in the store
     assert kitchen_room is not None and not kitchen_room._preheat_in_progress
-
-    # Store NOT saved (no sample added)
-    data.preheat_store.async_save.assert_not_called()
+    assert entry["run"] is None
 
 
 # ---------------------------------------------------------------------------

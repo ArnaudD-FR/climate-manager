@@ -162,6 +162,18 @@ export interface RoomStatus {
    * (no person schedule — presence-only suppression).
    */
   preheat_suppressed?: boolean;
+  /**
+   * Learned heating rate in minutes per °C (median of the last samples).
+   * Null while learning (fewer than 3 samples).
+   */
+  preheat_rate?: number | null;
+  /** Number of stored pre-heat samples for the room. */
+  preheat_samples?: number;
+  /**
+   * Lead (minutes) computed for the next occupied time; null when no
+   * pre-heat is expected.
+   */
+  preheat_lead?: number | null;
 }
 
 /** Per-zone live status entry inside StatusPayload.zones. */

@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import statistics
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
@@ -34,12 +33,20 @@ from .const import (
     PERIOD_FROST_PROTECTION,
     PERIOD_PREHEAT,
     PREHEAT_CONVERGENCE_THRESHOLD,
-    PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD,
-    PREHEAT_MAX_SAMPLES,
     PRESENCE_ABSENT,
     PRESENCE_HA,
     PRESENCE_PRESENT,
     TRV_COMMAND_TIMEOUT,
+)
+from .preheat import (
+    add_sample,
+    compute_lead,
+    learned_rate,
+    make_sample,
+    measure_cap,
+    room_entry,
+    run_from_json,
+    run_to_json,
 )
 from .schedule import (
     evaluate_schedule,
@@ -118,11 +125,17 @@ class Room:
         self._preheat_active: bool = False
         self._preheat_target: float | None = None
         self._preheat_suppressed: bool = False
-        # Running pre-heat, or empty dict:
-        # {start_time: datetime, target_temp: float, until: datetime,
-        #  converged: bool}. While set and before `until`, apply_setpoint
-        # holds target_temp (when warmer than the scheduled setpoint).
+        # Running pre-heat, or empty dict (layout in preheat.py "run"):
+        # {start_time, start_temp, target_temp, until, converged, measuring}.
+        # Before `until` (and not measuring) apply_setpoint holds
+        # target_temp when warmer than the scheduled setpoint. Persisted in
+        # the pre-heat Store so it survives a restart.
         self._preheat_in_progress: dict = {}
+        # Lead (minutes) computed at the last pre-heat pass, for status.
+        self._preheat_lead: float | None = None
+        # Last setpoint actually applied (zone or pre-heat). A measuring run
+        # ends when the zone setpoint drops below its target.
+        self._last_setpoint: float | None = None
 
         # ---------------------------------------------------------------
         # Frost-lock flag — set at zone evaluation time (coordinator
@@ -161,11 +174,17 @@ class Room:
         "preheat" period — the zone evaluation never undoes a pre-heat.
         """
         ip = self._preheat_in_progress
-        if ip and ctx.now < ip["until"] and ip["target_temp"] > temp:
+        if (
+            ip
+            and not ip["measuring"]
+            and ctx.now < ip["until"]
+            and ip["target_temp"] > temp
+        ):
             period, temp = PERIOD_PREHEAT, ip["target_temp"]
         # Record the effective period for status display before any early
         # return so even TRV-less rooms surface the correct badge.
         self._last_period = period
+        self._last_setpoint = temp
         if not self._trv_groups:
             return
         await asyncio.gather(
@@ -175,6 +194,7 @@ class Room:
     async def apply_off(self, frost_temp: float, ctx: "EvalContext") -> None:
         """Push MODE_OFF to all TRV groups: off for off-capable, frost for others."""
         self._last_period = PERIOD_FROST_PROTECTION
+        self._last_setpoint = frost_temp
         if not self._trv_groups:
             return
         await asyncio.gather(
@@ -184,6 +204,55 @@ class Room:
     # -------------------------------------------------------------------
     # Preheat pass (migrated from coordinator._async_preheat_room)
     # -------------------------------------------------------------------
+
+    def _preheat_store_entry(self) -> dict | None:
+        """This room's persisted pre-heat entry (samples + run), or None."""
+        data = getattr(self._hass, "_climate_manager_data", None)
+        preheat_data = getattr(data, "preheat_data", None)
+        if not isinstance(preheat_data, dict):
+            return None
+        return room_entry(preheat_data, self.area_id)
+
+    async def _save_preheat(self, sample: dict | None = None) -> None:
+        """Persist the running pre-heat (and a new sample, if any)."""
+        entry = self._preheat_store_entry()
+        if entry is None:
+            return
+        if sample is not None:
+            add_sample(entry, sample)
+        entry["run"] = run_to_json(self._preheat_in_progress)
+        data = getattr(self._hass, "_climate_manager_data", None)
+        store = getattr(data, "preheat_store", None)
+        if store is not None:
+            await store.async_save(data.preheat_data)
+
+    def restore_preheat_run(self) -> None:
+        """Resume a pre-heat persisted before a restart."""
+        entry = self._preheat_store_entry()
+        if entry is None:
+            return
+        self._preheat_in_progress = run_from_json(entry.get("run"))
+        ip = self._preheat_in_progress
+        if ip and not ip["measuring"]:
+            self._preheat_active = True
+            self._preheat_target = ip["target_temp"]
+
+    def learned_rate(self) -> float | None:
+        """Learned heating rate (min/°C), or None while learning."""
+        entry = self._preheat_store_entry()
+        return learned_rate(entry["samples"]) if entry is not None else None
+
+    def preheat_sample_count(self) -> int:
+        """Number of stored pre-heat samples for this room."""
+        entry = self._preheat_store_entry()
+        return len(entry["samples"]) if entry is not None else 0
+
+    async def _end_preheat(self, sample: dict | None = None) -> None:
+        """End the running pre-heat, persisting the outcome."""
+        had_run = bool(self._preheat_in_progress)
+        self._clear_preheat()
+        if had_run or sample is not None:
+            await self._save_preheat(sample)
 
     def _clear_preheat(self) -> None:
         """Stop any pre-heat; the next zone push restores the schedule."""
@@ -197,6 +266,8 @@ class Room:
         self._preheat_target = old._preheat_target
         self._preheat_suppressed = old._preheat_suppressed
         self._preheat_in_progress = old._preheat_in_progress
+        self._preheat_lead = old._preheat_lead
+        self._last_setpoint = old._last_setpoint
 
     def _room_temperature(self, config: dict) -> float | None:
         """Current room temperature: room sensor first, else the first TRV.
@@ -237,20 +308,23 @@ class Room:
     async def compute_preheat(self, ctx: "EvalContext") -> None:
         """Pre-heat logic for this room (runs after the zone pushes).
 
-        Lifecycle:
-        1. TRIGGER: inside the learned lead window before the next occupied
-           time (scheduled person arrival, else the next zone setpoint
-           increase), push the upcoming setpoint and record the run in
-           _preheat_in_progress (until = that occupied time).
-        2. HOLD: until then, apply_setpoint keeps the upcoming setpoint on
-           every tick, so the zone schedule never undoes the pre-heat.
-        3. CONVERGENCE: the room reaching the target records one lead-time
-           sample (PREHEAT-03); the setpoint is still held until `until`.
-        4. END: at the occupied time the zone setpoint takes over. A run
-           that never reached its target is discarded without a sample
-           (T-16-09). A run whose reason vanished (preheat disabled, zone
-           off, presence suppressed, occupied time no longer imminent) is
-           cancelled.
+        Lifecycle of a run (_preheat_in_progress, persisted):
+        1. TRIGGER: inside the lead window before the next occupied time
+           (scheduled person arrival, else the next zone setpoint
+           increase). Lead = learned rate (min/°C) × gap to the upcoming
+           setpoint × (1 + margin), bounded [min lead, max lead]; max lead
+           while learning. Pushes the upcoming setpoint at once.
+        2. HOLD: until the occupied time, apply_setpoint keeps the upcoming
+           setpoint, so the zone schedule never undoes the pre-heat.
+        3. CONVERGENCE (room sensor within threshold of the target): one
+           rate sample; the setpoint is still held until the occupied time.
+        4. MEASURING: not converged at the occupied time — the zone
+           setpoint takes over and the run keeps timing until the target is
+           reached (real duration, may exceed the lead → the lead grows).
+           Ends censored (elapsed time as a lower bound) when the zone
+           setpoint drops below the target or after 2 × max lead.
+        5. CANCEL: pre-heat disabled, zone off, presence suppressed, or the
+           occupied time no longer within max lead — no sample.
         """
         if self._hass is None or ctx is None:
             return
@@ -267,8 +341,9 @@ class Room:
         )
 
         if not preheat_enabled or zone_mode == MODE_OFF:
-            self._clear_preheat()
+            await self._end_preheat()
             self._preheat_suppressed = False
+            self._preheat_lead = None
             return
 
         # Room config for max lead; read from coordinator data via hass
@@ -285,6 +360,63 @@ class Room:
 
         now = ctx.now
         current_temp = self._room_temperature(config)
+
+        # ----------------------------------------------------------------
+        # Running pre-heat: convergence, measuring, hold, cancel
+        # ----------------------------------------------------------------
+        ip = self._preheat_in_progress
+        if ip:
+            reached = (
+                current_temp is not None
+                and current_temp
+                >= ip["target_temp"] - PREHEAT_CONVERGENCE_THRESHOLD
+            )
+            if reached and not ip["converged"]:
+                ip["converged"] = True
+                sample = make_sample(
+                    ip["start_time"],
+                    now,
+                    ip["start_temp"],
+                    ip["target_temp"],
+                    censored=False,
+                )
+                self._log_sample(sample, "reached")
+                if ip["measuring"]:
+                    await self._end_preheat(sample)
+                    return
+                await self._save_preheat(sample)
+
+            if ip["measuring"]:
+                setpoint_dropped = (
+                    self._last_setpoint is not None
+                    and self._last_setpoint
+                    < ip["target_temp"] - PREHEAT_CONVERGENCE_THRESHOLD
+                )
+                if setpoint_dropped or (
+                    now - ip["start_time"] > measure_cap(preheat_max_lead)
+                ):
+                    sample = make_sample(
+                        ip["start_time"],
+                        now,
+                        ip["start_temp"],
+                        ip["target_temp"],
+                        censored=True,
+                    )
+                    self._log_sample(sample, "not reached, censored")
+                    await self._end_preheat(sample)
+                return
+
+            if now >= ip["until"]:
+                if ip["converged"]:
+                    await self._end_preheat()
+                else:
+                    # Occupied time reached first: keep timing (no hold).
+                    ip["measuring"] = True
+                    self._preheat_active = False
+                    self._preheat_target = None
+                    await self._save_preheat()
+                    return
+                # fall through: maybe a later occupancy is already due
 
         # ----------------------------------------------------------------
         # Next occupied time: earliest scheduled arrival, else the next
@@ -340,36 +472,21 @@ class Room:
         )
         self._preheat_suppressed = next_occupied is None or presence_suppressed
 
-        # ----------------------------------------------------------------
-        # Running pre-heat: END / CONVERGENCE / HOLD
-        # ----------------------------------------------------------------
         ip = self._preheat_in_progress
         if ip:
-            # CONVERGENCE first: reaching the target is a valid lead-time
-            # sample even on the tick the run ends.
             if (
-                not ip["converged"]
-                and current_temp is not None
-                and current_temp
-                >= ip["target_temp"] - PREHEAT_CONVERGENCE_THRESHOLD
-            ):
-                ip["converged"] = True
-                await self._record_preheat_sample(ip["start_time"], now)
-            max_lead = timedelta(minutes=preheat_max_lead)
-            if (
-                now >= ip["until"]
-                or next_occupied is None
+                next_occupied is None
                 or presence_suppressed
                 or self._frost_locked
-                or next_occupied - now > max_lead
+                or next_occupied - now > timedelta(minutes=preheat_max_lead)
             ):
-                # Occupied time reached (zone setpoint takes over) or the
-                # pre-heat lost its reason. Unconverged runs are discarded
-                # without a sample (T-16-09 / PREHEAT-03).
-                self._clear_preheat()
+                # The pre-heat lost its reason: cancel, no sample.
+                await self._end_preheat()
             else:
-                # Follow a moved occupied time (e.g. edited schedule).
-                ip["until"] = next_occupied
+                # HOLD — follow a moved occupied time (edited schedule).
+                if ip["until"] != next_occupied:
+                    ip["until"] = next_occupied
+                    await self._save_preheat()
                 self._preheat_active = True
                 self._preheat_target = ip["target_temp"]
                 return
@@ -379,31 +496,28 @@ class Room:
         # ----------------------------------------------------------------
         if next_occupied is None or presence_suppressed or self._frost_locked:
             self._preheat_active = False
-            return
-
-        # Compute learned lead.
-        data = getattr(self._hass, "_climate_manager_data", None)
-        samples = (
-            data.preheat_samples.get(self.area_id, [])
-            if data is not None
-            else []
-        )
-        if len(samples) >= PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD:
-            avg = statistics.mean(s["duration_minutes"] for s in samples)
-            learned_lead = min(avg, preheat_max_lead)
-        else:
-            learned_lead = preheat_max_lead
-
-        trigger_start = next_occupied - timedelta(minutes=learned_lead)
-
-        if not (trigger_start <= now < next_occupied):
-            self._preheat_active = False
+            self._preheat_lead = None
             return
 
         # Determine the upcoming setpoint.
         upcoming_period = evaluate_schedule(time_program, next_occupied)
         upcoming_setpoint = period_temperatures.get(upcoming_period)
         if upcoming_setpoint is None:
+            self._preheat_active = False
+            self._preheat_lead = None
+            return
+
+        rate = self.learned_rate()
+        delta = (
+            upcoming_setpoint - current_temp
+            if current_temp is not None
+            else None
+        )
+        lead = compute_lead(rate, delta, preheat_max_lead)
+        self._preheat_lead = lead
+
+        trigger_start = next_occupied - timedelta(minutes=lead)
+        if not (trigger_start <= now < next_occupied):
             self._preheat_active = False
             return
 
@@ -432,51 +546,41 @@ class Room:
         # apply_setpoint.
         self._preheat_in_progress = {
             "start_time": now,
+            "start_temp": current_temp,
             "target_temp": upcoming_setpoint,
             "until": next_occupied,
             "converged": False,
+            "measuring": False,
         }
         self._preheat_active = True
         self._preheat_target = upcoming_setpoint
         _LOGGER.info(
-            "preheat | room=%s target=%s°C until=%s lead=%smin",
+            "preheat | room=%s target=%s°C until=%s lead=%smin rate=%s",
             self.area_id,
             upcoming_setpoint,
             next_occupied.strftime("%H:%M"),
-            round(learned_lead),
+            round(lead),
+            f"{rate}min/°C" if rate is not None else "learning",
         )
+        await self._save_preheat()
         await self.apply_setpoint(PERIOD_PREHEAT, upcoming_setpoint, ctx)
 
-    async def _record_preheat_sample(
-        self, start_time: datetime, now: datetime
-    ) -> None:
-        """Store one lead-time sample (minutes to reach the target)."""
-        duration_min = int((now - start_time).total_seconds() / 60)
-        # WR-03: skip zero-duration samples (same-tick convergence).
-        if duration_min < 1:
+    def _log_sample(self, sample: dict | None, outcome: str) -> None:
+        """INFO log for a finished measurement (sample may be None)."""
+        if sample is None:
+            _LOGGER.info(
+                "preheat | room=%s %s (gap too small, no sample)",
+                self.area_id,
+                outcome,
+            )
             return
         _LOGGER.info(
-            "preheat | room=%s target reached after %smin",
+            "preheat | room=%s %s after %smin (%s min/°C)",
             self.area_id,
-            duration_min,
+            outcome,
+            sample["duration_minutes"],
+            sample["rate"],
         )
-        data = getattr(self._hass, "_climate_manager_data", None)
-        if data is None:
-            return
-        samples = data.preheat_samples.setdefault(self.area_id, [])
-        samples.append(
-            {
-                "duration_minutes": duration_min,
-                "timestamp": now.isoformat(),
-            }
-        )
-        # Keep only last PREHEAT_MAX_SAMPLES (D-06)
-        if len(samples) > PREHEAT_MAX_SAMPLES:
-            data.preheat_samples[self.area_id] = samples[-PREHEAT_MAX_SAMPLES:]
-        # Persist on sample change (T-12-05 — bounded write rate).
-        preheat_store = getattr(data, "preheat_store", None)
-        if preheat_store is not None:
-            await preheat_store.async_save(data.preheat_samples)
 
     # -------------------------------------------------------------------
     # Calibration pass (migrated from coordinator._async_calibrate_room)

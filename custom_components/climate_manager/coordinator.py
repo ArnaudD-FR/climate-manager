@@ -105,7 +105,7 @@ class ClimateManagerCoordinator:
         self._hass = hass
         self._data = data
         # Expose data on hass so Room.compute_preheat / calibrate_trvs can read
-        # runtime_config and preheat_samples without a coordinator reference.
+        # runtime_config and preheat_data without a coordinator reference.
         self._hass._climate_manager_data = self._data
         # D-09 domain objects — instantiated from config at init and rebuilt
         # on config change (fingerprint-based, T-16-13).
@@ -293,11 +293,14 @@ class ClimateManagerCoordinator:
                 person._last_home = old_p._last_home
 
         # Carry forward running pre-heats so a config edit doesn't restart
-        # them (and corrupt the lead-time sample).
+        # them (and corrupt the rate sample). A room seen for the first time
+        # (startup) resumes the run persisted before the restart.
         for area_id, room in rooms.items():
             old_room = self._rooms.get(area_id)
             if old_room is not None:
                 room.carry_preheat_state(old_room)
+            else:
+                room.restore_preheat_run()
 
         # Carry forward TRV push state so a config edit doesn't re-force a
         # push to every valve. Only TRVs new to the graph get a forced push.
@@ -1123,6 +1126,19 @@ class ClimateManagerCoordinator:
                 _room_obj._preheat_suppressed
                 if _room_obj is not None
                 else False
+            )
+            # Learned inertia: rate (min/°C, None while learning), sample
+            # count and the lead computed at the last pre-heat pass.
+            room_entry["preheat_rate"] = (
+                _room_obj.learned_rate() if _room_obj is not None else None
+            )
+            room_entry["preheat_samples"] = (
+                _room_obj.preheat_sample_count() if _room_obj is not None else 0
+            )
+            room_entry["preheat_lead"] = (
+                round(_room_obj._preheat_lead)
+                if _room_obj is not None and _room_obj._preheat_lead is not None
+                else None
             )
 
             auto = self._data.room_auto_sensors.get(area_id, {})
