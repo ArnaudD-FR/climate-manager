@@ -292,6 +292,13 @@ class ClimateManagerCoordinator:
             if old_p is not None and old_p._last_home is not None:
                 person._last_home = old_p._last_home
 
+        # Carry forward running pre-heats so a config edit doesn't restart
+        # them (and corrupt the lead-time sample).
+        for area_id, room in rooms.items():
+            old_room = self._rooms.get(area_id)
+            if old_room is not None:
+                room.carry_preheat_state(old_room)
+
         # Carry forward TRV push state so a config edit doesn't re-force a
         # push to every valve. Only TRVs new to the graph get a forced push.
         old_trvs = {trv.entity_id: trv for trv in self._iter_trvs()}
@@ -531,6 +538,12 @@ class ClimateManagerCoordinator:
                     "Zone %s evaluation failed: %r", zone_id, result
                 )
 
+        # Per-room pre-heat pass (D-09), right after the zone pushes and
+        # before the status snapshot so a pre-heat started this tick shows
+        # up at once. Room.compute_preheat owns all preheat state (D-06).
+        for room in self._rooms.values():
+            await room.compute_preheat(ctx)
+
         # Warn via persistent notification when an ha-mode person has no tracker.
         self._check_ha_tracker_warnings(config)
 
@@ -574,12 +587,8 @@ class ClimateManagerCoordinator:
         if not self._matter_cal_listeners:
             await self._async_refresh_matter_listeners()
 
-        # Per-room preheat and calibration passes (D-09).
-        # Room.compute_preheat owns all preheat state (D-06 migration).
-        # _async_calibrate handles Tado X device-level calibration separately.
-        for room in self._rooms.values():
-            await room.compute_preheat(ctx)
-
+        # Calibration pass (D-09). Tado X device-level calibration is
+        # handled by _async_calibrate.
         await self._async_calibrate(config, ctx)
 
         # RESEARCH Open Question 1: fire status AFTER preheat/calibrate passes

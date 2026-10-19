@@ -32,6 +32,9 @@ PERIOD_FROST_PROTECTION = "frost_protection"
 PERIOD_REDUCED = "reduced"
 PERIOD_NORMAL = "normal"
 PERIOD_COMFORT = "comfort"
+# Room-only effective period while pre-heat holds the upcoming setpoint
+# ahead of the next occupied time. Not a schedulable period.
+PERIOD_PREHEAT = "preheat"
 
 # Ordered enums — select options / enum sensor options and WS schema gates.
 VALID_MODES: list[str] = [

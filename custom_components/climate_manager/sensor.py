@@ -4,8 +4,9 @@
 - Zone period: the zone time program's period (frost_protection when the
   zone is off). One per zone, on the zone device.
 - Room period: the room's effective period after presence resolution
-  (in time_program_presences mode rooms of one zone can differ). One per
-  managed room, on the room device.
+  (in time_program_presences mode rooms of one zone can differ), or
+  "preheat" while pre-heat holds the upcoming setpoint. One per managed
+  room, on the room device.
 
 Both are enum sensors so the history panel renders them as a timeline.
 Values are re-read from the coordinator's live domain objects by id on
@@ -22,7 +23,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import VALID_PERIODS
+from .const import PERIOD_PREHEAT, VALID_PERIODS
 from .entity import (
     ClimateManagerEntity,
     async_add_entities_for_ids,
@@ -104,9 +105,10 @@ class ZonePeriodSensor(_PeriodSensor):
 
 
 class RoomPeriodSensor(_PeriodSensor):
-    """Room effective period (presence-resolved)."""
+    """Room effective period (presence-resolved, or pre-heat)."""
 
     _attr_translation_key = "room_period"
+    _attr_options = [*VALID_PERIODS, PERIOD_PREHEAT]
 
     def __init__(
         self,
@@ -130,3 +132,9 @@ class RoomPeriodSensor(_PeriodSensor):
     def _period(self) -> str | None:
         room = self.coordinator.rooms.get(self._area_id)
         return room.current_period if room is not None else None
+
+    @property
+    def native_value(self) -> str | None:
+        """Room period, including "preheat" while pre-heat holds."""
+        period = self._period()
+        return period if period in self._attr_options else None

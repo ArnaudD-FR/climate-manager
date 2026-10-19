@@ -116,12 +116,13 @@ never pile up and no trigger is lost. Each run is `_async_evaluate_once()`:
      → ZoneMode.evaluate resolves the period and every room's setpoint,
        then gather(room.apply_setpoint(period, temp, ctx) for its rooms)
          → TRVGroup.push → gather(TRV.push_temperature)  # every valve
+     → a running pre-heat overrides a lower scheduled setpoint
      → Zone emits OBS-01 INFO log on (period, mode) change
-5. _check_ha_tracker_warnings (persistent notifications)
-6. snapshot status fields: _last_room_periods (per-room), _last_zone_periods,
+5. per-room pre-heat pass (Room.compute_preheat)
+6. _check_ha_tracker_warnings (persistent notifications)
+7. snapshot status fields: _last_room_periods (per-room), _last_zone_periods,
    _last_present_persons
-7. per-room calibration pass (Room.calibrate_trvs) if calibration_enabled
-8. per-room pre-heat pass (Room.compute_preheat)
+8. per-room calibration pass (Room.calibrate_trvs) if calibration_enabled
 9. Fire climate_manager_status_update bus event
 10. Notify update listeners (HA entities, async_sync_devices)
 ```
@@ -150,16 +151,27 @@ whose integration finished loading after Climate Manager — gets its setpoint
 right away. An entity with no TRV object (no state at the last rebuild) requests
 a rebuild instead. `is_trv_entity` reads `max_temp` from the entity registry
 capabilities when the entity has no state yet, so valves still loading at HA
-startup are part of the graph from the first evaluation. **Pre-heat**
-(`Room.compute_preheat`): triggers early heating ahead of the next occupied time
-(`schedule.next_occupied_at` for scheduled persons, else the next zone
-setpoint-increase). Lead time is learned (average of the last 5 convergence
-samples) and bounded by `preheat_max_lead_minutes` (default 120 min). Skipped
-when the room is already at/above the upcoming setpoint
-(`current_temp ≥ upcoming − PREHEAT_CONVERGENCE_THRESHOLD`). **Calibration**
-(`Room.calibrate_trvs`): incremental offset toward the room reference sensor.
-Tado X Radiator Valve X uses the device-based offset call; other TRVs use
-entity-based. Clamped ±5°C with a threshold guard to avoid jitter.
+startup are part of the graph from the first evaluation.
+
+**Pre-heat** (`Room.compute_preheat`): starts early heating ahead of the next
+occupied time (`schedule.next_occupied_at` for scheduled persons, else the next
+zone setpoint increase), inside the learned lead window (average of the last 5
+convergence samples, bounded by `preheat_max_lead_minutes`, default 120 min).
+The run lives in `Room._preheat_in_progress` (`start_time`, `target_temp`,
+`until`, `converged`). Until `until`, `Room.apply_setpoint` keeps the upcoming
+setpoint whenever it is warmer than the zone's scheduled one, and the room
+period is `preheat` (room period sensor state, panel badge, history timeline).
+Reaching the target records one sample but keeps holding until `until`; at the
+occupied time the zone setpoint takes over. A run that never converged is
+discarded without a sample; a run whose reason vanished (pre-heat disabled, zone
+off, presence suppressed, occupied time no longer within the max lead) is
+cancelled. Skipped when the room is already at/above the upcoming setpoint
+(`room_temp ≥ upcoming − PREHEAT_CONVERGENCE_THRESHOLD`); `room_temp` comes from
+the room temperature sensor, else the first TRV. Running pre-heats survive a
+domain rebuild. **Calibration** (`Room.calibrate_trvs`): incremental offset
+toward the room reference sensor. Tado X Radiator Valve X uses the device-based
+offset call; other TRVs use entity-based. Clamped ±5°C with a threshold guard to
+avoid jitter.
 
 ---
 
@@ -191,14 +203,15 @@ covered by a `tado_x` mapping.
 Emitted at `INFO` under `custom_components.climate_manager.*`. Each family is
 anti-spammed — it logs only on a real state change, never every tick.
 
-| Logger           | Format                                                                                 | Fires on                                          |
-| ---------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `zone`           | `zone \| zone=<name> state=<old>[<mode>]→<new>[<mode>] reason=<why>`                   | period or mode change (`time_program:` / `user:`) |
-| `presence`       | `presence \| person=<name> home=<bool> reason=<mode>` / `mode=<old>→<new> reason=user` | `_last_home` flip / user mode change              |
-| `push`           | `push \| room=<name> trv=<name> temp=<T>°C slot=<period> zone=<name>`                  | setpoint actually sent to a TRV                   |
-| `hold`           | `hold \| trv=<name> reported=<T>°C last=<T>°C slot=<period>`                           | TRV changed outside Climate Manager (once)        |
-| `online`         | `online \| trv=<name> back online, re-applying setpoint`                               | TRV available again                               |
-| `timeout` (WARN) | `timeout \| trv=<entity_id> temp=<T>°C after <N>s`                                     | TRV did not answer within `TRV_COMMAND_TIMEOUT`   |
+| Logger           | Format                                                                                          | Fires on                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `zone`           | `zone \| zone=<name> state=<old>[<mode>]→<new>[<mode>] reason=<why>`                            | period or mode change (`time_program:` / `user:`) |
+| `presence`       | `presence \| person=<name> home=<bool> reason=<mode>` / `mode=<old>→<new> reason=user`          | `_last_home` flip / user mode change              |
+| `push`           | `push \| room=<name> trv=<name> temp=<T>°C slot=<period> zone=<name>`                           | setpoint actually sent to a TRV                   |
+| `hold`           | `hold \| trv=<name> reported=<T>°C last=<T>°C slot=<period>`                                    | TRV changed outside Climate Manager (once)        |
+| `preheat`        | `preheat \| room=<id> target=<T>°C until=<HH:MM> lead=<N>min` / `… target reached after <N>min` | pre-heat start / convergence sample               |
+| `online`         | `online \| trv=<name> back online, re-applying setpoint`                                        | TRV available again                               |
+| `timeout` (WARN) | `timeout \| trv=<entity_id> temp=<T>°C after <N>s`                                              | TRV did not answer within `TRV_COMMAND_TIMEOUT`   |
 
 To surface these, set `custom_components.climate_manager: info` (or `debug`)
 under `logger:` in `configuration.yaml` — custom integrations are filtered at

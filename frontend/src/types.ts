@@ -243,6 +243,7 @@ export const PERIOD_COLORS: Record<string, string> = {
   reduced: "#0277BD",
   normal: "#F57C00",
   comfort: "#C62828",
+  preheat: "#E65100", // room period only (pre-heat badge color)
 };
 
 /** Colors for 2-mode presence bars. */
@@ -272,6 +273,7 @@ export const PERIOD_DISPLAY_NAMES: Record<string, string> = {
   present: "Present",
   absent: "Absent",
   calendar: "Calendar", // Phase 11
+  preheat: "Pre-heat", // room period while pre-heat holds its setpoint
 };
 
 // ---------------------------------------------------------------------------

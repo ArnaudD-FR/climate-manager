@@ -654,8 +654,9 @@ def test_learned_lead_average():
 async def test_sample_recorded_on_convergence(hass):
     """In-progress room whose current_temp reaches target-threshold.
 
-    Expected: a {duration_minutes, timestamp} sample is appended; in-progress
-    entry is cleared; preheat_store.async_save called.
+    Expected: a {duration_minutes, timestamp} sample is appended; the run is
+    marked converged (its setpoint is still held until the occupied time,
+    unless that time is no longer imminent); preheat_store.async_save called.
     """
     from custom_components.climate_manager.coordinator import (
         ClimateManagerCoordinator,
@@ -706,6 +707,8 @@ async def test_sample_recorded_on_convergence(hass):
         study_room._preheat_in_progress = {
             "start_time": start_time,
             "target_temp": target_temp,
+            "until": start_time + datetime.timedelta(hours=1),
+            "converged": False,
         }
 
     ctx = EvalContext(
@@ -723,8 +726,10 @@ async def test_sample_recorded_on_convergence(hass):
     assert samples[0]["duration_minutes"] == 50  # 06:50 - 06:00
     assert "timestamp" in samples[0]
 
-    # In-progress entry cleared
-    assert study_room is not None and not study_room._preheat_in_progress
+    # Run converged (held) or ended — never left unconverged
+    assert study_room is not None
+    ip = study_room._preheat_in_progress
+    assert not ip or ip["converged"]
 
     # Store saved
     data.preheat_store.async_save.assert_called_once()
@@ -801,6 +806,8 @@ async def test_sample_discarded_when_period_starts(hass):
         kitchen_room._preheat_in_progress = {
             "start_time": start_time,
             "target_temp": target_temp,
+            "until": start_time + datetime.timedelta(hours=1),
+            "converged": False,
         }
 
     ctx = EvalContext(
