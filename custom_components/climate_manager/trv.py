@@ -215,10 +215,10 @@ def get_tado_valve_devices(hass: HomeAssistant, area_id: str) -> list[dict]:
     if not tado_x_entries:
         return []
     result = []
-    for device in dev_reg.devices.values():
+    for device in dev_reg.devices:
         if device.area_id != area_id:
             continue
-        if not any(ce in tado_x_entries for ce in device.config_entries):
+        if device.config_entry_id not in tado_x_entries:
             continue
         if device.model != "Radiator Valve X":
             continue

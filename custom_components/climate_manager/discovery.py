@@ -63,7 +63,7 @@ async def discover_rooms(hass: HomeAssistant) -> dict[str, list[str]]:
             and entry.area_id is None
             and entry.device_id is not None
         ):
-            device = device_reg.devices.get(entry.device_id)
+            device = device_reg.async_get(entry.device_id)
             if device and device.area_id in known_area_ids:
                 rooms[device.area_id].append(eid)  # type: ignore[index]
                 seen.add(eid)
@@ -111,7 +111,7 @@ async def discover_room_sensors(
             and entry.area_id is None
             and entry.device_id is not None
         ):
-            device = device_reg.devices.get(entry.device_id)
+            device = device_reg.async_get(entry.device_id)
             if device and device.area_id in known_area_ids:
                 area_sensors[device.area_id].append(eid)  # type: ignore[index]
                 seen.add(eid)
@@ -196,9 +196,7 @@ async def suggest_matter_mappings(
             continue
         zone_device_id = entry.device_id
         valve_devices = [
-            d
-            for d in device_reg.devices.values()
-            if d.via_device_id == zone_device_id
+            d for d in device_reg.devices if d.via_device_id == zone_device_id
         ]
         matter_eids: list[str] = []
         for valve in valve_devices:
