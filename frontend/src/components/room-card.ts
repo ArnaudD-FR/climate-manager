@@ -227,7 +227,6 @@ export class RoomCard extends LitElement {
 
       .history-header .section-label {
         margin-bottom: 0;
-        flex: 1;
       }
 
       .history-hours {
