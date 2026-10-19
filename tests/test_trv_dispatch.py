@@ -290,9 +290,7 @@ async def test_startup_push_is_forced_once(hass):
     async_mock_service(hass, "climate", "set_hvac_mode")
     calls = async_mock_service(hass, "climate", "set_temperature")
 
-    _, coordinator = await _setup(
-        hass, ALL_DAYS_NORMAL_PROGRAM, {"a": [TRV_A]}
-    )
+    _, coordinator = await _setup(hass, ALL_DAYS_NORMAL_PROGRAM, {"a": [TRV_A]})
     await coordinator.async_evaluate()
     assert len(_calls_for(calls, TRV_A)) == 1
 
@@ -306,9 +304,7 @@ async def test_valve_appearing_after_startup_gets_setpoint(hass):
     async_mock_service(hass, "climate", "set_hvac_mode")
     calls = async_mock_service(hass, "climate", "set_temperature")
 
-    _, coordinator = await _setup(
-        hass, ALL_DAYS_NORMAL_PROGRAM, {"a": [TRV_A]}
-    )
+    _, coordinator = await _setup(hass, ALL_DAYS_NORMAL_PROGRAM, {"a": [TRV_A]})
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
     assert _calls_for(calls, TRV_A) == []
