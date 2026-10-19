@@ -31,6 +31,7 @@ import {
   historyPath,
   navigateTo,
   openMoreInfo,
+  sharesClimateDevice,
   validEntityIds,
   type LovelaceCard,
 } from "../ha-nav.js";
@@ -619,7 +620,9 @@ export class RoomCard extends LitElement {
    * actually receive setpoints (same rules as backend TRVGroup):
    * a Tado X room with paired Matter valves is replaced by those valves
    * (pushed locally); a Matter valve paired to a Tado X room is otherwise
-   * skipped (not pushed on its own).
+   * skipped (not pushed on its own). The room temperature sensor is left
+   * out when it sits on the same device as a plotted TRV: the TRV already
+   * draws that temperature (current temperature).
    */
   private _historyEntityIds(): string[] {
     const s = this.roomStatus;
@@ -630,9 +633,16 @@ export class RoomCard extends LitElement {
       if (mapped.length) return mapped;
       return paired.has(id) ? [] : [id];
     });
+    const temperature = sharesClimateDevice(
+      s?.temperature_entity_id,
+      trvs,
+      this.hass?.entities,
+    )
+      ? null
+      : s?.temperature_entity_id;
     return validEntityIds([
       s?.period_entity_id,
-      s?.temperature_entity_id,
+      temperature,
       s?.humidity_entity_id,
       ...trvs,
     ]);

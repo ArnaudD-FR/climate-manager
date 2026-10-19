@@ -238,6 +238,8 @@ export interface Hass {
     string,
     { floor_id: string; name: string; level: number; icon?: string | null }
   >;
+  /** Entity registry display entries (device link used for dedup). */
+  entities?: Record<string, { entity_id: string; device_id?: string | null }>;
   callService(
     domain: string,
     service: string,

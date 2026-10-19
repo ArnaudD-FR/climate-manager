@@ -5,6 +5,7 @@
  * - openMoreInfo: opens HA's more-info dialog (state, history, logbook)
  * - navigateTo: in-app HA navigation (no page reload)
  * - historyPath: HA History page URL filtered on a set of entities
+ * - sharesClimateDevice: sensor duplicating a climate entity's temperature
  * - createHistoryCard: native Lovelace history-graph card element
  */
 
@@ -35,6 +36,21 @@ export function validEntityIds(
     (id): id is string => !!id && ENTITY_ID_RE.test(id),
   );
   return [...new Set(ids)];
+}
+
+/**
+ * True when `sensorId` belongs to the same device as one of `climateIds`.
+ * Such a sensor repeats the climate entity's current_temperature (e.g. a
+ * Tado X room), so plotting both draws the same curve twice.
+ */
+export function sharesClimateDevice(
+  sensorId: string | null | undefined,
+  climateIds: string[],
+  entities: Hass["entities"],
+): boolean {
+  const device = sensorId ? entities?.[sensorId]?.device_id : null;
+  if (!device) return false;
+  return climateIds.some((id) => entities?.[id]?.device_id === device);
 }
 
 /** Open the HA more-info dialog for entityId (no-op when absent). */
