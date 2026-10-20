@@ -121,6 +121,8 @@ export interface ClimateConfig {
    * Sparse — absent key means no mapping for that room.
    */
   matter_mappings?: Record<string, string[]>;
+  /** Controlled boiler; absent = no boiler control (sparse config). */
+  boiler?: BoilerConfig;
   /**
    * Phase 13 (A2 Option A/C): backend-derived list of all Matter climate
    * entity_ids known to HA. Read-only — never written to storage.
@@ -192,6 +194,34 @@ export interface StatusPayload {
   zones: Record<string, ZoneStatus>;
   present_persons: string[];
   rooms_status: RoomStatus[];
+  /** Boiler state; null when no boiler is controlled. */
+  boiler?: BoilerStatus | null;
+}
+
+/** Entity domains accepted as a boiler. */
+export const BOILER_DOMAINS = ["climate", "switch", "input_boolean"];
+
+/**
+ * Boiler control: heats while at least one room's period is Normal,
+ * Comfort or Pre-heat. hvac modes apply to a climate entity only.
+ */
+export interface BoilerConfig {
+  entity_id: string;
+  on_hvac_mode?: string;
+  off_hvac_mode?: string;
+  min_on_minutes?: number;
+  min_off_minutes?: number;
+}
+
+/** Live boiler state in the status payload. */
+export interface BoilerStatus {
+  entity_id: string;
+  /** Last known state; null until read from the entity. */
+  on: boolean | null;
+  /** Rooms needing heat (area ids). */
+  demand_rooms: string[];
+  /** ISO time a pending switch waits for (min on/off), else null. */
+  waiting_until: string | null;
 }
 
 /** Per-TRV calibration status returned by get_calibration_status. */

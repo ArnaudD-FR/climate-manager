@@ -21,6 +21,7 @@ import { LitElement, html, css, unsafeCSS } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import {
+  BOILER_DOMAINS,
   PERIOD_DISPLAY_NAMES,
   PRESENCE_COLORS,
   getZoneColor,
@@ -34,6 +35,7 @@ import type {
   DailyProgram,
   Period,
   TRVCalibrationEntry,
+  BoilerConfig,
 } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
@@ -95,6 +97,14 @@ const MODE_LABELS: Record<string, string> = {
   [MODE_OFF]: "Off",
   [MODE_TIME_PROGRAM]: "Time program",
   [MODE_TIME_PROGRAM_PRESENCES]: "Time program & presences",
+};
+
+/** Boiler defaults (mirror const.py DEFAULT_BOILER_*). */
+const BOILER_DEFAULTS = {
+  on_hvac_mode: "heat",
+  off_hvac_mode: "off",
+  min_on_minutes: 10,
+  min_off_minutes: 10,
 };
 
 // ---------------------------------------------------------------------------
@@ -301,6 +311,27 @@ export class GlobalSettingsTab extends LitElement {
       }
 
       /* ---- Options card ---- */
+      .hint {
+        margin: 0 0 12px;
+        font-size: 13px;
+        color: var(--secondary-text-color);
+      }
+
+      .option-row select,
+      .option-row input[type="number"] {
+        font: inherit;
+        color: var(--primary-text-color);
+        background: var(--card-background-color);
+        border: 1px solid var(--divider-color);
+        border-radius: 4px;
+        padding: 4px 6px;
+        max-width: 60%;
+      }
+
+      .option-row input[type="number"] {
+        width: 70px;
+      }
+
       .option-row {
         display: flex;
         align-items: center;
@@ -639,6 +670,235 @@ export class GlobalSettingsTab extends LitElement {
             <span class="status-label">Persons:</span>
             ${personsContent}
           </div>
+          ${this._renderBoilerStatus()}
+        </div>
+      </ha-card>
+    `;
+  }
+
+  // -----------------------------------------------------------------------
+  // Boiler
+  // -----------------------------------------------------------------------
+
+  private _areaName(areaId: string): string {
+    return this.hass?.areas?.[areaId]?.name ?? areaId;
+  }
+
+  /** "On — demand: …" / "Off" / "Waiting (min on) until HH:MM". */
+  private _boilerStatusText(): string | null {
+    const boiler = this.status?.boiler;
+    if (!boiler) return null;
+    const state = boiler.on === null ? "Unknown" : boiler.on ? "On" : "Off";
+    const parts = [state];
+    if (boiler.demand_rooms.length) {
+      const names = boiler.demand_rooms.map((id) => this._areaName(id));
+      parts.push(`demand: ${names.join(", ")}`);
+    }
+    if (boiler.waiting_until) {
+      const until = new Date(boiler.waiting_until).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      parts.push(`waiting (min ${boiler.on ? "on" : "off"}) until ${until}`);
+    }
+    return parts.join(" — ");
+  }
+
+  private _renderBoilerStatus() {
+    const text = this._boilerStatusText();
+    if (text === null) return "";
+    return html`
+      <div class="status-row">
+        <span class="status-label">Boiler:</span>
+        <span class="status-value">${text}</span>
+      </div>
+    `;
+  }
+
+  /** Candidate boiler entities, sorted by display name. */
+  private _boilerCandidates(): { id: string; name: string }[] {
+    return Object.entries(this.hass?.states ?? {})
+      .filter(([id]) => BOILER_DOMAINS.includes(id.split(".")[0]))
+      .map(([id, st]) => ({
+        id,
+        name: String(st.attributes.friendly_name ?? id),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /** On/off hvac modes for a newly picked climate boiler. */
+  private _defaultHvacModes(entityId: string) {
+    const modes = (this.hass?.states[entityId]?.attributes?.hvac_modes ??
+      []) as string[];
+    const pick = (preferred: string, fallback?: string) =>
+      modes.includes(preferred) ? preferred : fallback;
+    return {
+      on_hvac_mode: pick(
+        BOILER_DEFAULTS.on_hvac_mode,
+        modes.find((m) => m !== "off"),
+      ),
+      off_hvac_mode: pick(BOILER_DEFAULTS.off_hvac_mode),
+    };
+  }
+
+  /** Save the boiler config merged with `patch`; no entity clears it. */
+  private async _saveBoiler(patch: Partial<BoilerConfig>) {
+    const current = this.config.boiler;
+    const entityId = patch.entity_id ?? current?.entity_id;
+    if (!entityId) return;
+    const isClimate = entityId.startsWith("climate.");
+    const sameEntity = entityId === current?.entity_id;
+    const next: BoilerConfig = {
+      entity_id: entityId,
+      min_on_minutes: current?.min_on_minutes ?? BOILER_DEFAULTS.min_on_minutes,
+      min_off_minutes:
+        current?.min_off_minutes ?? BOILER_DEFAULTS.min_off_minutes,
+      ...(isClimate
+        ? sameEntity
+          ? {
+              on_hvac_mode: current?.on_hvac_mode,
+              off_hvac_mode: current?.off_hvac_mode,
+            }
+          : this._defaultHvacModes(entityId)
+        : {}),
+      ...patch,
+    };
+    if (next.on_hvac_mode === undefined) delete next.on_hvac_mode;
+    if (next.off_hvac_mode === undefined) delete next.off_hvac_mode;
+    try {
+      await this.ws.setBoilerConfig(next);
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch (err) {
+      const message = (err as { message?: string })?.message;
+      this.panel.showToast(
+        message ? `Save failed: ${message}` : "Save failed",
+        true,
+      );
+    }
+  }
+
+  private _onBoilerEntityChange = async (e: Event) => {
+    const value = (e.target as HTMLSelectElement).value;
+    if (value) {
+      await this._saveBoiler({ entity_id: value });
+      return;
+    }
+    try {
+      await this.ws.setBoilerConfig({ entity_id: null });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed", true);
+    }
+  };
+
+  private _onBoilerFieldChange(field: keyof BoilerConfig, numeric: boolean) {
+    return (e: Event) => {
+      const raw = (e.target as HTMLInputElement | HTMLSelectElement).value;
+      const value = numeric ? Number(raw) : raw;
+      if (numeric && (!Number.isInteger(value) || +value < 0 || +value > 60)) {
+        this.panel.showToast("Enter whole minutes between 0 and 60", true);
+        return;
+      }
+      void this._saveBoiler({ [field]: value } as Partial<BoilerConfig>);
+    };
+  }
+
+  private _renderHvacModeSelect(
+    label: string,
+    field: "on_hvac_mode" | "off_hvac_mode",
+    modes: string[],
+    value: string,
+  ) {
+    return html`
+      <div class="option-row">
+        <span class="option-label">${label}</span>
+        <select @change=${this._onBoilerFieldChange(field, false)}>
+          ${modes.map(
+            (mode) =>
+              html`<option value=${mode} ?selected=${mode === value}>
+                ${mode}
+              </option>`,
+          )}
+        </select>
+      </div>
+    `;
+  }
+
+  private _renderBoilerCard() {
+    const boiler = this.config.boiler;
+    const entityId = boiler?.entity_id ?? "";
+    const isClimate = entityId.startsWith("climate.");
+    const hvacModes = (this.hass?.states[entityId]?.attributes?.hvac_modes ??
+      []) as string[];
+    const minOn = boiler?.min_on_minutes ?? BOILER_DEFAULTS.min_on_minutes;
+    const minOff = boiler?.min_off_minutes ?? BOILER_DEFAULTS.min_off_minutes;
+    return html`
+      <ha-card>
+        <div class="card-header">Boiler</div>
+        <div class="card-content">
+          <p class="hint">
+            Heats while at least one room is in Normal, Comfort or Pre-heat; off
+            otherwise.
+          </p>
+          <div class="option-row">
+            <span class="option-label">Boiler entity</span>
+            <select @change=${this._onBoilerEntityChange}>
+              <option value="" ?selected=${!entityId}>None</option>
+              ${this._boilerCandidates().map(
+                (c) =>
+                  html`<option value=${c.id} ?selected=${c.id === entityId}>
+                    ${c.name} (${c.id})
+                  </option>`,
+              )}
+            </select>
+          </div>
+          ${isClimate
+            ? html`
+                ${this._renderHvacModeSelect(
+                  "Mode when heating",
+                  "on_hvac_mode",
+                  hvacModes,
+                  boiler?.on_hvac_mode ?? BOILER_DEFAULTS.on_hvac_mode,
+                )}
+                ${this._renderHvacModeSelect(
+                  "Mode when stopped",
+                  "off_hvac_mode",
+                  hvacModes,
+                  boiler?.off_hvac_mode ?? BOILER_DEFAULTS.off_hvac_mode,
+                )}
+              `
+            : ""}
+          ${entityId
+            ? html`
+                <div class="option-row">
+                  <span class="option-label">Minimum on time (min)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="60"
+                    step="1"
+                    .value=${String(minOn)}
+                    @change=${this._onBoilerFieldChange("min_on_minutes", true)}
+                  />
+                </div>
+                <div class="option-row">
+                  <span class="option-label">Minimum off time (min)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="60"
+                    step="1"
+                    .value=${String(minOff)}
+                    @change=${this._onBoilerFieldChange(
+                      "min_off_minutes",
+                      true,
+                    )}
+                  />
+                </div>
+              `
+            : ""}
         </div>
       </ha-card>
     `;
@@ -891,7 +1151,7 @@ export class GlobalSettingsTab extends LitElement {
   render() {
     return html`
       ${this._renderStatusCard()} ${this._renderTemperaturesCard()}
-      ${this._renderOptionsCard()}
+      ${this._renderBoilerCard()} ${this._renderOptionsCard()}
     `;
   }
 }

@@ -25,8 +25,9 @@ Phase 3 additions:
 - manifest.json declares dependencies ["http", "frontend", "panel_custom"] (Pitfall 7)
 
 HA entities (zone history):
-- PLATFORMS = select + sensor: per-zone mode select and period sensor, plus a
-  per-room effective period sensor (entity.py / select.py / sensor.py)
+- PLATFORMS = binary_sensor + select + sensor: per-zone mode select and period
+  sensor, a per-room effective period sensor, and the boiler demand sensor
+  (entity.py / binary_sensor.py / select.py / sensor.py)
 - Platforms are forwarded after the first evaluation so entities start with
   real values; a coordinator listener runs async_sync_devices to drop the
   devices of deleted zones/rooms and refresh renamed device names
@@ -68,7 +69,11 @@ from .const import DOMAIN
 
 # Entity platforms managed by this integration: zone mode selects, zone and
 # room period sensors (recorder history of zone mode/state changes).
-PLATFORMS: list[Platform] = [Platform.SELECT, Platform.SENSOR]
+PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.SELECT,
+    Platform.SENSOR,
+]
 
 # Panel registration constants (Phase 3)
 # PANEL_URL: URL path where www/ directory is served (static files).

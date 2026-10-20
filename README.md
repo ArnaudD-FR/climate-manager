@@ -82,6 +82,9 @@ a room to appear in the panel, two conditions must be met:
 - **TRV calibration**: Optional auto-calibration of TRV offsets toward a room
   temperature sensor (Tado X supported)
 - **TRV control**: Works with any HA `climate` entity; no brand-specific APIs
+- **Boiler control**: Optionally switch a boiler (`climate`, `switch` or
+  `input_boolean`) on while at least one room is in a Normal, Comfort or
+  Pre-heat period, and off otherwise, with minimum on/off times
 - **HA entities & history**: Each zone exposes a mode select and a period
   sensor, each room an effective-period sensor — changes are recorded in the HA
   history and usable in automations
@@ -220,11 +223,12 @@ dedicated Off zone for it).
 Climate Manager creates one device per zone and one per room (placed in the
 room's area) so that mode and period changes are recorded in the HA history:
 
-| Entity                 | Example                | State                                                                   |
-| ---------------------- | ---------------------- | ----------------------------------------------------------------------- |
-| Zone mode (`select`)   | `select.home_mode`     | `off` / `time_program` / `time_program_presences` — can be changed here |
-| Zone period (`sensor`) | `sensor.home_period`   | Period of the zone time program (frost protection when Off)             |
-| Room period (`sensor`) | `sensor.lounge_period` | Effective period of the room, after presence rules                      |
+| Entity                          | Example                                       | State                                                                   |
+| ------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------- |
+| Zone mode (`select`)            | `select.home_mode`                            | `off` / `time_program` / `time_program_presences` — can be changed here |
+| Zone period (`sensor`)          | `sensor.home_period`                          | Period of the zone time program (frost protection when Off)             |
+| Room period (`sensor`)          | `sensor.lounge_period`                        | Effective period of the room, after presence rules                      |
+| Boiler demand (`binary_sensor`) | `binary_sensor.climate_manager_boiler_demand` | On while a room needs heat; `rooms` lists them (boiler configured only) |
 
 Changing the zone mode from the select (dashboard, automation, voice assistant)
 is equivalent to changing it in the panel. Entities of a deleted zone are
@@ -253,6 +257,9 @@ No YAML editing required.
 
 - Period temperatures (Normal, Comfort, Reduced, Frost Protection)
 - Default zone name
+- Boiler: entity to control, its heating / stopped modes (climate entity) and
+  minimum on / off times. The boiler heats while at least one room's effective
+  period is Normal, Comfort or Pre-heat
 - TRV auto-calibration (enable/disable; Tado X offset calibration)
 
 ### Zones

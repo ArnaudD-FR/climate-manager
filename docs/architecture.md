@@ -31,8 +31,9 @@ endpoints are used.
 4. Wire the pre-heat `PreheatStore` and load samples + running runs
 5. Construct `ClimateManagerCoordinator` and run immediate evaluation (restart
    recovery — INFRA-03)
-6. Forward the `select` + `sensor` platforms (see [HA entities](#ha-entities))
-   and register the per-cycle `async_sync_devices` listener
+6. Forward the `binary_sensor` + `select` + `sensor` platforms (see
+   [HA entities](#ha-entities)) and register the per-cycle `async_sync_devices`
+   listener
 7. Register minute-polling scheduler via `async_track_time_interval`
 8. Register 19 WebSocket commands via `cm_ws.async_register_commands`
 9. Serve `www/` directory as static path (`cache_headers=False`)
@@ -128,6 +129,8 @@ never pile up and no trigger is lost. Each run is `_async_evaluate_once()`:
      → a running pre-heat overrides a lower scheduled setpoint
      → Zone emits OBS-01 INFO log on (period, mode) change
 5. per-room pre-heat pass (Room.compute_preheat)
+5b. boiler pass (Boiler.evaluate) — after pre-heat so a pre-heat started this
+    tick already counts as demand
 6. _check_ha_tracker_warnings (persistent notifications)
 7. snapshot status fields: _last_room_periods (per-room), _last_zone_periods,
    _last_present_persons
@@ -151,6 +154,21 @@ period transition, where `last_slot` differs and the setpoint is re-applied.
 **Forced first push**: when `last_pushed is None` (startup, a TRV new to the
 graph, back online) `set_temperature` is sent even if the valve already reports
 the setpoint, since its HA state may be stale.
+
+**Boiler** (`boiler.py`, optional `runtime_config["boiler"]`): the boiler heats
+while at least one room's effective period (`Room.current_period`: schedule,
+presence and pre-heat resolved) is in `BOILER_HEATING_PERIODS` (Normal, Comfort,
+Pre-heat); Reduced, Frost protection and an Off zone ask for nothing. Room
+temperatures and valve openings are not used. A `climate` boiler toggles
+`hvac_mode` between `on_hvac_mode` / `off_hvac_mode`; a `switch` /
+`input_boolean` uses `turn_on` / `turn_off` (bounded by `TRV_COMMAND_TIMEOUT`).
+Like the TRVs it is push-on-change: a command only when the demand changes, so a
+manual change stays until the next one. The first evaluation (startup, new
+entity) and a return online read the real entity state and align it. A switch
+waits for `min_on_minutes` / `min_off_minutes` since the last switch (the
+entity's `last_changed` after a restart) — `waiting_until` in the status. The
+boiler entity is removed from the rooms' TRV lists. Rebuilds carry its state
+(`Boiler.carry_state`); the config is part of the fingerprint.
 
 **Back-online resync**: `_availability_listeners` track every TRV push target
 and every room climate entity. A transition from no state / `unavailable` /
@@ -232,6 +250,7 @@ anti-spammed — it logs only on a real state change, never every tick.
 | `hold`           | `hold \| trv=<name> reported=<T>°C last=<T>°C slot=<period>`                                 | TRV changed outside Climate Manager (once)        |
 | `preheat`        | `preheat \| room=<id> target=<T>°C until=<HH:MM> lead=<N>min rate=<R>` / `… reached after …` | pre-heat start / sample (or `censored`)           |
 | `online`         | `online \| trv=<name> back online, re-applying setpoint`                                     | TRV available again                               |
+| `boiler`         | `boiler \| on rooms=<ids>` / `boiler \| off` / `boiler \| waiting min_on <N>min`             | boiler switch / min on-off wait                   |
 | `timeout` (WARN) | `timeout \| trv=<entity_id> temp=<T>°C after <N>s`                                           | TRV did not answer within `TRV_COMMAND_TIMEOUT`   |
 
 To surface these, set `custom_components.climate_manager: info` (or `debug`)
@@ -323,6 +342,7 @@ were removed in Phases 14–15.
 | Person      | `set_person_config`                                                                                                                  |
 | Zone        | `create_zone`, `rename_zone`, `set_zone_mode`, `set_zone_preheat`, `delete_zone`, `set_zone_time_program`, `reset_zone_time_program` |
 | Calibration | `set_calibration_config`                                                                                                             |
+| Boiler      | `set_boiler_config` (`entity_id` null clears; climate hvac modes validated against the entity)                                       |
 | Matter      | `set_matter_mapping`, `suggest_matter_mappings`                                                                                      |
 | Push        | `subscribe_status`                                                                                                                   |
 
@@ -335,20 +355,22 @@ cycle.
 ### HA entities
 
 Native entities exist so the HA recorder historises zone modes and periods
-(history graphs, logbook, automations). Platform modules: `select.py`,
-`sensor.py`; shared base and device helpers in `entity.py`.
+(history graphs, logbook, automations). Platform modules: `binary_sensor.py`,
+`select.py`, `sensor.py`; shared base and device helpers in `entity.py`.
 
-| Entity                           | Device             | unique_id                       | State                                     |
-| -------------------------------- | ------------------ | ------------------------------- | ----------------------------------------- |
-| `select.<zone>_mode`             | zone               | `<entry>_zone_<zone_id>_mode`   | zone mode, read from `runtime_config`     |
-| `sensor.<zone>_period` (enum)    | zone               | `<entry>_zone_<zone_id>_period` | `Zone.current_period` (schedule period)   |
-| `sensor.<area_id>_period` (enum) | room (in its area) | `<entry>_room_<area_id>_period` | `Room.current_period` (presence-resolved) |
+| Entity                                               | Device             | unique_id                       | State                                         |
+| ---------------------------------------------------- | ------------------ | ------------------------------- | --------------------------------------------- |
+| `select.<zone>_mode`                                 | zone               | `<entry>_zone_<zone_id>_mode`   | zone mode, read from `runtime_config`         |
+| `sensor.<zone>_period` (enum)                        | zone               | `<entry>_zone_<zone_id>_period` | `Zone.current_period` (schedule period)       |
+| `sensor.<area_id>_period` (enum)                     | room (in its area) | `<entry>_room_<area_id>_period` | `Room.current_period` (presence-resolved)     |
+| `binary_sensor.climate_manager_boiler_demand` (heat) | boiler             | `<entry>_boiler_demand`         | on while a room needs heat; `rooms` attribute |
 
 - **Devices**: one per zone (`(DOMAIN, "zone_<zone_id>")`, named after the zone,
   Default Zone = `zone_default`) and one per room (`(DOMAIN, "room_<area_id>")`,
   named after and placed in its HA area). Room sensors set their `entity_id`
   explicitly because HA 2026.x prefixes new entity IDs with the area name (would
-  yield `sensor.<area>_<area>_period`).
+  yield `sensor.<area>_<area>_period`). A boiler device (`(DOMAIN, "boiler")`)
+  exists while a boiler is configured.
 - **Updates**: push-only. `ClimateManagerCoordinator.async_add_listener` is a
   DataUpdateCoordinator-style hook fired at the end of every `async_evaluate`;
   each entity writes its state, and HA only records a row when it changes.

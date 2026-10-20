@@ -16,6 +16,7 @@ import type {
   DailyProgram,
   ZoneConfig,
   TRVCalibrationEntry,
+  BoilerConfig,
 } from "./types.js";
 
 export class WsClient {
@@ -221,6 +222,19 @@ export class WsClient {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
       type: "climate_manager/set_calibration_config",
       enabled,
+    });
+  }
+
+  /**
+   * Set the controlled boiler, or clear it (entity_id null). Omitted
+   * fields take the backend defaults.
+   */
+  setBoilerConfig(
+    config: BoilerConfig | { entity_id: null },
+  ): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/set_boiler_config",
+      ...config,
     });
   }
 

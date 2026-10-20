@@ -46,6 +46,7 @@ from typing import TYPE_CHECKING, Callable
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.util import dt as dt_util
 
+from .boiler import Boiler
 from .const import (
     DOMAIN,
     MODE_TIME_PROGRAM,
@@ -112,6 +113,8 @@ class ClimateManagerCoordinator:
         self._zones: dict[str, Zone] = {}
         self._persons: dict[str, Person] = {}
         self._rooms: dict[str, Room] = {}
+        # Boiler driven by the rooms' demand (None = not controlled).
+        self._boiler: Boiler | None = None
         # Fingerprint of the zones/persons/rooms config structure.
         # Compared each cycle; rebuild triggered on change (T-16-13).
         self._config_fingerprint: int = 0
@@ -185,6 +188,7 @@ class ClimateManagerCoordinator:
             repr(config.get("rooms", {})),
             # Discovered climate entities per room (registry refresh).
             repr(sorted(self._data.rooms.items())),
+            repr(config.get("boiler")),
         )
         return hash("".join(key_parts))
 
@@ -207,6 +211,12 @@ class ClimateManagerCoordinator:
         """
         matter_mappings: dict[str, list[str]] = config.get(
             "matter_mappings", {}
+        )
+        boiler_cfg = config.get("boiler") or {}
+        boiler = (
+            Boiler(self._hass, boiler_cfg)
+            if boiler_cfg.get("entity_id")
+            else None
         )
 
         # -- Step 1: Zones ---------------------------------------------------
@@ -256,9 +266,14 @@ class ClimateManagerCoordinator:
 
             # Build TRVGroup from entity list + matter_mappings.
             # room_name and zone_name used for DEBUG log short names.
+            # The boiler is never pushed as a valve, whatever its max_temp.
             group = TRVGroup.from_room_config(
                 hass=self._hass,
-                entity_ids=entity_ids,
+                entity_ids=[
+                    eid
+                    for eid in entity_ids
+                    if boiler is None or eid != boiler.entity_id
+                ],
                 matter_mappings=matter_mappings,
                 room_name=area_id,
                 zone_name=owning_zone.zone_id,
@@ -312,10 +327,15 @@ class ClimateManagerCoordinator:
                     if old_trv is not None:
                         trv.carry_push_state(old_trv)
 
+        # Carry forward the boiler switch state (min on/off reference).
+        if boiler is not None and self._boiler is not None:
+            boiler.carry_state(self._boiler)
+
         # Commit the new graph (single atomic update — Pitfall 1).
         self._zones = zones
         self._persons = persons
         self._rooms = rooms
+        self._boiler = boiler
         self._config_fingerprint = self._compute_config_fingerprint(config)
         self._rebuild_requested = False
         self._refresh_availability_listeners()
@@ -333,6 +353,11 @@ class ClimateManagerCoordinator:
     def rooms(self) -> dict[str, Room]:
         """Live Room objects keyed by area_id."""
         return self._rooms
+
+    @property
+    def boiler(self) -> Boiler | None:
+        """Live Boiler, or None when no boiler is controlled."""
+        return self._boiler
 
     @callback
     def async_add_listener(
@@ -429,6 +454,8 @@ class ClimateManagerCoordinator:
         entity_ids = {trv.entity_id for trv in self._iter_trvs()}
         for room_entity_ids in self._data.rooms.values():
             entity_ids.update(room_entity_ids)
+        if self._boiler is not None:
+            entity_ids.add(self._boiler.entity_id)
         for entity_id in sorted(entity_ids):
             self._availability_listeners[entity_id] = (
                 async_track_state_change_event(
@@ -459,7 +486,13 @@ class ClimateManagerCoordinator:
             return
         entity_id = new_state.entity_id
         trv = self._get_trv(entity_id)
-        if trv is not None:
+        if self._boiler is not None and entity_id == self._boiler.entity_id:
+            self._boiler.resync()
+            _LOGGER.info(
+                "online | boiler=%s back online, re-applying demand",
+                entity_id.split(".", 1)[-1],
+            )
+        elif trv is not None:
             trv.reset_push_state()
             _LOGGER.info(
                 "online | trv=%s back online, re-applying setpoint",
@@ -546,6 +579,11 @@ class ClimateManagerCoordinator:
         # up at once. Room.compute_preheat owns all preheat state (D-06).
         for room in self._rooms.values():
             await room.compute_preheat(ctx)
+
+        # Boiler after pre-heat: a pre-heat started this tick already set
+        # its room period, so the boiler follows in the same tick.
+        if self._boiler is not None:
+            await self._boiler.evaluate(now, self._rooms)
 
         # Warn via persistent notification when an ha-mode person has no tracker.
         self._check_ha_tracker_warnings(config)
@@ -1214,4 +1252,7 @@ class ClimateManagerCoordinator:
             },
             "present_persons": self._last_present_persons,
             "rooms_status": rooms_status,
+            "boiler": (
+                self._boiler.status() if self._boiler is not None else None
+            ),
         }

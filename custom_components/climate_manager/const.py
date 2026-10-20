@@ -91,6 +91,22 @@ PREHEAT_MIN_LEAD_MINUTES: int = 10
 # Smallest start gap (°C) that yields a meaningful rate sample
 PREHEAT_MIN_SAMPLE_DELTA: float = 0.5
 
+# Boiler control (sparse runtime_config["boiler"], absent = not controlled):
+#   {"entity_id": "climate.*" | "switch.*" | "input_boolean.*",
+#    "on_hvac_mode": "heat", "off_hvac_mode": "off",   # climate only
+#    "min_on_minutes": 10, "min_off_minutes": 10}
+# The boiler heats while at least one room's effective period is one of
+# BOILER_HEATING_PERIODS. Do NOT add to DEFAULT_CONFIG.
+BOILER_DOMAINS: tuple[str, ...] = ("climate", "switch", "input_boolean")
+BOILER_HEATING_PERIODS: frozenset[str] = frozenset(
+    {PERIOD_NORMAL, PERIOD_COMFORT, PERIOD_PREHEAT}
+)
+DEFAULT_BOILER_ON_HVAC_MODE = "heat"
+DEFAULT_BOILER_OFF_HVAC_MODE = "off"
+DEFAULT_BOILER_MIN_ON_MINUTES: int = 10
+DEFAULT_BOILER_MIN_OFF_MINUTES: int = 10
+BOILER_MAX_MIN_MINUTES: int = 60
+
 GAP_HANDLING_EXACT = "exact"
 GAP_HANDLING_DAY_SPAN = "day_span"
 GAP_HANDLING_THRESHOLD = "threshold"

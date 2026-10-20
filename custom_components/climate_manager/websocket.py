@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 """Climate Manager WebSocket command handlers.
 
-Registers 19 WebSocket commands for the panel ↔ backend protocol:
+Registers 20 WebSocket commands for the panel ↔ backend protocol:
 - get_status: delegates to coordinator._build_status_payload() (D-07)
 - get_config: returns full runtime_config plus derived climate_entities,
   matter_entities, and tado_x_entities lists (A2 Option A/C)
@@ -29,6 +29,8 @@ Registers 19 WebSocket commands for the panel ↔ backend protocol:
   triggers coordinator listener refresh (D-15/D-16, MCALIB-01/02)
 - suggest_matter_mappings: returns auto-detected Matter->Tado X mapping
   suggestions (read-only, no mutation)
+- set_boiler_config: sets or clears the controlled boiler (climate, switch
+  or input_boolean) and its min on/off durations
 
 Removed in Phase 15 (D-06):
 - reset_room_to_default_zone_program: rooms no longer have independent
@@ -76,6 +78,12 @@ if TYPE_CHECKING:
     from . import ClimateManagerConfigEntry
 
 from .const import (
+    BOILER_DOMAINS,
+    BOILER_MAX_MIN_MINUTES,
+    DEFAULT_BOILER_MIN_OFF_MINUTES,
+    DEFAULT_BOILER_MIN_ON_MINUTES,
+    DEFAULT_BOILER_OFF_HVAC_MODE,
+    DEFAULT_BOILER_ON_HVAC_MODE,
     DEFAULT_PERIOD_TEMPERATURES,
     DOMAIN,
     MODE_TIME_PROGRAM,
@@ -140,6 +148,9 @@ def async_register_commands(
     )
     websocket_api.async_register_command(
         hass, _make_ws_suggest_matter_mappings(entry)
+    )
+    websocket_api.async_register_command(
+        hass, _make_ws_set_boiler_config(entry)
     )
 
 
@@ -1381,3 +1392,97 @@ def _make_ws_suggest_matter_mappings(
         connection.send_result(msg["id"], {"mappings": result})
 
     return ws_suggest_matter_mappings
+
+
+# ---------------------------------------------------------------------------
+# Boiler config command
+# ---------------------------------------------------------------------------
+
+
+def _boiler_config_error(hass: HomeAssistant, msg: dict) -> str | None:
+    """Validate a set_boiler_config payload against the live entity."""
+    entity_id = msg["entity_id"]
+    if entity_id.split(".", 1)[0] not in BOILER_DOMAINS:
+        return f"Boiler must be one of: {', '.join(BOILER_DOMAINS)}"
+    state = hass.states.get(entity_id)
+    if state is None:
+        return f"Unknown entity: {entity_id}"
+    if not entity_id.startswith("climate."):
+        return None
+    hvac_modes = state.attributes.get("hvac_modes") or []
+    for key in ("on_hvac_mode", "off_hvac_mode"):
+        mode = msg.get(key)
+        if mode is not None and mode not in hvac_modes:
+            return f"{mode} is not a hvac mode of {entity_id}"
+    return None
+
+
+def _make_ws_set_boiler_config(entry: ClimateManagerConfigEntry):
+    """Factory: create set_boiler_config handler."""
+
+    minutes = vol.All(int, vol.Range(min=0, max=BOILER_MAX_MIN_MINUTES))
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/set_boiler_config",
+            vol.Required("entity_id"): vol.Any(None, str),
+            vol.Optional("on_hvac_mode"): str,
+            vol.Optional("off_hvac_mode"): str,
+            vol.Optional("min_on_minutes"): minutes,
+            vol.Optional("min_off_minutes"): minutes,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_set_boiler_config(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Set (entity_id) or clear (entity_id=None) the boiler.
+
+        The hvac modes only apply to a climate entity and must be among its
+        hvac_modes. Rolls back runtime_config if the save fails.
+        """
+        config = entry.runtime_data.runtime_config
+        old_value = copy.deepcopy(config.get("boiler"))
+        if msg["entity_id"] is None:
+            config.pop("boiler", None)
+        else:
+            error = _boiler_config_error(hass, msg)
+            if error is not None:
+                connection.send_error(
+                    msg["id"], websocket_api.ERR_INVALID_FORMAT, error
+                )
+                return
+            boiler = {
+                "entity_id": msg["entity_id"],
+                "min_on_minutes": msg.get(
+                    "min_on_minutes", DEFAULT_BOILER_MIN_ON_MINUTES
+                ),
+                "min_off_minutes": msg.get(
+                    "min_off_minutes", DEFAULT_BOILER_MIN_OFF_MINUTES
+                ),
+            }
+            if msg["entity_id"].startswith("climate."):
+                boiler["on_hvac_mode"] = msg.get(
+                    "on_hvac_mode", DEFAULT_BOILER_ON_HVAC_MODE
+                )
+                boiler["off_hvac_mode"] = msg.get(
+                    "off_hvac_mode", DEFAULT_BOILER_OFF_HVAC_MODE
+                )
+            config["boiler"] = boiler
+        try:
+            await entry.runtime_data.store.async_save(config)
+        except Exception as exc:  # noqa: BLE001
+            if old_value is None:
+                config.pop("boiler", None)
+            else:
+                config["boiler"] = old_value
+            connection.send_error(
+                msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+            )
+            return
+        connection.send_result(msg["id"], {"success": True})
+        hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+    return ws_set_boiler_config

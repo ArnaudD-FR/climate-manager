@@ -30,6 +30,11 @@
           "preheat": "Pre-heat"
         }
       }
+    },
+    "binary_sensor": {
+      "boiler_demand": {
+        "name": "Demand"
+      }
     }
   }
 }

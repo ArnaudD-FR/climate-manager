@@ -9,8 +9,8 @@ Design decisions:
 - Entities are push-only (should_poll=False): they subscribe to
   coordinator.async_add_listener and write state after every evaluation.
   HA only records a new state row when the value actually changes.
-- Device identifiers: (DOMAIN, "zone_<zone_id>") / (DOMAIN, "room_<area_id>").
-  zone_id="default" is the Default Zone.
+- Device identifiers: (DOMAIN, "zone_<zone_id>") / (DOMAIN, "room_<area_id>")
+  / (DOMAIN, "boiler"). zone_id="default" is the Default Zone.
 - Zone/room deletion is handled once, at device level, by
   async_sync_devices: removing a device removes its entities.
 """
@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 MANUFACTURER = "Climate Manager"
 _ZONE_PREFIX = "zone_"
 _ROOM_PREFIX = "room_"
+_BOILER_IDENT = "boiler"
 
 
 def zone_mode_unique_id(entry_id: str, zone_id: str) -> str:
@@ -81,6 +82,21 @@ def zone_device_info(config: dict, zone_id: str) -> DeviceInfo:
     )
 
 
+def boiler_demand_unique_id(entry_id: str) -> str:
+    """Unique id of the boiler demand binary sensor."""
+    return f"{entry_id}_boiler_demand"
+
+
+def boiler_device_info() -> DeviceInfo:
+    """Device info for the controlled boiler."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, _BOILER_IDENT)},
+        name="Boiler",
+        manufacturer=MANUFACTURER,
+        model="Boiler demand",
+    )
+
+
 def room_device_info(hass: HomeAssistant, area_id: str) -> DeviceInfo:
     """Device info for a managed room, placed in its HA area."""
     name = room_name(hass, area_id)
@@ -112,6 +128,10 @@ def async_sync_devices(
         for domain, ident in device.identifiers:
             if domain != DOMAIN:
                 continue
+            if ident == _BOILER_IDENT:
+                if coordinator.boiler is None:
+                    dev_reg.async_remove_device(device.id)
+                break
             if ident.startswith(_ZONE_PREFIX):
                 zone_id = ident.removeprefix(_ZONE_PREFIX)
                 exists = zone_id in coordinator.zones
