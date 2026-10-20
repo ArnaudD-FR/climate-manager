@@ -198,9 +198,6 @@ export interface StatusPayload {
   boiler?: BoilerStatus | null;
 }
 
-/** Entity domains accepted as a boiler. */
-export const BOILER_DOMAINS = ["climate", "switch", "input_boolean"];
-
 /**
  * Boiler control: heats while at least one room's period is Normal,
  * Comfort or Pre-heat. hvac modes apply to a climate entity only.
@@ -271,7 +268,16 @@ export interface Hass {
     { floor_id: string; name: string; level: number; icon?: string | null }
   >;
   /** Entity registry display entries (device link used for dedup). */
-  entities?: Record<string, { entity_id: string; device_id?: string | null }>;
+  entities?: Record<
+    string,
+    {
+      entity_id: string;
+      device_id?: string | null;
+      platform?: string;
+      entity_category?: string | null;
+      hidden?: boolean;
+    }
+  >;
   callService(
     domain: string,
     service: string,

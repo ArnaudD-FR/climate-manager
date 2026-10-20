@@ -21,13 +21,13 @@ import { LitElement, html, css, unsafeCSS } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import {
-  BOILER_DOMAINS,
   PERIOD_DISPLAY_NAMES,
   PRESENCE_COLORS,
   getZoneColor,
 } from "../types.js";
 import { chipStyles } from "../shared-styles.js";
 import { historyPath, navigateTo, openMoreInfo } from "../ha-nav.js";
+import { BOILER_GROUPS, boilerCandidates } from "../boiler-candidates.js";
 import type {
   Hass,
   ClimateConfig,
@@ -733,17 +733,6 @@ export class GlobalSettingsTab extends LitElement {
     `;
   }
 
-  /** Candidate boiler entities, sorted by display name. */
-  private _boilerCandidates(): { id: string; name: string }[] {
-    return Object.entries(this.hass?.states ?? {})
-      .filter(([id]) => BOILER_DOMAINS.includes(id.split(".")[0]))
-      .map(([id, st]) => ({
-        id,
-        name: String(st.attributes.friendly_name ?? id),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }
-
   /** On/off hvac modes for a newly picked climate boiler. */
   private _defaultHvacModes(entityId: string) {
     const modes = (this.hass?.states[entityId]?.attributes?.hvac_modes ??
@@ -859,6 +848,27 @@ export class GlobalSettingsTab extends LitElement {
     </button>`;
   }
 
+  /** Boiler entity options, grouped (heating devices, switches, helpers). */
+  private _renderBoilerOptions(entityId: string) {
+    const candidates = boilerCandidates(
+      this.hass?.states ?? {},
+      this.hass?.entities,
+      entityId,
+    );
+    return BOILER_GROUPS.map(([group, label]) => {
+      const items = candidates.filter((c) => c.group === group);
+      if (!items.length) return "";
+      return html`<optgroup label=${label}>
+        ${items.map(
+          (c) =>
+            html`<option value=${c.id} ?selected=${c.id === entityId}>
+              ${c.name} (${c.id})
+            </option>`,
+        )}
+      </optgroup>`;
+    });
+  }
+
   private _renderBoilerCard() {
     const boiler = this.config.boiler;
     const entityId = boiler?.entity_id ?? "";
@@ -881,12 +891,7 @@ export class GlobalSettingsTab extends LitElement {
             <span class="option-label">Boiler entity</span>
             <select @change=${this._onBoilerEntityChange}>
               <option value="" ?selected=${!entityId}>None</option>
-              ${this._boilerCandidates().map(
-                (c) =>
-                  html`<option value=${c.id} ?selected=${c.id === entityId}>
-                    ${c.name} (${c.id})
-                  </option>`,
-              )}
+              ${this._renderBoilerOptions(entityId)}
             </select>
           </div>
           ${isClimate
