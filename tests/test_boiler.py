@@ -327,6 +327,7 @@ async def test_status_and_demand_sensor(hass, freezer):
         "on": True,
         "demand_rooms": ["a"],
         "waiting_until": None,
+        "demand_entity_id": DEMAND,
     }
     state = hass.states.get(DEMAND)
     assert state.state == "on"

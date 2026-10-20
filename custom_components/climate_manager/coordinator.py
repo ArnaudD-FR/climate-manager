@@ -54,6 +54,7 @@ from .const import (
     TRV_COMMAND_TIMEOUT,
 )
 from .entity import (
+    boiler_demand_unique_id,
     room_period_unique_id,
     zone_mode_unique_id,
     zone_period_unique_id,
@@ -1252,7 +1253,20 @@ class ClimateManagerCoordinator:
             },
             "present_persons": self._last_present_persons,
             "rooms_status": rooms_status,
-            "boiler": (
-                self._boiler.status() if self._boiler is not None else None
-            ),
+            "boiler": self._boiler_status(_entity_reg),
         }
+
+    def _boiler_status(self, entity_reg) -> dict | None:
+        """Boiler status entry, with the demand sensor's entity_id."""
+        if self._boiler is None:
+            return None
+        status = self._boiler.status()
+        entry_id = self._data.entry_id
+        status["demand_entity_id"] = (
+            entity_reg.async_get_entity_id(
+                "binary_sensor", DOMAIN, boiler_demand_unique_id(entry_id)
+            )
+            if entry_id is not None
+            else None
+        )
+        return status

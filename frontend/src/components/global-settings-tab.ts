@@ -27,7 +27,7 @@ import {
   getZoneColor,
 } from "../types.js";
 import { chipStyles } from "../shared-styles.js";
-import { openMoreInfo } from "../ha-nav.js";
+import { historyPath, navigateTo, openMoreInfo } from "../ha-nav.js";
 import type {
   Hass,
   ClimateConfig,
@@ -311,6 +311,24 @@ export class GlobalSettingsTab extends LitElement {
       }
 
       /* ---- Options card ---- */
+      .boiler-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-right: 16px;
+      }
+
+      .history-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-weight: normal;
+      }
+
+      .history-link ha-icon {
+        --mdc-icon-size: 16px;
+      }
+
       .hint {
         margin: 0 0 12px;
         font-size: 13px;
@@ -826,6 +844,21 @@ export class GlobalSettingsTab extends LitElement {
     `;
   }
 
+  /** HA History page for the boiler entity and the demand sensor. */
+  private _renderBoilerHistoryButton() {
+    const entityId = this.config.boiler?.entity_id;
+    const path = historyPath([entityId, this.status?.boiler?.demand_entity_id]);
+    if (!entityId || !path) return "";
+    return html`<button
+      class="reset-btn history-link"
+      title="Open the HA history of the boiler and its demand"
+      @click=${() => navigateTo(path)}
+    >
+      <ha-icon icon="mdi:open-in-new"></ha-icon>
+      History
+    </button>`;
+  }
+
   private _renderBoilerCard() {
     const boiler = this.config.boiler;
     const entityId = boiler?.entity_id ?? "";
@@ -836,7 +869,9 @@ export class GlobalSettingsTab extends LitElement {
     const minOff = boiler?.min_off_minutes ?? BOILER_DEFAULTS.min_off_minutes;
     return html`
       <ha-card>
-        <div class="card-header">Boiler</div>
+        <div class="card-header boiler-header">
+          Boiler ${this._renderBoilerHistoryButton()}
+        </div>
         <div class="card-content">
           <p class="hint">
             Heats while at least one room is in Normal, Comfort or Pre-heat; off

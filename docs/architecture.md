@@ -393,7 +393,9 @@ Native entities exist so the HA recorder historises zone modes and periods
   are followed. Helpers in `frontend/src/ha-nav.ts`: `openMoreInfo` (HA
   more-info dialog), `navigateTo`, `historyPath`. Zone tab: history icons next
   to Mode and Current period, plus a **History** button opening
-  `/history?entity_id=…` for the zone and its rooms. Room card: the period badge
+  `/history?entity_id=…` for the zone and its rooms. Global settings: a
+  **History** button in the Boiler card for the boiler entity and the demand
+  sensor (`boiler.demand_entity_id` in the status). Room card: the period badge
   opens the room period sensor's more-info.
 - **Room card history**: `rooms_status[]` also carries `temperature_entity_id` /
   `humidity_entity_id` (HA area setting → auto-discovered sensor). The expanded

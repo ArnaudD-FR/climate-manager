@@ -222,6 +222,8 @@ export interface BoilerStatus {
   demand_rooms: string[];
   /** ISO time a pending switch waits for (min on/off), else null. */
   waiting_until: string | null;
+  /** Boiler demand binary sensor (resolved from the registry). */
+  demand_entity_id?: string | null;
 }
 
 /** Per-TRV calibration status returned by get_calibration_status. */
