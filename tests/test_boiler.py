@@ -387,3 +387,67 @@ async def test_ws_set_boiler_config(hass, hass_ws_client):
 
     assert (await send(entity_id=None))["success"]
     assert "boiler" not in entry.runtime_data.runtime_config
+
+
+async def test_boiler_candidates_skip_valve_accessories(hass):
+    """Heating climate + standalone switch kept; valve accessories not."""
+    from homeassistant.helpers import (
+        device_registry as dr,
+        entity_registry as er,
+    )
+
+    from custom_components.climate_manager.boiler import boiler_candidates
+
+    entry = MockConfigEntry(domain="test")
+    entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+
+    def device(name: str, model: str | None = None) -> str:
+        return dev_reg.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={("test", name)},
+            model=model,
+        ).id
+
+    room_dev = device("room")
+    valve_dev = device("valve", model="Radiator Valve X")
+    relay_dev = device("relay")
+
+    def entity(entity_id: str, device_id: str | None, **kwargs) -> None:
+        domain, object_id = entity_id.split(".")
+        ent_reg.async_get_or_create(
+            domain,
+            "test",
+            object_id,
+            suggested_object_id=object_id,
+            device_id=device_id,
+            **kwargs,
+        )
+
+    entity("climate.room", room_dev)
+    entity("switch.room_open_window", room_dev)
+    entity("switch.valve_child_lock", valve_dev)
+    entity("switch.relay", relay_dev)
+    entity(
+        "switch.relay_led",
+        relay_dev,
+        entity_category=er.EntityCategory.CONFIG,
+    )
+    hass.states.async_set("climate.room", "heat", {"max_temp": 30})
+    hass.states.async_set("climate.vitodens", "auto", {"max_temp": 60})
+    for switch in (
+        "switch.room_open_window",
+        "switch.valve_child_lock",
+        "switch.relay",
+        "switch.relay_led",
+    ):
+        hass.states.async_set(switch, "off")
+    hass.states.async_set("input_boolean.boiler", "off")
+    hass.states.async_set("light.kitchen", "off")
+
+    assert boiler_candidates(hass) == [
+        "climate.vitodens",
+        "input_boolean.boiler",
+        "switch.relay",
+    ]

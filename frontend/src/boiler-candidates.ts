@@ -2,7 +2,8 @@
 /**
  * Climate Manager Panel — boiler entity candidates.
  *
- * Keeps the entities that can plausibly drive a boiler:
+ * The backend list (get_config boiler_candidates, built with the device
+ * registry) is used when present. Without it, a local fallback keeps:
  * - climate: heating devices only (max_temp > 45 °C — the backend
  *   is_trv_entity threshold), so radiator valves are left out;
  * - switch / input_boolean: user-facing entities only (no config or
@@ -49,13 +50,18 @@ export function boilerCandidates(
   states: Hass["states"],
   entities: Hass["entities"],
   current?: string | null,
+  allowed?: string[],
 ): BoilerCandidate[] {
   const order = BOILER_GROUPS.map(([group]) => group);
+  const allowedSet = allowed ? new Set(allowed) : null;
   return Object.entries(states)
     .filter(([id]) => order.includes(id.split(".")[0] as BoilerGroup))
     .filter(
       ([id, st]) =>
-        id === current || isCandidate(id, st.attributes, entities?.[id]),
+        id === current ||
+        (allowedSet
+          ? allowedSet.has(id)
+          : isCandidate(id, st.attributes, entities?.[id])),
     )
     .map(([id, st]) => ({
       id,

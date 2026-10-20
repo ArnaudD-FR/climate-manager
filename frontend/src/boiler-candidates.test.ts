@@ -49,3 +49,13 @@ test("the current boiler is always kept", () => {
 test("works without the entity registry", () => {
   assert.equal(boilerCandidates(states, undefined).length, 5);
 });
+
+test("the backend list wins over the local rules", () => {
+  assert.deepEqual(
+    boilerCandidates(states, entities, null, [
+      "switch.relay",
+      "climate.vitodens",
+    ]).map((c) => c.id),
+    ["climate.vitodens", "switch.relay"],
+  );
+});

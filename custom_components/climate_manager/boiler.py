@@ -24,15 +24,20 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
+    BOILER_DOMAINS,
     BOILER_HEATING_PERIODS,
     DEFAULT_BOILER_MIN_OFF_MINUTES,
     DEFAULT_BOILER_MIN_ON_MINUTES,
     DEFAULT_BOILER_OFF_HVAC_MODE,
     DEFAULT_BOILER_ON_HVAC_MODE,
+    DOMAIN,
     TRV_COMMAND_TIMEOUT,
 )
+from .trv import is_trv_entity
 
 if TYPE_CHECKING:
     from .room import Room
@@ -40,6 +45,53 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 _OFFLINE_STATES = ("unavailable", "unknown")
+
+# Valve devices whose switches (child lock…) have no climate entity of
+# their own: their room climate entity sits on another device.
+_VALVE_MODELS = frozenset({"Radiator Valve X"})
+
+
+def boiler_candidates(hass: HomeAssistant) -> list[str]:
+    """Entities that can plausibly drive a boiler, sorted.
+
+    - climate: heating devices only (not a TRV per is_trv_entity);
+    - switch / input_boolean: user-facing (no config/diagnostic category,
+      not hidden or disabled, not Climate Manager's own), and not an
+      accessory of a radiator valve or room thermostat: on a device that
+      has a climate entity (open window…) or a known valve model (child
+      lock…).
+    """
+    entity_reg = er.async_get(hass)
+    device_reg = dr.async_get(hass)
+    climate_devices = {
+        e.device_id
+        for e in entity_reg.entities.values()
+        if e.domain == "climate" and e.device_id
+    }
+    result = []
+    for state in hass.states.async_all(BOILER_DOMAINS):
+        entity_id = state.entity_id
+        reg = entity_reg.async_get(entity_id)
+        if reg is not None and (
+            reg.entity_category is not None
+            or reg.hidden_by is not None
+            or reg.disabled_by is not None
+            or reg.platform == DOMAIN
+        ):
+            continue
+        if state.domain == "climate":
+            if not is_trv_entity(hass, entity_id):
+                result.append(entity_id)
+            continue
+        device_id = reg.device_id if reg is not None else None
+        if device_id is not None:
+            if device_id in climate_devices:
+                continue
+            device = device_reg.async_get(device_id)
+            if device is not None and device.model in _VALVE_MODELS:
+                continue
+        result.append(entity_id)
+    return sorted(result)
 
 
 class Boiler:

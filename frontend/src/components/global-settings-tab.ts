@@ -854,6 +854,7 @@ export class GlobalSettingsTab extends LitElement {
       this.hass?.states ?? {},
       this.hass?.entities,
       entityId,
+      this.config.boiler_candidates,
     );
     return BOILER_GROUPS.map(([group, label]) => {
       const items = candidates.filter((c) => c.group === group);

@@ -124,6 +124,12 @@ export interface ClimateConfig {
   /** Controlled boiler; absent = no boiler control (sparse config). */
   boiler?: BoilerConfig;
   /**
+   * get_config only: entities that can drive a boiler (heating climate
+   * devices, user-facing switches / input_booleans that are not valve or
+   * room thermostat accessories).
+   */
+  boiler_candidates?: string[];
+  /**
    * Phase 13 (A2 Option A/C): backend-derived list of all Matter climate
    * entity_ids known to HA. Read-only — never written to storage.
    */

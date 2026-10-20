@@ -4,7 +4,8 @@
 Registers 20 WebSocket commands for the panel ↔ backend protocol:
 - get_status: delegates to coordinator._build_status_payload() (D-07)
 - get_config: returns full runtime_config plus derived climate_entities,
-  matter_entities, and tado_x_entities lists (A2 Option A/C)
+  matter_entities, and tado_x_entities lists (A2 Option A/C), and the
+  boiler_candidates list (boiler.boiler_candidates)
 - set_period_temperatures: updates all 4 period temperatures
 - set_time_program: validates and persists the global per-day program
 - set_room_config: sparse-merges into rooms[room_id]
@@ -77,6 +78,7 @@ import voluptuous as vol
 if TYPE_CHECKING:
     from . import ClimateManagerConfigEntry
 
+from .boiler import boiler_candidates
 from .const import (
     BOILER_DOMAINS,
     BOILER_MAX_MIN_MINUTES,
@@ -233,6 +235,7 @@ def _make_ws_get_config(entry: ClimateManagerConfigEntry):
         )
         payload = {
             **entry.runtime_data.runtime_config,
+            "boiler_candidates": boiler_candidates(hass),
             "climate_entities": climate_entities,
             "matter_entities": matter_entities,
             "tado_x_entities": tado_x_entities,
