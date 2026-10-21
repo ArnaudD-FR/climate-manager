@@ -77,13 +77,21 @@ export function navigateTo(path: string): void {
 /**
  * HA History page path for the given entities, or null when none is valid.
  * Invalid / missing ids are dropped so a stale status never builds a bad URL.
+ * hours: show the last hours (start_date); HA's default range otherwise.
  */
 export function historyPath(
   entityIds: Array<string | null | undefined>,
+  hours?: number,
+  now: Date = new Date(),
 ): string | null {
   const ids = validEntityIds(entityIds);
   if (!ids.length) return null;
-  return `/history?entity_id=${encodeURIComponent(ids.join(","))}`;
+  let path = `/history?entity_id=${encodeURIComponent(ids.join(","))}`;
+  if (hours) {
+    const start = new Date(now.getTime() - hours * 3_600_000);
+    path += `&start_date=${encodeURIComponent(start.toISOString())}`;
+  }
+  return path;
 }
 
 /**

@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sharesClimateDevice } from "./ha-nav.ts";
+import { historyPath, sharesClimateDevice } from "./ha-nav.ts";
 
 const entities = {
   "sensor.tado_room_temperature": {
@@ -48,6 +48,22 @@ test("sensor on another device is kept", () => {
       entities,
     ),
     false,
+  );
+});
+
+test("history path starts the selected hours ago", () => {
+  const now = new Date("2026-10-21T20:00:00Z");
+  assert.equal(
+    historyPath(["sensor.a", "climate.b"], 168, now),
+    "/history?entity_id=sensor.a%2Cclimate.b" +
+      "&start_date=2026-10-14T20%3A00%3A00.000Z",
+  );
+});
+
+test("history path without hours keeps HA's default range", () => {
+  assert.equal(
+    historyPath(["sensor.a", null, "bad id"]),
+    "/history?entity_id=sensor.a",
   );
 });
 

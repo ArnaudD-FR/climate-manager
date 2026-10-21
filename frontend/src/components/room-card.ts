@@ -683,8 +683,7 @@ export class RoomCard extends LitElement {
 
   private _renderHistorySection() {
     const ids = this._historyEntityIds();
-    const path = historyPath(ids);
-    if (!path) return nothing;
+    if (!ids.length) return nothing;
     return html`
       <div class="history-header">
         <div
@@ -710,7 +709,11 @@ export class RoomCard extends LitElement {
           class="history-open"
           title="Open in the HA history page"
           .label=${"Open in the HA history page"}
-          @click=${() => navigateTo(path)}
+          @click=${() => {
+            // Built on click: the range ends now, not at the last render.
+            const path = historyPath(ids, this._historyHours);
+            if (path) navigateTo(path);
+          }}
           ><ha-icon icon="mdi:open-in-new"></ha-icon
         ></ha-icon-button>
       </div>
