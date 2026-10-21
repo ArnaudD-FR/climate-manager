@@ -47,7 +47,8 @@ class EvalContext:
         _calendar_cache:  entity_id → list of event dicts (filled on demand).
         _presence_cache:  person_id → is_home bool (filled by Person.evaluate).
         _warn_issued:     Set of entity_ids for which a WARNING was already
-                          emitted this cycle (suppresses repeated log spam).
+                          emitted; the coordinator passes its own set so the
+                          suppression lasts across cycles until recovery.
     """
 
     now: datetime

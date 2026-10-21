@@ -553,6 +553,7 @@ class ClimateManagerCoordinator:
             now=now,
             hass=self._hass,
             period_temperatures=period_temperatures,
+            _warn_issued=self._calendar_warn_issued,
         )
 
         # Evaluate every person first so ctx._presence_cache is complete
@@ -1000,6 +1001,7 @@ class ClimateManagerCoordinator:
                     now=dt_util.now(),
                     hass=self._hass,
                     period_temperatures=config.get("period_temperatures", {}),
+                    _warn_issued=self._calendar_warn_issued,
                 )
                 await room.calibrate_trvs(ctx_calib)
 

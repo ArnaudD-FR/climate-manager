@@ -623,7 +623,10 @@ async def test_calendar_fallback_on_error(hass, caplog):
         persons_config
     )
 
+    # Two cycles: the warning must not repeat on the second one.
     with caplog.at_level(logging.WARNING):
+        await entry.runtime_data.coordinator.async_evaluate()
+        await hass.async_block_till_done()
         await entry.runtime_data.coordinator.async_evaluate()
         await hass.async_block_till_done()
 
