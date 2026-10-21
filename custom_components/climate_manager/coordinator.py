@@ -61,13 +61,15 @@ from .entity import (
 )
 from .eval_context import EvalContext
 from .person import Person
-from .room import Room
+from .room import Room, calibration_threshold, log_calibration
 from .trv import (
     TRV,
     TRVGroup,
+    device_display_name,
     get_tado_valve_devices,
     is_trv_entity,
     set_trv_offset_by_device,
+    tado_device_offset,
 )
 from .zone import Zone
 
@@ -762,7 +764,10 @@ class ClimateManagerCoordinator:
             return
 
         delta = sensor_temp - current_temp
-        threshold = config.get("calibration_threshold", 0.5)
+        room = self._rooms.get(area_id)
+        threshold = calibration_threshold(
+            config, room is not None and room.preheat_boosting
+        )
         if abs(delta) <= threshold:
             return
 
@@ -774,6 +779,12 @@ class ClimateManagerCoordinator:
             if elapsed < _CALIBRATION_MIN_INTERVAL:
                 return
 
+        # After a restart the memory is empty: start from the offset the
+        # valve reports, or the next write would wipe the accumulated one.
+        if device_id not in self._calibration_last_offset:
+            reported = tado_device_offset(self._hass, device_id)
+            if reported is not None:
+                self._calibration_last_offset[device_id] = reported
         existing_offset = self._calibration_last_offset.get(device_id, 0.0)
         new_offset = round(
             max(-_OFFSET_CLAMP, min(_OFFSET_CLAMP, existing_offset + delta)),
@@ -790,6 +801,15 @@ class ClimateManagerCoordinator:
                 timezone.utc
             ).isoformat(timespec="seconds")
             self._calibration_last_delta[device_id] = round(delta, 2)
+            log_calibration(
+                area_id,
+                device_display_name(self._hass, device_id),
+                sensor_temp,
+                current_temp,
+                existing_offset,
+                new_offset,
+                threshold,
+            )
         except Exception:  # noqa: BLE001
             _LOGGER.warning(
                 "Failed to apply offset %.1f to device %s",
@@ -1179,6 +1199,12 @@ class ClimateManagerCoordinator:
             room_entry["preheat_lead"] = (
                 round(_room_obj._preheat_lead)
                 if _room_obj is not None and _room_obj._preheat_lead is not None
+                else None
+            )
+            # °C currently added to the TRV setpoint by the pre-heat boost.
+            room_entry["preheat_boost"] = (
+                _room_obj._preheat_boost_applied
+                if _room_obj is not None
                 else None
             )
 

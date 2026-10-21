@@ -26,12 +26,16 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from .const import (
+    DEFAULT_PREHEAT_BOOST_FACTOR,
     DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
+    DEFAULT_TRV_MAX_TEMP,
     MODE_OFF,
     MODE_TIME_PROGRAM,
     MODE_TIME_PROGRAM_PRESENCES,
     PERIOD_FROST_PROTECTION,
     PERIOD_PREHEAT,
+    PREHEAT_BOOST_MAX,
+    PREHEAT_CALIBRATION_THRESHOLD,
     PREHEAT_CONVERGENCE_THRESHOLD,
     PRESENCE_ABSENT,
     PRESENCE_HA,
@@ -69,6 +73,38 @@ _LOGGER = logging.getLogger(__name__)
 
 # Hardware-safe maximum for TRV temperature offset.
 _OFFSET_CLAMP = 5.0
+
+
+def calibration_threshold(config: dict, preheating: bool) -> float:
+    """Offset calibration threshold (°C), tighter while a pre-heat runs."""
+    threshold = config.get("calibration_threshold", 0.5)
+    if preheating:
+        return min(threshold, PREHEAT_CALIBRATION_THRESHOLD)
+    return threshold
+
+
+def log_calibration(
+    area_id: str,
+    trv: str,
+    sensor_temp: float,
+    trv_temp: float,
+    old_offset: float,
+    new_offset: float,
+    threshold: float,
+) -> None:
+    """INFO log for one offset written to a TRV."""
+    _LOGGER.info(
+        "calibrate | room=%s trv=%s sensor=%.1f°C trv=%.1f°C delta=%+.1f"
+        " offset=%+.1f→%+.1f threshold=%.1f",
+        area_id,
+        trv,
+        sensor_temp,
+        trv_temp,
+        sensor_temp - trv_temp,
+        old_offset,
+        new_offset,
+        threshold,
+    )
 
 
 class Room:
@@ -133,6 +169,8 @@ class Room:
         self._preheat_in_progress: dict = {}
         # Lead (minutes) computed at the last pre-heat pass, for status.
         self._preheat_lead: float | None = None
+        # °C added to the setpoint pushed to the TRVs (None when no boost).
+        self._preheat_boost_applied: float | None = None
         # Last setpoint actually applied (zone or pre-heat). A measuring run
         # ends when the zone setpoint drops below its target.
         self._last_setpoint: float | None = None
@@ -172,6 +210,8 @@ class Room:
         While a pre-heat runs (until the occupied time it anticipates), its
         target overrides a lower scheduled setpoint and the room reports the
         "preheat" period — the zone evaluation never undoes a pre-heat.
+        Until the room reaches the target, the TRVs get a boosted setpoint
+        (see _preheat_boost); _last_setpoint keeps the unboosted one.
         """
         ip = self._preheat_in_progress
         if (
@@ -185,11 +225,70 @@ class Room:
         # return so even TRV-less rooms surface the correct badge.
         self._last_period = period
         self._last_setpoint = temp
+        boost = self._preheat_boost(temp)
+        self._preheat_boost_applied = boost or None
         if not self._trv_groups:
             return
         await asyncio.gather(
-            *(group.push(temp, period, ctx) for group in self._trv_groups)
+            *(
+                group.push(temp + boost, period, ctx)
+                for group in self._trv_groups
+            )
         )
+
+    @property
+    def preheat_boosting(self) -> bool:
+        """True while a pre-heat runs and the room has not reached it."""
+        ip = self._preheat_in_progress
+        return bool(ip) and not ip["converged"]
+
+    def _preheat_boost(self, base: float) -> float:
+        """°C added to base for the TRVs while a pre-heat runs.
+
+        A TRV next to the radiator reads high while heating and throttles
+        before the room is warm: push factor × (base − room temperature),
+        capped at PREHEAT_BOOST_MAX and at the TRVs' max_temp, rounded to
+        0.5 °C so TRVs with coarse steps report back what was pushed.
+        Zero once the room reached the target, when base is below the
+        pre-heat target, or without a room temperature.
+        """
+        if self._hass is None or not self.preheat_boosting:
+            return 0.0
+        if (
+            base
+            < self._preheat_in_progress["target_temp"]
+            - PREHEAT_CONVERGENCE_THRESHOLD
+        ):
+            return 0.0
+        config = getattr(
+            getattr(self._hass, "_climate_manager_data", None),
+            "runtime_config",
+            {},
+        )
+        factor = (
+            (config.get("rooms") or {})
+            .get(self.area_id, {})
+            .get("preheat_boost_factor", DEFAULT_PREHEAT_BOOST_FACTOR)
+        )
+        room_temp = self._room_temperature(config)
+        if not factor or room_temp is None or room_temp >= base:
+            return 0.0
+        boost = min(factor * (base - room_temp), PREHEAT_BOOST_MAX)
+        boost = min(boost, self._trv_max_temp() - base)
+        return max(0.0, round((base + boost) * 2) / 2 - base)
+
+    def _trv_max_temp(self) -> float:
+        """Lowest max_temp among this room's TRVs (default 30 °C)."""
+        max_temps: list[float] = []
+        for group in self._trv_groups:
+            for trv in getattr(group, "_trvs", []):
+                state = self._hass.states.get(trv.entity_id)
+                raw = state.attributes.get("max_temp") if state else None
+                try:
+                    max_temps.append(float(raw))
+                except (ValueError, TypeError):
+                    continue
+        return min(max_temps, default=DEFAULT_TRV_MAX_TEMP)
 
     async def apply_off(self, frost_temp: float, ctx: "EvalContext") -> None:
         """Push MODE_OFF to all TRV groups: off for off-capable, frost for others."""
@@ -267,6 +366,8 @@ class Room:
         self._preheat_suppressed = old._preheat_suppressed
         self._preheat_in_progress = old._preheat_in_progress
         self._preheat_lead = old._preheat_lead
+        self._preheat_boost_applied = old._preheat_boost_applied
+        self._last_period = old._last_period
         self._last_setpoint = old._last_setpoint
 
     def _room_temperature(self, config: dict) -> float | None:
@@ -383,8 +484,10 @@ class Room:
                 self._log_sample(sample, "reached")
                 if ip["measuring"]:
                     await self._end_preheat(sample)
+                    await self._drop_boost(ctx)
                     return
                 await self._save_preheat(sample)
+                await self._drop_boost(ctx)
 
             if ip["measuring"]:
                 setpoint_dropped = (
@@ -555,15 +658,26 @@ class Room:
         self._preheat_active = True
         self._preheat_target = upcoming_setpoint
         _LOGGER.info(
-            "preheat | room=%s target=%s°C until=%s lead=%smin rate=%s",
+            "preheat | room=%s target=%s°C until=%s lead=%smin rate=%s"
+            " boost=%s",
             self.area_id,
             upcoming_setpoint,
             next_occupied.strftime("%H:%M"),
             round(lead),
             f"{rate}min/°C" if rate is not None else "learning",
+            room_config.get(
+                "preheat_boost_factor", DEFAULT_PREHEAT_BOOST_FACTOR
+            ),
         )
         await self._save_preheat()
         await self.apply_setpoint(PERIOD_PREHEAT, upcoming_setpoint, ctx)
+
+    async def _drop_boost(self, ctx: "EvalContext") -> None:
+        """Re-push the unboosted setpoint now that the room is warm."""
+        if self._preheat_boost_applied and self._last_setpoint is not None:
+            await self.apply_setpoint(
+                self._last_period or PERIOD_PREHEAT, self._last_setpoint, ctx
+            )
 
     def _log_sample(self, sample: dict | None, outcome: str) -> None:
         """INFO log for a finished measurement (sample may be None)."""
@@ -655,7 +769,7 @@ class Room:
             return
 
         delta = sensor_temp - current_temp
-        threshold = config.get("calibration_threshold", 0.5)
+        threshold = calibration_threshold(config, self.preheat_boosting)
         if abs(delta) <= threshold:
             return
 
@@ -677,6 +791,15 @@ class Room:
                 timezone.utc
             ).isoformat(timespec="seconds")
             self._calibration_last_delta = round(delta, 2)
+            log_calibration(
+                self.area_id,
+                entity_id.split(".", 1)[-1],
+                sensor_temp,
+                current_temp,
+                existing_offset,
+                new_offset,
+                threshold,
+            )
         except Exception:  # noqa: BLE001
             _LOGGER.warning(
                 "Failed to apply offset %.1f to %s", new_offset, entity_id

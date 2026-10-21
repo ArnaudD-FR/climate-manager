@@ -467,6 +467,8 @@ async def test_preheat_trigger_fires(hass):
     rooms_config = {
         "bedroom": {
             "preheat_max_lead_minutes": DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
+            # Plain target: the boost has its own tests.
+            "preheat_boost_factor": 0,
         }
     }
     config = _make_preheat_config(

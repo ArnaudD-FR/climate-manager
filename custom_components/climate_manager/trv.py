@@ -231,6 +231,36 @@ def get_tado_valve_devices(hass: HomeAssistant, area_id: str) -> list[dict]:
     return result
 
 
+def tado_device_offset(hass: HomeAssistant, device_id: str) -> float | None:
+    """Offset currently reported by a Tado X valve, or None if unknown.
+
+    Read from the tado_x "temperature_offset" sensor of the same device, so
+    the calibration accumulates from the real offset after a restart.
+    """
+    entity_reg = er.async_get(hass)
+    for entry in er.async_entries_for_device(entity_reg, device_id):
+        if entry.platform != "tado_x" or entry.domain != "sensor":
+            continue
+        if not entry.unique_id.endswith("_temperature_offset"):
+            continue
+        state = hass.states.get(entry.entity_id)
+        if state is None:
+            return None
+        try:
+            return float(state.state)
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
+def device_display_name(hass: HomeAssistant, device_id: str) -> str:
+    """Device name for logs (user name first), else the device id."""
+    device = dr.async_get(hass).async_get(device_id)
+    if device is None:
+        return device_id
+    return device.name_by_user or device.name or device_id
+
+
 async def set_trv_offset_by_device(
     hass: HomeAssistant, device_id: str, offset: float
 ) -> None:

@@ -93,6 +93,7 @@ from .const import (
     PERIOD_FROST_PROTECTION,
     PERIOD_NORMAL,
     PERIOD_REDUCED,
+    PREHEAT_BOOST_FACTOR_MAX,
     VALID_MODES,
     _DEFAULT_DAILY_PROGRAM,
 )
@@ -381,6 +382,15 @@ def _make_ws_set_room_config(entry: ClimateManagerConfigEntry):
                 and 0 <= val <= 480
             ):
                 incoming_config.pop("preheat_max_lead_minutes")
+        # preheat_boost_factor must be a number in [0, 5]; drop otherwise.
+        if "preheat_boost_factor" in incoming_config:
+            val = incoming_config["preheat_boost_factor"]
+            if not (
+                isinstance(val, (int, float))
+                and not isinstance(val, bool)
+                and 0 <= val <= PREHEAT_BOOST_FACTOR_MAX
+            ):
+                incoming_config.pop("preheat_boost_factor")
         # GAP-01: preheat_enabled is no longer a valid room key; silently drop
         # it so legacy callers don't persist the deprecated room-level flag.
         incoming_config.pop("preheat_enabled", None)

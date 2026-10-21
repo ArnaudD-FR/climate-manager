@@ -90,6 +90,18 @@ PREHEAT_LEAD_MARGIN: float = 0.1
 PREHEAT_MIN_LEAD_MINUTES: int = 10
 # Smallest start gap (°C) that yields a meaningful rate sample
 PREHEAT_MIN_SAMPLE_DELTA: float = 0.5
+# Calibration threshold (°C) while a pre-heat runs: a TRV next to a hot
+# radiator reads high and would throttle before the room is warm.
+PREHEAT_CALIBRATION_THRESHOLD: float = 0.2
+# While a pre-heat runs, the TRV gets setpoint + factor × (setpoint − room
+# temperature), capped at PREHEAT_BOOST_MAX. Sparse room key:
+#   preheat_boost_factor (float 0–5, absent = DEFAULT_PREHEAT_BOOST_FACTOR,
+#   0 disables the boost)
+DEFAULT_PREHEAT_BOOST_FACTOR: float = 2.0
+PREHEAT_BOOST_FACTOR_MAX: float = 5.0
+PREHEAT_BOOST_MAX: float = 3.0
+# Highest setpoint assumed when a TRV does not report max_temp
+DEFAULT_TRV_MAX_TEMP: float = 30.0
 
 # Boiler control (sparse runtime_config["boiler"], absent = not controlled):
 #   {"entity_id": "climate.*" | "switch.*" | "input_boolean.*",

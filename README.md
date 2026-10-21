@@ -207,11 +207,12 @@ Rooms do not carry their own schedule: each room belongs to a **zone** and
 follows that zone's program and mode. A room is in the **Default Zone** unless
 you assign it to a custom zone.
 
-| Per-room setting       | Effect                                                         |
-| ---------------------- | -------------------------------------------------------------- |
-| **Zone**               | Which zone the room belongs to (Default Zone or a custom zone) |
-| **Associated persons** | Whose presence heats the room in _Time program & presences_    |
-| **Pre-heat lead**      | Max minutes the room may start heating early before an arrival |
+| Per-room setting       | Effect                                                                 |
+| ---------------------- | ---------------------------------------------------------------------- |
+| **Zone**               | Which zone the room belongs to (Default Zone or a custom zone)         |
+| **Associated persons** | Whose presence heats the room in _Time program & presences_            |
+| **Pre-heat lead**      | Max minutes the room may start heating early before an arrival         |
+| **Boost factor**       | While pre-heating, the TRV gets +factor × °C still missing (max +3 °C) |
 
 To turn a room off, assign it to a zone whose mode is **Off** (or create a
 dedicated Off zone for it).

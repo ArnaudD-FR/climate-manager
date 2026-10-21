@@ -64,7 +64,16 @@ def _utc(local_hhmm: str) -> str:
     return f"2026-01-05 {hh + 8:02d}:{mm:02d}:00"
 
 
-def _config(zone_mode: str = MODE_TIME_PROGRAM, rooms: dict | None = None):
+def _config(
+    zone_mode: str = MODE_TIME_PROGRAM,
+    rooms: dict | None = None,
+    boost: float = 0,
+):
+    """Room "a" pre-heats MORNING_PROGRAM; boost 0 keeps the plain target."""
+    rooms = {
+        area_id: {"preheat_boost_factor": boost, **room}
+        for area_id, room in (rooms or {"a": {}}).items()
+    }
     return {
         "version": 2,
         "default_zone": {
@@ -74,7 +83,7 @@ def _config(zone_mode: str = MODE_TIME_PROGRAM, rooms: dict | None = None):
             "preheat_enabled": True,
         },
         "period_temperatures": dict(DEFAULT_PERIOD_TEMPERATURES),
-        "rooms": rooms or {},
+        "rooms": rooms,
         "persons": {},
         "zones": {},
     }
@@ -362,3 +371,105 @@ async def test_store_v1_migrates_to_empty_v2(hass, hass_storage):
         "data": {"a": [{"duration_minutes": 30, "timestamp": "t"}]},
     }
     assert await PreheatStore(hass).async_load() == {"rooms": {}}
+
+
+async def test_boost_follows_room_gap_then_drops_on_convergence(hass, freezer):
+    """Factor 2: 3 °C gap → +3 (cap); 0.5 °C → +1; reached → plain 20."""
+    freezer.move_to(_utc("06:00"))
+    hass.states.async_set(
+        TRV, "heat", {"temperature": REDUCED, "current_temperature": 17.0}
+    )
+    _, coordinator, calls = await _setup(hass, _config(boost=2))
+
+    assert await _tick(hass, freezer, coordinator, calls, "06:00", 19.5) == (
+        NORMAL + 3.0
+    )
+    room = coordinator.rooms["a"]
+    assert room._last_setpoint == NORMAL
+    payload = coordinator._build_status_payload()
+    status = next(r for r in payload["rooms_status"] if r["area_id"] == "a")
+    assert status["preheat_boost"] == 3.0
+
+    # The room is 0.5 °C short: 2 × 0.5 = +1.
+    assert await _tick(hass, freezer, coordinator, calls, "06:30", 20.0) == (
+        NORMAL + 1.0
+    )
+
+    # Target reached: the plain setpoint is re-pushed in the same tick.
+    assert await _tick(hass, freezer, coordinator, calls, "06:40", 20.0) == (
+        NORMAL
+    )
+    assert room._preheat_in_progress["converged"]
+    assert room._preheat_boost_applied is None
+    assert room.current_period == PERIOD_PREHEAT
+
+
+async def test_boost_continues_while_measuring(hass, freezer):
+    """Not reached at 07:00: Normal gets the boost until the room is warm."""
+    freezer.move_to(_utc("06:00"))
+    hass.states.async_set(
+        TRV, "heat", {"temperature": REDUCED, "current_temperature": 17.0}
+    )
+    _, coordinator, calls = await _setup(hass, _config(boost=2))
+
+    await _tick(hass, freezer, coordinator, calls, "06:00", 19.0)
+    room = coordinator.rooms["a"]
+    assert await _tick(hass, freezer, coordinator, calls, "07:00", 19.5) == (
+        NORMAL + 2.0
+    )
+    assert room._preheat_in_progress["measuring"]
+    assert room.current_period == PERIOD_NORMAL
+
+    assert await _tick(hass, freezer, coordinator, calls, "07:10", 20.0) == (
+        NORMAL + 1.0
+    )
+    assert await _tick(hass, freezer, coordinator, calls, "07:20", 20.0) == (
+        NORMAL
+    )
+    assert not room._preheat_in_progress
+
+
+async def test_boost_bounded_by_trv_max_temp(hass, freezer):
+    """A TRV capped at 21.5 °C never gets more, whatever the gap."""
+    freezer.move_to(_utc("06:00"))
+    hass.states.async_set(
+        TRV,
+        "heat",
+        {
+            "temperature": REDUCED,
+            "current_temperature": 17.0,
+            "max_temp": 21.5,
+        },
+    )
+    _, coordinator, calls = await _setup(hass, _config(boost=2))
+
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
+    assert calls[-1].data["temperature"] == 21.5
+
+
+async def test_boost_factor_defaults_when_room_has_no_setting(hass, freezer):
+    """No preheat_boost_factor → DEFAULT_PREHEAT_BOOST_FACTOR (2)."""
+    freezer.move_to(_utc("06:00"))
+    hass.states.async_set(
+        TRV, "heat", {"temperature": REDUCED, "current_temperature": 19.5}
+    )
+    config = _config()
+    config["rooms"] = {}
+    _, coordinator, calls = await _setup(hass, config)
+
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
+    assert calls[-1].data["temperature"] == NORMAL + 1.0
+
+
+async def test_no_boost_without_room_temperature(hass, freezer):
+    """No room reading → the plain target, as before."""
+    freezer.move_to(_utc("06:00"))
+    hass.states.async_set(TRV, "heat", {"temperature": REDUCED})
+    _, coordinator, calls = await _setup(hass, _config(boost=2))
+
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
+    assert coordinator.rooms["a"]._preheat_active
+    assert calls[-1].data["temperature"] == NORMAL

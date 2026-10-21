@@ -206,11 +206,23 @@ TRV. The run is saved to the pre-heat store on each state change (start,
 convergence, measuring, end): a domain rebuild carries it over
 (`carry_preheat_state`) and a restart restores it (`restore_preheat_run`), so
 the hold and the measurement keep their original start time. The status payload
-exposes `preheat_rate`, `preheat_samples` and `preheat_lead` (shown in the room
-card). **Calibration** (`Room.calibrate_trvs`): incremental offset toward the
-room reference sensor. Tado X Radiator Valve X uses the device-based offset
-call; other TRVs use entity-based. Clamped ±5°C with a threshold guard to avoid
-jitter.
+exposes `preheat_rate`, `preheat_samples`, `preheat_lead` and `preheat_boost`
+(shown in the room card). **Boost**: a TRV next to a hot radiator reads high and
+throttles before the room is warm, so while a run has not converged (hold and
+measuring) `apply_setpoint` pushes `setpoint + factor × (setpoint − room_temp)`
+to the TRVs, capped at `PREHEAT_BOOST_MAX` (3 °C) and the TRVs' `max_temp`,
+rounded to 0.5 °C (`Room._preheat_boost`; per-room `preheat_boost_factor`,
+default 2, 0 disables). `_last_setpoint` keeps the unboosted value. On
+convergence the plain setpoint is re-pushed in the same tick (`_drop_boost`).
+**Calibration** (`Room.calibrate_trvs`): incremental offset toward the room
+reference sensor. Tado X Radiator Valve X uses the device-based offset call;
+other TRVs use entity-based. Clamped ±5°C with a threshold guard to avoid
+jitter: `calibration_threshold` (0.5 °C), tightened to
+`PREHEAT_CALIBRATION_THRESHOLD` (0.2 °C) while a pre-heat has not converged.
+Each write logs
+`calibrate | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`. Tado
+offsets are tracked in memory; after a restart the first correction starts from
+the valve's tado_x `temperature_offset` sensor (`tado_device_offset`).
 
 ---
 

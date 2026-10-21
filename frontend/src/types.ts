@@ -62,6 +62,12 @@ export interface RoomConfig {
    * Sparse — absent means default 120 minutes.
    */
   preheat_max_lead_minutes?: number;
+  /**
+   * While a pre-heat runs, the TRV gets setpoint + factor × (setpoint −
+   * room temperature), capped at 3 °C. Sparse — absent means 2; 0
+   * disables the boost.
+   */
+  preheat_boost_factor?: number;
 }
 
 /** Per-person configuration stored in ClimateConfig.persons. */
@@ -182,6 +188,8 @@ export interface RoomStatus {
    * pre-heat is expected.
    */
   preheat_lead?: number | null;
+  /** °C currently added to the TRV setpoint by the pre-heat boost. */
+  preheat_boost?: number | null;
 }
 
 /** Per-zone live status entry inside StatusPayload.zones. */

@@ -739,6 +739,20 @@ export class RoomCard extends LitElement {
     }
   }
 
+  private async _onPreheatBoostChange(e: Event) {
+    const val = parseFloat((e.target as HTMLInputElement).value);
+    if (isNaN(val) || val < 0 || val > 5) return;
+    try {
+      await this.ws.setRoomConfig(this.roomId, {
+        preheat_boost_factor: val,
+      });
+      await this.panel.reloadConfig();
+      this.panel.showToast("Saved", false);
+    } catch {
+      this.panel.showToast("Save failed — retrying...", true);
+    }
+  }
+
   // Matter / Tado X DnD handlers
 
   private _entityName(id: string): string {
@@ -1042,6 +1056,8 @@ export class RoomCard extends LitElement {
       : this.panelConfig?.default_zone?.preheat_enabled ?? false;
 
     const maxLead = this.config?.preheat_max_lead_minutes ?? 120;
+    const boostFactor = this.config?.preheat_boost_factor ?? 2;
+    const boost = this.roomStatus?.preheat_boost ?? null;
     const preheatActive = this.roomStatus?.preheat_active ?? false;
     const preheatTarget = this.roomStatus?.preheat_target ?? null;
     const suppressed = this.roomStatus?.preheat_suppressed ?? false;
@@ -1066,6 +1082,31 @@ export class RoomCard extends LitElement {
                 style="width:70px;"
               />
             </label>
+            <label
+              style="display:flex;align-items:center;gap:8px;margin-top:6px;"
+              title="Setpoint boost per °C still missing (0 = none)"
+            >
+              Boost factor
+              <input
+                type="number"
+                min="0"
+                max="5"
+                step="0.5"
+                .value=${String(boostFactor)}
+                @change=${this._onPreheatBoostChange}
+                style="width:70px;"
+              />
+            </label>
+          `
+        : ""}
+      ${preheatActive && preheatTarget != null
+        ? html`
+            <p class="schedule-hint">
+              Pre-heating to
+              ${preheatTarget}&nbsp;&deg;C${boost
+                ? ` (TRV +${boost.toFixed(1)}\u00a0°C)`
+                : ""}
+            </p>
           `
         : ""}
       ${enabled && suppressed
