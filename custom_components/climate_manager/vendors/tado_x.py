@@ -150,16 +150,14 @@ class TadoX(TRVVendor):
         """
         entity_reg = er.async_get(hass)
         device_reg = dr.async_get(hass)
-        by_serial = _matter_entities_by_serial(
-            hass, list(entity_reg.entities)
-        )
+        by_serial = _matter_entities_by_serial(hass, list(entity_reg.entities))
         mappings: dict[str, list[str]] = {}
         for entry in entity_reg.entities.values():
             if entry.domain != "climate" or entry.platform != _DOMAIN:
                 continue
             matter_eids = [
                 by_serial[serial]
-                for valve in device_reg.devices.values()
+                for valve in device_reg.devices
                 if valve.via_device_id == entry.device_id
                 for serial in _valve_serials(valve)
                 if serial in by_serial
@@ -188,7 +186,7 @@ class TadoX(TRVVendor):
             return []
         return [
             device
-            for device in dr.async_get(hass).devices.values()
+            for device in dr.async_get(hass).devices
             if device.area_id == area_id
             and device.config_entry_id in entry_ids
             and device.model == _VALVE_MODEL

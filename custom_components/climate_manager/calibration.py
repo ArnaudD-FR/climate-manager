@@ -122,9 +122,7 @@ class Calibrator:
             return self.last_offset[target.key]
         return target.vendor.read_offset(self._hass, target)
 
-    async def calibrate_all(
-        self, config: dict, rooms: dict[str, Room]
-    ) -> None:
+    async def calibrate_all(self, config: dict, rooms: dict[str, Room]) -> None:
         """Calibrate every room concurrently (no-op when disabled)."""
         if not config.get("calibration_enabled", False):
             return
@@ -191,9 +189,7 @@ class Calibrator:
         )
         try:
             async with asyncio.timeout(TRV_COMMAND_TIMEOUT):
-                await target.vendor.write_offset(
-                    self._hass, target, new_offset
-                )
+                await target.vendor.write_offset(self._hass, target, new_offset)
         except Exception:  # noqa: BLE001
             _LOGGER.warning(
                 "Failed to apply offset %.1f to %s", new_offset, target.name
