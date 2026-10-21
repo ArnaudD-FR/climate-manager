@@ -39,7 +39,7 @@ Bug fix — entity discovery refresh:
   The cancel callbacks are stored in cancel_registry_listeners and called on unload.
 """
 
-import json
+import hashlib
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -136,6 +136,15 @@ __all__ = [
 ]
 
 
+def _panel_hash(www_path: Path) -> str:
+    """Short hash of the built panel.js ("0" before the first build)."""
+    try:
+        content = (www_path / "panel.js").read_bytes()
+    except FileNotFoundError:
+        return "0"
+    return hashlib.sha256(content).hexdigest()[:12]
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ClimateManagerConfigEntry,
@@ -221,11 +230,9 @@ async def async_setup_entry(
     )
 
     # Phase 3: register sidebar panel (panel_custom loaded via manifest dependency — Pitfall 7).
-    # Append ?v=<version> to bust the browser cache on every new release.
-    _manifest_path = Path(__file__).parent / "manifest.json"
-    _ver = json.loads(
-        await hass.async_add_executor_job(_manifest_path.read_text)
-    ).get("version", "1")
+    # Append ?v=<hash of panel.js> to bust the browser cache on every build:
+    # the manifest version does not change between deploys of a milestone.
+    _ver = await hass.async_add_executor_job(_panel_hash, www_path)
     await panel_custom.async_register_panel(
         hass,
         frontend_url_path=DOMAIN,
