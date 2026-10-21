@@ -94,12 +94,21 @@ PREHEAT_MIN_SAMPLE_DELTA: float = 0.5
 # radiator reads high and would throttle before the room is warm.
 PREHEAT_CALIBRATION_THRESHOLD: float = 0.2
 # While a pre-heat runs, the TRV gets setpoint + factor × (setpoint − room
-# temperature), capped at PREHEAT_BOOST_MAX. Sparse room key:
-#   preheat_boost_factor (float 0–5, absent = DEFAULT_PREHEAT_BOOST_FACTOR,
-#   0 disables the boost)
+# temperature), capped at PREHEAT_BOOST_MAX. The factor is learned per room
+# (no setting), starting at DEFAULT_PREHEAT_BOOST_FACTOR.
 DEFAULT_PREHEAT_BOOST_FACTOR: float = 2.0
 PREHEAT_BOOST_FACTOR_MAX: float = 5.0
 PREHEAT_BOOST_MAX: float = 3.0
+# Boost factor learning: after each boosted run, the peak above the target over
+# PREHEAT_OVERSHOOT_WINDOW_MINUTES once reached moves the factor by one
+# step, within [PREHEAT_BOOST_FACTOR_MIN, PREHEAT_BOOST_FACTOR_MAX]: down
+# above PREHEAT_OVERSHOOT_HIGH, up when the target came late (or never)
+# with less than PREHEAT_OVERSHOOT_LOW.
+PREHEAT_BOOST_FACTOR_MIN: float = 0.5
+PREHEAT_BOOST_FACTOR_STEP: float = 0.5
+PREHEAT_OVERSHOOT_WINDOW_MINUTES: int = 60
+PREHEAT_OVERSHOOT_HIGH: float = 0.5
+PREHEAT_OVERSHOOT_LOW: float = 0.2
 # Highest setpoint assumed when a TRV does not report max_temp
 DEFAULT_TRV_MAX_TEMP: float = 30.0
 

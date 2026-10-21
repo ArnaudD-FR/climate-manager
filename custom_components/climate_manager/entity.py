@@ -53,6 +53,11 @@ def room_period_unique_id(entry_id: str, area_id: str) -> str:
     return f"{entry_id}_room_{area_id}_period"
 
 
+def room_sensor_unique_id(entry_id: str, area_id: str, key: str) -> str:
+    """unique_id of a room sensor identified by key."""
+    return f"{entry_id}_room_{area_id}_{key}"
+
+
 def zone_config(config: dict, zone_id: str) -> dict | None:
     """Return the stored ZoneConfig for zone_id, or None if unknown."""
     if zone_id == "default":

@@ -29,6 +29,12 @@
           "comfort": "Comfort",
           "preheat": "Pre-heat"
         }
+      },
+      "preheat_rate": {
+        "name": "Pre-heat rate"
+      },
+      "preheat_boost_factor": {
+        "name": "Pre-heat boost factor"
       }
     },
     "binary_sensor": {

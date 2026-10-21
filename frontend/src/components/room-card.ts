@@ -739,20 +739,6 @@ export class RoomCard extends LitElement {
     }
   }
 
-  private async _onPreheatBoostChange(e: Event) {
-    const val = parseFloat((e.target as HTMLInputElement).value);
-    if (isNaN(val) || val < 0 || val > 5) return;
-    try {
-      await this.ws.setRoomConfig(this.roomId, {
-        preheat_boost_factor: val,
-      });
-      await this.panel.reloadConfig();
-      this.panel.showToast("Saved", false);
-    } catch {
-      this.panel.showToast("Save failed — retrying...", true);
-    }
-  }
-
   // Matter pairing DnD handlers
 
   private _entityName(id: string): string {
@@ -1056,7 +1042,6 @@ export class RoomCard extends LitElement {
       : this.panelConfig?.default_zone?.preheat_enabled ?? false;
 
     const maxLead = this.config?.preheat_max_lead_minutes ?? 120;
-    const boostFactor = this.config?.preheat_boost_factor ?? 2;
     const boost = this.roomStatus?.preheat_boost ?? null;
     const preheatActive = this.roomStatus?.preheat_active ?? false;
     const preheatTarget = this.roomStatus?.preheat_target ?? null;
@@ -1079,21 +1064,6 @@ export class RoomCard extends LitElement {
                 step="5"
                 .value=${String(maxLead)}
                 @change=${this._onPreheatMaxLeadChange}
-                style="width:70px;"
-              />
-            </label>
-            <label
-              style="display:flex;align-items:center;gap:8px;margin-top:6px;"
-              title="Setpoint boost per °C still missing (0 = none)"
-            >
-              Boost factor
-              <input
-                type="number"
-                min="0"
-                max="5"
-                step="0.5"
-                .value=${String(boostFactor)}
-                @change=${this._onPreheatBoostChange}
                 style="width:70px;"
               />
             </label>
@@ -1120,21 +1090,29 @@ export class RoomCard extends LitElement {
     `;
   }
 
-  /** Learned inertia line: rate, sample count and today's lead. */
+  /** Learned parameters: heating rate, boost factor, today's lead. */
   private _renderInertia() {
     const rate = this.roomStatus?.preheat_rate ?? null;
     const samples = this.roomStatus?.preheat_samples ?? 0;
+    const factor = this.roomStatus?.preheat_boost_factor ?? null;
     const lead = this.roomStatus?.preheat_lead ?? null;
-    const leadText = lead != null ? ` · lead today ${lead} min` : "";
-    if (rate == null) {
-      return html`<p class="schedule-hint">
-        Learning inertia: ${Math.min(samples, 3)}/3 runs${leadText}
-      </p>`;
-    }
-    return html`<p class="schedule-hint">
-      Inertia: ${rate.toFixed(1)} min/&deg;C (${samples}
-      ${samples === 1 ? "run" : "runs"})${leadText}
-    </p>`;
+    const runs = `${samples} ${samples === 1 ? "run" : "runs"}`;
+    return html`
+      <p class="schedule-hint">
+        Heating rate:
+        ${rate == null
+          ? `learning (${Math.min(samples, 3)}/3 runs)`
+          : `${rate.toFixed(1)} min/°C (${runs})`}
+      </p>
+      ${factor != null
+        ? html`<p class="schedule-hint" title="Tuned after each pre-heat">
+            Boost factor: ${factor.toFixed(1)}
+          </p>`
+        : ""}
+      ${lead != null
+        ? html`<p class="schedule-hint">Lead today: ${lead} min</p>`
+        : ""}
+    `;
   }
 
   render() {

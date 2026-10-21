@@ -22,6 +22,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
+from homeassistant.util import dt as dt_util
+
 from .const import (
     DEFAULT_PREHEAT_BOOST_FACTOR,
     DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
@@ -33,6 +35,7 @@ from .const import (
     PERIOD_PREHEAT,
     PREHEAT_BOOST_MAX,
     PREHEAT_CONVERGENCE_THRESHOLD,
+    PREHEAT_OVERSHOOT_WINDOW_MINUTES,
     PRESENCE_ABSENT,
     PRESENCE_HA,
     PRESENCE_PRESENT,
@@ -40,12 +43,14 @@ from .const import (
 from .preheat import (
     add_sample,
     compute_lead,
+    learned_boost_factor,
     learned_rate,
     make_sample,
     measure_cap,
     room_entry,
     run_from_json,
     run_to_json,
+    tune_boost_factor,
 )
 from .schedule import (
     evaluate_schedule,
@@ -200,6 +205,9 @@ class Room:
         self._last_setpoint = temp
         boost = self._preheat_boost(temp)
         self._preheat_boost_applied = boost or None
+        if boost and ip:
+            # Only a boosted run tunes the auto boost factor.
+            ip["boosted"] = True
         if not self._trv_groups:
             return
         await asyncio.gather(
@@ -233,22 +241,103 @@ class Room:
             - PREHEAT_CONVERGENCE_THRESHOLD
         ):
             return 0.0
-        config = getattr(
-            getattr(self._hass, "_climate_manager_data", None),
-            "runtime_config",
-            {},
-        )
-        factor = (
-            (config.get("rooms") or {})
-            .get(self.area_id, {})
-            .get("preheat_boost_factor", DEFAULT_PREHEAT_BOOST_FACTOR)
-        )
+        config = self._runtime_config()
+        factor = self.boost_factor()
         room_temp = self._room_temperature(config)
         if not factor or room_temp is None or room_temp >= base:
             return 0.0
         boost = min(factor * (base - room_temp), PREHEAT_BOOST_MAX)
         boost = min(boost, self._trv_max_temp() - base)
         return max(0.0, round((base + boost) * 2) / 2 - base)
+
+    def _runtime_config(self) -> dict:
+        """The integration's runtime config ({} without coordinator data)."""
+        return getattr(
+            getattr(self._hass, "_climate_manager_data", None),
+            "runtime_config",
+            {},
+        )
+
+    def boost_factor(self) -> float:
+        """Learned boost factor of the room (default until tuned)."""
+        entry = self._preheat_store_entry()
+        if entry is None:
+            return DEFAULT_PREHEAT_BOOST_FACTOR
+        return learned_boost_factor(entry)
+
+    def _watch_overshoot(self, now: datetime, room_temp: float | None) -> None:
+        """Start watching the overshoot of a boosted run that converged.
+
+        The caller persists the store.
+        """
+        ip = self._preheat_in_progress
+        entry = self._preheat_store_entry()
+        if entry is None or not ip.get("boosted"):
+            return
+        entry["observe"] = {
+            "target_temp": ip["target_temp"],
+            "until": (
+                now + timedelta(minutes=PREHEAT_OVERSHOOT_WINDOW_MINUTES)
+            ).isoformat(),
+            "peak": room_temp,
+            "late": ip["measuring"],
+        }
+
+    def _tune_boost(self, overshoot: float | None, late: bool) -> None:
+        """Move the learned boost factor after one boosted run.
+
+        The caller persists the store.
+        """
+        entry = self._preheat_store_entry()
+        if entry is None:
+            return
+        old = learned_boost_factor(entry)
+        new = tune_boost_factor(old, overshoot, late)
+        entry["boost_factor"] = new
+        _LOGGER.info(
+            "preheat | room=%s boost_factor=%.1f→%.1f overshoot=%s late=%s",
+            self.area_id,
+            old,
+            new,
+            f"{overshoot:+.1f}°C" if overshoot is not None else "none",
+            late,
+        )
+
+    async def _observe_overshoot(
+        self, now: datetime, room_temp: float | None
+    ) -> None:
+        """Follow the peak after a boosted run; tune when the window ends.
+
+        A warmer setpoint during the window (next period) makes the rise
+        legitimate: the watch is dropped without tuning.
+        """
+        entry = self._preheat_store_entry()
+        observe = entry.get("observe") if entry is not None else None
+        if not observe:
+            return
+        target = observe["target_temp"]
+        if (
+            self._last_setpoint is not None
+            and self._last_setpoint > target + PREHEAT_CONVERGENCE_THRESHOLD
+        ):
+            entry["observe"] = None
+            await self._save_preheat()
+            return
+        changed = False
+        if room_temp is not None and (
+            observe["peak"] is None or room_temp > observe["peak"]
+        ):
+            observe["peak"] = room_temp
+            changed = True
+        until = dt_util.parse_datetime(observe["until"])
+        if until is None or now >= until:
+            peak = observe["peak"]
+            if peak is not None:
+                self._tune_boost(round(peak - target, 2), observe["late"])
+            entry["observe"] = None
+            changed = True
+        if changed:
+            await self._save_preheat()
 
     def _trv_max_temp(self) -> float:
         """Lowest max_temp among this room's TRVs (default 30 °C)."""
@@ -415,6 +504,10 @@ class Room:
         )
 
         if not preheat_enabled or zone_mode == MODE_OFF:
+            entry = self._preheat_store_entry()
+            if entry is not None and entry.get("observe"):
+                entry["observe"] = None
+                await self._save_preheat()
             await self._end_preheat()
             self._preheat_suppressed = False
             self._preheat_lead = None
@@ -434,6 +527,7 @@ class Room:
 
         now = ctx.now
         current_temp = self._room_temperature(config)
+        await self._observe_overshoot(now, current_temp)
 
         # ----------------------------------------------------------------
         # Running pre-heat: convergence, measuring, hold, cancel
@@ -455,6 +549,7 @@ class Room:
                     censored=False,
                 )
                 self._log_sample(sample, "reached")
+                self._watch_overshoot(now, current_temp)
                 if ip["measuring"]:
                     await self._end_preheat(sample)
                     await self._drop_boost(ctx)
@@ -479,6 +574,8 @@ class Room:
                         censored=True,
                     )
                     self._log_sample(sample, "not reached, censored")
+                    if ip.get("boosted"):
+                        self._tune_boost(None, late=True)
                     await self._end_preheat(sample)
                 return
 
@@ -629,6 +726,7 @@ class Room:
             "until": next_occupied,
             "converged": False,
             "measuring": False,
+            "boosted": False,
         }
         self._preheat_active = True
         self._preheat_target = upcoming_setpoint
@@ -640,9 +738,7 @@ class Room:
             next_occupied.strftime("%H:%M"),
             round(lead),
             f"{rate}min/°C" if rate is not None else "learning",
-            room_config.get(
-                "preheat_boost_factor", DEFAULT_PREHEAT_BOOST_FACTOR
-            ),
+            self.boost_factor(),
         )
         await self._save_preheat()
         await self.apply_setpoint(PERIOD_PREHEAT, upcoming_setpoint, ctx)

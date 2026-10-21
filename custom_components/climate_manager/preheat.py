@@ -7,12 +7,18 @@ plus a margin, so a colder room starts earlier.
 
 Persisted in the `climate_manager_preheat` Store (version 2):
 
-    {"rooms": {area_id: {"samples": [sample, ...], "run": run | None}}}
+    {"rooms": {area_id: {"samples": [sample, ...], "run": run | None,
+                         "boost_factor": float, "observe": observe | None}}}
 
-    sample = {timestamp, duration_minutes, start_temp, target_temp, rate,
-              censored}
-    run    = {start_time, start_temp, target_temp, until, converged,
-              measuring}   # datetimes as ISO strings with offset
+    sample  = {timestamp, duration_minutes, start_temp, target_temp, rate,
+               censored}
+    run     = {start_time, start_temp, target_temp, until, converged,
+               measuring, boosted}   # datetimes as ISO strings with offset
+    observe = {target_temp, until, peak, late}   # overshoot watch
+
+boost_factor is the learned (auto) boost factor; absent until the first
+boosted run is judged. observe watches the room after a boosted run reached
+its target, to measure the overshoot that tunes it.
 
 A censored sample comes from a run that never reached its target: the
 elapsed time is a lower bound of the real duration, so its rate pulls the
@@ -28,11 +34,17 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    DEFAULT_PREHEAT_BOOST_FACTOR,
+    PREHEAT_BOOST_FACTOR_MAX,
+    PREHEAT_BOOST_FACTOR_MIN,
+    PREHEAT_BOOST_FACTOR_STEP,
     PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD,
     PREHEAT_LEAD_MARGIN,
     PREHEAT_MAX_SAMPLES,
     PREHEAT_MIN_LEAD_MINUTES,
     PREHEAT_MIN_SAMPLE_DELTA,
+    PREHEAT_OVERSHOOT_HIGH,
+    PREHEAT_OVERSHOOT_LOW,
 )
 
 PREHEAT_STORE_KEY = "climate_manager_preheat"
@@ -91,6 +103,32 @@ def learned_rate(samples: list[dict]) -> float | None:
     if len(rates) < PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD:
         return None
     return statistics.median(rates)
+
+
+def learned_boost_factor(entry: dict) -> float:
+    """Auto boost factor of a room (default until tuned)."""
+    factor = entry.get("boost_factor")
+    if isinstance(factor, (int, float)) and not isinstance(factor, bool):
+        return float(factor)
+    return DEFAULT_PREHEAT_BOOST_FACTOR
+
+
+def tune_boost_factor(
+    factor: float, overshoot: float | None, late: bool
+) -> float:
+    """Next auto boost factor after one boosted run.
+
+    overshoot: peak above the target once reached (None: never reached).
+    late: the target was reached after the occupied time, or never.
+    Too much overshoot lowers the factor; a late run without overshoot
+    raises it; otherwise it stays. One step at a time, so the learned rate
+    (measured with the boost) can follow.
+    """
+    if overshoot is not None and overshoot > PREHEAT_OVERSHOOT_HIGH:
+        factor -= PREHEAT_BOOST_FACTOR_STEP
+    elif late and (overshoot is None or overshoot < PREHEAT_OVERSHOOT_LOW):
+        factor += PREHEAT_BOOST_FACTOR_STEP
+    return min(max(factor, PREHEAT_BOOST_FACTOR_MIN), PREHEAT_BOOST_FACTOR_MAX)
 
 
 def compute_lead(
@@ -173,6 +211,7 @@ def run_from_json(raw) -> dict:
     run.setdefault("start_temp", None)
     run.setdefault("converged", False)
     run.setdefault("measuring", False)
+    run.setdefault("boosted", False)
     return run
 
 

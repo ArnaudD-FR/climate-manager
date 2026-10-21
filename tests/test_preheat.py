@@ -467,8 +467,6 @@ async def test_preheat_trigger_fires(hass):
     rooms_config = {
         "bedroom": {
             "preheat_max_lead_minutes": DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
-            # Plain target: the boost has its own tests.
-            "preheat_boost_factor": 0,
         }
     }
     config = _make_preheat_config(
@@ -477,7 +475,10 @@ async def test_preheat_trigger_fires(hass):
         default_zone_preheat_enabled=True,
     )
     data = _make_mock_data(
-        runtime_config=config, rooms={"bedroom": ["climate.bedroom_trv"]}
+        runtime_config=config,
+        rooms={"bedroom": ["climate.bedroom_trv"]},
+        # Plain target (learned factor 0): the boost has its own tests.
+        preheat_data={"rooms": {"bedroom": {"boost_factor": 0}}},
     )
 
     from custom_components.climate_manager.eval_context import EvalContext

@@ -210,18 +210,27 @@ TRV. The run is saved to the pre-heat store on each state change (start,
 convergence, measuring, end): a domain rebuild carries it over
 (`carry_preheat_state`) and a restart restores it (`restore_preheat_run`), so
 the hold and the measurement keep their original start time. The status payload
-exposes `preheat_rate`, `preheat_samples`, `preheat_lead` and `preheat_boost`
-(shown in the room card). **Boost**: a TRV next to a hot radiator reads high and
-throttles before the room is warm, so while a run has not converged (hold and
-measuring) `apply_setpoint` pushes `setpoint + factor × (setpoint − room_temp)`
-to the TRVs, capped at `PREHEAT_BOOST_MAX` (3 °C) and the TRVs' `max_temp`,
-rounded to 0.5 °C (`Room._preheat_boost`; per-room `preheat_boost_factor`,
-default 2, 0 disables). `_last_setpoint` keeps the unboosted value. On
+exposes `preheat_rate`, `preheat_samples`, `preheat_lead`, `preheat_boost` and
+`preheat_boost_factor` (shown in the room card). **Boost**: a TRV next to a hot
+radiator reads high and throttles before the room is warm, so while a run has
+not converged (hold and measuring) `apply_setpoint` pushes
+`setpoint + factor × (setpoint − room_temp)` to the TRVs, capped at
+`PREHEAT_BOOST_MAX` (3 °C) and the TRVs' `max_temp`, rounded to 0.5 °C
+(`Room._preheat_boost`). `_last_setpoint` keeps the unboosted value. On
 convergence the plain setpoint is re-pushed in the same tick (`_drop_boost`).
-**Calibration** (`calibration.py`, `Calibrator`, owned by the coordinator):
-incremental offset toward the room reference sensor, for the calibration targets
-the vendors resolve (see [Vendors](#vendors--vendors)). Clamped ±5°C with a
-threshold guard to avoid jitter: `calibration_threshold` (0.5 °C), tightened to
+The **factor is learned** per room, never set (`Room.boost_factor`, pre-heat
+store `boost_factor`, default 2): a run records `boosted` when the boost was
+applied; once it converges, `observe` follows the room's peak for
+`PREHEAT_OVERSHOOT_WINDOW_MINUTES` (60), then `tune_boost_factor` moves the
+factor by 0.5 within [0.5, 5]: down when the peak exceeds the target by more
+than 0.5 °C, up when the target came late (reached while measuring, or censored
+at once) with less than 0.2 °C overshoot. A warmer setpoint during the window
+drops the watch. Each change logs
+`preheat | room=… boost_factor=a→b overshoot=… late=…`. **Calibration**
+(`calibration.py`, `Calibrator`, owned by the coordinator): incremental offset
+toward the room reference sensor, for the calibration targets the vendors
+resolve (see [Vendors](#vendors--vendors)). Clamped ±5°C with a threshold guard
+to avoid jitter: `calibration_threshold` (0.5 °C), tightened to
 `PREHEAT_CALIBRATION_THRESHOLD` (0.2 °C) while a pre-heat has not converged; at
 most one write attempt per target every 5 min, failures included (cloud API
 quotas). Each write logs
@@ -415,12 +424,14 @@ Native entities exist so the HA recorder historises zone modes and periods
 (history graphs, logbook, automations). Platform modules: `binary_sensor.py`,
 `select.py`, `sensor.py`; shared base and device helpers in `entity.py`.
 
-| Entity                                               | Device             | unique_id                       | State                                         |
-| ---------------------------------------------------- | ------------------ | ------------------------------- | --------------------------------------------- |
-| `select.<zone>_mode`                                 | zone               | `<entry>_zone_<zone_id>_mode`   | zone mode, read from `runtime_config`         |
-| `sensor.<zone>_period` (enum)                        | zone               | `<entry>_zone_<zone_id>_period` | `Zone.current_period` (schedule period)       |
-| `sensor.<area_id>_period` (enum)                     | room (in its area) | `<entry>_room_<area_id>_period` | `Room.current_period` (presence-resolved)     |
-| `binary_sensor.climate_manager_boiler_demand` (heat) | boiler             | `<entry>_boiler_demand`         | on while a room needs heat; `rooms` attribute |
+| Entity                                               | Device             | unique_id                                     | State                                          |
+| ---------------------------------------------------- | ------------------ | --------------------------------------------- | ---------------------------------------------- |
+| `select.<zone>_mode`                                 | zone               | `<entry>_zone_<zone_id>_mode`                 | zone mode, read from `runtime_config`          |
+| `sensor.<zone>_period` (enum)                        | zone               | `<entry>_zone_<zone_id>_period`               | `Zone.current_period` (schedule period)        |
+| `sensor.<area_id>_period` (enum)                     | room (in its area) | `<entry>_room_<area_id>_period`               | `Room.current_period` (presence-resolved)      |
+| `sensor.<area_id>_preheat_rate` (diagnostic, min/°C) | room (in its area) | `<entry>_room_<area_id>_preheat_rate`         | `Room.learned_rate()` (unknown while learning) |
+| `sensor.<area_id>_preheat_boost_factor` (diagnostic) | room (in its area) | `<entry>_room_<area_id>_preheat_boost_factor` | `Room.boost_factor()` (learned)                |
+| `binary_sensor.climate_manager_boiler_demand` (heat) | boiler             | `<entry>_boiler_demand`                       | on while a room needs heat; `rooms` attribute  |
 
 - **Devices**: one per zone (`(DOMAIN, "zone_<zone_id>")`, named after the zone,
   Default Zone = `zone_default`) and one per room (`(DOMAIN, "room_<area_id>")`,

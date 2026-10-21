@@ -905,6 +905,10 @@ class ClimateManagerCoordinator:
                 if _room_obj is not None
                 else None
             )
+            # Learned boost factor of the room.
+            room_entry["preheat_boost_factor"] = (
+                _room_obj.boost_factor() if _room_obj is not None else None
+            )
 
             auto = self._data.room_auto_sensors.get(area_id, {})
 
