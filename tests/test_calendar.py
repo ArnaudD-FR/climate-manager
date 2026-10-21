@@ -597,7 +597,7 @@ async def test_calendar_cache_reset_per_cycle(hass):
 async def test_calendar_fallback_on_error(hass, caplog):
     """HomeAssistantError from get_events → empty list in cache + one WARNING.
 
-    D-04: fallback to absent on calendar entity error; no log spam.
+    D-04: a calendar entity error counts as "no events"; no log spam.
     """
     cal_id = "calendar.missing"
 

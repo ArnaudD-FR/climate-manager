@@ -113,14 +113,17 @@ class EvalContext:
             self._calendar_cache[entity_id] = events
             # D-04: clear warn flag so WARNING re-fires after recovery
             self._warn_issued.discard(entity_id)
-        except HomeAssistantError:
-            # T-16-04: log WARNING once per entity; suppress repeats
+        except HomeAssistantError as err:
+            # T-16-04: log WARNING once per entity; suppress repeats.
+            # The empty list means "no event", so presence follows
+            # event_means (absent → present, present → absent).
             if entity_id not in self._warn_issued:
                 _LOGGER.warning(
-                    "Calendar entity %s unavailable — falling back to"
-                    " absent (further failures will be suppressed"
-                    " until recovery)",
+                    "Calendar entity %s unavailable (%s) — treated as"
+                    " having no events (further failures will be"
+                    " suppressed until recovery)",
                     entity_id,
+                    err,
                 )
                 self._warn_issued.add(entity_id)
             self._calendar_cache[entity_id] = []
