@@ -55,6 +55,7 @@ from .const import (
 from .entity import (
     boiler_demand_unique_id,
     room_period_unique_id,
+    room_sensor_unique_id,
     zone_mode_unique_id,
     zone_period_unique_id,
 )
@@ -861,6 +862,19 @@ class ClimateManagerCoordinator:
                 "entity_ids": entity_ids,
                 "period_entity_id": _entity_id(
                     "sensor", room_period_unique_id, area_id
+                ),
+                # Learned pre-heat parameter sensors (card history).
+                "preheat_rate_entity_id": _entity_id(
+                    "sensor",
+                    lambda e, a: room_sensor_unique_id(e, a, "preheat_rate"),
+                    area_id,
+                ),
+                "preheat_boost_factor_entity_id": _entity_id(
+                    "sensor",
+                    lambda e, a: room_sensor_unique_id(
+                        e, a, "preheat_boost_factor"
+                    ),
+                    area_id,
                 ),
             }
 

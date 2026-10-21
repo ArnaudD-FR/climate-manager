@@ -360,6 +360,10 @@ async def test_status_exposes_entity_ids(hass, hass_ws_client):
     )
     lounge = next(r for r in status["rooms_status"] if r["area_id"] == "lounge")
     assert lounge["period_entity_id"] == "sensor.lounge_period"
+    assert lounge["preheat_rate_entity_id"] == "sensor.lounge_preheat_rate"
+    assert lounge["preheat_boost_factor_entity_id"] == (
+        "sensor.lounge_preheat_boost_factor"
+    )
     assert lounge["temperature_entity_id"] is None
     assert lounge["humidity_entity_id"] is None
 

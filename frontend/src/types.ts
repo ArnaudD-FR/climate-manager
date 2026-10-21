@@ -152,6 +152,10 @@ export interface RoomStatus {
   active_period?: string | null;
   /** Room period sensor entity_id (resolved from the HA entity registry). */
   period_entity_id?: string | null;
+  /** Learned pre-heat heating rate sensor entity_id. */
+  preheat_rate_entity_id?: string | null;
+  /** Learned pre-heat boost factor sensor entity_id. */
+  preheat_boost_factor_entity_id?: string | null;
   /** Room temperature sensor (HA area setting or auto-discovered). */
   temperature_entity_id?: string | null;
   /** Room humidity sensor (HA area setting or auto-discovered). */

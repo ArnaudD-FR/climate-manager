@@ -616,7 +616,8 @@ export class RoomCard extends LitElement {
   // -----------------------------------------------------------------------
 
   /**
-   * Room period, temperature and humidity sensors, then the TRVs that
+   * Room period, temperature and humidity sensors, the learned pre-heat
+   * parameters (heating rate, boost factor), then the TRVs that
    * actually receive setpoints (same rules as backend TRVGroup):
    * an entity with paired Matter valves is replaced by those valves
    * (pushed locally); a Matter valve paired to another entity is otherwise
@@ -644,6 +645,8 @@ export class RoomCard extends LitElement {
       s?.period_entity_id,
       temperature,
       s?.humidity_entity_id,
+      s?.preheat_rate_entity_id,
+      s?.preheat_boost_factor_entity_id,
       ...trvs,
     ]);
   }
@@ -688,7 +691,7 @@ export class RoomCard extends LitElement {
       <div class="history-header">
         <div
           class="section-label"
-          title="Period, temperature, humidity and TRV history"
+          title="Period, temperature, humidity, pre-heat and TRV history"
         >
           History
         </div>
