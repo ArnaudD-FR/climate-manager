@@ -79,7 +79,7 @@ export class RoomCard extends LitElement {
   /** Expanded state. Defaults to collapsed. */
   @state() _expanded = false;
   @state() private _dragActive = false;
-  @state() private _dragType: "matter" | "tadox" | null = null;
+  @state() private _dragType: "matter" | "parent" | null = null;
   /** Native history-graph card, created lazily while expanded. */
   @state() private _historyCard: LovelaceCard | null = null;
   @state() private _historyHours = loadHistoryHours();
@@ -618,8 +618,8 @@ export class RoomCard extends LitElement {
   /**
    * Room period, temperature and humidity sensors, then the TRVs that
    * actually receive setpoints (same rules as backend TRVGroup):
-   * a Tado X room with paired Matter valves is replaced by those valves
-   * (pushed locally); a Matter valve paired to a Tado X room is otherwise
+   * an entity with paired Matter valves is replaced by those valves
+   * (pushed locally); a Matter valve paired to another entity is otherwise
    * skipped (not pushed on its own). The room temperature sensor is left
    * out when it sits on the same device as a plotted TRV: the TRV already
    * draws that temperature (current temperature).
@@ -753,7 +753,7 @@ export class RoomCard extends LitElement {
     }
   }
 
-  // Matter / Tado X DnD handlers
+  // Matter pairing DnD handlers
 
   private _entityName(id: string): string {
     return (
@@ -765,14 +765,14 @@ export class RoomCard extends LitElement {
 
   private _startDrag(
     entityId: string,
-    type: "matter" | "tadox",
-    fromTadoId: string | null,
+    type: "matter" | "parent",
+    fromParentId: string | null,
     e: DragEvent,
   ): void {
     if (!e.dataTransfer) return;
     e.dataTransfer.setData(
       "text/plain",
-      JSON.stringify({ entityId, type, fromTadoId }),
+      JSON.stringify({ entityId, type, fromParentId }),
     );
     e.dataTransfer.effectAllowed = "move";
     const el = e.currentTarget as HTMLElement;
@@ -813,7 +813,7 @@ export class RoomCard extends LitElement {
   private _parseDragPayload(e: DragEvent): {
     entityId: string;
     type: string;
-    fromTadoId: string | null;
+    fromParentId: string | null;
   } | null {
     const raw = e.dataTransfer?.getData("text/plain");
     if (!raw) return null;
@@ -821,33 +821,33 @@ export class RoomCard extends LitElement {
       return JSON.parse(raw) as {
         entityId: string;
         type: string;
-        fromTadoId: string | null;
+        fromParentId: string | null;
       };
     } catch {
       return null;
     }
   }
 
-  private async _onDropOnTado(tadoId: string, e: DragEvent): Promise<void> {
+  private async _onDropOnParent(parentId: string, e: DragEvent): Promise<void> {
     e.preventDefault();
     (e.currentTarget as HTMLElement).classList.remove("drag-over");
     this._dragActive = false;
     this._dragType = null;
     const d = this._parseDragPayload(e);
     if (!d || d.type !== "matter") return;
-    const { entityId: matterId, fromTadoId } = d;
-    if (fromTadoId === tadoId) return;
+    const { entityId: matterId, fromParentId } = d;
+    if (fromParentId === parentId) return;
     try {
-      if (fromTadoId) {
-        const src = this.panelConfig?.matter_mappings?.[fromTadoId] ?? [];
+      if (fromParentId) {
+        const src = this.panelConfig?.matter_mappings?.[fromParentId] ?? [];
         await this.ws.setMatterMapping(
-          fromTadoId,
+          fromParentId,
           src.filter((id) => id !== matterId),
         );
       }
-      const existing = this.panelConfig?.matter_mappings?.[tadoId] ?? [];
+      const existing = this.panelConfig?.matter_mappings?.[parentId] ?? [];
       if (!existing.includes(matterId)) {
-        await this.ws.setMatterMapping(tadoId, [...existing, matterId]);
+        await this.ws.setMatterMapping(parentId, [...existing, matterId]);
       }
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
@@ -864,16 +864,16 @@ export class RoomCard extends LitElement {
     const d = this._parseDragPayload(e);
     if (!d) return;
     try {
-      if (d.type === "tadox") {
+      if (d.type === "parent") {
         await this.ws.setMatterMapping(d.entityId, []);
         await this.panel.reloadConfig();
         this.panel.showToast("Saved", false);
         return;
       }
-      if (!d.fromTadoId) return;
-      const src = this.panelConfig?.matter_mappings?.[d.fromTadoId] ?? [];
+      if (!d.fromParentId) return;
+      const src = this.panelConfig?.matter_mappings?.[d.fromParentId] ?? [];
       await this.ws.setMatterMapping(
-        d.fromTadoId,
+        d.fromParentId,
         src.filter((id) => id !== d.entityId),
       );
       await this.panel.reloadConfig();
@@ -884,38 +884,38 @@ export class RoomCard extends LitElement {
   }
 
   private _renderClimateSection() {
-    const tadoXEntities = this.panelConfig?.tado_x_entities ?? [];
+    const pairableEntities = this.panelConfig?.pairable_entities ?? [];
     const roomEntityIds = this.roomStatus?.entity_ids ?? [];
-    const roomTadoXIds = roomEntityIds.filter((id) =>
-      tadoXEntities.includes(id),
+    const roomPairableIds = roomEntityIds.filter((id) =>
+      pairableEntities.includes(id),
     );
     const matterEntities = this.panelConfig?.matter_entities ?? [];
-    const canPair = roomTadoXIds.length > 0 && matterEntities.length > 0;
+    const canPair = roomPairableIds.length > 0 && matterEntities.length > 0;
 
-    if (roomTadoXIds.length === 0 && matterEntities.length === 0) {
+    if (roomPairableIds.length === 0 && matterEntities.length === 0) {
       return this._renderTrvSection();
     }
 
     const mappings = this.panelConfig?.matter_mappings ?? {};
     const allMapped = new Set(Object.values(mappings).flat());
     const firstLevelOther = roomEntityIds.filter(
-      (id) => !tadoXEntities.includes(id) && !allMapped.has(id),
+      (id) => !pairableEntities.includes(id) && !allMapped.has(id),
     );
-    const firstLevel = [...firstLevelOther, ...roomTadoXIds].sort((a, b) =>
+    const firstLevel = [...firstLevelOther, ...roomPairableIds].sort((a, b) =>
       this._entityName(a).localeCompare(this._entityName(b)),
     );
 
     return html`
       ${canPair
         ? html`<p class="schedule-hint">
-            Drag Matter entities onto a Tado X valve to pair them for sub-minute
-            calibration.
+            Drag Matter entities onto a cloud TRV entity to pair them: they
+            receive its setpoints locally and give sub-minute calibration.
           </p>`
         : ""}
       <div class=${this._dragActive ? "climate-pair" : ""}>
         <div class="climate-tree">
           ${firstLevel.map((id) => {
-            const isTado = roomTadoXIds.includes(id);
+            const isPairable = roomPairableIds.includes(id);
             const s = this.hass?.states[id];
             const name = this._entityName(id);
             const temp =
@@ -923,7 +923,7 @@ export class RoomCard extends LitElement {
                 ? `${s.attributes["current_temperature"]}°C`
                 : "—";
 
-            if (!isTado) {
+            if (!isPairable) {
               const isMatter = matterEntities.includes(id);
               const draggable = canPair && isMatter;
               return html`
@@ -943,7 +943,7 @@ export class RoomCard extends LitElement {
               `;
             }
 
-            // Tado X entity
+            // Pairable (cloud) entity
             const mapped = (mappings[id] ?? [])
               .slice()
               .sort((a, b) =>
@@ -954,9 +954,9 @@ export class RoomCard extends LitElement {
             if (isGroup) {
               return html`
                 <div
-                  class="tado-group"
+                  class="pair-group"
                   @dragover=${this._onMatterDragOver}
-                  @drop=${(e: DragEvent) => void this._onDropOnTado(id, e)}
+                  @drop=${(e: DragEvent) => void this._onDropOnParent(id, e)}
                   @dragenter=${this._onMatterDragEnter}
                   @dragleave=${this._onMatterDragLeave}
                 >
@@ -964,7 +964,7 @@ export class RoomCard extends LitElement {
                     class=${`chip${canPair ? " chip-draggable" : ""}`}
                     .draggable=${canPair}
                     @dragstart=${canPair
-                      ? (e: DragEvent) => this._startDrag(id, "tadox", null, e)
+                      ? (e: DragEvent) => this._startDrag(id, "parent", null, e)
                       : undefined}
                     @dragend=${canPair ? () => this._onDragEnd() : undefined}
                     @click=${() => this._openEntityMoreInfo(id)}
@@ -1004,13 +1004,13 @@ export class RoomCard extends LitElement {
               `;
             }
 
-            // Ungrouped Tado X — plain chip, drop target for Matter
+            // Ungrouped pairable entity — plain chip, drop target for Matter
             return html`
               <span
                 class="chip"
                 @dragover=${canPair ? this._onMatterDragOver : undefined}
                 @drop=${canPair
-                  ? (e: DragEvent) => void this._onDropOnTado(id, e)
+                  ? (e: DragEvent) => void this._onDropOnParent(id, e)
                   : undefined}
                 @dragenter=${canPair ? this._onMatterDragEnter : undefined}
                 @dragleave=${canPair ? this._onMatterDragLeave : undefined}

@@ -11,7 +11,7 @@ Also implements off-capable TRV support (quick task 260526-ffr):
 
 Domain classes (plan 16-03, D-07/D-10/D-11):
   - TRV: owns entity_id, last_pushed, last_slot, platform; async
-    push_temperature, push_off, calibrate. Anti-flap guard, manual-override
+    push_temperature, push_off. Anti-flap guard, manual-override
     hold lifted on period change, INFO push log, per-call timeout.
   - TRVGroup: assembled at init from matter_mappings; no platform branching
     at push time; uses asyncio.gather for concurrent TRV pushes.
@@ -39,7 +39,6 @@ import logging
 
 from homeassistant.components.climate import HVACMode
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from .const import TRV_COMMAND_TIMEOUT
@@ -91,10 +90,10 @@ async def set_trv_temperature(
     Both calls use blocking=True to ensure sequential execution.
 
     Redundant-call guards (skip-redundant-hvac-and-temp-calls): each call is
-    skipped when the TRV is already in the desired state, halving tado_x API
+    skipped when the TRV is already in the desired state, halving cloud API
     writes on startup / period transitions.
     - set_hvac_mode is skipped when state.state is already "heat". It still
-      fires for any other mode ("auto"/"off"/"cool") because Tado X TRVs in
+      fires for any other mode ("auto"/"off"/"cool") because some TRVs in
       auto mode ignore set_temperature until forced into heat mode (INFRA-04).
     - set_temperature is skipped when the reported "temperature" attribute
       already equals the desired value. When the attribute is absent we cannot
@@ -110,8 +109,8 @@ async def set_trv_temperature(
         return
 
     # Step 1: Ensure heat mode (INFRA-04 — hvac_mode must be "heat").
-    # Skip when already heating; fire for any non-heat mode (Tado X auto-mode
-    # workaround — set_temperature is ignored unless the TRV is in heat mode).
+    # Skip when already heating; fire for any non-heat mode (auto-mode
+    # workaround — some TRVs ignore set_temperature unless in heat mode).
     if state.state != HVACMode.HEAT.value:
         await hass.services.async_call(
             "climate",
@@ -169,151 +168,6 @@ async def set_trv_off(hass: HomeAssistant, entity_id: str) -> None:
         "climate",
         "set_hvac_mode",
         {"entity_id": entity_id, "hvac_mode": HVACMode.OFF.value},
-        blocking=True,
-    )
-
-
-def supports_offset_calibration(hass: HomeAssistant, entity_id: str) -> bool:
-    """Return True if the TRV entity supports temperature offset adjustment.
-
-    Two detection paths (D-08):
-    - Attribute check: entity exposes temperature_offset in its state.
-    - Service check: tado_x.set_temperature_offset is registered.
-
-    Returns True if either path matches. set_trv_offset routes to the tado_x
-    service when it is present; if only the attribute path matched, the
-    set_trv_offset call will return silently (no write path available yet).
-
-    Returns False when the entity state is missing (None) — ROOM-03 parity.
-
-    Never raises.
-    """
-    state = hass.states.get(entity_id)
-    if state is None:
-        return False
-    return (
-        "temperature_offset" in state.attributes
-        or hass.services.has_service("tado_x", "set_temperature_offset")
-    )
-
-
-def get_tado_valve_devices(hass: HomeAssistant, area_id: str) -> list[dict]:
-    """Return Radiator Valve X device info for the given area.
-
-    Queries the HA device registry for physical Tado X TRV devices (model
-    "Radiator Valve X") in the area. Used by both the coordinator (calibration
-    loop) and the websocket handler (calibration status display) so that both
-    paths agree on which devices exist.
-
-    Returns a list of {"device_id": str, "name": str} dicts.
-    Returns an empty list when tado_x is not configured or the area has none.
-    """
-    dev_reg = dr.async_get(hass)
-    tado_x_entries = {
-        e.entry_id for e in hass.config_entries.async_entries("tado_x")
-    }
-    if not tado_x_entries:
-        return []
-    result = []
-    for device in dev_reg.devices:
-        if device.area_id != area_id:
-            continue
-        if device.config_entry_id not in tado_x_entries:
-            continue
-        if device.model != "Radiator Valve X":
-            continue
-        result.append(
-            {
-                "device_id": device.id,
-                "name": device.name_by_user or device.name or device.id,
-            }
-        )
-    return result
-
-
-def tado_device_offset(hass: HomeAssistant, device_id: str) -> float | None:
-    """Offset currently reported by a Tado X valve, or None if unknown.
-
-    Read from the tado_x "temperature_offset" sensor of the same device, so
-    the calibration accumulates from the real offset after a restart.
-    """
-    entity_reg = er.async_get(hass)
-    for entry in er.async_entries_for_device(entity_reg, device_id):
-        if entry.platform != "tado_x" or entry.domain != "sensor":
-            continue
-        if not entry.unique_id.endswith("_temperature_offset"):
-            continue
-        state = hass.states.get(entry.entity_id)
-        if state is None:
-            return None
-        try:
-            return float(state.state)
-        except (ValueError, TypeError):
-            return None
-    return None
-
-
-def device_display_name(hass: HomeAssistant, device_id: str) -> str:
-    """Device name for logs (user name first), else the device id."""
-    device = dr.async_get(hass).async_get(device_id)
-    if device is None:
-        return device_id
-    return device.name_by_user or device.name or device_id
-
-
-async def set_trv_offset_by_device(
-    hass: HomeAssistant, device_id: str, offset: float
-) -> None:
-    """Call tado_x.set_temperature_offset targeting a physical device by device_id.
-
-    The tado_x service takes device_id (not entity_id) — this is the correct
-    call path for Radiator Valve X devices. Returns silently when the service
-    is absent.
-    """
-    if not hass.services.has_service("tado_x", "set_temperature_offset"):
-        return
-
-    await hass.services.async_call(
-        "tado_x",
-        "set_temperature_offset",
-        # Tado X API requires exactly one decimal place (Issue 1):
-        # round at the boundary so every caller is protected.
-        {"device_id": device_id, "offset": round(offset, 1)},
-        blocking=True,
-    )
-
-
-async def set_trv_offset(
-    hass: HomeAssistant, entity_id: str, offset: float
-) -> None:
-    """Issue a single tado_x.set_temperature_offset call to apply a new offset.
-
-    Caller (coordinator) is responsible for the capability guard before calling
-    this function — use supports_offset_calibration to check first.
-
-    Silently skips the entity if its state is None, "unavailable", or
-    "unknown" (ROOM-03 parity / T-01-08), matching the set_trv_off /
-    set_trv_temperature guard pattern.
-
-    Only calls the tado_x service when it is registered; returns silently
-    for TRVs where the service is absent (no write path available).
-    """
-    # Availability guard (ROOM-03, T-01-08): skip missing or unavailable TRVs
-    state = hass.states.get(entity_id)
-    if state is None or state.state in ("unavailable", "unknown"):
-        return
-
-    # Route: only call tado_x service when it exists; attribute-only TRVs
-    # have no write path yet — skip silently rather than raising ServiceNotFound.
-    if not hass.services.has_service("tado_x", "set_temperature_offset"):
-        return
-
-    await hass.services.async_call(
-        "tado_x",
-        "set_temperature_offset",
-        # Tado X API requires exactly one decimal place (Issue 1):
-        # round at the boundary so every caller is protected.
-        {"entity_id": entity_id, "offset": round(offset, 1)},
         blocking=True,
     )
 
@@ -526,22 +380,6 @@ class TRV:
                 "Unexpected error in push_off for %s", self.entity_id
             )
 
-    async def calibrate(self, offset: float, ctx: object) -> None:
-        """Apply temperature offset calibration to this TRV.
-
-        Thin wrapper delegating to set_trv_offset.  Full calibration logic
-        moves here in plan 16-04 (room).  Exception-safe (T-16-05).
-        """
-        try:
-            async with asyncio.timeout(TRV_COMMAND_TIMEOUT):
-                await set_trv_offset(self._hass, self.entity_id, offset)
-        except Exception:  # noqa: BLE001
-            _LOGGER.warning(
-                "Failed to calibrate TRV %s with offset %s",
-                self.entity_id,
-                offset,
-            )
-
 
 class TRVGroup:
     """One logical push unit assembled at coordinator init (D-07).
@@ -550,12 +388,11 @@ class TRVGroup:
     assembly time.  At push time there is no platform branching — the correct
     TRVs are already in the group.  Uses asyncio.gather for concurrent pushes.
 
-    Assembly rules (from coordinator _push_temperatures / Pitfall 4):
-      tado_x + mapped   → Matter entity_ids only (not the tado_x entity)
-      tado_x + unmapped → tado_x entity itself
-      matter + in dedup → skip (already covered by tado_x branch)
-      matter + not dedup → standalone push target
-      other platform    → standalone push target
+    Assembly rules (Pitfall 4), brand-neutral:
+      mapped entity     → its paired Matter entities only (a cloud entity
+                          is replaced by the local valves it controls)
+      pairing target    → skipped (already in the group through its key)
+      any other entity  → standalone push target
     """
 
     def __init__(
@@ -579,8 +416,8 @@ class TRVGroup:
     ) -> "TRVGroup":
         """Build a TRVGroup from a room's entity list and matter_mappings.
 
-        The matter_entity_set frozenset (T-16-06) prevents double-pushing
-        a Matter entity that is already covered by a tado_x mapping.
+        The paired frozenset (T-16-06) prevents double-pushing a Matter
+        entity that is already covered by its paired entity.
         """
         from homeassistant.helpers import (  # noqa: PLC0415
             entity_registry as er,
@@ -588,9 +425,11 @@ class TRVGroup:
 
         entity_reg = er.async_get(hass)
 
-        # Frozenset of all Matter entity_ids referenced in any mapping value
-        # (T-16-06: dedup guard — Pitfall 4)
-        matter_entity_set: frozenset[str] = frozenset(
+        def _platform(entity_id: str) -> str | None:
+            reg = entity_reg.async_get(entity_id)
+            return reg.platform if reg is not None else None
+
+        paired: frozenset[str] = frozenset(
             eid for eids in matter_mappings.values() for eid in eids
         )
 
@@ -601,25 +440,12 @@ class TRVGroup:
             # coordinator applies on every other entity-iterating path.
             if not is_trv_entity(hass, entity_id):
                 continue
-            reg = entity_reg.async_get(entity_id)
-            platform = reg.platform if reg is not None else None
-            if platform == "tado_x":
-                mapped = matter_mappings.get(entity_id)
-                if mapped:
-                    # Mapped tado_x → use Matter entities only
-                    for m_eid in mapped:
-                        trvs.append(TRV(hass, m_eid, "matter"))
-                else:
-                    # Unmapped tado_x → use tado_x entity
-                    trvs.append(TRV(hass, entity_id, "tado_x"))
-            elif platform == "matter":
-                if entity_id not in matter_entity_set:
-                    # Standalone Matter entity — independent push target
-                    trvs.append(TRV(hass, entity_id, "matter"))
-                # else: skip — already in the group via tado_x mapping
-            else:
-                # Generic TRV entity
-                trvs.append(TRV(hass, entity_id, platform))
+            mapped = matter_mappings.get(entity_id)
+            if mapped:
+                for m_eid in mapped:
+                    trvs.append(TRV(hass, m_eid, _platform(m_eid)))
+            elif entity_id not in paired:
+                trvs.append(TRV(hass, entity_id, _platform(entity_id)))
 
         return cls(trvs, room_name, zone_name)
 

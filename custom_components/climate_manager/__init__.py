@@ -59,11 +59,11 @@ from .discovery import (
     discover_persons,
     discover_room_sensors,
     discover_rooms,
-    suggest_matter_mappings,
 )
 from .entity import async_sync_devices
 from .preheat import PreheatStore, empty_preheat_data
 from .storage import ClimateManagerStore
+from .vendors import suggest_mappings
 from . import websocket as cm_ws
 from .const import DOMAIN
 
@@ -187,7 +187,7 @@ async def async_setup_entry(
     # _last_pushed is empty on restart → push always fires (D-04).
     await coordinator.async_evaluate()
 
-    # Auto-detect Matter→Tado X mappings on startup when none configured.
+    # Auto-detect vendor → Matter pairings on startup when none configured.
     if not entry.runtime_data.runtime_config.get("matter_mappings"):
         await _async_auto_detect_matter_mappings(hass, entry)
 
@@ -239,9 +239,10 @@ async def async_setup_entry(
 
     # Bug fix: live entity re-discovery.
     #
-    # discover_rooms() is called once at startup; newly added integrations (e.g.
-    # Tado X) register their climate entities after async_setup_entry has already
-    # run, so those entities never appear in entry.runtime_data.rooms.
+    # discover_rooms() is called once at startup; newly added integrations
+    # (e.g. a cloud TRV integration) register their climate entities after
+    # async_setup_entry has already run, so those entities never appear in
+    # entry.runtime_data.rooms.
     #
     # Fix: listen to entity_registry_updated and device_registry_updated events.
     # - entity_registry_updated fires when a climate entity is created or removed.
@@ -341,23 +342,23 @@ async def _async_auto_detect_matter_mappings(
     only when at least one new mapping is added. Safe to call
     repeatedly — idempotent when nothing new is found.
     """
-    suggestions = await suggest_matter_mappings(hass)
+    suggestions = suggest_mappings(hass)
     if not suggestions:
         return
     existing = entry.runtime_data.runtime_config.setdefault(
         "matter_mappings", {}
     )
     changed = False
-    for tado_id, matter_ids in suggestions.items():
-        if tado_id not in existing:
-            existing[tado_id] = matter_ids
+    for entity_id, matter_ids in suggestions.items():
+        if entity_id not in existing:
+            existing[entity_id] = matter_ids
             changed = True
     if not changed:
         return
     await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
     coordinator = entry.runtime_data.coordinator
     if coordinator is not None:
-        await coordinator._async_refresh_matter_listeners()
+        await coordinator._async_refresh_calibration_listeners()
 
 
 async def async_unload_entry(
@@ -377,14 +378,14 @@ async def async_unload_entry(
     for cancel in entry.runtime_data.cancel_registry_listeners:
         cancel()
 
-    # D-11 (Phase 13): cancel all Matter calibration state_changed listeners.
-    # These live in coordinator._matter_cal_listeners, NOT in
+    # D-11 (Phase 13): cancel all calibration state_changed listeners.
+    # These live in coordinator._calibration_listeners, NOT in
     # cancel_registry_listeners (which is for bus registry events only).
     coordinator = entry.runtime_data.coordinator
     if coordinator is not None:
-        for cancel in coordinator._matter_cal_listeners.values():
+        for cancel in coordinator._calibration_listeners.values():
             cancel()
-        coordinator._matter_cal_listeners.clear()
+        coordinator._calibration_listeners.clear()
         coordinator.cancel_availability_listeners()
 
     # Drop the sidebar panel so a reload can register it again.

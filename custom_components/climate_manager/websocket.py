@@ -4,7 +4,7 @@
 Registers 20 WebSocket commands for the panel ↔ backend protocol:
 - get_status: delegates to coordinator._build_status_payload() (D-07)
 - get_config: returns full runtime_config plus derived climate_entities,
-  matter_entities, and tado_x_entities lists (A2 Option A/C), and the
+  matter_entities, and pairable_entities lists (A2 Option A/C), and the
   boiler_candidates list (boiler.boiler_candidates)
 - set_period_temperatures: updates all 4 period temperatures
 - set_time_program: validates and persists the global per-day program
@@ -26,10 +26,10 @@ Registers 20 WebSocket commands for the panel ↔ backend protocol:
 - reset_zone_time_program: restores zone time_program from 'default' or 'global'
   target; zone_id="default" resets default_zone.time_program (D-09)
 - set_calibration_config: persists calibration_enabled bool (D-10, CALIB-01)
-- set_matter_mapping: persists sparse matter_mappings[tado_entity_id] and
+- set_matter_mapping: persists sparse matter_mappings[entity_id] and
   triggers coordinator listener refresh (D-15/D-16, MCALIB-01/02)
-- suggest_matter_mappings: returns auto-detected Matter->Tado X mapping
-  suggestions (read-only, no mutation)
+- suggest_matter_mappings: returns the vendors' auto-detected Matter
+  pairings (read-only, no mutation)
 - set_boiler_config: sets or clears the controlled boiler (climate, switch
   or input_boolean) and its min on/off durations
 
@@ -97,9 +97,30 @@ from .const import (
     VALID_MODES,
     _DEFAULT_DAILY_PROGRAM,
 )
-from .discovery import suggest_matter_mappings
 from .schedule import validate_daily_program
-from .trv import get_tado_valve_devices, is_trv_entity
+from .trv import is_trv_entity
+from .vendors import cloud_polling, pairable_entities, suggest_mappings
+
+
+def _friendly_name(hass: HomeAssistant, entity_id: str) -> str:
+    """Registry name, else the state's friendly_name, else entity_id."""
+    reg = er.async_get(hass).async_get(entity_id)
+    if reg is not None and reg.name:
+        return reg.name
+    state = hass.states.get(entity_id)
+    if state is not None:
+        return state.attributes.get("friendly_name", entity_id)
+    return entity_id
+
+
+def _current_temperature(hass: HomeAssistant, entity_id: str) -> float | None:
+    """current_temperature attribute of a climate entity, if numeric."""
+    state = hass.states.get(entity_id)
+    value = state.attributes.get("current_temperature") if state else None
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def async_register_commands(
@@ -213,7 +234,7 @@ def _make_ws_get_config(entry: ClimateManagerConfigEntry):
 
         D-25: climate_entities is the sorted list of all climate.* entity IDs
         from the HA entity registry. A2 Option A/C: matter_entities and
-        tado_x_entities are derived subsets filtered by entity registry
+        pairable_entities are derived subsets filtered by entity registry
         platform. All three are merged into a NEW dict — runtime_config is
         never mutated so derived keys never pollute persistent storage
         (T-13-06).
@@ -231,15 +252,16 @@ def _make_ws_get_config(entry: ClimateManagerConfigEntry):
         matter_entities = sorted(
             e.entity_id for e in climate_reg_entries if e.platform == "matter"
         )
-        tado_x_entities = sorted(
-            e.entity_id for e in climate_reg_entries if e.platform == "tado_x"
+        # Entities a vendor can pair with Matter entities.
+        pairable = pairable_entities(
+            hass, [e.entity_id for e in climate_reg_entries]
         )
         payload = {
             **entry.runtime_data.runtime_config,
             "boiler_candidates": boiler_candidates(hass),
             "climate_entities": climate_entities,
             "matter_entities": matter_entities,
-            "tado_x_entities": tado_x_entities,
+            "pairable_entities": pairable,
         }
         connection.send_result(msg["id"], payload)
 
@@ -1160,14 +1182,13 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
         """
         coordinator = entry.runtime_data.coordinator
         rooms = entry.runtime_data.rooms
-        entity_reg = er.async_get(hass)
 
         from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
 
         area_reg = ar.async_get(hass)
         room_auto_sensors = entry.runtime_data.room_auto_sensors
-        # Matter valves grouped with a Tado X room are calibrated through
-        # its Radiator Valve X rows (same dedup set as TRVGroup).
+        # Matter valves paired with another entity are calibrated through
+        # its rows (same dedup set as TRVGroup).
         matter_mappings: dict[str, list[str]] = (
             entry.runtime_data.runtime_config.get("matter_mappings", {})
         )
@@ -1192,138 +1213,68 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
                     except (ValueError, TypeError):
                         pass
 
-            # Tado X: zone climate entity is room-level, not per physical TRV.
-            # Find Radiator Valve X devices (physical TRVs) for this area and
-            # show those instead. The zone climate entity is used only for
-            # temperature reading.
-            valve_devices = get_tado_valve_devices(hass, area_id)
-
-            # Find the tado_x zone climate entity for temperature reading
-            zone_entity_id: str | None = None
-            zone_trv_temp: float | None = None
-            for eid in entity_ids:
-                if not is_trv_entity(hass, eid):
-                    continue
-                r = entity_reg.async_get(eid)
-                if r and r.platform == "tado_x":
-                    zone_entity_id = eid
-                    zs = hass.states.get(eid)
-                    if zs:
-                        ct = zs.attributes.get("current_temperature")
-                        if ct is not None:
-                            try:
-                                zone_trv_temp = float(ct)
-                            except (ValueError, TypeError):
-                                pass
-                    break
-
-            # Emit one row per physical Radiator Valve X device
-            for device in valve_devices:
-                dev_id = device["device_id"]
-
-                # Determine current offset on the device:
-                # - climate_manager session value wins when present
-                # - otherwise read from sensor.*_temperature_offset entity
-                current_offset: float | None = None
-                if dev_id in coordinator._calibration_last_offset:
-                    current_offset = coordinator._calibration_last_offset[
-                        dev_id
-                    ]
-                else:
-                    offset_entry = next(
-                        (
-                            e
-                            for e in entity_reg.entities.values()
-                            if e.device_id == dev_id
-                            and e.platform == "tado_x"
-                            and e.translation_key == "temperature_offset"
-                        ),
-                        None,
-                    )
-                    if offset_entry:
-                        os = hass.states.get(offset_entry.entity_id)
-                        if os and os.state not in ("unavailable", "unknown"):
-                            try:
-                                current_offset = float(os.state)
-                            except (ValueError, TypeError):
-                                pass
-
+            # Calibratable offsets, as the vendors resolve them (one row per
+            # physical valve when the brand calibrates per device).
+            calibrator = coordinator.calibrator if coordinator else None
+            targets = calibrator.targets(area_id) if calibrator else []
+            covered: set[str] = set()
+            for target in targets:
+                covered.update(
+                    eid
+                    for eid in (target.entity_id, target.temp_entity_id)
+                    if eid is not None
+                )
                 trvs.append(
                     {
-                        "entity_id": zone_entity_id,
-                        "device_id": dev_id,
+                        "entity_id": target.entity_id or target.temp_entity_id,
+                        "device_id": target.device_id,
                         "area_id": area_id,
-                        "friendly_name": device["name"],
+                        "friendly_name": (
+                            target.name
+                            if target.device_id is not None
+                            else _friendly_name(hass, target.key)
+                        ),
                         "supports_calibration": True,
-                        "trv_temperature": zone_trv_temp,
+                        "vendor": target.vendor.label,
+                        "trv_temperature": _current_temperature(
+                            hass, target.temp_entity_id
+                        ),
                         "room_temperature": room_temperature,
-                        "current_offset": current_offset,
-                        "last_calibrated_at": (
-                            coordinator._calibration_last_changed.get(dev_id)
+                        "current_offset": calibrator.current_offset(target),
+                        "last_calibrated_at": calibrator.last_changed.get(
+                            target.key
                         ),
                     }
                 )
 
-            # Emit non-tado_x climate entities (other platforms, e.g. Matter)
+            # TRVs no vendor can calibrate
             for entity_id in entity_ids:
                 if not is_trv_entity(hass, entity_id):
                     continue
-                reg_entry = entity_reg.async_get(entity_id)
-                if reg_entry and reg_entry.platform == "tado_x":
-                    continue  # zone entity replaced by valve_devices above
-                if entity_id in grouped_matter:
-                    continue  # shown via its Tado X valve row
-
-                state = hass.states.get(entity_id)
-                if reg_entry and reg_entry.name:
-                    friendly_name: str = reg_entry.name
-                elif state:
-                    friendly_name = state.attributes.get(
-                        "friendly_name", entity_id
-                    )
-                else:
-                    friendly_name = entity_id
-
-                trv_temperature: float | None = None
-                if state:
-                    ct = state.attributes.get("current_temperature")
-                    if ct is not None:
-                        try:
-                            trv_temperature = float(ct)
-                        except (ValueError, TypeError):
-                            pass
-
+                if entity_id in covered or entity_id in grouped_matter:
+                    continue  # shown via its calibration row
                 trvs.append(
                     {
                         "entity_id": entity_id,
+                        "device_id": None,
                         "area_id": area_id,
-                        "friendly_name": friendly_name,
+                        "friendly_name": _friendly_name(hass, entity_id),
                         "supports_calibration": False,
-                        "trv_temperature": trv_temperature,
+                        "vendor": None,
+                        "trv_temperature": _current_temperature(
+                            hass, entity_id
+                        ),
                         "room_temperature": room_temperature,
                         "current_offset": None,
-                        "last_calibrated_at": (
-                            coordinator._calibration_last_changed.get(entity_id)
-                        ),
+                        "last_calibrated_at": None,
                     }
                 )
-
-        # Read tado_x scan interval from its coordinator
-        # (stored in hass.data["tado_x"][entry_id] — standard hass.data pattern)
-        tado_x_scan_interval: int | None = None
-        tado_x_entries = list(hass.config_entries.async_entries("tado_x"))
-        if tado_x_entries:
-            tado_x_coord = hass.data.get("tado_x", {}).get(
-                tado_x_entries[0].entry_id
-            )
-            if tado_x_coord and hasattr(tado_x_coord, "_scan_interval"):
-                tado_x_scan_interval = int(tado_x_coord._scan_interval)
 
         connection.send_result(
             msg["id"],
             {
                 "trvs": trvs,
-                "tado_x_scan_interval": tado_x_scan_interval,
+                "cloud_polling": cloud_polling(hass),
             },
         )
 
@@ -1342,7 +1293,7 @@ def _make_ws_set_matter_mapping(entry: ClimateManagerConfigEntry):
     @websocket_api.websocket_command(
         {
             vol.Required("type"): f"{DOMAIN}/set_matter_mapping",
-            vol.Required("tado_entity_id"): str,
+            vol.Required("entity_id"): str,
             vol.Required("matter_entity_ids"): list,
         }
     )
@@ -1352,7 +1303,7 @@ def _make_ws_set_matter_mapping(entry: ClimateManagerConfigEntry):
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Store or remove a Matter entity mapping for a tado_x zone entity.
+        """Store or remove the Matter entities paired with an entity.
 
         T-13-04: filter matter_entity_ids to climate.* strings only before
         storing (Pitfall 7 — rejects sensor.* and other non-climate domains).
@@ -1368,10 +1319,10 @@ def _make_ws_set_matter_mapping(entry: ClimateManagerConfigEntry):
             "matter_mappings", {}
         )
         if matter_eids:
-            mappings[msg["tado_entity_id"]] = matter_eids
+            mappings[msg["entity_id"]] = matter_eids
         else:
             # D-01 sparse: absent key = no mapping; never store []
-            mappings.pop(msg["tado_entity_id"], None)
+            mappings.pop(msg["entity_id"], None)
         await entry.runtime_data.store.async_save(
             entry.runtime_data.runtime_config
         )
@@ -1380,7 +1331,7 @@ def _make_ws_set_matter_mapping(entry: ClimateManagerConfigEntry):
         coordinator = entry.runtime_data.coordinator
         if coordinator is not None:
             hass.async_create_task(
-                coordinator._async_refresh_matter_listeners()
+                coordinator._async_refresh_calibration_listeners()
             )
 
     return ws_set_matter_mapping
@@ -1400,8 +1351,8 @@ def _make_ws_suggest_matter_mappings(
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Return suggested Matter->Tado X mappings (read-only)."""
-        result = await suggest_matter_mappings(hass)
+        """Return the vendors' suggested Matter pairings (read-only)."""
+        result = suggest_mappings(hass)
         connection.send_result(msg["id"], {"mappings": result})
 
     return ws_suggest_matter_mappings

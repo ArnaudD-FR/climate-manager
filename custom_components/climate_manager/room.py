@@ -7,22 +7,19 @@ Room is a plain class (no state machine) that owns:
   - Preheat state migrated from coordinator dicts, collapsed to per-room
     scalars: _preheat_active, _preheat_target, _preheat_suppressed,
     _preheat_in_progress
-  - Calibration tracking fields: _calibration_last_changed,
-    _calibration_last_delta, _calibration_last_offset
   - A reference to its owning Zone (_zone) so compute_preheat can read
     zone.preheat_enabled
 
 Public methods:
   apply_setpoint(period, temp, ctx) — push temp to all TRVGroups
   compute_preheat(ctx)              — per-room preheat pass (D-09)
-  calibrate_trvs(ctx)              — per-room calibration pass (CALIB-03)
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from .const import (
@@ -35,12 +32,10 @@ from .const import (
     PERIOD_FROST_PROTECTION,
     PERIOD_PREHEAT,
     PREHEAT_BOOST_MAX,
-    PREHEAT_CALIBRATION_THRESHOLD,
     PREHEAT_CONVERGENCE_THRESHOLD,
     PRESENCE_ABSENT,
     PRESENCE_HA,
     PRESENCE_PRESENT,
-    TRV_COMMAND_TIMEOUT,
 )
 from .preheat import (
     add_sample,
@@ -58,11 +53,7 @@ from .schedule import (
     next_setpoint_increase_at,
     resolve_presence,
 )
-from .trv import (
-    is_trv_entity,
-    set_trv_offset,
-    supports_offset_calibration,
-)
+from .trv import is_trv_entity
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -71,39 +62,29 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# Hardware-safe maximum for TRV temperature offset.
-_OFFSET_CLAMP = 5.0
 
+def resolve_room_sensor(
+    hass: HomeAssistant, area_id: str, config: dict
+) -> str | None:
+    """Return the temperature sensor entity_id of a room.
 
-def calibration_threshold(config: dict, preheating: bool) -> float:
-    """Offset calibration threshold (°C), tighter while a pre-heat runs."""
-    threshold = config.get("calibration_threshold", 0.5)
-    if preheating:
-        return min(threshold, PREHEAT_CALIBRATION_THRESHOLD)
-    return threshold
+    Resolution order:
+      1. area_reg.temperature_entity_id (HA 2026.5+ area registry)
+      2. room_auto_sensors (discovered from device registry)
+      3. rooms_config explicit override (test + manual config)
+    """
+    from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
 
-
-def log_calibration(
-    area_id: str,
-    trv: str,
-    sensor_temp: float,
-    trv_temp: float,
-    old_offset: float,
-    new_offset: float,
-    threshold: float,
-) -> None:
-    """INFO log for one offset written to a TRV."""
-    _LOGGER.info(
-        "calibrate | room=%s trv=%s sensor=%.1f°C trv=%.1f°C delta=%+.1f"
-        " offset=%+.1f→%+.1f threshold=%.1f",
-        area_id,
-        trv,
-        sensor_temp,
-        trv_temp,
-        sensor_temp - trv_temp,
-        old_offset,
-        new_offset,
-        threshold,
+    area = ar.async_get(hass).async_get_area(area_id)
+    data = getattr(hass, "_climate_manager_data", None)
+    return (
+        getattr(area, "temperature_entity_id", None)
+        or (
+            data.room_auto_sensors.get(area_id, {}).get("temperature")
+            if data is not None
+            else None
+        )
+        or config.get("rooms", {}).get(area_id, {}).get("temperature_sensor")
     )
 
 
@@ -180,14 +161,6 @@ class Room:
         # _frost_locked_rooms snapshot migrated to per-room bool).
         # ---------------------------------------------------------------
         self._frost_locked: bool = False
-
-        # ---------------------------------------------------------------
-        # Calibration tracking — migrated from coordinator dicts (D-06)
-        # Original coordinator __init__ lines 127-132.
-        # ---------------------------------------------------------------
-        self._calibration_last_changed: str | None = None
-        self._calibration_last_delta: float | None = None
-        self._calibration_last_offset: float = 0.0
 
     @property
     def current_period(self) -> str | None:
@@ -696,136 +669,6 @@ class Room:
             sample["rate"],
         )
 
-    # -------------------------------------------------------------------
-    # Calibration pass (migrated from coordinator._async_calibrate_room)
-    # -------------------------------------------------------------------
-
-    async def calibrate_trvs(self, ctx: "EvalContext") -> None:
-        """Calibrate all TRVs in this room toward the room's reference sensor.
-
-        Reproduces coordinator._async_calibrate_room for all TRVs in this
-        room.  Writes go through TRV.calibrate(offset, ctx) (plan 16-03).
-        Calibration tracking fields updated in-place on Room.
-
-        Silently returns when any guard condition fails (CALIB-03/05).
-        """
-        if self._hass is None or ctx is None:
-            return
-
-        config = getattr(
-            getattr(self._hass, "_climate_manager_data", None),
-            "runtime_config",
-            {},
-        )
-        if not config.get("calibration_enabled", False):
-            return
-
-        sensor_entity_id = self._resolve_room_sensor(config)
-
-        for group in self._trv_groups:
-            for trv in getattr(group, "_trvs", []):
-                await self._calibrate_one_trv(
-                    trv.entity_id, sensor_entity_id, config, ctx
-                )
-
-    async def _calibrate_one_trv(
-        self,
-        entity_id: str,
-        sensor_entity_id: str | None,
-        config: dict,
-        ctx: "EvalContext",
-    ) -> None:
-        """Calibrate a single TRV toward its room sensor.
-
-        Mirrors coordinator._async_calibrate_room (lines 995-1068).
-        """
-        if not sensor_entity_id:
-            return
-
-        if not supports_offset_calibration(self._hass, entity_id):
-            return
-
-        state = self._hass.states.get(entity_id)
-        if state is None or state.state == "unavailable":
-            return
-
-        sensor_state = self._hass.states.get(sensor_entity_id)
-        if sensor_state is None or sensor_state.state in (
-            "unavailable",
-            "unknown",
-        ):
-            return
-        try:
-            sensor_temp = float(sensor_state.state)
-        except (ValueError, TypeError):
-            return
-
-        current_temp = state.attributes.get("current_temperature")
-        if current_temp is None:
-            return
-        try:
-            current_temp = float(current_temp)
-        except (ValueError, TypeError):
-            return
-
-        delta = sensor_temp - current_temp
-        threshold = calibration_threshold(config, self.preheat_boosting)
-        if abs(delta) <= threshold:
-            return
-
-        try:
-            existing_offset = float(
-                state.attributes.get("temperature_offset", 0.0)
-            )
-        except (ValueError, TypeError):
-            existing_offset = 0.0
-        new_offset = max(
-            -_OFFSET_CLAMP,
-            min(_OFFSET_CLAMP, existing_offset + delta),
-        )
-
-        try:
-            async with asyncio.timeout(TRV_COMMAND_TIMEOUT):
-                await set_trv_offset(self._hass, entity_id, new_offset)
-            self._calibration_last_changed = datetime.now(
-                timezone.utc
-            ).isoformat(timespec="seconds")
-            self._calibration_last_delta = round(delta, 2)
-            log_calibration(
-                self.area_id,
-                entity_id.split(".", 1)[-1],
-                sensor_temp,
-                current_temp,
-                existing_offset,
-                new_offset,
-                threshold,
-            )
-        except Exception:  # noqa: BLE001
-            _LOGGER.warning(
-                "Failed to apply offset %.1f to %s", new_offset, entity_id
-            )
-
     def _resolve_room_sensor(self, config: dict) -> str | None:
-        """Return the temperature sensor entity_id for this room.
-
-        Resolution order:
-          1. area_reg.temperature_entity_id (HA 2026.5+ area registry)
-          2. room_auto_sensors (discovered from device registry)
-          3. rooms_config explicit override (test + manual config)
-        """
-        from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
-
-        area_reg = ar.async_get(self._hass)
-        _area = area_reg.async_get_area(self.area_id)
-        data = getattr(self._hass, "_climate_manager_data", None)
-        return (
-            getattr(_area, "temperature_entity_id", None)
-            or (
-                data.room_auto_sensors.get(self.area_id, {}).get("temperature")
-                if data is not None
-                else None
-            )
-            or config.get("rooms", {})
-            .get(self.area_id, {})
-            .get("temperature_sensor")
-        )
+        """Return the temperature sensor entity_id for this room."""
+        return resolve_room_sensor(self._hass, self.area_id, config)

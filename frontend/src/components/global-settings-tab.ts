@@ -35,6 +35,7 @@ import type {
   DailyProgram,
   Period,
   TRVCalibrationEntry,
+  CloudPolling,
   BoilerConfig,
 } from "../types.js";
 import type { WsClient } from "../ws-client.js";
@@ -129,7 +130,7 @@ export class GlobalSettingsTab extends LitElement {
 
   @state() private _trvStatuses: TRVCalibrationEntry[] = [];
   @state() private _loadingStatuses = false;
-  @state() private _tadoXScanInterval: number | null = null;
+  @state() private _cloudPolling: CloudPolling[] = [];
 
   static styles = [
     chipStyles,
@@ -443,7 +444,7 @@ export class GlobalSettingsTab extends LitElement {
         background: var(--secondary-background-color, #f5f5f5);
       }
 
-      /* ---- Tado X info banner ---- */
+      /* ---- Cloud polling info banner ---- */
       .calib-info-banner {
         display: flex;
         align-items: flex-start;
@@ -572,7 +573,7 @@ export class GlobalSettingsTab extends LitElement {
     try {
       const result = await this.ws.getCalibrationStatus();
       this._trvStatuses = result.trvs;
-      this._tadoXScanInterval = result.tado_x_scan_interval;
+      this._cloudPolling = result.cloud_polling;
     } catch {
       this._trvStatuses = [];
     } finally {
@@ -1027,7 +1028,9 @@ export class GlobalSettingsTab extends LitElement {
                 ? "supported"
                 : "unsupported"}"
             >
-              ${trv.supports_calibration ? "Tado X" : "Not supported"}
+              ${trv.supports_calibration
+                ? trv.vendor ?? "Supported"
+                : "Not supported"}
             </span>
           </td>
           <td>
@@ -1100,13 +1103,11 @@ export class GlobalSettingsTab extends LitElement {
 
     const floorlessTrvs = floorGroups.get(null) ?? [];
 
-    const hasTadoX = this._trvStatuses.some((t) => t.supports_calibration);
-    const scanLabel =
-      this._tadoXScanInterval != null
-        ? this._tadoXScanInterval >= 60
-          ? `${Math.round(this._tadoXScanInterval / 60)} min`
-          : `${this._tadoXScanInterval} s`
-        : "~30 s";
+    // One banner per cloud-polled vendor that has rows in the table.
+    const vendors = new Set(this._trvStatuses.map((t) => t.vendor));
+    const polled = this._cloudPolling.filter((p) => vendors.has(p.vendor));
+    const scanLabel = (seconds: number) =>
+      seconds >= 60 ? `${Math.round(seconds / 60)} min` : `${seconds} s`;
 
     // Refresh button is placed ABOVE the table so it remains accessible
     // regardless of table length. During a subsequent refresh, the table
@@ -1121,17 +1122,18 @@ export class GlobalSettingsTab extends LitElement {
         >
           ${this._loadingStatuses ? "Refreshing…" : "Refresh"}
         </button>
-        ${hasTadoX
-          ? html`
-              <div class="calib-info-banner">
-                <ha-icon icon="mdi:information-outline"></ha-icon>
-                <div>
-                  Tado X data is fetched from the cloud every ${scanLabel} —
-                  displayed temperatures may lag behind actual values.
-                </div>
+        ${polled.map(
+          (p) => html`
+            <div class="calib-info-banner">
+              <ha-icon icon="mdi:information-outline"></ha-icon>
+              <div>
+                ${p.vendor} data is fetched from the cloud every
+                ${scanLabel(p.interval)} — displayed temperatures may lag behind
+                actual values.
               </div>
-            `
-          : ""}
+            </div>
+          `,
+        )}
         <table class="calib-table">
           <thead>
             <tr>

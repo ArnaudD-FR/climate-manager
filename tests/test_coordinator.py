@@ -1251,6 +1251,15 @@ async def test_global_mode_off_does_not_affect_custom_zones(hass):
 # ---------------------------------------------------------------------------
 
 
+def _register_tado_x(hass, object_id: str) -> None:
+    """Register climate.<object_id> as a tado_x entity (before its state)."""
+    from homeassistant.helpers import entity_registry as er
+
+    er.async_get(hass).async_get_or_create(
+        "climate", "tado_x", object_id, suggested_object_id=object_id
+    )
+
+
 def _make_calibration_config(
     calibration_enabled: bool = True,
     calibration_threshold: float = 0.5,
@@ -1281,6 +1290,8 @@ async def test_calibration_disabled_zero_offset_calls(hass):
     Even with a fully configured room+TRV+sensor, no tado_x calls must
     be made when calibration is globally disabled.
     """
+    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    _register_tado_x(hass, "bedroom_trv")
     hass.states.async_set(
         "climate.bedroom_trv",
         "heat",
@@ -1322,6 +1333,8 @@ async def test_calibration_no_sensor_zero_offset_calls(hass):
     calibration_enabled=True but no temperature_sensor key in rooms config
     for this area — the room must be silently skipped.
     """
+    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    _register_tado_x(hass, "bedroom_trv")
     hass.states.async_set(
         "climate.bedroom_trv",
         "heat",
@@ -1363,27 +1376,25 @@ async def test_calibration_no_sensor_zero_offset_calls(hass):
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
 async def test_calibration_incompatible_trv_zero_offset_calls(hass):
-    """CALIB-03/D-08: TRV without temperature_offset attr AND no tado_x service.
+    """CALIB-03/D-08: a TRV of a brand no vendor knows is never calibrated.
 
-    supports_offset_calibration returns False → room must be silently skipped.
+    Even with a temperature_offset attribute and the tado_x service
+    registered, no tado_x call is made for a foreign entity.
     """
-    # TRV with no temperature_offset attribute (no tado_x service either)
     hass.states.async_set(
         "climate.incompatible_trv",
         "heat",
         {
             "temperature": 20.0,
             "current_temperature": 19.0,
-            # NO temperature_offset attribute
+            "temperature_offset": 0.0,
         },
     )
     hass.states.async_set("sensor.room_temp", "21.0")
 
     async_mock_service(hass, "climate", "set_hvac_mode")
     async_mock_service(hass, "climate", "set_temperature")
-    # Do NOT register tado_x service — this test verifies the guard blocks
-    # when neither temperature_offset attribute nor tado_x service exists.
-    # async_mock_service would register the service, defeating the test.
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
 
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
@@ -1400,10 +1411,7 @@ async def test_calibration_incompatible_trv_zero_offset_calls(hass):
     await entry.runtime_data.coordinator.async_evaluate()
     await hass.async_block_till_done()
 
-    # No assertion needed — if guard failed, set_trv_offset would raise
-    # ServiceNotFound (unregistered service). Test passing means guard worked.
-    # Service was never registered, so guard must have returned early.
-    assert not hass.services.has_service("tado_x", "set_temperature_offset")
+    assert offset_calls == []
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
@@ -1412,6 +1420,8 @@ async def test_calibration_delta_below_threshold_zero_offset_calls(hass):
 
     sensor_temp=20.3, current_temperature=20.0 → delta=0.3 ≤ 0.5 → skip.
     """
+    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    _register_tado_x(hass, "living_trv")
     hass.states.async_set(
         "climate.living_trv",
         "heat",
@@ -1458,6 +1468,8 @@ async def test_calibration_delta_above_threshold_one_offset_call(hass):
     new_offset = 0.5 + 1.0 = 1.5
     Expected: one call with offset=1.5.
     """
+    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    _register_tado_x(hass, "hall_trv")
     hass.states.async_set(
         "climate.hall_trv",
         "heat",
@@ -1506,6 +1518,8 @@ async def test_calibration_sensor_unavailable_zero_offset_calls(hass):
     The calibration pass must silently skip when the reference sensor
     reports 'unavailable'.
     """
+    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    _register_tado_x(hass, "kitchen_trv")
     hass.states.async_set(
         "climate.kitchen_trv",
         "heat",
@@ -1549,6 +1563,8 @@ async def test_calibration_sensor_unknown_zero_offset_calls(hass):
     The calibration pass must silently skip when the reference sensor
     reports 'unknown'.
     """
+    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    _register_tado_x(hass, "bathroom_trv")
     hass.states.async_set(
         "climate.bathroom_trv",
         "heat",
@@ -1592,6 +1608,8 @@ async def test_calibration_trv_current_temperature_none_zero_offset_calls(hass):
     The calibration pass must silently skip when the TRV's current_temperature
     attribute is absent (None).
     """
+    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    _register_tado_x(hass, "office_trv")
     hass.states.async_set(
         "climate.office_trv",
         "heat",
@@ -1649,13 +1667,17 @@ async def test_matter_mappings_in_default_config(hass):
 
 
 async def test_matter_listeners_registered_on_first_evaluate(hass):
-    """D-09/D-10: after entry setup with climate entities, _matter_cal_listeners
-    is non-empty after the first async_evaluate call.
+    """D-09/D-10: after entry setup with a calibratable entity,
+    _calibration_listeners is non-empty after the first async_evaluate call.
 
-    Unmapped entities (no matter_mappings config) each get their own listener.
+    Each calibration target's temperature source gets its own listener.
     """
     from homeassistant.helpers import entity_registry as er
 
+    # A Tado X zone entity is a calibration target: it gets a listener.
+    er.async_get(hass).async_get_or_create(
+        "climate", "tado_x", "room_trv", suggested_object_id="room_trv"
+    )
     hass.states.async_set(
         "climate.room_trv",
         "heat",
@@ -1669,10 +1691,6 @@ async def test_matter_listeners_registered_on_first_evaluate(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    # Register the entity in the entity registry so platform detection works
-    entity_reg = er.async_get(hass)
-    entity_reg.async_get_or_create("climate", "test_integration", "room_trv")
-
     entry.runtime_data.runtime_config = _make_runtime_config(
         default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
@@ -1681,13 +1699,13 @@ async def test_matter_listeners_registered_on_first_evaluate(hass):
 
     coordinator = entry.runtime_data.coordinator
     # Force a fresh listener registration
-    coordinator._matter_cal_listeners.clear()
+    coordinator._calibration_listeners.clear()
 
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
 
-    assert len(coordinator._matter_cal_listeners) > 0, (
-        "_matter_cal_listeners must be non-empty after first evaluate "
+    assert len(coordinator._calibration_listeners) > 0, (
+        "_calibration_listeners must be non-empty after first evaluate "
         "when rooms contain climate entities"
     )
 
@@ -1698,6 +1716,10 @@ async def test_matter_listener_fires_calibrate_on_temp_change(hass):
     """
     from homeassistant.helpers import entity_registry as er
 
+    # A Tado X zone entity is a calibration target: it gets a listener.
+    er.async_get(hass).async_get_or_create(
+        "climate", "tado_x", "matter_valve", suggested_object_id="matter_valve"
+    )
     hass.states.async_set(
         "climate.matter_valve",
         "heat",
@@ -1711,9 +1733,6 @@ async def test_matter_listener_fires_calibrate_on_temp_change(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    entity_reg = er.async_get(hass)
-    entity_reg.async_get_or_create("climate", "matter", "valve")
-
     entry.runtime_data.runtime_config = _make_runtime_config(
         default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
@@ -1721,12 +1740,12 @@ async def test_matter_listener_fires_calibrate_on_temp_change(hass):
     entry.runtime_data.rooms = {"living": ["climate.matter_valve"]}
 
     coordinator = entry.runtime_data.coordinator
-    coordinator._matter_cal_listeners.clear()
+    coordinator._calibration_listeners.clear()
 
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
 
-    assert "climate.matter_valve" in coordinator._matter_cal_listeners, (
+    assert "climate.matter_valve" in coordinator._calibration_listeners, (
         "Listener must be registered for climate.matter_valve"
     )
 
@@ -1776,6 +1795,10 @@ async def test_matter_listener_ignores_non_temp_change(hass):
     """
     from homeassistant.helpers import entity_registry as er
 
+    # A Tado X zone entity is a calibration target: it gets a listener.
+    er.async_get(hass).async_get_or_create(
+        "climate", "tado_x", "stable_trv", suggested_object_id="stable_trv"
+    )
     hass.states.async_set(
         "climate.stable_trv",
         "heat",
@@ -1789,9 +1812,6 @@ async def test_matter_listener_ignores_non_temp_change(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    entity_reg = er.async_get(hass)
-    entity_reg.async_get_or_create("climate", "test_integration", "stable_trv")
-
     entry.runtime_data.runtime_config = _make_runtime_config(
         default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
@@ -1799,7 +1819,7 @@ async def test_matter_listener_ignores_non_temp_change(hass):
     entry.runtime_data.rooms = {"hall": ["climate.stable_trv"]}
 
     coordinator = entry.runtime_data.coordinator
-    coordinator._matter_cal_listeners.clear()
+    coordinator._calibration_listeners.clear()
 
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
@@ -1842,6 +1862,10 @@ async def test_matter_listener_handles_none_old_state(hass):
     """Pitfall 5: state_changed with old_state=None must not raise."""
     from homeassistant.helpers import entity_registry as er
 
+    # A Tado X zone entity is a calibration target: it gets a listener.
+    er.async_get(hass).async_get_or_create(
+        "climate", "tado_x", "new_entity", suggested_object_id="new_entity"
+    )
     hass.states.async_set(
         "climate.new_entity",
         "heat",
@@ -1855,9 +1879,6 @@ async def test_matter_listener_handles_none_old_state(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    entity_reg = er.async_get(hass)
-    entity_reg.async_get_or_create("climate", "test_integration", "new_entity")
-
     entry.runtime_data.runtime_config = _make_runtime_config(
         default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
@@ -1865,7 +1886,7 @@ async def test_matter_listener_handles_none_old_state(hass):
     entry.runtime_data.rooms = {"nursery": ["climate.new_entity"]}
 
     coordinator = entry.runtime_data.coordinator
-    coordinator._matter_cal_listeners.clear()
+    coordinator._calibration_listeners.clear()
 
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
@@ -1889,11 +1910,16 @@ async def test_matter_listener_handles_none_old_state(hass):
 
 
 async def test_refresh_matter_listeners_cancels_old(hass):
-    """MCALIB-02: calling _async_refresh_matter_listeners() twice causes every
-    cancel callable from the first pass to be invoked before re-registration.
+    """MCALIB-02: calling _async_refresh_calibration_listeners() twice causes
+    every cancel callable from the first pass to be invoked before
+    re-registration.
     """
     from homeassistant.helpers import entity_registry as er
 
+    # A Tado X zone entity is a calibration target: it gets a listener.
+    er.async_get(hass).async_get_or_create(
+        "climate", "tado_x", "refresh_trv", suggested_object_id="refresh_trv"
+    )
     hass.states.async_set(
         "climate.refresh_trv",
         "heat",
@@ -1907,9 +1933,6 @@ async def test_refresh_matter_listeners_cancels_old(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    entity_reg = er.async_get(hass)
-    entity_reg.async_get_or_create("climate", "test_integration", "refresh_trv")
-
     entry.runtime_data.runtime_config = _make_runtime_config(
         default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
@@ -1917,13 +1940,14 @@ async def test_refresh_matter_listeners_cancels_old(hass):
     entry.runtime_data.rooms = {"office": ["climate.refresh_trv"]}
 
     coordinator = entry.runtime_data.coordinator
-    coordinator._matter_cal_listeners.clear()
+    coordinator._calibration_listeners.clear()
 
     # First registration
-    await coordinator._async_refresh_matter_listeners()
+    await coordinator._async_refresh_calibration_listeners()
 
-    assert len(coordinator._matter_cal_listeners) > 0, (
-        "First _async_refresh_matter_listeners must register at least one listener"
+    assert len(coordinator._calibration_listeners) > 0, (
+        "First _async_refresh_calibration_listeners must register at least "
+        "one listener"
     )
 
     # Capture cancel callables from the first pass
@@ -1936,16 +1960,16 @@ async def test_refresh_matter_listeners_cancels_old(hass):
 
         return _tracked_cancel
 
-    for eid in list(coordinator._matter_cal_listeners):
-        real_cancel = coordinator._matter_cal_listeners[eid]
-        coordinator._matter_cal_listeners[eid] = _make_tracking_cancel(
+    for eid in list(coordinator._calibration_listeners):
+        real_cancel = coordinator._calibration_listeners[eid]
+        coordinator._calibration_listeners[eid] = _make_tracking_cancel(
             real_cancel, first_pass_cancels
         )
 
-    num_first = len(coordinator._matter_cal_listeners)
+    num_first = len(coordinator._calibration_listeners)
 
     # Second registration — must cancel all first-pass listeners
-    await coordinator._async_refresh_matter_listeners()
+    await coordinator._async_refresh_calibration_listeners()
 
     assert len(first_pass_cancels) == num_first, (
         f"All {num_first} first-pass cancel callables must be invoked; "
@@ -1954,11 +1978,15 @@ async def test_refresh_matter_listeners_cancels_old(hass):
 
 
 async def test_unload_cancels_matter_listeners(hass):
-    """MCALIB-02/D-11: after async_unload_entry, every _matter_cal_listeners
+    """MCALIB-02/D-11: after async_unload_entry, every _calibration_listeners
     cancel callable was invoked and the dict is empty.
     """
     from homeassistant.helpers import entity_registry as er
 
+    # A Tado X zone entity is a calibration target: it gets a listener.
+    er.async_get(hass).async_get_or_create(
+        "climate", "tado_x", "unload_trv", suggested_object_id="unload_trv"
+    )
     hass.states.async_set(
         "climate.unload_trv",
         "heat",
@@ -1972,9 +2000,6 @@ async def test_unload_cancels_matter_listeners(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    entity_reg = er.async_get(hass)
-    entity_reg.async_get_or_create("climate", "test_integration", "unload_trv")
-
     entry.runtime_data.runtime_config = _make_runtime_config(
         default_zone_mode=MODE_TIME_PROGRAM,
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
@@ -1982,7 +2007,7 @@ async def test_unload_cancels_matter_listeners(hass):
     entry.runtime_data.rooms = {"garage": ["climate.unload_trv"]}
 
     coordinator = entry.runtime_data.coordinator
-    coordinator._matter_cal_listeners.clear()
+    coordinator._calibration_listeners.clear()
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
 
@@ -1996,13 +2021,13 @@ async def test_unload_cancels_matter_listeners(hass):
 
         return _tracked_cancel
 
-    for eid in list(coordinator._matter_cal_listeners):
-        real_cancel = coordinator._matter_cal_listeners[eid]
-        coordinator._matter_cal_listeners[eid] = _make_tracking_cancel(
+    for eid in list(coordinator._calibration_listeners):
+        real_cancel = coordinator._calibration_listeners[eid]
+        coordinator._calibration_listeners[eid] = _make_tracking_cancel(
             real_cancel, cancel_calls
         )
 
-    expected_count = len(coordinator._matter_cal_listeners)
+    expected_count = len(coordinator._calibration_listeners)
     assert expected_count > 0, (
         "At least one listener must be registered before unload"
     )
@@ -2014,8 +2039,8 @@ async def test_unload_cancels_matter_listeners(hass):
         f"All {expected_count} listener cancel callbacks must be called on unload; "
         f"got {len(cancel_calls)}"
     )
-    assert len(coordinator._matter_cal_listeners) == 0, (
-        "_matter_cal_listeners must be empty after unload"
+    assert len(coordinator._calibration_listeners) == 0, (
+        "_calibration_listeners must be empty after unload"
     )
 
 
@@ -2216,11 +2241,10 @@ async def test_unmapped_matter_entity_gets_setpoint(hass):
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
 async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
-    """D-04: for a mapped room, _async_calibrate_for_room routes calibration
-    through the Matter entity as the temperature source, not the tado_x entity.
+    """D-04: for a mapped room the offset is computed on the Matter entity.
 
-    We verify this by spying on _async_calibrate_tado_device or Room.calibrate_trvs
-    to confirm matter_eid is the temperature source.
+    tado_x reads 18.0 (cloud), the paired Matter valve 20.4, the sensor
+    21.0: the offset follows the Matter delta (+0.6), not the cloud one.
     """
     from homeassistant.helpers import entity_registry as er
 
@@ -2244,7 +2268,7 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
 
     async_mock_service(hass, "climate", "set_hvac_mode")
     async_mock_service(hass, "climate", "set_temperature")
-    async_mock_service(hass, "tado_x", "set_temperature_offset")
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
 
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
@@ -2267,54 +2291,19 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
 
-    # Spy on _async_calibrate_tado_device to check zone_entity_id used.
-    calibrate_tado_calls: list[dict] = []
-    calibrate_room_called: list[bool] = []
-    original_calibrate_tado = coordinator._async_calibrate_tado_device
-
-    async def _spy_calibrate_tado(
-        area_id, device_id, zone_entity_id, sensor_entity_id, config
-    ):
-        calibrate_tado_calls.append({"zone_entity_id": zone_entity_id})
-        await original_calibrate_tado(
-            area_id, device_id, zone_entity_id, sensor_entity_id, config
-        )
-
-    coordinator._async_calibrate_tado_device = _spy_calibrate_tado
-
-    # Spy on Room.calibrate_trvs for the D-05 fallback path.
-    kitchen_room = coordinator._rooms.get("kitchen")
-    if kitchen_room is not None:
-        original_calibrate_trvs = kitchen_room.calibrate_trvs
-
-        async def _spy_calibrate_trvs(ctx):
-            calibrate_room_called.append(True)
-            await original_calibrate_trvs(ctx)
-
-        kitchen_room.calibrate_trvs = _spy_calibrate_trvs
-
+    # The listener path calibrates again: kept by the 5-min interval.
     await coordinator._async_calibrate_for_room("kitchen")
     await hass.async_block_till_done()
 
-    # D-04: when mapping exists, either tado device path or room path fires.
-    assert calibrate_tado_calls or calibrate_room_called, (
-        "D-04: no calibration call was made for a mapped room "
-        "with calibration_enabled=True"
-    )
-    if calibrate_tado_calls:
-        assert calibrate_tado_calls[0]["zone_entity_id"] == matter_eid, (
-            f"D-04: tado calibration must use Matter entity as temp source; "
-            f"got {calibrate_tado_calls[0]['zone_entity_id']!r}"
-        )
+    assert [c.data for c in offset_calls] == [
+        {"entity_id": tado_eid, "offset": 0.6}
+    ]
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
 async def test_calibrate_for_room_unmapped_tado_uses_existing_path(hass):
-    """D-06: unmapped tado_x room uses existing calibration path.
-
-    In test env (no tado valve devices), falls through to _async_calibrate_room
-    with the tado entity itself as the temperature source.
-    """
+    """D-06: an unmapped tado_x zone (no valve device known) is calibrated
+    by entity_id, read on the zone entity itself."""
     from homeassistant.helpers import entity_registry as er
 
     entity_reg = er.async_get(hass)
@@ -2334,7 +2323,7 @@ async def test_calibrate_for_room_unmapped_tado_uses_existing_path(hass):
 
     async_mock_service(hass, "climate", "set_hvac_mode")
     async_mock_service(hass, "climate", "set_temperature")
-    async_mock_service(hass, "tado_x", "set_temperature_offset")
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
 
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
@@ -2357,30 +2346,14 @@ async def test_calibrate_for_room_unmapped_tado_uses_existing_path(hass):
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
 
-    calibrate_room_called: list[bool] = []
-    office_room = coordinator._rooms.get("office")
-    if office_room is not None:
-        original_calibrate_trvs = office_room.calibrate_trvs
-
-        async def _spy_calibrate_trvs(ctx):
-            calibrate_room_called.append(True)
-            await original_calibrate_trvs(ctx)
-
-        office_room.calibrate_trvs = _spy_calibrate_trvs
-
-    await coordinator._async_calibrate_for_room("office")
-    await hass.async_block_till_done()
-
-    # D-06: unmapped tado_x in test env (no valve devices) → Room.calibrate_trvs
-    # was called (generic path).
-    assert calibrate_room_called, (
-        "D-06: unmapped tado_x must route to Room.calibrate_trvs in test env"
-    )
+    assert [c.data for c in offset_calls] == [
+        {"entity_id": tado_eid, "offset": 3.0}
+    ]
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
 async def test_calibrate_for_room_unmapped_matter_uses_room_path(hass):
-    """D-07: unmapped Matter entity falls through to _async_calibrate_room."""
+    """D-07: a standalone Matter valve has no offset write path."""
     from homeassistant.helpers import entity_registry as er
 
     entity_reg = er.async_get(hass)
@@ -2402,7 +2375,7 @@ async def test_calibrate_for_room_unmapped_matter_uses_room_path(hass):
 
     async_mock_service(hass, "climate", "set_hvac_mode")
     async_mock_service(hass, "climate", "set_temperature")
-    async_mock_service(hass, "tado_x", "set_temperature_offset")
+    offset_calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
 
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
@@ -2425,20 +2398,7 @@ async def test_calibrate_for_room_unmapped_matter_uses_room_path(hass):
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
 
-    calibrate_room_called: list[bool] = []
-    guest_room = coordinator._rooms.get("guest")
-    if guest_room is not None:
-        original_calibrate_trvs = guest_room.calibrate_trvs
-
-        async def _spy_calibrate_trvs(ctx):
-            calibrate_room_called.append(True)
-            await original_calibrate_trvs(ctx)
-
-        guest_room.calibrate_trvs = _spy_calibrate_trvs
-
     await coordinator._async_calibrate_for_room("guest")
     await hass.async_block_till_done()
 
-    assert calibrate_room_called, (
-        "D-07: unmapped Matter entity must route to Room.calibrate_trvs"
-    )
+    assert offset_calls == []

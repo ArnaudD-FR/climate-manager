@@ -183,18 +183,18 @@ export const groupDndStyles = css`
     min-width: 0;
   }
 
-  /* Tado X group — parent chip + indented Matter children */
-  .tado-group {
+  /* Pairing group — parent chip + indented Matter children */
+  .pair-group {
     margin-bottom: 8px;
   }
 
-  .tado-group.drag-over {
+  .pair-group.drag-over {
     outline: 2px dashed var(--primary-color, #03a9f4);
     outline-offset: 4px;
     border-radius: 8px;
   }
 
-  /* Tree branch — Matter chips indented under Tado X parent */
+  /* Tree branch — Matter chips indented under their parent */
   .matter-children {
     display: flex;
     flex-direction: column;
@@ -224,7 +224,7 @@ export const groupDndStyles = css`
     font-size: 12px;
   }
 
-  /* Drop highlight on an ungrouped Tado X chip */
+  /* Drop highlight on an ungrouped pairable chip */
   .chip.drag-over {
     border-color: var(--primary-color, #03a9f4);
     background: var(--secondary-background-color, #f5f5f5);

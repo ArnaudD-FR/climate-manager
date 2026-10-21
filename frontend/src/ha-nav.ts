@@ -41,7 +41,7 @@ export function validEntityIds(
 /**
  * True when `sensorId` belongs to the same device as one of `climateIds`.
  * Such a sensor repeats the climate entity's current_temperature (e.g. a
- * Tado X room), so plotting both draws the same curve twice.
+ * cloud TRV room entity), so plotting both draws the same curve twice.
  */
 export function sharesClimateDevice(
   sensorId: string | null | undefined,

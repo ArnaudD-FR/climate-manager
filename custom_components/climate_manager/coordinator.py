@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Callable
 
 from homeassistant.core import HomeAssistant, callback
@@ -51,7 +51,6 @@ from .const import (
     DOMAIN,
     MODE_TIME_PROGRAM,
     PRESENCE_HA,
-    TRV_COMMAND_TIMEOUT,
 )
 from .entity import (
     boiler_demand_unique_id,
@@ -59,17 +58,14 @@ from .entity import (
     zone_mode_unique_id,
     zone_period_unique_id,
 )
+from .calibration import Calibrator
 from .eval_context import EvalContext
 from .person import Person
-from .room import Room, calibration_threshold, log_calibration
+from .room import Room
 from .trv import (
     TRV,
     TRVGroup,
-    device_display_name,
-    get_tado_valve_devices,
     is_trv_entity,
-    set_trv_offset_by_device,
-    tado_device_offset,
 )
 from .zone import Zone
 
@@ -79,10 +75,6 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 POLL_INTERVAL = timedelta(minutes=1)
-# Hardware-safe maximum for TRV temperature offset (±5°C for Tado X and most brands).
-_OFFSET_CLAMP = 5.0
-# Minimum time between calibration API calls per device to avoid 429s.
-_CALIBRATION_MIN_INTERVAL = timedelta(minutes=5)
 
 # TRV states meaning "not reachable": a transition from one of these (or from
 # no state at all) to a valid state re-applies the setpoint.
@@ -108,8 +100,9 @@ class ClimateManagerCoordinator:
         """
         self._hass = hass
         self._data = data
-        # Expose data on hass so Room.compute_preheat / calibrate_trvs can read
-        # runtime_config and preheat_data without a coordinator reference.
+        # Expose data on hass so Room.compute_preheat / resolve_room_sensor
+        # can read runtime_config and preheat_data without a coordinator
+        # reference.
         self._hass._climate_manager_data = self._data
         # D-09 domain objects — instantiated from config at init and rebuilt
         # on config change (fingerprint-based, T-16-13).
@@ -129,13 +122,9 @@ class ClimateManagerCoordinator:
         # D-05: per-zone active period dict — "default" plus one key per custom
         # zone UUID. Populated by async_evaluate; consumed by _build_status_payload.
         self._last_zone_periods: dict[str, str | None] = {}
-        # Tracks when each TRV's offset was last changed by auto-calibration.
-        self._calibration_last_changed: dict[str, str] = {}
-        # Tracks the last delta applied per TRV (sensor_temp - current_temp).
-        self._calibration_last_delta: dict[str, float] = {}
-        # Tracks the last absolute offset written per Radiator Valve X device_id
-        # (enables incremental adjustment — device doesn't expose current offset).
-        self._calibration_last_offset: dict[str, float] = {}
+        # Offset calibration and its memory (last offset written per
+        # target), kept across domain rebuilds.
+        self._calibrator = Calibrator(hass, data)
         # Cancel callbacks for active ha-tracker watchers, keyed by notif_id.
         # One entry per person: person_state_cancel — dismisses the notification
         # immediately when device_trackers becomes non-empty again.
@@ -151,11 +140,12 @@ class ClimateManagerCoordinator:
         # _frost_locked_rooms: snapshot from last zone evaluation pass.
         # Retained until consumed by Room (T-16-13 retention list).
         self._frost_locked_rooms: set[str] = set()
-        # D-08 (Phase 13): cancel callbacks for Matter calibration
-        # state_changed listeners. Keyed by entity_id (Matter or tado_x).
-        # Single Callable per key — unlike _ha_tracker_listeners (list).
-        # Cancel-all-then-rebuild via _async_refresh_matter_listeners().
-        self._matter_cal_listeners: dict[str, Callable] = {}
+        # D-08 (Phase 13): cancel callbacks for the calibration
+        # state_changed listeners, keyed by the calibration targets'
+        # temperature source entity. Single Callable per key — unlike
+        # _ha_tracker_listeners (list). Cancel-all-then-rebuild via
+        # _async_refresh_calibration_listeners().
+        self._calibration_listeners: dict[str, Callable] = {}
         # Cancel callbacks for the TRV availability listeners, keyed by
         # entity_id. A TRV coming back online (or appearing after startup)
         # gets its setpoint re-applied immediately.
@@ -625,15 +615,15 @@ class ClimateManagerCoordinator:
             for zone_id, zone in self._zones.items()
         }
 
-        # D-10 (Phase 13): register Matter calibration listeners on first
-        # evaluate. Rooms are populated by async_setup_entry before
-        # async_evaluate is called, so _matter_cal_listeners is always
-        # built against current runtime_data.rooms.
-        if not self._matter_cal_listeners:
-            await self._async_refresh_matter_listeners()
+        # D-10 (Phase 13): (re)register calibration listeners whenever the
+        # watched entities change: first evaluate, room or pairing change,
+        # a valve appearing in the registry.
+        if set(self._calibrator.watched_entities()) != set(
+            self._calibration_listeners
+        ):
+            await self._async_refresh_calibration_listeners()
 
-        # Calibration pass (D-09). Tado X device-level calibration is
-        # handled by _async_calibrate.
+        # Calibration pass (D-09).
         await self._async_calibrate(config, ctx)
 
         # RESEARCH Open Question 1: fire status AFTER preheat/calibrate passes
@@ -645,184 +635,29 @@ class ClimateManagerCoordinator:
         )
         self._async_notify_listeners()
 
-    def _resolve_room_sensor(self, area_id: str, config: dict) -> str | None:
-        """Return the temperature sensor entity_id for a room.
-
-        Resolution order (shared by _async_calibrate and
-        _async_calibrate_for_room):
-          1. area_reg.temperature_entity_id (HA 2026.5+ area registry)
-          2. room_auto_sensors (discovered from device registry)
-          3. rooms_config explicit override (test + manual config)
-        """
-        from homeassistant.helpers import area_registry as ar  # noqa: PLC0415
-
-        area_reg = ar.async_get(self._hass)
-        _area = area_reg.async_get_area(area_id)
-        return (
-            getattr(_area, "temperature_entity_id", None)
-            or self._data.room_auto_sensors.get(area_id, {}).get("temperature")
-            or config.get("rooms", {})
-            .get(area_id, {})
-            .get("temperature_sensor")
-        )
+    @property
+    def calibrator(self) -> Calibrator:
+        """Offset calibration (targets and memory, for the panel status)."""
+        return self._calibrator
 
     async def _async_calibrate(
         self,
         config: dict,
         ctx: "EvalContext | None" = None,
     ) -> None:
-        """Offset-calibrate all compatible TRVs toward their room sensors.
+        """Offset-calibrate every room's TRVs toward their room sensors.
 
-        For rooms with Tado X Radiator Valve X devices, calibration is
-        device_id-based (tado_x.set_temperature_offset takes device_id).
-        For other rooms, delegates to Room.calibrate_trvs(ctx) (D-06 migration).
-
-        D-04: Returns immediately when calibration_enabled is False.
-        D-03: Concurrent gather over all rooms, same pattern as push pass.
+        D-04: no-op when calibration_enabled is False.
+        D-03: concurrent gather over all rooms, same pattern as push pass.
         """
-        if not config.get("calibration_enabled", False):
-            return
-        rooms = self._data.rooms
-        tado_tasks = []
-        generic_rooms = []
-        for area_id, entity_ids in rooms.items():
-            sensor_entity_id = self._resolve_room_sensor(area_id, config)
-            valve_devices = get_tado_valve_devices(self._hass, area_id)
-            if valve_devices:
-                # Find zone climate entity for temperature reading
-                zone_entity = next(
-                    (
-                        eid
-                        for eid in entity_ids
-                        if is_trv_entity(self._hass, eid)
-                    ),
-                    None,
-                )
-                for device in valve_devices:
-                    tado_tasks.append(
-                        self._async_calibrate_tado_device(
-                            area_id,
-                            device["device_id"],
-                            zone_entity,
-                            sensor_entity_id,
-                            config,
-                        )
-                    )
-            else:
-                generic_rooms.append(area_id)
-        if tado_tasks:
-            await asyncio.gather(*tado_tasks)
-        # Generic entity calibration: delegated to Room.calibrate_trvs (D-06).
-        if ctx is not None:
-            generic_tasks = [
-                self._rooms[area_id].calibrate_trvs(ctx)
-                for area_id in generic_rooms
-                if area_id in self._rooms
-            ]
-            if generic_tasks:
-                await asyncio.gather(*generic_tasks)
-
-    async def _async_calibrate_tado_device(
-        self,
-        area_id: str,
-        device_id: str,
-        zone_entity_id: str | None,
-        sensor_entity_id: str | None,
-        config: dict,
-    ) -> None:
-        """Calibrate one Tado X Radiator Valve X device toward its room sensor.
-
-        Uses device_id for the offset call (tado_x service requirement) and
-        zone_entity_id for temperature reading (no per-TRV temp entity).
-        Tracks offset increments in _calibration_last_offset so successive
-        calls accumulate correctly despite the device not exposing its offset.
-        """
-        if not sensor_entity_id or not zone_entity_id:
-            return
-
-        state = self._hass.states.get(zone_entity_id)
-        if state is None or state.state == "unavailable":
-            return
-
-        sensor_state = self._hass.states.get(sensor_entity_id)
-        if sensor_state is None or sensor_state.state in (
-            "unavailable",
-            "unknown",
-        ):
-            return
-        try:
-            sensor_temp = float(sensor_state.state)
-        except (ValueError, TypeError):
-            return
-
-        current_temp = state.attributes.get("current_temperature")
-        if current_temp is None:
-            return
-        try:
-            current_temp = float(current_temp)
-        except (ValueError, TypeError):
-            return
-
-        delta = sensor_temp - current_temp
-        room = self._rooms.get(area_id)
-        threshold = calibration_threshold(
-            config, room is not None and room.preheat_boosting
-        )
-        if abs(delta) <= threshold:
-            return
-
-        last_changed = self._calibration_last_changed.get(device_id)
-        if last_changed:
-            elapsed = datetime.now(timezone.utc) - datetime.fromisoformat(
-                last_changed
-            )
-            if elapsed < _CALIBRATION_MIN_INTERVAL:
-                return
-
-        # After a restart the memory is empty: start from the offset the
-        # valve reports, or the next write would wipe the accumulated one.
-        if device_id not in self._calibration_last_offset:
-            reported = tado_device_offset(self._hass, device_id)
-            if reported is not None:
-                self._calibration_last_offset[device_id] = reported
-        existing_offset = self._calibration_last_offset.get(device_id, 0.0)
-        new_offset = round(
-            max(-_OFFSET_CLAMP, min(_OFFSET_CLAMP, existing_offset + delta)),
-            1,
-        )
-
-        try:
-            async with asyncio.timeout(TRV_COMMAND_TIMEOUT):
-                await set_trv_offset_by_device(
-                    self._hass, device_id, new_offset
-                )
-            self._calibration_last_offset[device_id] = new_offset
-            self._calibration_last_changed[device_id] = datetime.now(
-                timezone.utc
-            ).isoformat(timespec="seconds")
-            self._calibration_last_delta[device_id] = round(delta, 2)
-            log_calibration(
-                area_id,
-                device_display_name(self._hass, device_id),
-                sensor_temp,
-                current_temp,
-                existing_offset,
-                new_offset,
-                threshold,
-            )
-        except Exception:  # noqa: BLE001
-            _LOGGER.warning(
-                "Failed to apply offset %.1f to device %s",
-                new_offset,
-                device_id,
-            )
+        await self._calibrator.calibrate_all(config, self._rooms)
 
     # -----------------------------------------------------------------------
-    # Phase 13: Matter calibration listener lifecycle (D-08..D-11)
+    # Phase 13: calibration listener lifecycle (D-08..D-11)
     # -----------------------------------------------------------------------
 
     @callback
-    def _make_matter_cal_listener(self, area_id: str) -> Callable:
+    def _make_calibration_listener(self, area_id: str) -> Callable:
         """Factory: create a state_changed callback for an entity in area_id.
 
         D-09: only fires calibration when current_temperature changes.
@@ -851,179 +686,42 @@ class ClimateManagerCoordinator:
 
         return _on_state_changed
 
-    async def _async_refresh_matter_listeners(self) -> None:
-        """Cancel all Matter calibration listeners and re-register.
+    async def _async_refresh_calibration_listeners(self) -> None:
+        """Cancel all calibration listeners and re-register.
 
         D-10: cancel-all-then-rebuild. Safe because WS commands are
         serialised on the HA event loop — no concurrent registration race.
-        Listener scope per D-09:
-          - mapped tado_x entity → no listener (Matter handles it)
-          - mapped Matter entity → listener
-          - unmapped tado_x entity → listener
-          - unmapped Matter entity (not in any mapping value) → listener
+        One listener per calibration target temperature source (a paired
+        Matter valve rather than its cloud entity), so a fresh local
+        reading triggers the room's calibration immediately.
         """
-        from homeassistant.helpers import (  # noqa: PLC0415
-            entity_registry as er,
-        )
         from homeassistant.helpers.event import (  # noqa: PLC0415
             async_track_state_change_event,
         )
 
         # Cancel all existing listeners before rebuild (Pitfall 1)
-        for cancel in self._matter_cal_listeners.values():
+        for cancel in self._calibration_listeners.values():
             cancel()
-        self._matter_cal_listeners.clear()
+        self._calibration_listeners.clear()
 
-        entity_reg = er.async_get(self._hass)
-        config = self._data.runtime_config
-        matter_mappings: dict[str, list[str]] = config.get(
-            "matter_mappings", {}
-        )
-        # Build frozenset of all Matter entity_ids in any mapping value
-        # (used to skip Matter entities already covered by a tado_x branch)
-        matter_entity_set: frozenset[str] = frozenset(
-            eid for eids in matter_mappings.values() for eid in eids
-        )
-
-        def _register(eid: str, aid: str) -> None:
-            """Register once — skip if already tracked (idempotent)."""
-            if eid in self._matter_cal_listeners:
-                return
-            cancel = async_track_state_change_event(
-                self._hass,
-                eid,
-                self._make_matter_cal_listener(aid),
+        for entity_id, area_id in self._calibrator.watched_entities().items():
+            self._calibration_listeners[entity_id] = (
+                async_track_state_change_event(
+                    self._hass,
+                    entity_id,
+                    self._make_calibration_listener(area_id),
+                )
             )
-            self._matter_cal_listeners[eid] = cancel
-
-        for area_id, entity_ids in self._data.rooms.items():
-            for entity_id in entity_ids:
-                reg = entity_reg.async_get(entity_id)
-                # When no registry entry exists, treat as generic entity
-                platform = reg.platform if reg is not None else None
-                if platform == "tado_x":
-                    mapped = matter_mappings.get(entity_id)
-                    if mapped:
-                        # D-09: mapped tado_x → no listener on tado_x;
-                        # each mapped Matter entity gets its own listener
-                        for matter_eid in mapped:
-                            _register(matter_eid, area_id)
-                    else:
-                        # D-09: unmapped tado_x → listener on tado_x entity
-                        _register(entity_id, area_id)
-                elif platform == "matter":
-                    # D-09: unmapped Matter entity → listener
-                    if entity_id not in matter_entity_set:
-                        _register(entity_id, area_id)
-                else:
-                    # Generic TRV or unregistered entity → listener
-                    _register(entity_id, area_id)
 
     async def _async_calibrate_for_room(self, area_id: str) -> None:
         """Run calibration for a single room (event-driven path).
 
-        Called from the Matter calibration listener callback via
-        hass.async_create_task. Mirrors the per-area body of _async_calibrate
-        but scoped to one room and not gated by the full gather.
-
-        Routing per mapping state (D-04..D-07):
-          - mapped tado_x: calibrate via tado_x devices, delta from Matter entity
-          - unmapped tado_x: existing _async_calibrate_tado_device path
-          - unmapped Matter / generic: Room.calibrate_trvs (D-06 migration)
+        Called from the calibration listener callback via
+        hass.async_create_task.
         """
-        config = self._data.runtime_config
-        if not config.get("calibration_enabled", False):
-            return
-
-        from homeassistant.helpers import (  # noqa: PLC0415
-            entity_registry as er,
+        await self._calibrator.calibrate_room(
+            self._data.runtime_config, area_id, self._rooms.get(area_id)
         )
-
-        entity_reg = er.async_get(self._hass)
-        entity_ids = self._data.rooms.get(area_id, [])
-        sensor_entity_id = self._resolve_room_sensor(area_id, config)
-
-        matter_mappings: dict[str, list[str]] = config.get(
-            "matter_mappings", {}
-        )
-        matter_entity_set: frozenset[str] = frozenset(
-            eid for eids in matter_mappings.values() for eid in eids
-        )
-
-        tado_tasks = []
-        needs_generic_calibrate = False
-        for entity_id in entity_ids:
-            if not is_trv_entity(self._hass, entity_id):
-                continue
-            reg = entity_reg.async_get(entity_id)
-            platform = reg.platform if reg is not None else None
-            if platform == "tado_x":
-                mapped = matter_mappings.get(entity_id)
-                if mapped:
-                    # D-04/D-05: use first Matter entity as temp source;
-                    # resolve Tado X valve devices by area
-                    matter_eid = mapped[0]
-                    valve_devices = get_tado_valve_devices(self._hass, area_id)
-                    if valve_devices:
-                        for device in valve_devices:
-                            tado_tasks.append(
-                                self._async_calibrate_tado_device(
-                                    area_id,
-                                    device["device_id"],
-                                    matter_eid,
-                                    sensor_entity_id,
-                                    config,
-                                )
-                            )
-                    else:
-                        # D-05 fallback: generic entity-based calibration
-                        needs_generic_calibrate = True
-                else:
-                    # D-06: unmapped tado_x → existing device-based path
-                    valve_devices = get_tado_valve_devices(self._hass, area_id)
-                    if valve_devices:
-                        zone_entity = next(
-                            (
-                                eid
-                                for eid in entity_ids
-                                if is_trv_entity(self._hass, eid)
-                            ),
-                            None,
-                        )
-                        for device in valve_devices:
-                            tado_tasks.append(
-                                self._async_calibrate_tado_device(
-                                    area_id,
-                                    device["device_id"],
-                                    zone_entity,
-                                    sensor_entity_id,
-                                    config,
-                                )
-                            )
-                    else:
-                        needs_generic_calibrate = True
-            elif platform == "matter":
-                if entity_id not in matter_entity_set:
-                    # D-07: unmapped Matter → generic entity-based calibration
-                    needs_generic_calibrate = True
-            else:
-                # Generic TRV entity: entity-based calibration via Room
-                needs_generic_calibrate = True
-
-        if tado_tasks:
-            await asyncio.gather(*tado_tasks)
-
-        if needs_generic_calibrate:
-            room = self._rooms.get(area_id)
-            if room is not None:
-                # Build a minimal EvalContext for the event-driven calibration path.
-                ctx_calib = EvalContext(
-                    now=dt_util.now(),
-                    hass=self._hass,
-                    period_temperatures=config.get("period_temperatures", {}),
-                    _warn_issued=self._calendar_warn_issued,
-                )
-                await room.calibrate_trvs(ctx_calib)
 
     def _dismiss_ha_tracker_notif(self, notif_id: str) -> None:
         """Cancel the tracker-restored watcher and dismiss the notification."""

@@ -16,6 +16,7 @@ import type {
   DailyProgram,
   ZoneConfig,
   TRVCalibrationEntry,
+  CloudPolling,
   BoilerConfig,
 } from "./types.js";
 
@@ -193,22 +194,22 @@ export class WsClient {
   }
 
   /**
-   * Set or remove a Matter entity mapping for a tado_x zone entity.
+   * Set or remove the Matter entities paired with a (cloud) entity.
    * Pass an empty array for matterEntityIds to remove the mapping
    * (D-01 sparse — absent key = no mapping).
    */
   setMatterMapping(
-    tadoEntityId: string,
+    entityId: string,
     matterEntityIds: string[],
   ): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
       type: "climate_manager/set_matter_mapping",
-      tado_entity_id: tadoEntityId,
+      entity_id: entityId,
       matter_entity_ids: matterEntityIds,
     });
   }
 
-  /** Return auto-detected Matter->Tado X mapping suggestions. */
+  /** Return the vendors' auto-detected Matter pairing suggestions. */
   suggestMatterMappings(): Promise<Record<string, string[]>> {
     return this.hass.connection
       .sendMessagePromise<{ mappings: Record<string, string[]> }>({
@@ -241,11 +242,11 @@ export class WsClient {
   /** Return per-TRV calibration status for the TRV Auto-Calibration card. */
   getCalibrationStatus(): Promise<{
     trvs: TRVCalibrationEntry[];
-    tado_x_scan_interval: number | null;
+    cloud_polling: CloudPolling[];
   }> {
     return this.hass.connection.sendMessagePromise<{
       trvs: TRVCalibrationEntry[];
-      tado_x_scan_interval: number | null;
+      cloud_polling: CloudPolling[];
     }>({
       type: "climate_manager/get_calibration_status",
     });

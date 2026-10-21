@@ -38,6 +38,7 @@ from .const import (
     TRV_COMMAND_TIMEOUT,
 )
 from .trv import is_trv_entity
+from .vendors import accessory_models
 
 if TYPE_CHECKING:
     from .room import Room
@@ -45,10 +46,6 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 _OFFLINE_STATES = ("unavailable", "unknown")
-
-# Valve devices whose switches (child lock…) have no climate entity of
-# their own: their room climate entity sits on another device.
-_VALVE_MODELS = frozenset({"Radiator Valve X"})
 
 
 def boiler_candidates(hass: HomeAssistant) -> list[str]:
@@ -68,6 +65,9 @@ def boiler_candidates(hass: HomeAssistant) -> list[str]:
         for e in entity_reg.entities.values()
         if e.domain == "climate" and e.device_id
     }
+    # Valve devices whose switches (child lock…) have no climate entity of
+    # their own: their room climate entity sits on another device.
+    valve_models = accessory_models()
     result = []
     for state in hass.states.async_all(BOILER_DOMAINS):
         entity_id = state.entity_id
@@ -88,7 +88,7 @@ def boiler_candidates(hass: HomeAssistant) -> list[str]:
             if device_id in climate_devices:
                 continue
             device = device_reg.async_get(device_id)
-            if device is not None and device.model in _VALVE_MODELS:
+            if device is not None and device.model in valve_models:
                 continue
         result.append(entity_id)
     return sorted(result)

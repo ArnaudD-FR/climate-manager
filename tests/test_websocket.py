@@ -323,7 +323,7 @@ async def test_ws_get_config_climate_entities_empty_when_none_registered(
 
 
 # ---------------------------------------------------------------------------
-# Tests: get_config matter_entities + tado_x_entities (Plan 13-02, A2 Option A/C)
+# Tests: get_config matter_entities + pairable_entities (Plan 13-02, A2)
 # ---------------------------------------------------------------------------
 
 
@@ -365,10 +365,10 @@ async def test_get_config_includes_matter_entities(hass, hass_ws_client):
         )
 
 
-async def test_get_config_includes_tado_x_entities(hass, hass_ws_client):
-    """get_config payload contains tado_x_entities listing tado_x climate entities.
+async def test_get_config_includes_pairable_entities(hass, hass_ws_client):
+    """get_config payload lists the entities a vendor can pair (tado_x).
 
-    Verifies A2 Option A/C: backend derives tado_x_entities list from entity
+    Verifies A2 Option A/C: backend derives pairable_entities list from entity
     registry platform check. Only climate.* entities with platform=="tado_x"
     are included; entities with other platforms are excluded.
     """
@@ -386,18 +386,18 @@ async def test_get_config_includes_tado_x_entities(hass, hass_ws_client):
     msg = await client.receive_json()
 
     assert msg["success"] is True
-    assert "tado_x_entities" in msg["result"], (
-        "get_config must include tado_x_entities key"
+    assert "pairable_entities" in msg["result"], (
+        "get_config must include pairable_entities key"
     )
-    tado_x_entities = msg["result"]["tado_x_entities"]
-    assert isinstance(tado_x_entities, list)
+    pairable_entities = msg["result"]["pairable_entities"]
+    assert isinstance(pairable_entities, list)
     # The tado_x entity must be included
-    assert tado_entry.entity_id in tado_x_entities
-    # The matter entity must NOT be in tado_x_entities
-    for eid in tado_x_entities:
+    assert tado_entry.entity_id in pairable_entities
+    # The matter entity must NOT be in pairable_entities
+    for eid in pairable_entities:
         reg = entity_reg.async_get(eid)
         assert reg is not None and reg.platform == "tado_x", (
-            f"Non-tado_x entity {eid} found in tado_x_entities"
+            f"Non-tado_x entity {eid} found in pairable_entities"
         )
 
 
@@ -406,7 +406,7 @@ async def test_get_config_entity_lists_do_not_pollute_storage(
 ):
     """get_config derived lists do NOT mutate runtime_config or persisted store.
 
-    Verifies T-13-06: matter_entities and tado_x_entities are derived from the
+    Verifies T-13-06: matter_entities and pairable_entities are derived from the
     entity registry and merged into a NEW payload dict — runtime_config is never
     mutated so the derived keys never pollute persistent storage (D-25 invariant).
     """
@@ -428,15 +428,15 @@ async def test_get_config_entity_lists_do_not_pollute_storage(
     assert msg["success"] is True
     # Both derived keys must appear in the payload
     assert "matter_entities" in msg["result"]
-    assert "tado_x_entities" in msg["result"]
+    assert "pairable_entities" in msg["result"]
 
     # runtime_config must not have been mutated with derived keys
     keys_after = set(entry.runtime_data.runtime_config.keys())
     assert "matter_entities" not in keys_after, (
         "matter_entities must not be stored in runtime_config"
     )
-    assert "tado_x_entities" not in keys_after, (
-        "tado_x_entities must not be stored in runtime_config"
+    assert "pairable_entities" not in keys_after, (
+        "pairable_entities must not be stored in runtime_config"
     )
     # No keys were added to runtime_config
     assert keys_after == keys_before
@@ -1431,9 +1431,9 @@ async def test_ws_set_calibration_config_enabled_false(hass, hass_ws_client):
 
 
 async def test_set_matter_mapping_stores_mapping(hass, hass_ws_client):
-    """set_matter_mapping stores the mapping in matter_mappings[tado_entity_id].
+    """set_matter_mapping stores the mapping in matter_mappings[entity_id].
 
-    Verifies D-15: valid {tado_entity_id, matter_entity_ids} payload is
+    Verifies D-15: valid {entity_id, matter_entity_ids} payload is
     persisted under runtime_config["matter_mappings"].
     """
     entry = await _setup_entry(hass)
@@ -1442,7 +1442,7 @@ async def test_set_matter_mapping_stores_mapping(hass, hass_ws_client):
     await client.send_json_auto_id(
         {
             "type": f"{DOMAIN}/set_matter_mapping",
-            "tado_entity_id": "climate.tado_lr",
+            "entity_id": "climate.tado_lr",
             "matter_entity_ids": [
                 "climate.valve1",
                 "climate.valve2",
@@ -1463,7 +1463,7 @@ async def test_set_matter_mapping_stores_mapping(hass, hass_ws_client):
 async def test_set_matter_mapping_empty_list_pops_key(hass, hass_ws_client):
     """set_matter_mapping with matter_entity_ids=[] removes the key (sparse).
 
-    Verifies D-01: empty list must pop the tado_entity_id key — the mapping
+    Verifies D-01: empty list must pop the entity_id key — the mapping
     is never stored as []. Sparse model: absent key = no mapping.
     """
     entry = await _setup_entry(hass)
@@ -1477,7 +1477,7 @@ async def test_set_matter_mapping_empty_list_pops_key(hass, hass_ws_client):
     await client.send_json_auto_id(
         {
             "type": f"{DOMAIN}/set_matter_mapping",
-            "tado_entity_id": "climate.tado_lr",
+            "entity_id": "climate.tado_lr",
             "matter_entity_ids": [],
         }
     )
@@ -1503,7 +1503,7 @@ async def test_set_matter_mapping_filters_non_climate_entity_ids(
     await client.send_json_auto_id(
         {
             "type": f"{DOMAIN}/set_matter_mapping",
-            "tado_entity_id": "climate.tado_lr",
+            "entity_id": "climate.tado_lr",
             "matter_entity_ids": [
                 "sensor.foo",
                 "climate.valve1",
@@ -1521,7 +1521,7 @@ async def test_set_matter_mapping_filters_non_climate_entity_ids(
 async def test_set_matter_mapping_triggers_listener_refresh(
     hass, hass_ws_client
 ):
-    """set_matter_mapping triggers coordinator._async_refresh_matter_listeners.
+    """set_matter_mapping triggers the coordinator listener refresh.
 
     Verifies D-16: after persisting, the coordinator's Matter listeners are
     refreshed atomically. Uses a monkeypatch spy on the coordinator method;
@@ -1536,13 +1536,13 @@ async def test_set_matter_mapping_triggers_listener_refresh(
     async def _spy_refresh():
         refresh_called.append(True)
 
-    coordinator._async_refresh_matter_listeners = _spy_refresh
+    coordinator._async_refresh_calibration_listeners = _spy_refresh
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
         {
             "type": f"{DOMAIN}/set_matter_mapping",
-            "tado_entity_id": "climate.tado_lr",
+            "entity_id": "climate.tado_lr",
             "matter_entity_ids": ["climate.valve1"],
         }
     )
@@ -1551,7 +1551,7 @@ async def test_set_matter_mapping_triggers_listener_refresh(
 
     assert msg["success"] is True
     assert len(refresh_called) == 1, (
-        "_async_refresh_matter_listeners must be called once"
+        "_async_refresh_calibration_listeners must be called once"
     )
 
 
@@ -1585,8 +1585,9 @@ async def test_calibration_status_hides_matter_grouped_with_tado_x(
 ):
     """get_calibration_status omits Matter valves grouped with a Tado X room.
 
-    They are calibrated through the Tado X Radiator Valve X rows; a
-    standalone Matter valve is still listed.
+    They are calibrated through the Tado X row (here the zone entity, no
+    valve device being known), read on the paired Matter valve; a
+    standalone Matter valve is still listed, as not calibratable.
     """
     from homeassistant.helpers import area_registry as ar
     from homeassistant.helpers import entity_registry as er
@@ -1618,7 +1619,10 @@ async def test_calibration_status_hides_matter_grouped_with_tado_x(
     msg = await client.receive_json()
 
     assert msg["success"] is True
-    listed = {t["entity_id"] for t in msg["result"]["trvs"]}
-    assert ids["lounge_standalone"] in listed
-    assert ids["lounge_grouped"] not in listed
-    assert ids["lounge_room"] not in listed
+    rows = {t["entity_id"]: t for t in msg["result"]["trvs"]}
+    assert set(rows) == {ids["lounge_room"], ids["lounge_standalone"]}
+    assert rows[ids["lounge_room"]]["supports_calibration"] is True
+    assert rows[ids["lounge_room"]]["vendor"] == "Tado X"
+    assert rows[ids["lounge_standalone"]]["supports_calibration"] is False
+    assert rows[ids["lounge_standalone"]]["vendor"] is None
+    assert msg["result"]["cloud_polling"] == []

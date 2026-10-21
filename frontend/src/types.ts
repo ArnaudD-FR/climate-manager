@@ -122,8 +122,8 @@ export interface ClimateConfig {
   calibration_threshold?: number;
   /**
    * Phase 13 (D-01): Matter entity pairings.
-   * Key: tado_x zone climate entity_id.
-   * Value: list of Matter climate entity_ids paired to that tado_x entity.
+   * Key: a pairable (vendor cloud) climate entity_id.
+   * Value: list of Matter climate entity_ids paired to that entity.
    * Sparse — absent key means no mapping for that room.
    */
   matter_mappings?: Record<string, string[]>;
@@ -141,10 +141,11 @@ export interface ClimateConfig {
    */
   matter_entities?: string[];
   /**
-   * Phase 13 (A2 Option A/C): backend-derived list of all tado_x climate
-   * entity_ids known to HA. Read-only — never written to storage.
+   * Phase 13 (A2 Option A/C): backend-derived list of the climate
+   * entity_ids a vendor can pair with Matter entities. Read-only — never
+   * written to storage.
    */
-  tado_x_entities?: string[];
+  pairable_entities?: string[];
 }
 
 /** Per-room live status entry inside StatusPayload.rooms_status. */
@@ -240,20 +241,28 @@ export interface BoilerStatus {
 /** Per-TRV calibration status returned by get_calibration_status. */
 export interface TRVCalibrationEntry {
   entity_id: string | null;
-  /** Present for Tado X Radiator Valve X devices; absent for entity-based TRVs. */
-  device_id?: string;
+  /** Physical device carrying the offset; null for entity-based rows. */
+  device_id?: string | null;
   area_id: string;
   friendly_name: string;
   supports_calibration: boolean;
+  /** Label of the vendor calibrating this row ("Tado X"), else null. */
+  vendor?: string | null;
   trv_temperature: number | null;
   room_temperature: number | null;
   /**
-   * Current offset applied on the device. For Tado X: climate_manager
-   * session value if set, otherwise read from sensor.*_temperature_offset.
-   * Null for non-Tado-X TRVs.
+   * Current offset: the last one written by Climate Manager, else the one
+   * the vendor reports. Null when not calibratable or unknown.
    */
   current_offset: number | null;
   last_calibrated_at: string | null;
+}
+
+/** A vendor whose readings are polled from a cloud. */
+export interface CloudPolling {
+  vendor: string;
+  /** Refresh interval in seconds. */
+  interval: number;
 }
 
 /**

@@ -134,7 +134,7 @@ never pile up and no trigger is lost. Each run is `_async_evaluate_once()`:
 6. _check_ha_tracker_warnings (persistent notifications)
 7. snapshot status fields: _last_room_periods (per-room), _last_zone_periods,
    _last_present_persons
-8. per-room calibration pass (Room.calibrate_trvs) if calibration_enabled
+8. calibration pass (Calibrator.calibrate_all) if calibration_enabled
 9. Fire climate_manager_status_update bus event
 10. Notify update listeners (HA entities, async_sync_devices)
 ```
@@ -149,7 +149,7 @@ Calibration calls are bounded the same way.
 **Anti-flap push** (`TRV.push_temperature`): skip if the period (`slot`) is
 unchanged and `last_pushed == desired`. **Manual-override hold** (D-03): if the
 TRV reports a setpoint ≠ last pushed within the same period, it was changed
-outside Climate Manager (Tado app, Tado schedule, user) — hold until the next
+outside Climate Manager (vendor app or schedule, user) — hold until the next
 period transition, where `last_slot` differs and the setpoint is re-applied.
 **Forced first push**: when `last_pushed is None` (startup, a TRV new to the
 graph, back online) `set_temperature` is sent even if the valve already reports
@@ -214,15 +214,18 @@ to the TRVs, capped at `PREHEAT_BOOST_MAX` (3 °C) and the TRVs' `max_temp`,
 rounded to 0.5 °C (`Room._preheat_boost`; per-room `preheat_boost_factor`,
 default 2, 0 disables). `_last_setpoint` keeps the unboosted value. On
 convergence the plain setpoint is re-pushed in the same tick (`_drop_boost`).
-**Calibration** (`Room.calibrate_trvs`): incremental offset toward the room
-reference sensor. Tado X Radiator Valve X uses the device-based offset call;
-other TRVs use entity-based. Clamped ±5°C with a threshold guard to avoid
-jitter: `calibration_threshold` (0.5 °C), tightened to
-`PREHEAT_CALIBRATION_THRESHOLD` (0.2 °C) while a pre-heat has not converged.
-Each write logs
-`calibrate | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`. Tado
-offsets are tracked in memory; after a restart the first correction starts from
-the valve's tado_x `temperature_offset` sensor (`tado_device_offset`).
+**Calibration** (`calibration.py`, `Calibrator`, owned by the coordinator):
+incremental offset toward the room reference sensor, for the calibration targets
+the vendors resolve (see [Vendors](#vendors--vendors)). Clamped ±5°C with a
+threshold guard to avoid jitter: `calibration_threshold` (0.5 °C), tightened to
+`PREHEAT_CALIBRATION_THRESHOLD` (0.2 °C) while a pre-heat has not converged; at
+most one write per target every 5 min (cloud API quotas). Each write logs
+`calibrate | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`.
+Offsets are remembered per target (`last_offset`, keyed by device or entity);
+after a restart the first correction starts from the offset the vendor reports.
+The periodic pass runs every tick; a state listener on each target's temperature
+source (`watched_entities`, refreshed when that set changes) also calibrates the
+room as soon as a new reading arrives.
 
 ---
 
@@ -237,7 +240,7 @@ unimplemented overloads raise `assert False`.
 | `eval_context.py` | `EvalContext`                                                            | Per-cycle cache passed through the whole call chain: `now`, `period_temperatures`, lazy `_calendar_cache`, `_presence_cache` (D-02)           |
 | `zone.py`         | `Zone`, `ZoneModeOff`, `ZoneModeTimeProgram`, `ZoneModeProgramPresences` | Resolves the active period; pushes setpoints to its rooms; emits the `zone` OBS-01 log on `(period, mode)` change                             |
 | `person.py`       | `Person`, `PersonModeScheduled/HA/Calendar/ForcePresent/ForceAbsent`     | Evaluates presence (cached in `ctx`); emits the `presence` OBS-01 log on home/away flip and on user mode change                               |
-| `room.py`         | `Room`                                                                   | Owns `_trv_groups`, `assigned_persons`, per-room pre-heat/calibration state, `_last_period` (status badge); `apply_setpoint`/`apply_off`      |
+| `room.py`         | `Room`                                                                   | Owns `_trv_groups`, `assigned_persons`, per-room pre-heat state, `_last_period` (status badge); `apply_setpoint`/`apply_off`                  |
 | `trv.py`          | `TRV`, `TRVGroup`                                                        | `TRVGroup` is assembled once (resolving `matter_mappings` + boiler filter); `TRV` owns `last_pushed`/`last_slot`, the hold and the `push` log |
 
 `ZoneModeProgramPresences` resolves an effective period **per room** (empty room
@@ -246,8 +249,9 @@ tracks its own `_last_period` (`Room.current_period`) for the status badge
 rather than a single zone-level value. The zone period (`Zone.current_period`)
 is always the zone time program's period (frost protection when Off).
 `TRVGroup.from_room_config` applies `is_trv_entity` so boiler/HVAC entities
-(`max_temp > 45 °C`) are never push targets, and dedups Matter entities already
-covered by a `tado_x` mapping.
+(`max_temp > 45 °C`) are never push targets. A paired entity (`matter_mappings`
+key) is replaced by its Matter entities, and a Matter entity paired with another
+one is not pushed on its own (no brand check).
 
 #### OBS-01 structured log traces
 
@@ -285,18 +289,53 @@ assignment changes.
 
 ---
 
+### Vendors — `vendors/`
+
+The core only drives standard `climate` entities and never names a brand.
+Brand-specific behaviour lives in `TRVVendor` subclasses (`vendors/base.py`),
+registered in `vendors.VENDORS`; the core calls the aggregate helpers of
+`vendors/__init__.py`. Every method has a neutral default, so a brand without a
+vendor is pushed setpoints and never calibrated.
+
+| Member                                                | Used by                                                           |
+| ----------------------------------------------------- | ----------------------------------------------------------------- |
+| `calibration_targets(hass, area, entities, mappings)` | `Calibrator`: which offsets to keep aligned, read on which entity |
+| `read_offset` / `write_offset`                        | `Calibrator`: offset reported after a restart / offset write      |
+| `suggest_mappings(hass)`                              | Auto-pairing at startup and `suggest_matter_mappings` (WS)        |
+| `pairable` + `owns(hass, entity_id)`                  | `get_config.pairable_entities` (room card drag-and-drop pairing)  |
+| `accessory_models`                                    | `boiler_candidates` (valve switches are never a boiler)           |
+| `poll_interval(hass)`                                 | `get_calibration_status.cloud_polling` (calibration tab banner)   |
+| `label`                                               | Calibration tab badge (`vendor` field of each calibration row)    |
+
+A `CalibrationTarget` names one offset: `key` (memory key: device or entity),
+`name` (logs, panel), `temp_entity_id` (the climate entity compared with the
+room sensor), and optionally `entity_id` / `device_id`.
+
+**Tado X** (`vendors/tado_x.py`, `TadoX`): one cloud climate entity per room and
+"Radiator Valve X" devices without a climate entity. One target per valve of the
+area (`tado_x.set_temperature_offset` by `device_id`, one decimal; offset read
+back from the valve's `temperature_offset` sensor), read on the Matter entity
+with the valve's serial (`("matter", "serial_<serial>")`), else on the zone's
+first paired Matter entity, else on the zone entity. Without a known valve
+device, one entity-based target per zone entity. Suggestions pair a zone entity
+with the Matter entities of the valves connected through its device
+(`via_device_id`).
+
+To support a new brand: subclass `TRVVendor`, override what the brand needs, add
+an instance to `VENDORS`, and test it on its own (see
+`tests/test_vendor_tado_x.py`; `tests/test_calibration.py` drives the
+`Calibrator` with a fake vendor).
+
+---
+
 ### TRV control — `trv.py`
 
 | Function                                            | Purpose                                                                                                                                                                                              |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `set_trv_temperature(hass, entity_id, temp, force)` | Step 1: ensure `hvac_mode=heat`; Step 2: `set_temperature` (skipped if already set, unless `force`). Two-step workaround for Tado X Matter auto mode.                                                |
+| `set_trv_temperature(hass, entity_id, temp, force)` | Step 1: ensure `hvac_mode=heat`; Step 2: `set_temperature` (skipped if already set, unless `force`). Some TRVs ignore setpoints in auto mode.                                                        |
 | `set_trv_off(hass, entity_id)`                      | `set_hvac_mode=off`                                                                                                                                                                                  |
-| `set_trv_offset(hass, entity_id, offset)`           | Entity-based temperature offset calibration                                                                                                                                                          |
-| `set_trv_offset_by_device(hass, device_id, offset)` | Tado X Radiator Valve X device-based calibration                                                                                                                                                     |
 | `supports_hvac_off(hass, entity_id)`                | Inspects `hvac_modes` attribute                                                                                                                                                                      |
-| `supports_offset_calibration(hass, entity_id)`      | Checks `temperature_offset` attribute                                                                                                                                                                |
 | `is_trv_entity(hass, entity_id)`                    | True for room TRVs; False for boiler/HVAC entities (`max_temp > 45 °C`, read from the registry when there is no state yet). Applied in `TRVGroup.from_room_config` and every status/calibration path |
-| `get_tado_valve_devices(hass, area_id)`             | Returns Tado X Radiator Valve X devices in an area                                                                                                                                                   |
 
 The module also defines the `TRV` and `TRVGroup` domain classes (see
 [Domain model](#domain-model)). `TRVGroup` is assembled once per room and holds
@@ -413,12 +452,12 @@ Native entities exist so the HA recorder historises zone modes and periods
   `humidity_entity_id` (HA area setting → auto-discovered sensor). The expanded
   card embeds HA's native `history-graph` card (`createHistoryCard` →
   `window.loadCardHelpers`) for the room period, temperature, humidity and the
-  TRVs that receive setpoints (same rules as `TRVGroup`: a Tado X room with
-  paired Matter valves is shown as those valves; a Matter valve paired to a Tado
-  X room is not shown on its own). It is created lazily on expand and dropped on
-  collapse (no history subscriptions for collapsed cards); the time range (6 h –
-  7 days) is kept in `localStorage`. Without card helpers (docs harness) only
-  the "open in History" link is shown.
+  TRVs that receive setpoints (same rules as `TRVGroup`: an entity with paired
+  Matter valves is shown as those valves; a paired Matter valve is not shown on
+  its own). It is created lazily on expand and dropped on collapse (no history
+  subscriptions for collapsed cards); the time range (6 h – 7 days) is kept in
+  `localStorage`. Without card helpers (docs harness) only the "open in History"
+  link is shown.
 
 ---
 

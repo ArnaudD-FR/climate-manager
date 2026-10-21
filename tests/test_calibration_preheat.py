@@ -54,9 +54,13 @@ async def _setup(hass, area_id: str, trv: str, sensor: str):
     return coordinator, config, offset_calls
 
 
-async def test_generic_trv_tighter_threshold_during_preheat(hass, caplog):
+async def test_tighter_threshold_during_preheat(hass, caplog):
     """0.3 °C gap: skipped normally, corrected and logged in pre-heat."""
     caplog.set_level(logging.INFO, logger="custom_components.climate_manager")
+    # A Tado X zone entity without valve device: calibrated by entity_id.
+    er.async_get(hass).async_get_or_create(
+        "climate", "tado_x", "office_trv", suggested_object_id="office_trv"
+    )
     hass.states.async_set(
         "climate.office_trv",
         "heat",
@@ -86,9 +90,7 @@ async def test_generic_trv_tighter_threshold_during_preheat(hass, caplog):
     )
 
 
-async def test_tado_valve_offset_seeded_from_sensor_after_restart(
-    hass, caplog
-):
+async def test_tado_valve_offset_seeded_from_sensor_after_restart(hass, caplog):
     """Empty memory: the offset accumulates on the valve's reported one."""
     caplog.set_level(logging.INFO, logger="custom_components.climate_manager")
     area = ar.async_get(hass).async_create("Office")
@@ -122,7 +124,7 @@ async def test_tado_valve_offset_seeded_from_sensor_after_restart(
 
     assert len(offset_calls) == 1
     assert offset_calls[0].data == {"device_id": valve.id, "offset": -1.9}
-    assert coordinator._calibration_last_offset[valve.id] == -1.9
+    assert coordinator.calibrator.last_offset[valve.id] == -1.9
     assert any(
         m.startswith(f"calibrate | room={area.id} trv=Vanne bureau")
         and "offset=-1.2→-1.9 threshold=0.5" in m
