@@ -1251,13 +1251,49 @@ async def test_global_mode_off_does_not_affect_custom_zones(hass):
 # ---------------------------------------------------------------------------
 
 
-def _register_tado_x(hass, object_id: str) -> None:
-    """Register climate.<object_id> as a tado_x entity (before its state)."""
+def _register_tado_x(hass, object_id: str, offset: float | None = None) -> str:
+    """Register climate.<object_id> as a tado_x zone with one valve.
+
+    Registered before its state. The valve has no area: it belongs to the
+    zone's room. offset: state of the valve's temperature_offset sensor.
+    Returns the valve device id.
+    """
+    from homeassistant.helpers import device_registry as dr
     from homeassistant.helpers import entity_registry as er
 
-    er.async_get(hass).async_get_or_create(
-        "climate", "tado_x", object_id, suggested_object_id=object_id
+    tado_entry = MockConfigEntry(domain="tado_x", data={})
+    tado_entry.add_to_hass(hass)
+    device_reg = dr.async_get(hass)
+    entity_reg = er.async_get(hass)
+    zone = device_reg.async_get_or_create(
+        config_entry_id=tado_entry.entry_id,
+        identifiers={("tado_x", f"zone_{object_id}")},
     )
+    entity_reg.async_get_or_create(
+        "climate",
+        "tado_x",
+        object_id,
+        suggested_object_id=object_id,
+        config_entry=tado_entry,
+        device_id=zone.id,
+    )
+    valve = device_reg.async_get_or_create(
+        config_entry_id=tado_entry.entry_id,
+        identifiers={("tado_x", f"VA_{object_id}")},
+        model="Radiator Valve X",
+        name=f"Valve {object_id}",
+    )
+    device_reg.async_update_device(valve.id, via_device_id=zone.id)
+    if offset is not None:
+        sensor = entity_reg.async_get_or_create(
+            "sensor",
+            "tado_x",
+            f"VA_{object_id}_temperature_offset",
+            config_entry=tado_entry,
+            device_id=valve.id,
+        )
+        hass.states.async_set(sensor.entity_id, str(offset))
+    return valve.id
 
 
 def _make_calibration_config(
@@ -1468,16 +1504,12 @@ async def test_calibration_delta_above_threshold_one_offset_call(hass):
     new_offset = 0.5 + 1.0 = 1.5
     Expected: one call with offset=1.5.
     """
-    # A Tado X zone entity (no valve device): calibrated by entity_id.
-    _register_tado_x(hass, "hall_trv")
+    # A Tado X zone whose valve reports an offset of 0.5.
+    valve_id = _register_tado_x(hass, "hall_trv", offset=0.5)
     hass.states.async_set(
         "climate.hall_trv",
         "heat",
-        {
-            "temperature": 20.0,
-            "current_temperature": 20.0,
-            "temperature_offset": 0.5,
-        },
+        {"temperature": 20.0, "current_temperature": 20.0},
     )
     hass.states.async_set("sensor.hall_temp", "21.0")
 
@@ -1509,6 +1541,7 @@ async def test_calibration_delta_above_threshold_one_offset_call(hass):
     assert applied_offset == pytest.approx(1.5), (
         f"new_offset = existing(0.5) + delta(1.0) = 1.5; got {applied_offset}"
     )
+    assert offset_calls[0].data["device_id"] == valve_id
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
@@ -1672,12 +1705,9 @@ async def test_matter_listeners_registered_on_first_evaluate(hass):
 
     Each calibration target's temperature source gets its own listener.
     """
-    from homeassistant.helpers import entity_registry as er
 
-    # A Tado X zone entity is a calibration target: it gets a listener.
-    er.async_get(hass).async_get_or_create(
-        "climate", "tado_x", "room_trv", suggested_object_id="room_trv"
-    )
+    # A Tado X zone with a valve: its zone entity gets a listener.
+    _register_tado_x(hass, "room_trv")
     hass.states.async_set(
         "climate.room_trv",
         "heat",
@@ -1714,12 +1744,9 @@ async def test_matter_listener_fires_calibrate_on_temp_change(hass):
     """D-09: state_changed event with changed current_temperature calls
     _async_calibrate_for_room for the listener's area_id.
     """
-    from homeassistant.helpers import entity_registry as er
 
-    # A Tado X zone entity is a calibration target: it gets a listener.
-    er.async_get(hass).async_get_or_create(
-        "climate", "tado_x", "matter_valve", suggested_object_id="matter_valve"
-    )
+    # A Tado X zone with a valve: its zone entity gets a listener.
+    _register_tado_x(hass, "matter_valve")
     hass.states.async_set(
         "climate.matter_valve",
         "heat",
@@ -1793,12 +1820,9 @@ async def test_matter_listener_ignores_non_temp_change(hass):
     """D-09 attribute filter: state_changed with unchanged current_temperature
     does NOT call _async_calibrate_for_room.
     """
-    from homeassistant.helpers import entity_registry as er
 
-    # A Tado X zone entity is a calibration target: it gets a listener.
-    er.async_get(hass).async_get_or_create(
-        "climate", "tado_x", "stable_trv", suggested_object_id="stable_trv"
-    )
+    # A Tado X zone with a valve: its zone entity gets a listener.
+    _register_tado_x(hass, "stable_trv")
     hass.states.async_set(
         "climate.stable_trv",
         "heat",
@@ -1860,12 +1884,9 @@ async def test_matter_listener_ignores_non_temp_change(hass):
 
 async def test_matter_listener_handles_none_old_state(hass):
     """Pitfall 5: state_changed with old_state=None must not raise."""
-    from homeassistant.helpers import entity_registry as er
 
-    # A Tado X zone entity is a calibration target: it gets a listener.
-    er.async_get(hass).async_get_or_create(
-        "climate", "tado_x", "new_entity", suggested_object_id="new_entity"
-    )
+    # A Tado X zone with a valve: its zone entity gets a listener.
+    _register_tado_x(hass, "new_entity")
     hass.states.async_set(
         "climate.new_entity",
         "heat",
@@ -1914,12 +1935,9 @@ async def test_refresh_matter_listeners_cancels_old(hass):
     every cancel callable from the first pass to be invoked before
     re-registration.
     """
-    from homeassistant.helpers import entity_registry as er
 
-    # A Tado X zone entity is a calibration target: it gets a listener.
-    er.async_get(hass).async_get_or_create(
-        "climate", "tado_x", "refresh_trv", suggested_object_id="refresh_trv"
-    )
+    # A Tado X zone with a valve: its zone entity gets a listener.
+    _register_tado_x(hass, "refresh_trv")
     hass.states.async_set(
         "climate.refresh_trv",
         "heat",
@@ -1981,12 +1999,9 @@ async def test_unload_cancels_matter_listeners(hass):
     """MCALIB-02/D-11: after async_unload_entry, every _calibration_listeners
     cancel callable was invoked and the dict is empty.
     """
-    from homeassistant.helpers import entity_registry as er
 
-    # A Tado X zone entity is a calibration target: it gets a listener.
-    er.async_get(hass).async_get_or_create(
-        "climate", "tado_x", "unload_trv", suggested_object_id="unload_trv"
-    )
+    # A Tado X zone with a valve: its zone entity gets a listener.
+    _register_tado_x(hass, "unload_trv")
     hass.states.async_set(
         "climate.unload_trv",
         "heat",
@@ -2249,7 +2264,8 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
     from homeassistant.helpers import entity_registry as er
 
     entity_reg = er.async_get(hass)
-    tado_eid = _register_entity(entity_reg, "climate", "tado_x", "tado_kit")
+    valve_id = _register_tado_x(hass, "tado_kit")
+    tado_eid = "climate.tado_kit"
     matter_eid = _register_entity(entity_reg, "climate", "matter", "valve_kit")
     sensor_eid = "sensor.kitchen_temp"
 
@@ -2296,28 +2312,22 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
     await hass.async_block_till_done()
 
     assert [c.data for c in offset_calls] == [
-        {"entity_id": tado_eid, "offset": 0.6}
+        {"device_id": valve_id, "offset": 0.6}
     ]
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibrate_for_room_unmapped_tado_uses_existing_path(hass):
-    """D-06: an unmapped tado_x zone (no valve device known) is calibrated
-    by entity_id, read on the zone entity itself."""
-    from homeassistant.helpers import entity_registry as er
-
-    entity_reg = er.async_get(hass)
-    tado_eid = _register_entity(entity_reg, "climate", "tado_x", "tado_off")
+async def test_calibrate_for_room_unmapped_tado_reads_zone_entity(hass):
+    """D-06: an unmapped tado_x zone calibrates its valve, read on the
+    zone entity itself (cloud readings)."""
+    valve_id = _register_tado_x(hass, "tado_off", offset=0.0)
+    tado_eid = "climate.tado_off"
     sensor_eid = "sensor.office_temp"
 
     hass.states.async_set(
         tado_eid,
         "heat",
-        {
-            "temperature": 20.0,
-            "current_temperature": 18.0,
-            "temperature_offset": 0.0,
-        },
+        {"temperature": 20.0, "current_temperature": 18.0},
     )
     hass.states.async_set(sensor_eid, "21.0")
 
@@ -2347,7 +2357,7 @@ async def test_calibrate_for_room_unmapped_tado_uses_existing_path(hass):
     await hass.async_block_till_done()
 
     assert [c.data for c in offset_calls] == [
-        {"entity_id": tado_eid, "offset": 3.0}
+        {"device_id": valve_id, "offset": 3.0}
     ]
 
 

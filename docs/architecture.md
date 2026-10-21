@@ -219,7 +219,8 @@ incremental offset toward the room reference sensor, for the calibration targets
 the vendors resolve (see [Vendors](#vendors--vendors)). Clamped ±5°C with a
 threshold guard to avoid jitter: `calibration_threshold` (0.5 °C), tightened to
 `PREHEAT_CALIBRATION_THRESHOLD` (0.2 °C) while a pre-heat has not converged; at
-most one write per target every 5 min (cloud API quotas). Each write logs
+most one write attempt per target every 5 min, failures included (cloud API
+quotas). Each write logs
 `calibrate | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`.
 Offsets are remembered per target (`last_offset`, keyed by device or entity);
 after a restart the first correction starts from the offset the vendor reports.
@@ -313,13 +314,14 @@ room sensor), and optionally `entity_id` / `device_id`.
 
 **Tado X** (`vendors/tado_x.py`, `TadoX`): one cloud climate entity per room and
 "Radiator Valve X" devices without a climate entity. One target per valve of the
-area (`tado_x.set_temperature_offset` by `device_id`, one decimal; offset read
-back from the valve's `temperature_offset` sensor), read on the Matter entity
-with the valve's serial (`("matter", "serial_<serial>")`), else on the zone's
-first paired Matter entity, else on the zone entity. Without a known valve
-device, one entity-based target per zone entity. Suggestions pair a zone entity
-with the Matter entities of the valves connected through its device
-(`via_device_id`).
+room: in its area, or, without an area, connected through the zone device
+(`via_device_id`). The offset is written with `tado_x.set_temperature_offset`
+(`device_id` only, one decimal) and read back from the valve's
+`temperature_offset` sensor. A valve is read on the Matter entity with its
+serial (`("matter", "serial_<serial>")`), else on the zone's first paired Matter
+entity, else on the zone entity. A zone without a known valve is not calibrated.
+Suggestions pair a zone entity with the Matter entities of the valves connected
+through its device (`via_device_id`).
 
 To support a new brand: subclass `TRVVendor`, override what the brand needs, add
 an instance to `VENDORS`, and test it on its own (see

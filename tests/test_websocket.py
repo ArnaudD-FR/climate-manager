@@ -1585,15 +1585,31 @@ async def test_calibration_status_hides_matter_grouped_with_tado_x(
 ):
     """get_calibration_status omits Matter valves grouped with a Tado X room.
 
-    They are calibrated through the Tado X row (here the zone entity, no
-    valve device being known), read on the paired Matter valve; a
-    standalone Matter valve is still listed, as not calibratable.
+    They are calibrated through the Tado X row (the zone's valve), read
+    on the paired Matter valve; a standalone Matter valve is still listed,
+    as not calibratable.
     """
     from homeassistant.helpers import area_registry as ar
+    from homeassistant.helpers import device_registry as dr
     from homeassistant.helpers import entity_registry as er
 
     area = ar.async_get(hass).async_create("Lounge")
     entity_reg = er.async_get(hass)
+    device_reg = dr.async_get(hass)
+    tado_entry = MockConfigEntry(domain="tado_x", data={})
+    tado_entry.add_to_hass(hass)
+    zone = device_reg.async_get_or_create(
+        config_entry_id=tado_entry.entry_id,
+        identifiers={("tado_x", "lounge_zone")},
+    )
+    # The zone entity takes its area from its device.
+    device_reg.async_update_device(zone.id, area_id=area.id)
+    valve = device_reg.async_get_or_create(
+        config_entry_id=tado_entry.entry_id,
+        identifiers={("tado_x", "VA_LOUNGE")},
+        model="Radiator Valve X",
+    )
+    device_reg.async_update_device(valve.id, via_device_id=zone.id)
     ids = {}
     for platform, unique_id in (
         ("tado_x", "lounge_room"),
@@ -1601,9 +1617,14 @@ async def test_calibration_status_hides_matter_grouped_with_tado_x(
         ("matter", "lounge_standalone"),
     ):
         reg = entity_reg.async_get_or_create(
-            "climate", platform, unique_id, suggested_object_id=unique_id
+            "climate",
+            platform,
+            unique_id,
+            suggested_object_id=unique_id,
+            device_id=zone.id if platform == "tado_x" else None,
         )
-        entity_reg.async_update_entity(reg.entity_id, area_id=area.id)
+        if platform != "tado_x":
+            entity_reg.async_update_entity(reg.entity_id, area_id=area.id)
         hass.states.async_set(
             reg.entity_id, "heat", {"current_temperature": 19.0}
         )
@@ -1623,6 +1644,7 @@ async def test_calibration_status_hides_matter_grouped_with_tado_x(
     assert set(rows) == {ids["lounge_room"], ids["lounge_standalone"]}
     assert rows[ids["lounge_room"]]["supports_calibration"] is True
     assert rows[ids["lounge_room"]]["vendor"] == "Tado X"
+    assert rows[ids["lounge_room"]]["device_id"] == valve.id
     assert rows[ids["lounge_standalone"]]["supports_calibration"] is False
     assert rows[ids["lounge_standalone"]]["vendor"] is None
     assert msg["result"]["cloud_polling"] == []

@@ -40,26 +40,18 @@ class TadoX(TRVVendor):
         entity_ids: list[str],
         mappings: dict[str, list[str]],
     ) -> list[CalibrationTarget]:
-        """One target per valve of the area, else one per zone entity.
+        """One target per valve of the room.
 
         A valve is compared with its own Matter entity (same serial) when
         the room has one, else with the zone's first paired Matter entity,
-        else with the zone entity (cloud readings).
+        else with the zone entity (cloud readings). A zone without a known
+        valve is not calibrated: the offset service only takes a device.
         """
         trvs = [e for e in entity_ids if is_trv_entity(hass, e)]
         zones = [e for e in trvs if self.owns(hass, e)]
-        valves = self._valves(hass, area_id)
+        valves = self._valves(hass, area_id, zones)
         if not valves:
-            return [
-                CalibrationTarget(
-                    vendor=self,
-                    key=zone,
-                    name=zone.split(".", 1)[-1],
-                    temp_entity_id=(mappings.get(zone) or [zone])[0],
-                    entity_id=zone,
-                )
-                for zone in zones
-            ]
+            return []
 
         if zones:
             zone_entity: str | None = zones[0]
@@ -101,12 +93,9 @@ class TadoX(TRVVendor):
     def read_offset(
         self, hass: HomeAssistant, target: CalibrationTarget
     ) -> float | None:
-        """Valve: its temperature_offset sensor. Zone: the attribute."""
+        """The valve's temperature_offset sensor."""
         if target.device_id is None:
-            state = hass.states.get(target.key)
-            if state is None:
-                return None
-            return _to_float(state.attributes.get("temperature_offset"))
+            return None
         entity_reg = er.async_get(hass)
         for entry in er.async_entries_for_device(entity_reg, target.device_id):
             if entry.platform != _DOMAIN or entry.domain != "sensor":
@@ -120,25 +109,17 @@ class TadoX(TRVVendor):
     async def write_offset(
         self, hass: HomeAssistant, target: CalibrationTarget, offset: float
     ) -> None:
-        """Call tado_x.set_temperature_offset (device_id, else entity_id).
+        """Call tado_x.set_temperature_offset on the valve device.
 
-        Silently skipped when the service is not registered, or when a
-        zone entity is unavailable.
+        Silently skipped when the service is not registered.
         """
         if not hass.services.has_service(_DOMAIN, _OFFSET_SERVICE):
             return
-        if target.device_id is not None:
-            data = {"device_id": target.device_id}
-        else:
-            state = hass.states.get(target.key)
-            if state is None or state.state in ("unavailable", "unknown"):
-                return
-            data = {"entity_id": target.key}
         await hass.services.async_call(
             _DOMAIN,
             _OFFSET_SERVICE,
             # The Tado X API requires exactly one decimal place.
-            {**data, "offset": round(offset, 1)},
+            {"device_id": target.device_id, "offset": round(offset, 1)},
             blocking=True,
         )
 
@@ -176,20 +157,36 @@ class TadoX(TRVVendor):
         return int(interval) if interval is not None else None
 
     def _valves(
-        self, hass: HomeAssistant, area_id: str
+        self, hass: HomeAssistant, area_id: str, zones: list[str]
     ) -> list[dr.DeviceEntry]:
-        """Radiator Valve X devices of the tado_x config entries in area."""
+        """Radiator Valve X devices of the room.
+
+        A valve belongs to its area; a valve without an area belongs to
+        the room of its zone (connected through the zone device).
+        """
         entry_ids = {
             e.entry_id for e in hass.config_entries.async_entries(_DOMAIN)
         }
         if not entry_ids:
             return []
+        entity_reg = er.async_get(hass)
+        zone_devices = {
+            entry.device_id
+            for zone in zones
+            if (entry := entity_reg.async_get(zone)) and entry.device_id
+        }
         return [
             device
             for device in dr.async_get(hass).devices
-            if device.area_id == area_id
-            and device.config_entry_id in entry_ids
+            if device.config_entry_id in entry_ids
             and device.model == _VALVE_MODEL
+            and (
+                device.area_id == area_id
+                or (
+                    device.area_id is None
+                    and device.via_device_id in zone_devices
+                )
+            )
         ]
 
 

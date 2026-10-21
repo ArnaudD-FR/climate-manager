@@ -99,26 +99,38 @@ async def test_targets_read_on_matter_entity_of_same_serial(hass):
     assert by_key == {v1.id: m1, v2.id: other}
 
 
-async def test_targets_fall_back_to_zone_entity_without_valves(hass):
-    """No valve device known: one entity-based target per zone entity."""
+async def test_valve_without_area_belongs_to_its_zone_room(hass):
+    """A valve with no area is found through its zone device."""
+    entry = MockConfigEntry(domain="tado_x", data={})
+    entry.add_to_hass(hass)
+    device_reg = dr.async_get(hass)
+    zone_device = device_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("tado_x", "1_8")}
+    )
+    zone = _register(hass, "climate", "tado_x", "zone_p", zone_device.id, entry)
+    valve = _valve(hass, entry, "VA8", None, "Valve P")
+    device_reg.async_update_device(valve.id, via_device_id=zone_device.id)
+    elsewhere = _valve(hass, entry, "VA9", "kitchen", "Valve K")
+    device_reg.async_update_device(elsewhere.id, via_device_id=zone_device.id)
+
+    targets = TadoX().calibration_targets(hass, "parents", [zone.entity_id], {})
+
+    assert [(t.key, t.device_id) for t in targets] == [(valve.id, valve.id)]
+
+
+async def test_no_targets_for_zone_without_valve(hass):
+    """The offset service only takes a device: no valve, no target."""
     entry = MockConfigEntry(domain="tado_x", data={})
     entry.add_to_hass(hass)
     zone = _register(hass, "climate", "tado_x", "zone_x", entry=entry)
     hass.states.async_set(zone.entity_id, "heat", {})
 
-    targets = TadoX().calibration_targets(
-        hass, "office", [zone.entity_id], {zone.entity_id: ["climate.m"]}
-    )
-
-    assert targets == [
-        CalibrationTarget(
-            vendor=targets[0].vendor,
-            key=zone.entity_id,
-            name=zone.entity_id.split(".", 1)[1],
-            temp_entity_id="climate.m",
-            entity_id=zone.entity_id,
+    assert (
+        TadoX().calibration_targets(
+            hass, "office", [zone.entity_id], {zone.entity_id: ["climate.m"]}
         )
-    ]
+        == []
+    )
 
 
 async def test_no_targets_for_other_brands(hass):
@@ -152,13 +164,6 @@ async def test_read_offset_unknown_without_sensor(hass):
     assert TadoX().read_offset(hass, target) is None
 
 
-async def test_read_offset_of_zone_entity_from_attribute(hass):
-    hass.states.async_set(ZONE, "heat", {"temperature_offset": 0.5})
-    target = CalibrationTarget(TadoX(), ZONE, "z", ZONE, entity_id=ZONE)
-
-    assert TadoX().read_offset(hass, target) == 0.5
-
-
 async def test_write_offset_by_device_rounds_to_one_decimal(hass):
     """The Tado X API rejects more than one decimal place."""
     calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
@@ -167,26 +172,6 @@ async def test_write_offset_by_device_rounds_to_one_decimal(hass):
     await TadoX().write_offset(hass, target, 0.15 + 0.07)
 
     assert [c.data for c in calls] == [{"device_id": "dev", "offset": 0.2}]
-
-
-async def test_write_offset_by_zone_entity(hass):
-    calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
-    hass.states.async_set(ZONE, "heat", {})
-    target = CalibrationTarget(TadoX(), ZONE, "z", ZONE, entity_id=ZONE)
-
-    await TadoX().write_offset(hass, target, 1.5)
-
-    assert [c.data for c in calls] == [{"entity_id": ZONE, "offset": 1.5}]
-
-
-async def test_write_offset_skips_unavailable_zone_entity(hass):
-    calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
-    hass.states.async_set(ZONE, "unavailable", {})
-    target = CalibrationTarget(TadoX(), ZONE, "z", ZONE, entity_id=ZONE)
-
-    await TadoX().write_offset(hass, target, 1.0)
-
-    assert calls == []
 
 
 async def test_write_offset_without_service_is_silent(hass):

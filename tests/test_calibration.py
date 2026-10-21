@@ -148,3 +148,27 @@ async def test_no_vendor_no_target(hass, monkeypatch):
     calibrator, _ = _calibrator(hass)
 
     assert calibrator.targets("office") == []
+
+
+async def test_failed_write_waits_min_interval(hass, fake, freezer, caplog):
+    """A failed write is not retried before the min interval (API quota)."""
+    attempts = []
+
+    async def failing_write(hass, target, offset):
+        attempts.append(offset)
+        raise ValueError("rejected")
+
+    fake.write_offset = failing_write
+    calibrator, config = _calibrator(hass)
+    _set(hass, 20.0, 19.0)
+
+    await calibrator.calibrate_room(config, "office", None)
+    freezer.tick(60)
+    await calibrator.calibrate_room(config, "office", None)
+    assert attempts == [-1.0]
+    assert calibrator.last_offset == {}
+    assert "ValueError('rejected')" in caplog.text
+
+    freezer.tick(241)
+    await calibrator.calibrate_room(config, "office", None)
+    assert attempts == [-1.0, -1.0]

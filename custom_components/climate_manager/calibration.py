@@ -7,8 +7,8 @@ offset. This module owns the brand-neutral part:
 
 - delta = room sensor - TRV current_temperature, ignored within the
   threshold (tighter while a pre-heat runs);
-- at most one write per target every _CALIBRATION_MIN_INTERVAL (cloud API
-  quotas);
+- at most one write attempt per target every _CALIBRATION_MIN_INTERVAL
+  (cloud API quotas), failed attempts included;
 - the new offset accumulates on the last one written, or on the one the
   vendor reports after a restart, clamped to ±_OFFSET_CLAMP;
 - one INFO "calibrate |" log per offset written.
@@ -98,6 +98,8 @@ class Calibrator:
         self.last_changed: dict[str, str] = {}
         # Last delta corrected per target (sensor - TRV).
         self.last_delta: dict[str, float] = {}
+        # When each target's offset was last attempted, written or not.
+        self._last_attempt: dict[str, datetime] = {}
 
     def targets(self, area_id: str) -> list[CalibrationTarget]:
         """Calibration targets of a room, as the vendors resolve them."""
@@ -173,13 +175,14 @@ class Calibrator:
         if abs(delta) <= threshold:
             return
 
-        last_changed = self.last_changed.get(target.key)
-        if last_changed is not None:
-            elapsed = datetime.now(timezone.utc) - datetime.fromisoformat(
-                last_changed
-            )
-            if elapsed < _CALIBRATION_MIN_INTERVAL:
-                return
+        now = datetime.now(timezone.utc)
+        last_attempt = self._last_attempt.get(target.key)
+        if (
+            last_attempt is not None
+            and now - last_attempt < _CALIBRATION_MIN_INTERVAL
+        ):
+            return
+        self._last_attempt[target.key] = now
 
         existing = self.current_offset(target)
         if existing is None:
@@ -190,15 +193,16 @@ class Calibrator:
         try:
             async with asyncio.timeout(TRV_COMMAND_TIMEOUT):
                 await target.vendor.write_offset(self._hass, target, new_offset)
-        except Exception:  # noqa: BLE001
+        except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "Failed to apply offset %.1f to %s", new_offset, target.name
+                "Failed to apply offset %.1f to %s: %r",
+                new_offset,
+                target.name,
+                err,
             )
             return
         self.last_offset[target.key] = new_offset
-        self.last_changed[target.key] = datetime.now(timezone.utc).isoformat(
-            timespec="seconds"
-        )
+        self.last_changed[target.key] = now.isoformat(timespec="seconds")
         self.last_delta[target.key] = round(delta, 2)
         log_calibration(
             area_id,
