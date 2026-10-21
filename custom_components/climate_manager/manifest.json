@@ -9,5 +9,6 @@
   "documentation": "https://github.com/ArnaudD-FR/climate-manager",
   "issue_tracker": "https://github.com/ArnaudD-FR/climate-manager/issues",
   "requirements": [],
-  "dependencies": ["http", "frontend", "panel_custom"]
+  "dependencies": ["http", "frontend", "panel_custom"],
+  "after_dependencies": ["calendar"]
 }
