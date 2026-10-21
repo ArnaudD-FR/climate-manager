@@ -546,7 +546,9 @@ class Room:
             and bool(assigned)
             and all(pc.get("mode") in unpredictable for pc in assigned)
         )
-        self._preheat_suppressed = next_occupied is None or presence_suppressed
+        # Pre-heat impossible because nobody's presence can be scheduled;
+        # merely having no upcoming increase is not reported as such.
+        self._preheat_suppressed = presence_suppressed
 
         ip = self._preheat_in_progress
         if ip:

@@ -18,6 +18,7 @@ from custom_components.climate_manager.schedule import (
     WEEKDAY_TO_DAY,
     compute_occupied_temp,
     evaluate_schedule,
+    next_setpoint_increase_at,
     resolve_presence,
     validate_daily_program,
 )
@@ -571,3 +572,53 @@ def test_weekday_to_day_mapping():
 def test_all_days_set():
     """ALL_DAYS contains exactly the 7 canonical day tokens."""
     assert ALL_DAYS == {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+
+
+# ---------------------------------------------------------------------------
+# next_setpoint_increase_at
+# ---------------------------------------------------------------------------
+
+# Never above Normal: Reduced at night, Normal morning and evening.
+NORMAL_CEILING_PROGRAM: dict = {
+    day: [
+        {"start": "00:00", "mode": PERIOD_REDUCED},
+        {"start": "07:00", "mode": PERIOD_NORMAL},
+        {"start": "08:00", "mode": PERIOD_REDUCED},
+        {"start": "17:00", "mode": PERIOD_NORMAL},
+        {"start": "22:00", "mode": PERIOD_REDUCED},
+    ]
+    for day in ALL_DAYS
+}
+
+
+def test_next_increase_past_a_drop_from_the_highest_period():
+    """In Normal at 18:50, the next increase is tomorrow 07:00 (Reduced ->
+    Normal), even though it does not exceed the current Normal."""
+    now = datetime.datetime(2026, 10, 21, 18, 50)
+
+    assert next_setpoint_increase_at(
+        NORMAL_CEILING_PROGRAM, DEFAULT_PERIOD_TEMPERATURES, now
+    ) == datetime.datetime(2026, 10, 22, 7, 0)
+
+
+def test_next_increase_from_reduced_is_the_next_normal():
+    now = datetime.datetime(2026, 10, 21, 9, 0)
+
+    assert next_setpoint_increase_at(
+        NORMAL_CEILING_PROGRAM, DEFAULT_PERIOD_TEMPERATURES, now
+    ) == datetime.datetime(2026, 10, 21, 17, 0)
+
+
+def test_no_next_increase_for_a_single_period_week():
+    program = {
+        day: [{"start": "00:00", "mode": PERIOD_NORMAL}] for day in ALL_DAYS
+    }
+
+    assert (
+        next_setpoint_increase_at(
+            program,
+            DEFAULT_PERIOD_TEMPERATURES,
+            datetime.datetime(2026, 10, 21, 12, 0),
+        )
+        is None
+    )

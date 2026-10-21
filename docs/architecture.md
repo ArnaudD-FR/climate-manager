@@ -182,12 +182,16 @@ startup are part of the graph from the first evaluation.
 
 **Pre-heat** (`Room.compute_preheat`, model in `preheat.py`): starts early
 heating ahead of the next occupied time (`schedule.next_occupied_at` for
-scheduled persons, else the next zone setpoint increase). Each room learns a
-heating rate in min/°C: the median of its last 7 samples (`learned_rate`). The
-lead is recomputed every tick as `rate × (upcoming − room_temp) × 1.1`, bounded
-to [10 min, `preheat_max_lead_minutes`] (default 120 min), so a colder room
-starts earlier; while fewer than 3 samples exist, or the room temperature is
-unknown, the max lead is used. The run lives in `Room._preheat_in_progress`
+scheduled persons, else the next zone setpoint increase: a transition warmer
+than the period just before it, so tomorrow's Reduced → Normal counts even while
+Normal is the current period). The panel's "pre-heat disabled" hint
+(`preheat_suppressed`) only means that, in presence mode, no assigned person's
+presence can be scheduled (HA tracking or forced). Each room learns a heating
+rate in min/°C: the median of its last 7 samples (`learned_rate`). The lead is
+recomputed every tick as `rate × (upcoming − room_temp) × 1.1`, bounded to [10
+min, `preheat_max_lead_minutes`] (default 120 min), so a colder room starts
+earlier; while fewer than 3 samples exist, or the room temperature is unknown,
+the max lead is used. The run lives in `Room._preheat_in_progress`
 (`start_time`, `start_temp`, `target_temp`, `until`, `converged`, `measuring`).
 Until `until`, `Room.apply_setpoint` keeps the upcoming setpoint whenever it is
 warmer than the zone's scheduled one, and the room period is `preheat` (room

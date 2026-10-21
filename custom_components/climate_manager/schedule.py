@@ -669,17 +669,21 @@ def next_setpoint_increase_at(
     now: datetime.datetime,
 ) -> datetime.datetime | None:
     """Return the next datetime when the zone time program transitions to a
-    period with a strictly higher temperature than the current one.
+    period with a strictly higher temperature than the period before it.
+
+    Each transition is compared with the temperature in effect just before
+    it, not with the current one: in Normal at 18:00, the next increase is
+    tomorrow's Reduced -> Normal at 07:00, past tonight's drop to Reduced.
 
     Scans up to 7 days ahead. Returns None if no such transition exists in
-    that window (e.g. already in the highest period all week).
+    that window (e.g. a single period all week).
 
     Used by the pre-heat trigger so that pre-heat fires based on the zone
     schedule's own setpoint increases, not on person presence transitions.
     """
     current_period = evaluate_schedule(time_program, now)
-    current_temp = period_temperatures.get(current_period)
-    if current_temp is None:
+    previous_temp = period_temperatures.get(current_period)
+    if previous_temp is None:
         return None
 
     for day_offset in range(8):
@@ -700,8 +704,11 @@ def next_setpoint_increase_at(
                 continue
 
             candidate_temp = period_temperatures.get(period.get("mode", ""))
-            if candidate_temp is not None and candidate_temp > current_temp:
+            if candidate_temp is None:
+                continue
+            if candidate_temp > previous_temp:
                 return candidate
+            previous_temp = candidate_temp
 
     return None
 
