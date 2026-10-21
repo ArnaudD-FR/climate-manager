@@ -135,3 +135,48 @@ async def test_presence_cache_starts_empty(hass):
 
     assert ctx._calendar_cache == {}
     assert ctx._presence_cache == {}
+
+
+async def test_calendar_service_missing_during_startup_is_silent(hass, caplog):
+    """calendar.get_events not registered yet while HA starts → no event,
+    no warning, and the entity is not marked as warned.
+    """
+    import datetime
+    import logging
+
+    from homeassistant.core import CoreState
+
+    hass.set_state(CoreState.starting)
+    ctx = EvalContext(
+        now=datetime.datetime.now(),
+        hass=hass,
+        period_temperatures={},
+    )
+
+    with caplog.at_level(logging.WARNING):
+        assert await ctx.calendar_events(CALENDAR_ENTITY) == []
+
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert CALENDAR_ENTITY not in ctx._warn_issued
+
+
+async def test_calendar_service_missing_once_running_warns(hass, caplog):
+    """Once HA runs, a missing calendar.get_events is a real failure."""
+    import datetime
+    import logging
+
+    ctx = EvalContext(
+        now=datetime.datetime.now(),
+        hass=hass,
+        period_temperatures={},
+    )
+
+    with caplog.at_level(logging.WARNING):
+        assert await ctx.calendar_events(CALENDAR_ENTITY) == []
+
+    assert any(
+        CALENDAR_ENTITY in r.message
+        for r in caplog.records
+        if r.levelno == logging.WARNING
+    )
+    assert CALENDAR_ENTITY in ctx._warn_issued

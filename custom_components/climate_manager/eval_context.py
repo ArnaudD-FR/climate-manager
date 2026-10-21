@@ -25,7 +25,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.core import CoreState
+from homeassistant.exceptions import HomeAssistantError, ServiceNotFound
 from homeassistant.util import dt as dt_util
 
 if TYPE_CHECKING:
@@ -114,6 +115,19 @@ class EvalContext:
             # D-04: clear warn flag so WARNING re-fires after recovery
             self._warn_issued.discard(entity_id)
         except HomeAssistantError as err:
+            self._calendar_cache[entity_id] = []
+            if (
+                isinstance(err, ServiceNotFound)
+                and self.hass.state is not CoreState.running
+            ):
+                # During HA startup the calendar integration may not be set
+                # up yet (it loads with the first calendar platform): not a
+                # failure worth a warning, the next cycle will fetch.
+                _LOGGER.debug(
+                    "Calendar entity %s: calendar.get_events not ready yet",
+                    entity_id,
+                )
+                return []
             # T-16-04: log WARNING once per entity; suppress repeats.
             # The empty list means "no event", so presence follows
             # event_means (absent → present, present → absent).
@@ -126,6 +140,5 @@ class EvalContext:
                     err,
                 )
                 self._warn_issued.add(entity_id)
-            self._calendar_cache[entity_id] = []
 
         return self._calendar_cache[entity_id]
