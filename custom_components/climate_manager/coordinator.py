@@ -651,7 +651,7 @@ class ClimateManagerCoordinator:
         D-04: no-op when calibration_enabled is False.
         D-03: concurrent gather over all rooms, same pattern as push pass.
         """
-        await self._calibrator.calibrate_all(config, self._rooms)
+        await self._calibrator.calibrate_all(config)
 
     # -----------------------------------------------------------------------
     # Phase 13: calibration listener lifecycle (D-08..D-11)
@@ -721,7 +721,7 @@ class ClimateManagerCoordinator:
         hass.async_create_task.
         """
         await self._calibrator.calibrate_room(
-            self._data.runtime_config, area_id, self._rooms.get(area_id)
+            self._data.runtime_config, area_id
         )
 
     def _dismiss_ha_tracker_notif(self, notif_id: str) -> None:

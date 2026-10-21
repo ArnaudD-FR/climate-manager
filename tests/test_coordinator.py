@@ -1296,6 +1296,15 @@ def _register_tado_x(hass, object_id: str, offset: float | None = None) -> str:
     return valve.id
 
 
+async def _evaluate_steady(hass, coordinator, freezer) -> None:
+    """Evaluate twice, 30 min apart: calibration sees steady readings."""
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
+    freezer.tick(datetime.timedelta(minutes=30))
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
+
+
 def _make_calibration_config(
     calibration_enabled: bool = True,
     calibration_threshold: float = 0.5,
@@ -1496,7 +1505,7 @@ async def test_calibration_delta_below_threshold_zero_offset_calls(hass):
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibration_delta_above_threshold_one_offset_call(hass):
+async def test_calibration_delta_above_threshold_one_offset_call(hass, freezer):
     """D-05/D-06: abs(delta) > threshold → exactly one offset call with correct value.
 
     sensor_temp=21.0, current_temperature=20.0, existing_offset=0.5
@@ -1530,8 +1539,7 @@ async def test_calibration_delta_above_threshold_one_offset_call(hass):
     )
     entry.runtime_data.rooms = {"hall": ["climate.hall_trv"]}
 
-    await entry.runtime_data.coordinator.async_evaluate()
-    await hass.async_block_till_done()
+    await _evaluate_steady(hass, entry.runtime_data.coordinator, freezer)
 
     assert len(offset_calls) == 1, (
         f"abs(delta)=1.0 > threshold=0.5 must produce exactly one offset call; "
@@ -2255,7 +2263,7 @@ async def test_unmapped_matter_entity_gets_setpoint(hass):
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
+async def test_calibrate_for_room_mapped_reads_matter_temp(hass, freezer):
     """D-04: for a mapped room the offset is computed on the Matter entity.
 
     tado_x reads 18.0 (cloud), the paired Matter valve 20.4, the sensor
@@ -2304,10 +2312,9 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
 
     coordinator = entry.runtime_data.coordinator
     # Trigger domain object rebuild with updated config.
-    await coordinator.async_evaluate()
-    await hass.async_block_till_done()
+    await _evaluate_steady(hass, coordinator, freezer)
 
-    # The listener path calibrates again: kept by the 5-min interval.
+    # The listener path calibrates again: the TRV must settle first.
     await coordinator._async_calibrate_for_room("kitchen")
     await hass.async_block_till_done()
 
@@ -2317,7 +2324,9 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass):
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibrate_for_room_unmapped_tado_reads_zone_entity(hass):
+async def test_calibrate_for_room_unmapped_tado_reads_zone_entity(
+    hass, freezer
+):
     """D-06: an unmapped tado_x zone calibrates its valve, read on the
     zone entity itself (cloud readings)."""
     valve_id = _register_tado_x(hass, "tado_off", offset=0.0)
@@ -2353,8 +2362,7 @@ async def test_calibrate_for_room_unmapped_tado_reads_zone_entity(hass):
 
     coordinator = entry.runtime_data.coordinator
     # Trigger domain object rebuild with updated config and rooms.
-    await coordinator.async_evaluate()
-    await hass.async_block_till_done()
+    await _evaluate_steady(hass, coordinator, freezer)
 
     assert [c.data for c in offset_calls] == [
         {"device_id": valve_id, "offset": 3.0}

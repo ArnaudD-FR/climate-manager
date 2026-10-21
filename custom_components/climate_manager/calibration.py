@@ -6,11 +6,19 @@ offset, compared with which climate entity) and how to read and write the
 offset. This module owns the brand-neutral part:
 
 - delta = room sensor - TRV current_temperature, ignored within the
-  threshold (tighter while a pre-heat runs);
+  threshold;
+- only measured in steady conditions: the room sensor and the TRV reading
+  both moved less than _STABLE_TOLERANCE over the last _STABLE_WINDOW. A
+  TRV next to a radiator heating or cooling down, or in the sun, reads a
+  transient gap: correcting it winds the offset up to the clamp. Pre-heat
+  throttling is the boost's job (room.py), not the offset's;
+- after a write, the TRV readings start over: the next correction waits
+  for the TRV to settle on its new offset;
 - at most one write attempt per target every _CALIBRATION_MIN_INTERVAL
   (cloud API quotas), failed attempts included;
 - the new offset accumulates on the last one written, or on the one the
-  vendor reports after a restart, clamped to ±_OFFSET_CLAMP;
+  vendor reports after a restart, clamped to ±_OFFSET_CLAMP; nothing is
+  written when it does not change (at the clamp);
 - one INFO "calibrate |" log per offset written.
 """
 
@@ -18,18 +26,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant
 
-from .const import PREHEAT_CALIBRATION_THRESHOLD, TRV_COMMAND_TIMEOUT
+from .const import TRV_COMMAND_TIMEOUT
 from .room import resolve_room_sensor
 from .vendors import CalibrationTarget, calibration_targets
 
 if TYPE_CHECKING:
     from . import ClimateManagerData
-    from .room import Room
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,14 +45,10 @@ _LOGGER = logging.getLogger(__name__)
 _OFFSET_CLAMP = 5.0
 # Minimum time between two offset writes on a target (avoids HTTP 429s).
 _CALIBRATION_MIN_INTERVAL = timedelta(minutes=5)
-
-
-def calibration_threshold(config: dict, preheating: bool) -> float:
-    """Offset calibration threshold (°C), tighter while a pre-heat runs."""
-    threshold = config.get("calibration_threshold", 0.5)
-    if preheating:
-        return min(threshold, PREHEAT_CALIBRATION_THRESHOLD)
-    return threshold
+# Steady conditions: both readings within _STABLE_TOLERANCE (°C) over
+# _STABLE_WINDOW.
+_STABLE_WINDOW = timedelta(minutes=30)
+_STABLE_TOLERANCE = 0.2
 
 
 def log_calibration(
@@ -100,6 +104,9 @@ class Calibrator:
         self.last_delta: dict[str, float] = {}
         # When each target's offset was last attempted, written or not.
         self._last_attempt: dict[str, datetime] = {}
+        # Recent readings per entity: the last one before the window, then
+        # every one within it.
+        self._readings: dict[str, deque[tuple[datetime, float]]] = {}
 
     def targets(self, area_id: str) -> list[CalibrationTarget]:
         """Calibration targets of a room, as the vendors resolve them."""
@@ -124,34 +131,45 @@ class Calibrator:
             return self.last_offset[target.key]
         return target.vendor.read_offset(self._hass, target)
 
-    async def calibrate_all(self, config: dict, rooms: dict[str, Room]) -> None:
+    def _steady(self, entity_id: str, now: datetime, value: float) -> bool:
+        """Record a reading; True once steady over the whole window."""
+        readings = self._readings.setdefault(entity_id, deque())
+        readings.append((now, value))
+        start = now - _STABLE_WINDOW
+        while len(readings) > 1 and readings[1][0] <= start:
+            readings.popleft()
+        if readings[0][0] > start:
+            return False
+        values = [v for _, v in readings]
+        return max(values) - min(values) <= _STABLE_TOLERANCE + 1e-9
+
+    async def calibrate_all(self, config: dict) -> None:
         """Calibrate every room concurrently (no-op when disabled)."""
         if not config.get("calibration_enabled", False):
             return
         await asyncio.gather(
             *(
-                self.calibrate_room(config, area_id, rooms.get(area_id))
+                self.calibrate_room(config, area_id)
                 for area_id in self._data.rooms
             )
         )
 
-    async def calibrate_room(
-        self, config: dict, area_id: str, room: Room | None
-    ) -> None:
+    async def calibrate_room(self, config: dict, area_id: str) -> None:
         """Calibrate a room's targets toward its temperature sensor."""
         if not config.get("calibration_enabled", False):
             return
-        sensor_temp = _float_state(
-            self._hass, resolve_room_sensor(self._hass, area_id, config)
-        )
-        if sensor_temp is None:
+        sensor_id = resolve_room_sensor(self._hass, area_id, config)
+        sensor_temp = _float_state(self._hass, sensor_id)
+        if sensor_id is None or sensor_temp is None:
             return
-        threshold = calibration_threshold(
-            config, room is not None and room.preheat_boosting
-        )
+        now = datetime.now(timezone.utc)
+        sensor_steady = self._steady(sensor_id, now, sensor_temp)
+        threshold = config.get("calibration_threshold", 0.5)
         await asyncio.gather(
             *(
-                self._calibrate(area_id, target, sensor_temp, threshold)
+                self._calibrate(
+                    area_id, target, now, sensor_temp, sensor_steady, threshold
+                )
                 for target in self.targets(area_id)
             )
         )
@@ -160,7 +178,9 @@ class Calibrator:
         self,
         area_id: str,
         target: CalibrationTarget,
+        now: datetime,
         sensor_temp: float,
+        sensor_steady: bool,
         threshold: float,
     ) -> None:
         state = self._hass.states.get(target.temp_entity_id)
@@ -170,12 +190,21 @@ class Calibrator:
             trv_temp = float(state.attributes["current_temperature"])
         except (KeyError, TypeError, ValueError):
             return
+        trv_steady = self._steady(target.temp_entity_id, now, trv_temp)
 
         delta = sensor_temp - trv_temp
-        if abs(delta) <= threshold:
+        if abs(delta) <= threshold or not (sensor_steady and trv_steady):
             return
 
-        now = datetime.now(timezone.utc)
+        existing = self.current_offset(target)
+        if existing is None:
+            existing = 0.0
+        new_offset = round(
+            max(-_OFFSET_CLAMP, min(_OFFSET_CLAMP, existing + delta)), 1
+        )
+        if new_offset == round(existing, 1):
+            return
+
         last_attempt = self._last_attempt.get(target.key)
         if (
             last_attempt is not None
@@ -184,12 +213,6 @@ class Calibrator:
             return
         self._last_attempt[target.key] = now
 
-        existing = self.current_offset(target)
-        if existing is None:
-            existing = 0.0
-        new_offset = round(
-            max(-_OFFSET_CLAMP, min(_OFFSET_CLAMP, existing + delta)), 1
-        )
         try:
             async with asyncio.timeout(TRV_COMMAND_TIMEOUT):
                 await target.vendor.write_offset(self._hass, target, new_offset)
@@ -204,6 +227,8 @@ class Calibrator:
         self.last_offset[target.key] = new_offset
         self.last_changed[target.key] = now.isoformat(timespec="seconds")
         self.last_delta[target.key] = round(delta, 2)
+        # The reading shifts with the new offset: wait for it to settle.
+        self._readings.pop(target.temp_entity_id, None)
         log_calibration(
             area_id,
             target.name,

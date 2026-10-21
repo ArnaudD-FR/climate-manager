@@ -90,9 +90,6 @@ PREHEAT_LEAD_MARGIN: float = 0.1
 PREHEAT_MIN_LEAD_MINUTES: int = 10
 # Smallest start gap (°C) that yields a meaningful rate sample
 PREHEAT_MIN_SAMPLE_DELTA: float = 0.5
-# Calibration threshold (°C) while a pre-heat runs: a TRV next to a hot
-# radiator reads high and would throttle before the room is warm.
-PREHEAT_CALIBRATION_THRESHOLD: float = 0.2
 # While a pre-heat runs, the TRV gets setpoint + factor × (setpoint − room
 # temperature), capped at PREHEAT_BOOST_MAX. The factor is learned per room
 # (no setting), starting at DEFAULT_PREHEAT_BOOST_FACTOR.
