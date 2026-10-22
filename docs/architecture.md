@@ -235,18 +235,16 @@ setpoint during the window drops the watch. Each change logs
 (`calibration.py`, `Calibrator`, owned by the coordinator): incremental offset
 toward the room reference sensor, for the calibration targets the vendors
 resolve (see [Vendors](#vendors--vendors)). Clamped ±5°C with a threshold guard
-to avoid jitter: `calibration_threshold` (0.5 °C), tightened to
-`PREHEAT_CALIBRATION_THRESHOLD` (0.2 °C) while a pre-heat has not converged: a
-steady gap then means a TRV that throttled before the room is warm, corrected on
-top of the boost. Only steady conditions are measured: the room sensor and the
-TRV reading must both have moved less than 0.2 °C over the last 30 min. A
-heating or cooling radiator, or the sun on a TRV, shows a transient gap that the
-TRV cancels as soon as its offset changes: correcting it would wind the offset
-up to the clamp. After a write the TRV readings start over, so the next
-correction waits for the TRV to settle on its new offset. An offset that does
-not change (at the clamp) is not written. At most one write attempt per target
-every 5 min, failures included (cloud API quotas; with Tado X each write also
-triggers a refresh). Each write logs
+to avoid jitter: `calibration_threshold` (0.5 °C), pre-heat or not (the boost
+compensates a TRV reading high next to its radiator). Only steady conditions are
+measured: the room sensor and the TRV reading must both have moved less than 0.2
+°C over the last 30 min. A heating or cooling radiator, or the sun on a TRV,
+shows a transient gap that the TRV cancels as soon as its offset changes:
+correcting it would wind the offset up to the clamp. After a write the TRV
+readings start over, so the next correction waits for the TRV to settle on its
+new offset. An offset that does not change (at the clamp) is not written. At
+most one write attempt per target every 5 min, failures included (cloud API
+quotas; with Tado X each write also triggers a refresh). Each write logs
 `calibrate | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`.
 Offsets are remembered per target (`last_offset`, keyed by device or entity);
 after a restart the first correction starts from the offset the vendor reports.

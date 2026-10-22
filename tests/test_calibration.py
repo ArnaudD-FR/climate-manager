@@ -68,9 +68,9 @@ def _set(hass, trv_temp, sensor_temp):
 
 async def _steady(calibrator, config, freezer):
     """Two passes 30 min apart: the readings look steady to the second."""
-    await calibrator.calibrate_room(config, "office", None)
+    await calibrator.calibrate_room(config, "office")
     freezer.tick(STEADY)
-    await calibrator.calibrate_room(config, "office", None)
+    await calibrator.calibrate_room(config, "office")
 
 
 async def test_offset_written_logged_and_remembered(
@@ -106,9 +106,9 @@ async def test_disabled_nothing_written(hass, fake, freezer):
     config["calibration_enabled"] = False
     _set(hass, 20.0, 18.0)
 
-    await calibrator.calibrate_all(config, {})
+    await calibrator.calibrate_all(config)
     freezer.tick(STEADY)
-    await calibrator.calibrate_all(config, {})
+    await calibrator.calibrate_all(config)
 
     assert fake.writes == []
 
@@ -118,13 +118,13 @@ async def test_waits_for_steady_readings(hass, fake, freezer):
     calibrator, config = _calibrator(hass)
     _set(hass, 20.0, 19.0)
 
-    await calibrator.calibrate_room(config, "office", None)
+    await calibrator.calibrate_room(config, "office")
     freezer.tick(STEADY - timedelta(minutes=1))
-    await calibrator.calibrate_room(config, "office", None)
+    await calibrator.calibrate_room(config, "office")
     assert fake.writes == []
 
     freezer.tick(timedelta(minutes=1))
-    await calibrator.calibrate_room(config, "office", None)
+    await calibrator.calibrate_room(config, "office")
     assert fake.writes == [(f"dev_{TRV}", -1.0)]
 
 
@@ -143,7 +143,7 @@ async def test_moving_reading_nothing_written(
     calibrator, config = _calibrator(hass)
     for trv_temp, sensor_temp in zip(trv_temps, sensor_temps, strict=True):
         _set(hass, trv_temp, sensor_temp)
-        await calibrator.calibrate_room(config, "office", None)
+        await calibrator.calibrate_room(config, "office")
         freezer.tick(STEADY / 2)
 
     assert fake.writes == []
@@ -157,26 +157,13 @@ async def test_waits_for_trv_to_settle_after_write(hass, fake, freezer):
 
     # Same stale reading 6 min later: not corrected again.
     freezer.tick(timedelta(minutes=6))
-    await calibrator.calibrate_room(config, "office", None)
+    await calibrator.calibrate_room(config, "office")
     assert fake.writes == [(f"dev_{TRV}", -1.0)]
 
     # Settled on a still too high reading: accumulates on -1.0.
     _set(hass, 19.6, 19.0)
     await _steady(calibrator, config, freezer)
     assert fake.writes[-1] == (f"dev_{TRV}", -1.6)
-
-
-async def test_tighter_threshold_while_preheating(hass, fake, freezer):
-    """A steady 0.3 °C gap: a TRV throttled before the room is warm."""
-    calibrator, config = _calibrator(hass)
-    _set(hass, 20.0, 19.7)
-    preheating = SimpleNamespace(preheat_boosting=True)
-
-    await calibrator.calibrate_room(config, "office", preheating)
-    freezer.tick(STEADY)
-    await calibrator.calibrate_room(config, "office", preheating)
-
-    assert fake.writes == [(f"dev_{TRV}", -0.3)]
 
 
 async def test_starts_from_reported_offset_then_clamps(hass, fake, freezer):
@@ -227,11 +214,11 @@ async def test_failed_write_waits_min_interval(hass, fake, freezer, caplog):
 
     await _steady(calibrator, config, freezer)
     freezer.tick(60)
-    await calibrator.calibrate_room(config, "office", None)
+    await calibrator.calibrate_room(config, "office")
     assert attempts == [-1.0]
     assert calibrator.last_offset == {}
     assert "ValueError('rejected')" in caplog.text
 
     freezer.tick(241)
-    await calibrator.calibrate_room(config, "office", None)
+    await calibrator.calibrate_room(config, "office")
     assert attempts == [-1.0, -1.0]
