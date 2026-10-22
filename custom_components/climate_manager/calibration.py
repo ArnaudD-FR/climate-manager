@@ -7,10 +7,13 @@ offset. This module owns the brand-neutral part:
 
 - delta = room sensor - TRV current_temperature, ignored within the
   threshold;
-- only measured in steady conditions: the room sensor and the TRV reading
-  both moved less than _STABLE_TOLERANCE over the last _STABLE_WINDOW. A
-  TRV next to a radiator heating or cooling down, or in the sun, reads a
-  transient gap: correcting it winds the offset up to the clamp. Pre-heat
+- only measured in steady conditions: the TRV setpoint unchanged for
+  _SETPOINT_SETTLE, and the room sensor and the TRV reading both within
+  _STABLE_TOLERANCE over the last _STABLE_WINDOW. A TRV next to a
+  radiator heating or cooling down, or in the sun, reads a transient
+  gap: correcting it winds the offset up to the clamp. A radiator keeps
+  warming its TRV for a while after closing, and the top of that hump
+  looks flat: the settle time after a setpoint change skips it. Pre-heat
   throttling is the boost's job (room.py), not the offset's;
 - after a write, the TRV readings start over: the next correction waits
   for the TRV to settle on its new offset;
@@ -45,9 +48,10 @@ _LOGGER = logging.getLogger(__name__)
 _OFFSET_CLAMP = 5.0
 # Minimum time between two offset writes on a target (avoids HTTP 429s).
 _CALIBRATION_MIN_INTERVAL = timedelta(minutes=5)
-# Steady conditions: both readings within _STABLE_TOLERANCE (°C) over
-# _STABLE_WINDOW.
-_STABLE_WINDOW = timedelta(minutes=30)
+# Steady conditions: the TRV setpoint unchanged for _SETPOINT_SETTLE, both
+# readings within _STABLE_TOLERANCE (°C) over _STABLE_WINDOW.
+_SETPOINT_SETTLE = timedelta(minutes=90)
+_STABLE_WINDOW = timedelta(minutes=60)
 _STABLE_TOLERANCE = 0.2
 
 
@@ -107,6 +111,8 @@ class Calibrator:
         # Recent readings per entity: the last one before the window, then
         # every one within it.
         self._readings: dict[str, deque[tuple[datetime, float]]] = {}
+        # TRV mode and setpoint per entity, and since when they hold.
+        self._setpoints: dict[str, tuple[tuple, datetime]] = {}
 
     def targets(self, area_id: str) -> list[CalibrationTarget]:
         """Calibration targets of a room, as the vendors resolve them."""
@@ -142,6 +148,15 @@ class Calibrator:
             return False
         values = [v for _, v in readings]
         return max(values) - min(values) <= _STABLE_TOLERANCE + 1e-9
+
+    def _settled(self, state, now: datetime) -> bool:
+        """Record the TRV setpoint; True once unchanged for the settle time."""
+        setpoint = (state.state, state.attributes.get("temperature"))
+        known = self._setpoints.get(state.entity_id)
+        if known is None or known[0] != setpoint:
+            self._setpoints[state.entity_id] = (setpoint, now)
+            return False
+        return now - known[1] >= _SETPOINT_SETTLE
 
     async def calibrate_all(self, config: dict) -> None:
         """Calibrate every room concurrently (no-op when disabled)."""
@@ -190,10 +205,14 @@ class Calibrator:
             trv_temp = float(state.attributes["current_temperature"])
         except (KeyError, TypeError, ValueError):
             return
+        # Both record the current state: evaluate them before any return.
         trv_steady = self._steady(target.temp_entity_id, now, trv_temp)
+        settled = self._settled(state, now)
 
         delta = sensor_temp - trv_temp
-        if abs(delta) <= threshold or not (sensor_steady and trv_steady):
+        if abs(delta) <= threshold:
+            return
+        if not (sensor_steady and trv_steady and settled):
             return
 
         existing = self.current_offset(target)

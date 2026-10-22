@@ -19,7 +19,7 @@ from custom_components.climate_manager.vendors import (
 
 TRV = "climate.fake_trv"
 SENSOR = "sensor.room"
-STEADY = timedelta(minutes=30)
+STEADY = timedelta(minutes=90)
 
 
 class FakeVendor(TRVVendor):
@@ -67,7 +67,7 @@ def _set(hass, trv_temp, sensor_temp):
 
 
 async def _steady(calibrator, config, freezer):
-    """Two passes 30 min apart: the readings look steady to the second."""
+    """Two passes 90 min apart: steady readings, settled setpoint."""
     await calibrator.calibrate_room(config, "office")
     freezer.tick(STEADY)
     await calibrator.calibrate_room(config, "office")
@@ -147,6 +147,28 @@ async def test_moving_reading_nothing_written(
         freezer.tick(STEADY / 2)
 
     assert fake.writes == []
+
+
+async def test_waits_after_setpoint_change(hass, fake, freezer):
+    """A radiator keeps warming its TRV after closing: the flat top of
+    that hump is not a steady state."""
+    calibrator, config = _calibrator(hass)
+    _set(hass, 20.0, 19.0)
+    await calibrator.calibrate_room(config, "office")
+    freezer.tick(timedelta(minutes=30))
+    hass.states.async_set(
+        TRV, "heat", {"current_temperature": 20.0, "temperature": 18.0}
+    )
+    await calibrator.calibrate_room(config, "office")
+
+    # Readings flat for 90 min, setpoint changed 60 min ago.
+    freezer.tick(timedelta(minutes=60))
+    await calibrator.calibrate_room(config, "office")
+    assert fake.writes == []
+
+    freezer.tick(timedelta(minutes=30))
+    await calibrator.calibrate_room(config, "office")
+    assert fake.writes == [(f"dev_{TRV}", -1.0)]
 
 
 async def test_waits_for_trv_to_settle_after_write(hass, fake, freezer):

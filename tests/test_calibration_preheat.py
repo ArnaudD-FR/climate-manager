@@ -91,7 +91,7 @@ async def test_same_threshold_during_preheat(hass, freezer):
     )
     coordinator.rooms[area.id]._preheat_in_progress = _running_preheat()
 
-    freezer.tick(timedelta(minutes=30))
+    freezer.tick(timedelta(minutes=90))
     await coordinator._async_calibrate(config, ctx=object())
     await hass.async_block_till_done()
 
@@ -115,7 +115,7 @@ async def test_tado_valve_offset_seeded_from_sensor_after_restart(
         hass, area.id, "climate.office", "sensor.office_temp"
     )
     assert not offset_calls  # readings not steady yet
-    freezer.tick(timedelta(minutes=30))
+    freezer.tick(timedelta(minutes=90))
     await coordinator._async_calibrate(config, ctx=object())
     await hass.async_block_till_done()
 
