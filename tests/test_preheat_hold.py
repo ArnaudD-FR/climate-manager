@@ -426,6 +426,38 @@ async def test_boost_continues_while_measuring(hass, freezer):
     assert not room._preheat_in_progress
 
 
+@pytest.mark.parametrize(
+    ("trv_temp", "expected"),
+    [
+        # Valve 1.2 °C over the room: 20 + 1.2 rounded up (the factor
+        # alone, 2 × 0.3 → +0.5, would let the valve close at 20.5).
+        (20.9, NORMAL + 1.5),
+        # Valve below the room: the learned factor alone.
+        (19.0, NORMAL + 0.5),
+        # Capped at PREHEAT_BOOST_MAX.
+        (25.0, NORMAL + 3.0),
+    ],
+)
+async def test_boost_covers_trv_excess_over_room(
+    hass, freezer, trv_temp, expected
+):
+    """The TRV reading high next to its radiator keeps it open."""
+    freezer.move_to(_utc("06:00"))
+    hass.states.async_set(
+        TRV,
+        "heat",
+        {"temperature": REDUCED, "current_temperature": trv_temp},
+    )
+    hass.states.async_set(SENSOR, "19.7", {"device_class": "temperature"})
+    _, coordinator, calls = await _setup(
+        hass, _config(rooms={"a": {"temperature_sensor": SENSOR}}), boost=2
+    )
+
+    await coordinator.async_evaluate()
+    await hass.async_block_till_done()
+    assert calls[-1].data["temperature"] == expected
+
+
 async def test_boost_bounded_by_trv_max_temp(hass, freezer):
     """A TRV capped at 21.5 °C never gets more, whatever the gap."""
     freezer.move_to(_utc("06:00"))

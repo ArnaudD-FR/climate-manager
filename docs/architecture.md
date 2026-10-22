@@ -216,19 +216,21 @@ the hold and the measurement keep their original start time. The status payload
 exposes `preheat_rate`, `preheat_samples`, `preheat_lead`, `preheat_boost` and
 `preheat_boost_factor` (shown in the room card). **Boost**: a TRV next to a hot
 radiator reads high and throttles before the room is warm, so while a run has
-not converged (hold and measuring) `apply_setpoint` pushes
-`setpoint + factor × (setpoint − room_temp)` to the TRVs, capped at
-`PREHEAT_BOOST_MAX` (3 °C) and the TRVs' `max_temp`, rounded to 0.5 °C
-(`Room._preheat_boost`). `_last_setpoint` keeps the unboosted value. On
-convergence the plain setpoint is re-pushed in the same tick (`_drop_boost`).
-The **factor is learned** per room, never set (`Room.boost_factor`, pre-heat
-store `boost_factor`, default 2): a run records `boosted` when the boost was
-applied; once it converges, `observe` follows the room's peak for
-`PREHEAT_OVERSHOOT_WINDOW_MINUTES` (60), then `tune_boost_factor` moves the
-factor by 0.5 within [0.5, 5]: down when the peak exceeds the target by more
-than 0.5 °C, up when the target came late (reached while measuring, or censored
-at once) with less than 0.2 °C overshoot. A warmer setpoint during the window
-drops the watch. Each change logs
+not converged (hold and measuring) `apply_setpoint` pushes to the TRVs the
+setpoint plus the larger of `factor × (setpoint − room_temp)` (rounded to 0.5
+°C) and the measured excess of the highest TRV reading over the room temperature
+(rounded up to 0.5 °C, so the TRV stays open until the room itself is warm;
+setpoints go through the local TRV entity, unlike offset writes), capped at
+`PREHEAT_BOOST_MAX` (3 °C) and the TRVs' `max_temp` (`Room._preheat_boost`).
+`_last_setpoint` keeps the unboosted value. On convergence the plain setpoint is
+re-pushed in the same tick (`_drop_boost`). The **factor is learned** per room,
+never set (`Room.boost_factor`, pre-heat store `boost_factor`, default 2): a run
+records `boosted` when the boost was applied; once it converges, `observe`
+follows the room's peak for `PREHEAT_OVERSHOOT_WINDOW_MINUTES` (60), then
+`tune_boost_factor` moves the factor by 0.5 within [0.5, 5]: down when the peak
+exceeds the target by more than 0.5 °C, up when the target came late (reached
+while measuring, or censored at once) with less than 0.2 °C overshoot. A warmer
+setpoint during the window drops the watch. Each change logs
 `preheat | room=… boost_factor=a→b overshoot=… late=…`. **Calibration**
 (`calibration.py`, `Calibrator`, owned by the coordinator): incremental offset
 toward the room reference sensor, for the calibration targets the vendors

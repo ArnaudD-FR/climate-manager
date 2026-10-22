@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -227,11 +228,17 @@ class Room:
         """°C added to base for the TRVs while a pre-heat runs.
 
         A TRV next to the radiator reads high while heating and throttles
-        before the room is warm: push factor × (base − room temperature),
-        capped at PREHEAT_BOOST_MAX and at the TRVs' max_temp, rounded to
-        0.5 °C so TRVs with coarse steps report back what was pushed.
-        Zero once the room reached the target, when base is below the
-        pre-heat target, or without a room temperature.
+        before the room is warm. Push the larger of:
+        - factor × (base − room temperature), the learned anticipation,
+          rounded to 0.5 °C so TRVs with coarse steps report back what
+          was pushed;
+        - the measured excess of the TRV reading over the room
+          temperature, rounded up to 0.5 °C: the TRV then stays open
+          until the room itself reaches base (setpoints go through the
+          local TRV entity, unlike offset writes);
+        capped at PREHEAT_BOOST_MAX and at the TRVs' max_temp. Zero once
+        the room reached the target, when base is below the pre-heat
+        target, or without a room temperature.
         """
         if self._hass is None or not self.preheat_boosting:
             return 0.0
@@ -246,9 +253,33 @@ class Room:
         room_temp = self._room_temperature(config)
         if not factor or room_temp is None or room_temp >= base:
             return 0.0
-        boost = min(factor * (base - room_temp), PREHEAT_BOOST_MAX)
-        boost = min(boost, self._trv_max_temp() - base)
-        return max(0.0, round((base + boost) * 2) / 2 - base)
+        cap = min(PREHEAT_BOOST_MAX, self._trv_max_temp() - base)
+        if cap <= 0:
+            return 0.0
+        pushed = round((base + min(factor * (base - room_temp), cap)) * 2) / 2
+        trv_temp = self._trv_reading()
+        if trv_temp is not None and trv_temp > room_temp:
+            excess = min(trv_temp - room_temp, cap)
+            pushed = max(pushed, math.ceil((base + excess) * 2) / 2)
+        pushed = min(pushed, math.floor((base + cap) * 2) / 2)
+        return max(0.0, pushed - base)
+
+    def _trv_reading(self) -> float | None:
+        """Highest current_temperature among this room's TRVs."""
+        readings: list[float] = []
+        for group in self._trv_groups:
+            for trv in getattr(group, "_trvs", []):
+                state = self._hass.states.get(trv.entity_id)
+                raw = (
+                    state.attributes.get("current_temperature")
+                    if state
+                    else None
+                )
+                try:
+                    readings.append(float(raw))
+                except (ValueError, TypeError):
+                    continue
+        return max(readings, default=None)
 
     def _runtime_config(self) -> dict:
         """The integration's runtime config ({} without coordinator data)."""
