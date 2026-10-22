@@ -35,8 +35,10 @@ from custom_components.climate_manager.const import (
     DEFAULT_PERIOD_TEMPERATURES,
     DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
     DOMAIN,
+    MODE_TIME_PROGRAM,
     MODE_TIME_PROGRAM_PRESENCES,
     PERIOD_NORMAL,
+    PERIOD_REDUCED,
     PREHEAT_CONVERGENCE_THRESHOLD,
 )
 
@@ -514,6 +516,100 @@ async def test_preheat_trigger_fires(hass):
     assert (
         preheat_calls[-1].data["temperature"]
         == DEFAULT_PERIOD_TEMPERATURES[PERIOD_NORMAL]
+    )
+
+
+_WEEK = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+@pytest.mark.freeze_time("2026-06-01 06:30:00")  # Monday 06:30 UTC
+@pytest.mark.parametrize(
+    ("zone_mode", "home_all_week"),
+    [
+        # Someone assigned is home: the zone schedule drives the room.
+        (MODE_TIME_PROGRAM_PRESENCES, True),
+        # A plain time program ignores presence altogether.
+        (MODE_TIME_PROGRAM, False),
+    ],
+)
+async def test_far_arrival_does_not_mask_setpoint_increase(
+    hass, zone_mode, home_all_week
+):
+    """Reduced until 07:00 then Normal; a person away until Saturday.
+
+    Their Saturday arrival is beyond the max lead: it must not hide the
+    07:00 increase, which is pre-heated.
+    """
+    from custom_components.climate_manager.coordinator import (
+        ClimateManagerCoordinator,
+    )
+    from custom_components.climate_manager.eval_context import EvalContext
+
+    hass.states.async_set(
+        "climate.salon_trv",
+        "heat",
+        {"temperature": 18.0, "current_temperature": 18.0},
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    persons_config = {
+        "person.away": {
+            "mode": "scheduled",
+            "schedule_type": "single",
+            "schedule": {
+                day: [
+                    {
+                        "start": "00:00",
+                        "state": "present" if day == "sat" else "absent",
+                    }
+                ]
+                for day in _WEEK
+            },
+            "room_ids": ["salon"],
+        },
+    }
+    if home_all_week:
+        persons_config["person.home"] = {
+            "mode": "scheduled",
+            "schedule_type": "single",
+            "schedule": {
+                day: [{"start": "00:00", "state": "present"}] for day in _WEEK
+            },
+            "room_ids": ["salon"],
+        }
+    config = _make_preheat_config(
+        global_mode=zone_mode,
+        persons_config=persons_config,
+        default_zone_preheat_enabled=True,
+    )
+    config["default_zone"]["time_program"] = {
+        day: [
+            {"start": "00:00", "mode": PERIOD_REDUCED},
+            {"start": "07:00", "mode": PERIOD_NORMAL},
+        ]
+        for day in _WEEK
+    }
+    data = _make_mock_data(
+        runtime_config=config,
+        rooms={"salon": ["climate.salon_trv"]},
+        preheat_data={"rooms": {"salon": {"boost_factor": 0}}},
+    )
+    coord = ClimateManagerCoordinator(hass, data)
+    room = coord._rooms["salon"]
+    room._frost_locked = False
+
+    ctx = EvalContext(
+        now=datetime.datetime(2026, 6, 1, 6, 30, tzinfo=TZ),
+        hass=hass,
+        period_temperatures=config["period_temperatures"],
+    )
+    await room.compute_preheat(ctx)
+    await hass.async_block_till_done()
+
+    assert room._preheat_active is True
+    assert room._preheat_in_progress["until"] == datetime.datetime(
+        2026, 6, 1, 7, 0, tzinfo=TZ
     )
 
 

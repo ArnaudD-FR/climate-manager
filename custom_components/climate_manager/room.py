@@ -592,8 +592,9 @@ class Room:
                 # fall through: maybe a later occupancy is already due
 
         # ----------------------------------------------------------------
-        # Next occupied time: earliest scheduled arrival, else the next
-        # zone setpoint increase.
+        # Next occupied time: in a presence zone nobody assigned is home,
+        # the earliest scheduled arrival; else (someone home, a plain
+        # time program, or no arrival) the next zone setpoint increase.
         # ----------------------------------------------------------------
         persons_config: dict = config.get("persons", {})
         assigned = [
@@ -609,8 +610,16 @@ class Room:
             fromlist=["start_of_local_day"],
         ).start_of_local_day
 
+        someone_home = False
+        for person in self.assigned_persons:
+            if await person.evaluate(ctx):
+                someone_home = True
+        watch_arrivals = (
+            zone_mode == MODE_TIME_PROGRAM_PRESENCES and not someone_home
+        )
+
         next_arrival: datetime | None = None
-        for pc in assigned:
+        for pc in assigned if watch_arrivals else []:
             if pc.get("mode") in unpredictable:
                 continue
             if resolve_presence(pc, now, calendar_cache, start_of_local_day):

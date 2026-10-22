@@ -181,10 +181,13 @@ capabilities when the entity has no state yet, so valves still loading at HA
 startup are part of the graph from the first evaluation.
 
 **Pre-heat** (`Room.compute_preheat`, model in `preheat.py`): starts early
-heating ahead of the next occupied time (`schedule.next_occupied_at` for
-scheduled persons, else the next zone setpoint increase: a transition warmer
-than the period just before it, so tomorrow's Reduced → Normal counts even while
-Normal is the current period). The panel's "pre-heat disabled" hint
+heating ahead of the next occupied time. In a presence zone where no assigned
+person is home, that is the earliest scheduled arrival
+(`schedule.next_occupied_at`). Otherwise (someone home, a plain time program, or
+no arrival) it is the next zone setpoint increase: a transition warmer than the
+period just before it, so tomorrow's Reduced → Normal counts even while Normal
+is the current period. A shared room is not held back by a person away until the
+weekend while others are home. The panel's "pre-heat disabled" hint
 (`preheat_suppressed`) only means that, in presence mode, no assigned person's
 presence can be scheduled (HA tracking or forced). Each room learns a heating
 rate in min/°C: the median of its last 7 samples (`learned_rate`). The lead is
