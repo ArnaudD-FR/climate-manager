@@ -6,12 +6,13 @@ offset, compared with which climate entity) and how to read and write the
 offset. This module owns the brand-neutral part:
 
 - delta = room sensor - TRV current_temperature, ignored within the
-  threshold;
+  threshold (tighter while a pre-heat runs);
 - only measured in steady conditions: the room sensor and the TRV reading
   both moved less than _STABLE_TOLERANCE over the last _STABLE_WINDOW. A
   TRV next to a radiator heating or cooling down, or in the sun, reads a
-  transient gap: correcting it winds the offset up to the clamp. Pre-heat
-  throttling is the boost's job (room.py), not the offset's;
+  transient gap: correcting it winds the offset up to the clamp. While a
+  pre-heat runs, a steady gap means a TRV that throttled before the room
+  is warm: the tighter threshold corrects it on top of the boost;
 - after a write, the TRV readings start over: the next correction waits
   for the TRV to settle on its new offset;
 - at most one write attempt per target every _CALIBRATION_MIN_INTERVAL
@@ -32,12 +33,13 @@ from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant
 
-from .const import TRV_COMMAND_TIMEOUT
+from .const import PREHEAT_CALIBRATION_THRESHOLD, TRV_COMMAND_TIMEOUT
 from .room import resolve_room_sensor
 from .vendors import CalibrationTarget, calibration_targets
 
 if TYPE_CHECKING:
     from . import ClimateManagerData
+    from .room import Room
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,6 +51,14 @@ _CALIBRATION_MIN_INTERVAL = timedelta(minutes=5)
 # _STABLE_WINDOW.
 _STABLE_WINDOW = timedelta(minutes=30)
 _STABLE_TOLERANCE = 0.2
+
+
+def calibration_threshold(config: dict, preheating: bool) -> float:
+    """Offset calibration threshold (°C), tighter while a pre-heat runs."""
+    threshold = config.get("calibration_threshold", 0.5)
+    if preheating:
+        return min(threshold, PREHEAT_CALIBRATION_THRESHOLD)
+    return threshold
 
 
 def log_calibration(
@@ -143,18 +153,20 @@ class Calibrator:
         values = [v for _, v in readings]
         return max(values) - min(values) <= _STABLE_TOLERANCE + 1e-9
 
-    async def calibrate_all(self, config: dict) -> None:
+    async def calibrate_all(self, config: dict, rooms: dict[str, Room]) -> None:
         """Calibrate every room concurrently (no-op when disabled)."""
         if not config.get("calibration_enabled", False):
             return
         await asyncio.gather(
             *(
-                self.calibrate_room(config, area_id)
+                self.calibrate_room(config, area_id, rooms.get(area_id))
                 for area_id in self._data.rooms
             )
         )
 
-    async def calibrate_room(self, config: dict, area_id: str) -> None:
+    async def calibrate_room(
+        self, config: dict, area_id: str, room: Room | None
+    ) -> None:
         """Calibrate a room's targets toward its temperature sensor."""
         if not config.get("calibration_enabled", False):
             return
@@ -164,7 +176,9 @@ class Calibrator:
             return
         now = datetime.now(timezone.utc)
         sensor_steady = self._steady(sensor_id, now, sensor_temp)
-        threshold = config.get("calibration_threshold", 0.5)
+        threshold = calibration_threshold(
+            config, room is not None and room.preheat_boosting
+        )
         await asyncio.gather(
             *(
                 self._calibrate(
