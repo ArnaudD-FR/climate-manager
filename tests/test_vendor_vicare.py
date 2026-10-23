@@ -102,9 +102,10 @@ async def test_other_boiler_and_sensor_overrides(hass):
     hass.states.async_set("sensor.flow", "unavailable")
     assert boiler_vendor(hass, "switch.boiler") is None
     assert boiler_readings(hass, None) == BoilerReadings()
-    assert boiler_readings(
-        hass, {"entity_id": "switch.boiler"}
-    ) == BoilerReadings()
+    assert (
+        boiler_readings(hass, {"entity_id": "switch.boiler"})
+        == BoilerReadings()
+    )
     assert boiler_readings(
         hass,
         {
@@ -117,6 +118,9 @@ async def test_other_boiler_and_sensor_overrides(hass):
     _vicare(hass)
     readings = boiler_readings(
         hass,
-        {"entity_id": BOILER, "outdoor_temperature_entity_id": "sensor.outdoor"},
+        {
+            "entity_id": BOILER,
+            "outdoor_temperature_entity_id": "sensor.outdoor",
+        },
     )
     assert (readings.outdoor_temp, readings.flow_temp) == (4.5, 51.4)

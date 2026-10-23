@@ -8,19 +8,22 @@ plus a margin, so a colder room starts earlier.
 Persisted in the `climate_manager_preheat` Store (version 2):
 
     {"rooms": {area_id: {"samples": [sample, ...], "run": run | None,
-                         "boost_factor": float, "observe": observe | None}}}
+                         "anticipation": minutes, "observe": observe | None}}}
 
     sample  = {timestamp, duration_minutes, start_temp, target_temp, rate,
                censored, [outdoor_temp, flow_temp, curve_slope,
                curve_shift, program]}
     run     = {start_time, start_temp, target_temp, until, converged,
-               measuring, boosted, outdoor_temp, curve_slope, curve_shift,
-               program, flow_sum, flow_n}  # datetimes as ISO with offset
-    observe = {target_temp, until, peak, late}   # overshoot watch
+               measuring, boosted, released, readings, outdoor_temp,
+               curve_slope, curve_shift, program, flow_sum, flow_n}
+               # datetimes as ISO with offset; readings = [[minutes since
+               # start, room temp], ...] for the current heating speed
+    observe = {target_temp, until, peak}   # overshoot watch
 
-boost_factor is the learned (auto) boost factor; absent until the first
-boosted run is judged. observe watches the room after a boosted run reached
-its target, to measure the overshoot that tunes it.
+anticipation is the learned time (minutes) before the target at which the
+boost is released; absent until the first boosted run is judged. observe
+watches the room after a boosted run's release, to measure the overshoot
+that tunes it. A legacy boost_factor key (factor model) is dropped.
 
 The boiler's conditions (vendors.boiler_readings) are recorded with each
 run and copied into its sample, for later analysis: the outdoor
@@ -41,20 +44,23 @@ from datetime import datetime, timedelta
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .vendors import BoilerReadings
 from .const import (
-    DEFAULT_PREHEAT_BOOST_FACTOR,
-    PREHEAT_BOOST_FACTOR_MAX,
-    PREHEAT_BOOST_FACTOR_MIN,
-    PREHEAT_BOOST_FACTOR_STEP,
+    PREHEAT_ANTICIPATION_DEFAULT_MINUTES,
+    PREHEAT_ANTICIPATION_MAX_MINUTES,
+    PREHEAT_ANTICIPATION_MIN_MINUTES,
+    PREHEAT_ANTICIPATION_STEP_MINUTES,
     PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD,
     PREHEAT_LEAD_MARGIN,
+    PREHEAT_LEARNING_LEAD_MINUTES,
     PREHEAT_MAX_SAMPLES,
     PREHEAT_MIN_LEAD_MINUTES,
     PREHEAT_MIN_SAMPLE_DELTA,
     PREHEAT_OVERSHOOT_HIGH,
-    PREHEAT_OVERSHOOT_LOW,
+    PREHEAT_SLOPE_MIN_SPAN_MINUTES,
+    PREHEAT_SLOPE_WINDOW_MINUTES,
+    PREHEAT_UNDERSHOOT,
 )
+from .vendors import BoilerReadings
 
 PREHEAT_STORE_KEY = "climate_manager_preheat"
 PREHEAT_STORE_VERSION = 2
@@ -95,6 +101,7 @@ def room_entry(data: dict, area_id: str) -> dict:
     entry = rooms.setdefault(area_id, {})
     entry.setdefault("samples", [])
     entry.setdefault("run", None)
+    entry.pop("boost_factor", None)
     return entry
 
 
@@ -114,30 +121,59 @@ def learned_rate(samples: list[dict]) -> float | None:
     return statistics.median(rates)
 
 
-def learned_boost_factor(entry: dict) -> float:
-    """Auto boost factor of a room (default until tuned)."""
-    factor = entry.get("boost_factor")
-    if isinstance(factor, (int, float)) and not isinstance(factor, bool):
-        return float(factor)
-    return DEFAULT_PREHEAT_BOOST_FACTOR
+def learned_anticipation(entry: dict) -> float:
+    """Anticipation of a room in minutes (default until tuned)."""
+    value = entry.get("anticipation")
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return float(PREHEAT_ANTICIPATION_DEFAULT_MINUTES)
 
 
-def tune_boost_factor(
-    factor: float, overshoot: float | None, late: bool
-) -> float:
-    """Next auto boost factor after one boosted run.
+def tune_anticipation(anticipation: float, overshoot: float) -> float:
+    """Next anticipation (minutes) after one boosted run.
 
-    overshoot: peak above the target once reached (None: never reached).
-    late: the target was reached after the occupied time, or never.
-    Too much overshoot lowers the factor; a late run without overshoot
-    raises it; otherwise it stays. One step at a time, so the learned rate
-    (measured with the boost) can follow.
+    overshoot: peak above the target over the window after the release
+    (negative: the room stayed below). Released too late (overshoot above
+    PREHEAT_OVERSHOOT_HIGH): anticipate more; too early (below
+    −PREHEAT_UNDERSHOOT): anticipate less; otherwise unchanged.
     """
-    if overshoot is not None and overshoot > PREHEAT_OVERSHOOT_HIGH:
-        factor -= PREHEAT_BOOST_FACTOR_STEP
-    elif late and (overshoot is None or overshoot < PREHEAT_OVERSHOOT_LOW):
-        factor += PREHEAT_BOOST_FACTOR_STEP
-    return min(max(factor, PREHEAT_BOOST_FACTOR_MIN), PREHEAT_BOOST_FACTOR_MAX)
+    if overshoot > PREHEAT_OVERSHOOT_HIGH:
+        anticipation += PREHEAT_ANTICIPATION_STEP_MINUTES
+    elif overshoot < -PREHEAT_UNDERSHOOT:
+        anticipation -= PREHEAT_ANTICIPATION_STEP_MINUTES
+    return float(
+        min(
+            max(anticipation, PREHEAT_ANTICIPATION_MIN_MINUTES),
+            PREHEAT_ANTICIPATION_MAX_MINUTES,
+        )
+    )
+
+
+def add_reading(run: dict, now: datetime, temp: float) -> None:
+    """Record a room reading, keeping the slope window plus one older."""
+    minutes = (now - run["start_time"]).total_seconds() / 60
+    readings = run.setdefault("readings", [])
+    readings.append([round(minutes, 2), temp])
+    start = minutes - PREHEAT_SLOPE_WINDOW_MINUTES
+    while len(readings) > 1 and readings[1][0] <= start:
+        readings.pop(0)
+
+
+def heating_slope(run: dict) -> float | None:
+    """Current heating speed (°C/min), None while unknown.
+
+    Over the last PREHEAT_SLOPE_WINDOW_MINUTES (since the start when
+    shorter); unknown below PREHEAT_SLOPE_MIN_SPAN_MINUTES of readings (a
+    single sensor step would look fast) or when the room is not warming.
+    """
+    readings = run.get("readings") or []
+    if len(readings) < 2:
+        return None
+    (t0, v0), (t1, v1) = readings[0], readings[-1]
+    if t1 - t0 < PREHEAT_SLOPE_MIN_SPAN_MINUTES:
+        return None
+    slope = (v1 - v0) / (t1 - t0)
+    return slope if slope > 0 else None
 
 
 def compute_lead(
@@ -145,12 +181,12 @@ def compute_lead(
 ) -> float:
     """Lead (minutes) to close `delta` °C at `rate` min/°C, with margin.
 
-    Falls back to max_lead while learning (rate None) or when the room
-    temperature is unknown (delta None). Bounded to
+    Falls back to PREHEAT_LEARNING_LEAD_MINUTES while learning (rate None)
+    or when the room temperature is unknown (delta None). Bounded to
     [PREHEAT_MIN_LEAD_MINUTES, max_lead].
     """
     if rate is None or delta is None:
-        return float(max_lead)
+        return float(min(PREHEAT_LEARNING_LEAD_MINUTES, max_lead))
     lead = rate * max(delta, 0.0) * (1 + PREHEAT_LEAD_MARGIN)
     return float(min(max(lead, PREHEAT_MIN_LEAD_MINUTES), max_lead))
 
@@ -255,6 +291,8 @@ def run_from_json(raw) -> dict:
     run.setdefault("converged", False)
     run.setdefault("measuring", False)
     run.setdefault("boosted", False)
+    run.setdefault("released", False)
+    run.setdefault("readings", [])
     return run
 
 

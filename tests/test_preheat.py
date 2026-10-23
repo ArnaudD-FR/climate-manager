@@ -29,6 +29,7 @@ from custom_components.climate_manager.preheat import (
     empty_preheat_data,
     learned_rate,
     make_sample,
+    room_entry,
 )
 from custom_components.climate_manager.schedule import next_occupied_at
 from custom_components.climate_manager.const import (
@@ -39,7 +40,9 @@ from custom_components.climate_manager.const import (
     MODE_TIME_PROGRAM_PRESENCES,
     PERIOD_NORMAL,
     PERIOD_REDUCED,
+    PREHEAT_BOOST_MAX,
     PREHEAT_CONVERGENCE_THRESHOLD,
+    PREHEAT_LEARNING_LEAD_MINUTES,
 )
 
 
@@ -443,7 +446,8 @@ async def test_preheat_trigger_fires(hass):
     now=06:30, default lead=60 min → trigger window [06:00, 07:00).
     06:30 is inside the window.
     current_temp=18.0 (below Normal 20.0 - threshold).
-    Expect: set_temperature called at Normal setpoint, preheat_active True.
+    Expect: preheat_active True, target Normal, set_temperature called at
+    Normal + the full boost (valve wide open).
     """
     from custom_components.climate_manager.coordinator import (
         ClimateManagerCoordinator,
@@ -479,8 +483,6 @@ async def test_preheat_trigger_fires(hass):
     data = _make_mock_data(
         runtime_config=config,
         rooms={"bedroom": ["climate.bedroom_trv"]},
-        # Plain target (learned factor 0): the boost has its own tests.
-        preheat_data={"rooms": {"bedroom": {"boost_factor": 0}}},
     )
 
     from custom_components.climate_manager.eval_context import EvalContext
@@ -515,7 +517,7 @@ async def test_preheat_trigger_fires(hass):
     assert len(preheat_calls) >= 1
     assert (
         preheat_calls[-1].data["temperature"]
-        == DEFAULT_PERIOD_TEMPERATURES[PERIOD_NORMAL]
+        == DEFAULT_PERIOD_TEMPERATURES[PERIOD_NORMAL] + PREHEAT_BOOST_MAX
     )
 
 
@@ -593,7 +595,6 @@ async def test_far_arrival_does_not_mask_setpoint_increase(
     data = _make_mock_data(
         runtime_config=config,
         rooms={"salon": ["climate.salon_trv"]},
-        preheat_data={"rooms": {"salon": {"boost_factor": 0}}},
     )
     coord = ClimateManagerCoordinator(hass, data)
     room = coord._rooms["salon"]
@@ -730,11 +731,24 @@ def _rate_samples(*rates: float) -> list[dict]:
 
 
 def test_default_lead_time():
-    """Fewer than 3 samples, or unknown room temp → max lead."""
+    """Fewer than 3 samples, or unknown room temp → the learning lead
+    (120 min), capped by the max lead (240 min by default)."""
     max_lead = DEFAULT_PREHEAT_MAX_LEAD_MINUTES
+    assert max_lead == 240
     assert learned_rate(_rate_samples(10, 12)) is None
-    assert compute_lead(None, 3.0, max_lead) == max_lead
-    assert compute_lead(10.0, None, max_lead) == max_lead
+    assert compute_lead(None, 3.0, max_lead) == PREHEAT_LEARNING_LEAD_MINUTES
+    assert compute_lead(10.0, None, max_lead) == PREHEAT_LEARNING_LEAD_MINUTES
+    assert compute_lead(None, 3.0, 60) == 60
+    # A learned rate may use the whole max lead.
+    assert compute_lead(80.0, 3.0, max_lead) == max_lead
+
+
+def test_legacy_boost_factor_dropped():
+    """The factor model's stored key is removed; samples are kept."""
+    data = {"rooms": {"a": {"samples": [{"rate": 10}], "boost_factor": 3}}}
+    entry = room_entry(data, "a")
+    assert "boost_factor" not in entry
+    assert entry["samples"] == [{"rate": 10}]
 
 
 def test_learned_rate_is_median_of_last_samples():

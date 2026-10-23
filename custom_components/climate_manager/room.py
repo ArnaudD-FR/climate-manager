@@ -27,7 +27,6 @@ from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    DEFAULT_PREHEAT_BOOST_FACTOR,
     DEFAULT_PREHEAT_MAX_LEAD_MINUTES,
     DEFAULT_TRV_MAX_TEMP,
     MODE_OFF,
@@ -35,6 +34,7 @@ from .const import (
     MODE_TIME_PROGRAM_PRESENCES,
     PERIOD_FROST_PROTECTION,
     PERIOD_PREHEAT,
+    PREHEAT_ANTICIPATION_DEFAULT_MINUTES,
     PREHEAT_BOOST_MAX,
     PREHEAT_CONVERGENCE_THRESHOLD,
     PREHEAT_OVERSHOOT_WINDOW_MINUTES,
@@ -43,9 +43,11 @@ from .const import (
     PRESENCE_PRESENT,
 )
 from .preheat import (
+    add_reading,
     add_sample,
     compute_lead,
-    learned_boost_factor,
+    heating_slope,
+    learned_anticipation,
     learned_rate,
     make_sample,
     measure_cap,
@@ -55,7 +57,7 @@ from .preheat import (
     run_from_json,
     run_to_json,
     start_conditions,
-    tune_boost_factor,
+    tune_anticipation,
 )
 from .schedule import (
     evaluate_schedule,
@@ -212,7 +214,7 @@ class Room:
         boost = self._preheat_boost(temp)
         self._preheat_boost_applied = boost or None
         if boost and ip:
-            # Only a boosted run tunes the auto boost factor.
+            # Only a boosted run tunes the anticipation.
             ip["boosted"] = True
         if not self._trv_groups:
             return
@@ -225,25 +227,20 @@ class Room:
 
     @property
     def preheat_boosting(self) -> bool:
-        """True while a pre-heat runs and the room has not reached it."""
+        """True while a pre-heat runs and its boost is not released."""
         ip = self._preheat_in_progress
-        return bool(ip) and not ip["converged"]
+        return bool(ip) and not ip.get("released") and not ip["converged"]
 
     def _preheat_boost(self, base: float) -> float:
         """°C added to base for the TRVs while a pre-heat runs.
 
-        A TRV next to the radiator reads high while heating and throttles
-        before the room is warm. Push the larger of:
-        - factor × (base − room temperature), the learned anticipation,
-          rounded to 0.5 °C so TRVs with coarse steps report back what
-          was pushed;
-        - the measured excess of the TRV reading over the room
-          temperature, rounded up to 0.5 °C: the TRV then stays open
-          until the room itself reaches base (setpoints go through the
-          local TRV entity, unlike offset writes);
-        capped at PREHEAT_BOOST_MAX and at the TRVs' max_temp. Zero once
-        the room reached the target, when base is below the pre-heat
-        target, or without a room temperature.
+        The valve is kept wide open: the full boost allowed, capped at
+        PREHEAT_BOOST_MAX and at the TRVs' max_temp, rounded down to
+        0.5 °C so TRVs with coarse steps report back what was pushed. A TRV
+        next to the radiator reads high while heating and would throttle
+        before the room is warm. Zero once the boost is released (see
+        _release_due), when base is below the pre-heat target, or without
+        a room temperature.
         """
         if self._hass is None or not self.preheat_boosting:
             return 0.0
@@ -253,21 +250,12 @@ class Room:
             - PREHEAT_CONVERGENCE_THRESHOLD
         ):
             return 0.0
-        config = self._runtime_config()
-        factor = self.boost_factor()
-        room_temp = self._room_temperature(config)
-        if not factor or room_temp is None or room_temp >= base:
+        if self._room_temperature(self._runtime_config()) is None:
             return 0.0
         cap = min(PREHEAT_BOOST_MAX, self._trv_max_temp() - base)
         if cap <= 0:
             return 0.0
-        pushed = round((base + min(factor * (base - room_temp), cap)) * 2) / 2
-        trv_temp = self._trv_reading()
-        if trv_temp is not None and trv_temp > room_temp:
-            excess = min(trv_temp - room_temp, cap)
-            pushed = max(pushed, math.ceil((base + excess) * 2) / 2)
-        pushed = min(pushed, math.floor((base + cap) * 2) / 2)
-        return max(0.0, pushed - base)
+        return max(0.0, math.floor((base + cap) * 2) / 2 - base)
 
     @property
     def has_available_trv(self) -> bool:
@@ -284,23 +272,6 @@ class Room:
                     return True
         return False
 
-    def _trv_reading(self) -> float | None:
-        """Highest current_temperature among this room's TRVs."""
-        readings: list[float] = []
-        for group in self._trv_groups:
-            for trv in getattr(group, "_trvs", []):
-                state = self._hass.states.get(trv.entity_id)
-                raw = (
-                    state.attributes.get("current_temperature")
-                    if state
-                    else None
-                )
-                try:
-                    readings.append(float(raw))
-                except (ValueError, TypeError):
-                    continue
-        return max(readings, default=None)
-
     def _runtime_config(self) -> dict:
         """The integration's runtime config ({} without coordinator data)."""
         return getattr(
@@ -309,15 +280,56 @@ class Room:
             {},
         )
 
-    def boost_factor(self) -> float:
-        """Learned boost factor of the room (default until tuned)."""
+    def anticipation(self) -> float:
+        """Learned anticipation of the room, minutes (default until tuned)."""
         entry = self._preheat_store_entry()
         if entry is None:
-            return DEFAULT_PREHEAT_BOOST_FACTOR
-        return learned_boost_factor(entry)
+            return float(PREHEAT_ANTICIPATION_DEFAULT_MINUTES)
+        return learned_anticipation(entry)
+
+    def _release_due(self, temp: float) -> tuple[bool, float | None]:
+        """(release the boost now, heating speed in °C/min or None).
+
+        Released once the time left to the target, at the current heating
+        speed, is within the anticipation: the radiator's residual heat
+        covers the rest. The speed is the room's slope over the last
+        readings, else 1 / learned rate (radiator still warming up, or the
+        run just started). Without either, released within the
+        convergence threshold of the target.
+        """
+        ip = self._preheat_in_progress
+        left = ip["target_temp"] - temp
+        slope = heating_slope(ip)
+        if slope is None:
+            rate = self.learned_rate()
+            slope = 1 / rate if rate else None
+        if left <= 0:
+            return True, slope
+        if slope is None:
+            return left <= PREHEAT_CONVERGENCE_THRESHOLD, None
+        return left / slope <= self.anticipation(), slope
+
+    async def _release(
+        self, now: datetime, temp: float, ctx: "EvalContext"
+    ) -> None:
+        """Release the boost when due; the caller persists the run."""
+        ip = self._preheat_in_progress
+        due, slope = self._release_due(temp)
+        if not due:
+            return
+        ip["released"] = True
+        left = ip["target_temp"] - temp
+        _LOGGER.info(
+            "preheat | room=%s released left=%s slope=%s",
+            self.area_id,
+            f"{max(left, 0) / slope:.0f}min" if slope else "n/a",
+            f"{slope:.3f}°C/min" if slope else "n/a",
+        )
+        self._watch_overshoot(now, temp)
+        await self._drop_boost(ctx)
 
     def _watch_overshoot(self, now: datetime, room_temp: float | None) -> None:
-        """Start watching the overshoot of a boosted run that converged.
+        """Start watching the overshoot of a boosted run just released.
 
         The caller persists the store.
         """
@@ -331,33 +343,32 @@ class Room:
                 now + timedelta(minutes=PREHEAT_OVERSHOOT_WINDOW_MINUTES)
             ).isoformat(),
             "peak": room_temp,
-            "late": ip["measuring"],
         }
 
-    def _tune_boost(self, overshoot: float | None, late: bool) -> None:
-        """Move the learned boost factor after one boosted run.
+    def _tune_anticipation(self, overshoot: float) -> None:
+        """Move the learned anticipation after one boosted run.
 
         The caller persists the store.
         """
         entry = self._preheat_store_entry()
         if entry is None:
             return
-        old = learned_boost_factor(entry)
-        new = tune_boost_factor(old, overshoot, late)
-        entry["boost_factor"] = new
-        _LOGGER.info(
-            "preheat | room=%s boost_factor=%.1f→%.1f overshoot=%s late=%s",
+        old = learned_anticipation(entry)
+        new = tune_anticipation(old, overshoot)
+        entry["anticipation"] = new
+        _LOGGER.log(
+            logging.INFO if new != old else logging.DEBUG,
+            "preheat | room=%s anticipation=%.0f→%.0fmin overshoot=%+.1f°C",
             self.area_id,
             old,
             new,
-            f"{overshoot:+.1f}°C" if overshoot is not None else "none",
-            late,
+            overshoot,
         )
 
     async def _observe_overshoot(
         self, now: datetime, room_temp: float | None
     ) -> None:
-        """Follow the peak after a boosted run; tune when the window ends.
+        """Follow the peak after a boost release; tune when the window ends.
 
         A warmer setpoint during the window (next period) makes the rise
         legitimate: the watch is dropped without tuning.
@@ -384,7 +395,7 @@ class Room:
         if until is None or now >= until:
             peak = observe["peak"]
             if peak is not None:
-                self._tune_boost(round(peak - target, 2), observe["late"])
+                self._tune_anticipation(round(peak - target, 2))
             entry["observe"] = None
             changed = True
         if changed:
@@ -529,7 +540,12 @@ class Room:
            setpoint × (1 + margin), bounded [min lead, max lead]; max lead
            while learning. Pushes the upcoming setpoint at once.
         2. HOLD: until the occupied time, apply_setpoint keeps the upcoming
-           setpoint, so the zone schedule never undoes the pre-heat.
+           setpoint, so the zone schedule never undoes the pre-heat. The
+           TRVs get it boosted, valve wide open (_preheat_boost).
+        2b. RELEASE: once the time left to the target at the current
+           heating speed is within the learned anticipation, the boost is
+           dropped; the overshoot over the next hour tunes the
+           anticipation.
         3. CONVERGENCE (room sensor within threshold of the target): one
            rate sample; the setpoint is still held until the occupied time.
         4. MEASURING: not converged at the occupied time — the zone
@@ -581,11 +597,16 @@ class Room:
         await self._observe_overshoot(now, current_temp)
 
         # ----------------------------------------------------------------
-        # Running pre-heat: convergence, measuring, hold, cancel
+        # Running pre-heat: release, convergence, measuring, hold, cancel
         # ----------------------------------------------------------------
         ip = self._preheat_in_progress
         if ip:
             record_flow(ip, self._boiler_readings(config).flow_temp)
+            if current_temp is not None and self.preheat_boosting:
+                add_reading(ip, now, current_temp)
+                await self._release(now, current_temp, ctx)
+                if ip.get("released"):
+                    await self._save_preheat()
             reached = (
                 current_temp is not None
                 and current_temp
@@ -602,13 +623,10 @@ class Room:
                     conditions=run_conditions(ip),
                 )
                 self._log_sample(sample, "reached")
-                self._watch_overshoot(now, current_temp)
                 if ip["measuring"]:
                     await self._end_preheat(sample)
-                    await self._drop_boost(ctx)
                     return
                 await self._save_preheat(sample)
-                await self._drop_boost(ctx)
 
             if ip["measuring"]:
                 setpoint_dropped = (
@@ -628,8 +646,6 @@ class Room:
                         conditions=run_conditions(ip),
                     )
                     self._log_sample(sample, "not reached, censored")
-                    if ip.get("boosted"):
-                        self._tune_boost(None, late=True)
                     await self._end_preheat(sample)
                 return
 
@@ -796,25 +812,31 @@ class Room:
             "converged": False,
             "measuring": False,
             "boosted": False,
+            "released": False,
+            "readings": [],
             **start_conditions(self._boiler_readings(config)),
         }
+        if current_temp is not None:
+            # Within the anticipation already: no boost at all.
+            add_reading(self._preheat_in_progress, now, current_temp)
+            await self._release(now, current_temp, ctx)
         self._preheat_active = True
         self._preheat_target = upcoming_setpoint
         _LOGGER.info(
             "preheat | room=%s target=%s°C until=%s lead=%smin rate=%s"
-            " boost=%s",
+            " anticipation=%.0fmin",
             self.area_id,
             upcoming_setpoint,
             next_occupied.strftime("%H:%M"),
             round(lead),
             f"{rate}min/°C" if rate is not None else "learning",
-            self.boost_factor(),
+            self.anticipation(),
         )
         await self._save_preheat()
         await self.apply_setpoint(PERIOD_PREHEAT, upcoming_setpoint, ctx)
 
     async def _drop_boost(self, ctx: "EvalContext") -> None:
-        """Re-push the unboosted setpoint now that the room is warm."""
+        """Re-push the unboosted setpoint once the boost is released."""
         if self._preheat_boost_applied and self._last_setpoint is not None:
             await self.apply_setpoint(
                 self._last_period or PERIOD_PREHEAT, self._last_setpoint, ctx

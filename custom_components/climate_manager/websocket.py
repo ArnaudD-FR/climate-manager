@@ -403,12 +403,14 @@ def _make_ws_set_room_config(entry: ClimateManagerConfigEntry):
                 and 0 <= val <= 480
             ):
                 incoming_config.pop("preheat_max_lead_minutes")
-        # The pre-heat boost factor is learned, never set: drop the key a
-        # cached panel may still send, and any value saved before.
-        incoming_config.pop("preheat_boost_factor", None)
-        entry.runtime_data.runtime_config.setdefault("rooms", {}).setdefault(
-            msg["room_id"], {}
-        ).pop("preheat_boost_factor", None)
+        # Learned pre-heat parameters are never set: drop the keys a cached
+        # panel may still send, and any value saved before.
+        saved = entry.runtime_data.runtime_config.setdefault(
+            "rooms", {}
+        ).setdefault(msg["room_id"], {})
+        for key in ("preheat_boost_factor", "preheat_anticipation"):
+            incoming_config.pop(key, None)
+            saved.pop(key, None)
         # GAP-01: preheat_enabled is no longer a valid room key; silently drop
         # it so legacy callers don't persist the deprecated room-level flag.
         incoming_config.pop("preheat_enabled", None)

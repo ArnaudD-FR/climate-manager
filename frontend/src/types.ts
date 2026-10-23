@@ -59,7 +59,7 @@ export interface RoomConfig {
   zone_id?: string;
   /**
    * Phase 12 (D-01): maximum lead time the coordinator may use.
-   * Sparse — absent means default 120 minutes.
+   * Sparse — absent means default 240 minutes.
    */
   preheat_max_lead_minutes?: number;
 }
@@ -154,8 +154,8 @@ export interface RoomStatus {
   period_entity_id?: string | null;
   /** Learned pre-heat heating rate sensor entity_id. */
   preheat_rate_entity_id?: string | null;
-  /** Learned pre-heat boost factor sensor entity_id. */
-  preheat_boost_factor_entity_id?: string | null;
+  /** Learned pre-heat anticipation sensor entity_id. */
+  preheat_anticipation_entity_id?: string | null;
   /** Room temperature sensor (HA area setting or auto-discovered). */
   temperature_entity_id?: string | null;
   /** Room humidity sensor (HA area setting or auto-discovered). */
@@ -190,10 +190,11 @@ export interface RoomStatus {
   /** °C currently added to the TRV setpoint by the pre-heat boost. */
   preheat_boost?: number | null;
   /**
-   * Learned pre-heat boost factor: while a pre-heat runs, the TRV gets
-   * setpoint + factor × (setpoint − room temperature), capped at 3 °C.
+   * Learned pre-heat anticipation (minutes): the boost (valve wide open)
+   * is released once the target is this close at the current heating
+   * speed; tuned on the overshoot that follows.
    */
-  preheat_boost_factor?: number | null;
+  preheat_anticipation?: number | null;
 }
 
 /** Per-zone live status entry inside StatusPayload.zones. */

@@ -277,7 +277,8 @@ async def test_room_period_sensors_in_presence_mode(hass):
 
 @pytest.mark.freeze_time(MONDAY_0830)
 async def test_room_preheat_parameter_sensors(hass):
-    """Each room exposes its learned heating rate and boost factor."""
+    """Each room exposes its learned heating rate and anticipation; the
+    retired boost factor sensor is removed from the registry."""
     async_mock_service(hass, "climate", "set_hvac_mode")
     async_mock_service(hass, "climate", "set_temperature")
     area = ar.async_get(hass).async_create("Lounge")
@@ -288,16 +289,31 @@ async def test_room_preheat_parameter_sensors(hass):
     entity_reg.async_update_entity(reg_entry.entity_id, area_id=area.id)
     hass.states.async_set(reg_entry.entity_id, "heat", {"temperature": 15.0})
 
-    entry = await _setup_entry(hass)
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    retired = entity_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{entry.entry_id}_room_lounge_preheat_boost_factor",
+        config_entry=entry,
+    )
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entity_reg.async_get(retired.entity_id) is None
+
     rate_id = _entity_id(hass, "sensor", entry, "room_lounge_preheat_rate")
-    factor_id = _entity_id(
-        hass, "sensor", entry, "room_lounge_preheat_boost_factor"
+    anticipation_id = _entity_id(
+        hass, "sensor", entry, "room_lounge_preheat_anticipation"
     )
     assert rate_id == "sensor.lounge_preheat_rate"
-    assert factor_id == "sensor.lounge_preheat_boost_factor"
-    # Still learning: rate unknown; default factor.
+    assert anticipation_id == "sensor.lounge_preheat_anticipation"
+    # Still learning: rate unknown; default anticipation.
     assert hass.states.get(rate_id).state == "unknown"
-    assert float(hass.states.get(factor_id).state) == 2.0
+    assert float(hass.states.get(anticipation_id).state) == 10.0
+    assert (
+        hass.states.get(anticipation_id).attributes["unit_of_measurement"]
+        == "min"
+    )
     assert hass.states.get(rate_id).attributes["unit_of_measurement"] == (
         "min/°C"
     )
@@ -306,15 +322,15 @@ async def test_room_preheat_parameter_sensors(hass):
     entry.runtime_data.preheat_data["rooms"]["lounge"] = {
         "samples": [{"rate": 12.0} for _ in range(3)],
         "run": None,
-        "boost_factor": 1.5,
+        "anticipation": 15.0,
     }
     await entry.runtime_data.coordinator.async_evaluate()
     await hass.async_block_till_done()
 
     assert float(hass.states.get(rate_id).state) == 12.0
-    assert float(hass.states.get(factor_id).state) == 1.5
-    assert hass.states.get(factor_id).attributes["friendly_name"] == (
-        "Lounge Pre-heat boost factor"
+    assert float(hass.states.get(anticipation_id).state) == 15.0
+    assert hass.states.get(anticipation_id).attributes["friendly_name"] == (
+        "Lounge Pre-heat anticipation"
     )
 
 
@@ -361,8 +377,8 @@ async def test_status_exposes_entity_ids(hass, hass_ws_client):
     lounge = next(r for r in status["rooms_status"] if r["area_id"] == "lounge")
     assert lounge["period_entity_id"] == "sensor.lounge_period"
     assert lounge["preheat_rate_entity_id"] == "sensor.lounge_preheat_rate"
-    assert lounge["preheat_boost_factor_entity_id"] == (
-        "sensor.lounge_preheat_boost_factor"
+    assert lounge["preheat_anticipation_entity_id"] == (
+        "sensor.lounge_preheat_anticipation"
     )
     assert lounge["temperature_entity_id"] is None
     assert lounge["humidity_entity_id"] is None

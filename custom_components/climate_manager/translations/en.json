@@ -33,8 +33,8 @@
       "preheat_rate": {
         "name": "Pre-heat rate"
       },
-      "preheat_boost_factor": {
-        "name": "Pre-heat boost factor"
+      "preheat_anticipation": {
+        "name": "Pre-heat anticipation"
       }
     },
     "binary_sensor": {

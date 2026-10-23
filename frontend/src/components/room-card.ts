@@ -46,6 +46,9 @@ const HISTORY_HOURS: Array<[number, string]> = [
 ];
 const HISTORY_HOURS_KEY = "climate-manager-history-hours";
 const DEFAULT_HISTORY_HOURS = 24;
+const ANTICIPATION_HINT =
+  "Boost released when the target is this close at the current speed;" +
+  " tuned on the overshoot";
 
 /** Stored history duration (shared by all room cards), or the default. */
 function loadHistoryHours(): number {
@@ -646,7 +649,7 @@ export class RoomCard extends LitElement {
       temperature,
       s?.humidity_entity_id,
       s?.preheat_rate_entity_id,
-      s?.preheat_boost_factor_entity_id,
+      s?.preheat_anticipation_entity_id,
       ...trvs,
     ]);
   }
@@ -1047,7 +1050,7 @@ export class RoomCard extends LitElement {
       ? this.panelConfig?.zones?.[zoneId]?.preheat_enabled ?? false
       : this.panelConfig?.default_zone?.preheat_enabled ?? false;
 
-    const maxLead = this.config?.preheat_max_lead_minutes ?? 120;
+    const maxLead = this.config?.preheat_max_lead_minutes ?? 240;
     const boost = this.roomStatus?.preheat_boost ?? null;
     const preheatActive = this.roomStatus?.preheat_active ?? false;
     const preheatTarget = this.roomStatus?.preheat_target ?? null;
@@ -1096,11 +1099,11 @@ export class RoomCard extends LitElement {
     `;
   }
 
-  /** Learned parameters: heating rate, boost factor, today's lead. */
+  /** Learned parameters: heating rate, anticipation, today's lead. */
   private _renderInertia() {
     const rate = this.roomStatus?.preheat_rate ?? null;
     const samples = this.roomStatus?.preheat_samples ?? 0;
-    const factor = this.roomStatus?.preheat_boost_factor ?? null;
+    const anticipation = this.roomStatus?.preheat_anticipation ?? null;
     const lead = this.roomStatus?.preheat_lead ?? null;
     const runs = `${samples} ${samples === 1 ? "run" : "runs"}`;
     return html`
@@ -1110,9 +1113,9 @@ export class RoomCard extends LitElement {
           ? `learning (${Math.min(samples, 3)}/3 runs)`
           : `${rate.toFixed(1)} min/°C (${runs})`}
       </p>
-      ${factor != null
-        ? html`<p class="schedule-hint" title="Tuned after each pre-heat">
-            Boost factor: ${factor.toFixed(1)}
+      ${anticipation != null
+        ? html`<p class="schedule-hint" title=${ANTICIPATION_HINT}>
+            Anticipation: ${Math.round(anticipation)} min
           </p>`
         : ""}
       ${lead != null

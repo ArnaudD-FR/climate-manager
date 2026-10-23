@@ -869,10 +869,10 @@ class ClimateManagerCoordinator:
                     lambda e, a: room_sensor_unique_id(e, a, "preheat_rate"),
                     area_id,
                 ),
-                "preheat_boost_factor_entity_id": _entity_id(
+                "preheat_anticipation_entity_id": _entity_id(
                     "sensor",
                     lambda e, a: room_sensor_unique_id(
-                        e, a, "preheat_boost_factor"
+                        e, a, "preheat_anticipation"
                     ),
                     area_id,
                 ),
@@ -919,9 +919,9 @@ class ClimateManagerCoordinator:
                 if _room_obj is not None
                 else None
             )
-            # Learned boost factor of the room.
-            room_entry["preheat_boost_factor"] = (
-                _room_obj.boost_factor() if _room_obj is not None else None
+            # Learned anticipation (minutes) releasing the boost.
+            room_entry["preheat_anticipation"] = (
+                _room_obj.anticipation() if _room_obj is not None else None
             )
 
             auto = self._data.room_auto_sensors.get(area_id, {})

@@ -14,10 +14,16 @@ Tests:
 - A learned rate scales the lead with the gap (colder room starts earlier)
 - A restart resumes the persisted run (hold + original start time)
 - Store v1 → v2 migration
-- Auto boost factor: tuned by the overshoot after a boosted run
+- Boost: valve wide open until released at the learned anticipation
+  (minutes before the target at the current heating speed), tuned by the
+  overshoot after the release
+
+The boost is off (plain pre-heat target) unless a test requests the
+with_boost fixture.
 """
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -37,10 +43,13 @@ from custom_components.climate_manager.const import (
     PERIOD_PREHEAT,
     PERIOD_REDUCED,
 )
+from custom_components.climate_manager import room as room_module
 from custom_components.climate_manager.preheat import (
     PREHEAT_STORE_KEY,
     PreheatStore,
-    tune_boost_factor,
+    add_reading,
+    heating_slope,
+    tune_anticipation,
 )
 
 _DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
@@ -88,18 +97,26 @@ def _config(
     }
 
 
-async def _setup(hass, config: dict, boost: float | None = 0):
-    """Set up the integration; boost seeds the learned factor of room "a"
-    (0 keeps the plain target, None leaves the default)."""
+@pytest.fixture
+def with_boost():
+    """Request it to keep the pre-heat boost in a test."""
+
+
+@pytest.fixture(autouse=True)
+def _boost_off(request, monkeypatch):
+    """No boost (cap 0) unless the test requests with_boost."""
+    if "with_boost" not in request.fixturenames:
+        monkeypatch.setattr(room_module, "PREHEAT_BOOST_MAX", 0.0)
+
+
+async def _setup(hass, config: dict):
+    """Set up the integration with `config`."""
     async_mock_service(hass, "climate", "set_hvac_mode")
     calls = async_mock_service(hass, "climate", "set_temperature")
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
-    if boost is not None:
-        rooms = entry.runtime_data.preheat_data.setdefault("rooms", {})
-        rooms.setdefault("a", {})["boost_factor"] = boost
     entry.runtime_data.runtime_config = config
     entry.runtime_data.rooms = {"a": [TRV]}
     return entry, entry.runtime_data.coordinator, calls
@@ -237,7 +254,8 @@ async def test_rebuild_keeps_running_preheat(hass, freezer):
 
 def _seed_rate(entry, rate: float, count: int = 3) -> None:
     """Pretend the room already learned `rate` min/°C."""
-    entry.runtime_data.preheat_data["rooms"]["a"]["samples"] = [
+    rooms = entry.runtime_data.preheat_data.setdefault("rooms", {})
+    rooms.setdefault("a", {})["samples"] = [
         {"rate": rate, "censored": False} for _ in range(count)
     ]
 
@@ -278,10 +296,10 @@ async def test_never_reached_records_censored_sample(hass, freezer):
 
     await _tick(hass, freezer, coordinator, calls, "06:00", 17.0)
     await _tick(hass, freezer, coordinator, calls, "07:00", 18.0)
-    await _tick(hass, freezer, coordinator, calls, "09:00", 19.0)
+    await _tick(hass, freezer, coordinator, calls, "13:00", 19.0)
     assert coordinator.rooms["a"]._preheat_in_progress["measuring"]
 
-    await _tick(hass, freezer, coordinator, calls, "10:01", 19.0)
+    await _tick(hass, freezer, coordinator, calls, "14:01", 19.0)
     stored = entry.runtime_data.preheat_data["rooms"]["a"]
     assert len(stored["samples"]) == 1
     sample = stored["samples"][0]
@@ -289,7 +307,7 @@ async def test_never_reached_records_censored_sample(hass, freezer):
     assert (
         sample["duration_minutes"] == 2 * DEFAULT_PREHEAT_MAX_LEAD_MINUTES + 1
     )
-    assert sample["rate"] == pytest.approx(241 / 3, abs=0.01)
+    assert sample["rate"] == pytest.approx(481 / 3, abs=0.01)
     assert stored["run"] is None
 
 
@@ -370,96 +388,138 @@ async def test_store_v1_migrates_to_empty_v2(hass, hass_storage):
     assert await PreheatStore(hass).async_load() == {"rooms": {}}
 
 
-async def test_boost_follows_room_gap_then_drops_on_convergence(hass, freezer):
-    """Factor 2: 3 °C gap → +3 (cap); 0.5 °C → +1; reached → plain 20."""
-    freezer.move_to(_utc("06:00"))
-    hass.states.async_set(
-        TRV, "heat", {"temperature": REDUCED, "current_temperature": 17.0}
-    )
-    _, coordinator, calls = await _setup(hass, _config(), boost=2)
+def _sensor_config() -> dict:
+    """Room "a" read from SENSOR (set before each tick, see _tick_room)."""
+    return _config(rooms={"a": {"temperature_sensor": SENSOR}})
 
-    assert await _tick(hass, freezer, coordinator, calls, "06:00", 19.5) == (
-        NORMAL + 3.0
+
+def _set_room(hass, temp: float) -> None:
+    hass.states.async_set(
+        TRV, "heat", {"temperature": REDUCED, "current_temperature": temp}
     )
+    hass.states.async_set(SENSOR, str(temp), {"device_class": "temperature"})
+
+
+async def _tick_room(hass, freezer, coordinator, calls, local, room_temp):
+    """One evaluation at `local` with the room sensor at room_temp."""
+    hass.states.async_set(
+        SENSOR, str(room_temp), {"device_class": "temperature"}
+    )
+    return await _tick(hass, freezer, coordinator, calls, local, room_temp)
+
+
+def _status(coordinator) -> dict:
+    payload = coordinator._build_status_payload()
+    return next(r for r in payload["rooms_status"] if r["area_id"] == "a")
+
+
+async def test_full_boost_until_release(hass, freezer, caplog, with_boost):
+    """+3 °C until the target is 10 min away at the current speed; the
+    boost is not re-applied after a dip."""
+    caplog.set_level(logging.INFO, logger="custom_components.climate_manager")
+    freezer.move_to(_utc("06:00"))
+    _set_room(hass, 17.0)
+    entry, coordinator, calls = await _setup(hass, _sensor_config())
+    stored = entry.runtime_data.preheat_data["rooms"]
+
+    assert await _tick_room(
+        hass, freezer, coordinator, calls, "06:00", 17.0
+    ) == (NORMAL + 3.0)
     room = coordinator.rooms["a"]
     assert room._last_setpoint == NORMAL
-    payload = coordinator._build_status_payload()
-    status = next(r for r in payload["rooms_status"] if r["area_id"] == "a")
-    assert status["preheat_boost"] == 3.0
+    assert room.preheat_boosting
+    assert _status(coordinator)["preheat_boost"] == 3.0
 
-    # The room is 0.5 °C short: 2 × 0.5 = +1.
-    assert await _tick(hass, freezer, coordinator, calls, "06:30", 20.0) == (
-        NORMAL + 1.0
-    )
+    # 0.05 °C/min, 2.5 °C left → 50 min: keep the valve open.
+    for local, temp in (("06:10", 17.5), ("06:20", 18.0), ("06:30", 19.0)):
+        assert await _tick_room(
+            hass, freezer, coordinator, calls, local, temp
+        ) == (NORMAL + 3.0)
+    assert not stored["a"].get("observe")
 
-    # Target reached: the plain setpoint is re-pushed in the same tick.
-    assert await _tick(hass, freezer, coordinator, calls, "06:40", 20.0) == (
-        NORMAL
-    )
-    assert room._preheat_in_progress["converged"]
+    # 2.1 °C over the last 30 min, 0.4 °C left → 6 min ≤ 10: released.
+    assert await _tick_room(
+        hass, freezer, coordinator, calls, "06:40", 19.6
+    ) == (NORMAL)
+    assert not room.preheat_boosting
+    assert room._preheat_in_progress["released"]
+    assert not room._preheat_in_progress["converged"]
     assert room._preheat_boost_applied is None
     assert room.current_period == PERIOD_PREHEAT
+    assert stored["a"]["observe"]["peak"] == 19.6
+    assert stored["a"]["run"]["released"] is True
+    assert any(
+        "released left=6min slope=0.070°C/min" in m for m in caplog.messages
+    )
+
+    await _tick_room(hass, freezer, coordinator, calls, "06:50", 19.9)
+    assert room._preheat_in_progress["converged"]
+    assert len(stored["a"]["samples"]) == 1
+    assert (
+        await _tick_room(hass, freezer, coordinator, calls, "06:55", 19.5)
+        == NORMAL
+    )
 
 
-async def test_boost_continues_while_measuring(hass, freezer):
-    """Not reached at 07:00: Normal gets the boost until the room is warm."""
+async def test_release_without_slope_near_the_target(hass, freezer, with_boost):
+    """Under 10 min of readings and no learned rate: released within the
+    convergence threshold."""
     freezer.move_to(_utc("06:00"))
-    hass.states.async_set(
-        TRV, "heat", {"temperature": REDUCED, "current_temperature": 17.0}
-    )
-    _, coordinator, calls = await _setup(hass, _config(), boost=2)
+    _set_room(hass, 17.0)
+    _, coordinator, calls = await _setup(hass, _sensor_config())
 
-    await _tick(hass, freezer, coordinator, calls, "06:00", 19.0)
+    await _tick_room(hass, freezer, coordinator, calls, "06:00", 17.0)
+    assert await _tick_room(
+        hass, freezer, coordinator, calls, "06:05", 19.5
+    ) == (NORMAL + 3.0)
+    assert await _tick_room(
+        hass, freezer, coordinator, calls, "06:06", 19.8
+    ) == (NORMAL)
+    assert coordinator.rooms["a"]._preheat_in_progress["released"]
+
+
+async def test_within_anticipation_at_start_no_boost(hass, freezer, with_boost):
+    """Learned 2 min/°C, 1 °C short: 2 min left ≤ 10 → never boosted,
+    nothing to tune."""
+    freezer.move_to(_utc("06:50"))
+    _set_room(hass, 19.0)
+    entry, coordinator, calls = await _setup(hass, _sensor_config())
+    _seed_rate(entry, 2.0)
+
+    assert await _tick_room(
+        hass, freezer, coordinator, calls, "06:50", 19.0
+    ) == (NORMAL)
     room = coordinator.rooms["a"]
-    assert await _tick(hass, freezer, coordinator, calls, "07:00", 19.5) == (
-        NORMAL + 2.0
-    )
+    assert room._preheat_active
+    assert room._preheat_in_progress["released"]
+    assert not room._preheat_in_progress["boosted"]
+    stored = entry.runtime_data.preheat_data["rooms"]["a"]
+    assert not stored.get("observe")
+
+
+async def test_boost_continues_while_measuring(hass, freezer, with_boost):
+    """Not reached at 07:00: Normal gets the boost until released."""
+    freezer.move_to(_utc("06:00"))
+    _set_room(hass, 17.0)
+    _, coordinator, calls = await _setup(hass, _sensor_config())
+
+    await _tick_room(hass, freezer, coordinator, calls, "06:00", 17.0)
+    room = coordinator.rooms["a"]
+    assert await _tick_room(
+        hass, freezer, coordinator, calls, "07:00", 18.0
+    ) == (NORMAL + 3.0)
     assert room._preheat_in_progress["measuring"]
     assert room.current_period == PERIOD_NORMAL
 
-    assert await _tick(hass, freezer, coordinator, calls, "07:10", 20.0) == (
-        NORMAL + 1.0
-    )
-    assert await _tick(hass, freezer, coordinator, calls, "07:20", 20.0) == (
-        NORMAL
-    )
+    # Released and converged in the same tick: the measuring run ends.
+    assert await _tick_room(
+        hass, freezer, coordinator, calls, "07:10", 19.9
+    ) == (NORMAL)
     assert not room._preheat_in_progress
 
 
-@pytest.mark.parametrize(
-    ("trv_temp", "expected"),
-    [
-        # Valve 1.2 °C over the room: 20 + 1.2 rounded up (the factor
-        # alone, 2 × 0.3 → +0.5, would let the valve close at 20.5).
-        (20.9, NORMAL + 1.5),
-        # Valve below the room: the learned factor alone.
-        (19.0, NORMAL + 0.5),
-        # Capped at PREHEAT_BOOST_MAX.
-        (25.0, NORMAL + 3.0),
-    ],
-)
-async def test_boost_covers_trv_excess_over_room(
-    hass, freezer, trv_temp, expected
-):
-    """The TRV reading high next to its radiator keeps it open."""
-    freezer.move_to(_utc("06:00"))
-    hass.states.async_set(
-        TRV,
-        "heat",
-        {"temperature": REDUCED, "current_temperature": trv_temp},
-    )
-    hass.states.async_set(SENSOR, "19.7", {"device_class": "temperature"})
-    _, coordinator, calls = await _setup(
-        hass, _config(rooms={"a": {"temperature_sensor": SENSOR}}), boost=2
-    )
-
-    await coordinator.async_evaluate()
-    await hass.async_block_till_done()
-    assert calls[-1].data["temperature"] == expected
-
-
-async def test_boost_bounded_by_trv_max_temp(hass, freezer):
-    """A TRV capped at 21.5 °C never gets more, whatever the gap."""
+async def test_boost_bounded_by_trv_max_temp(hass, freezer, with_boost):
+    """A TRV capped at 21.5 °C never gets more."""
     freezer.move_to(_utc("06:00"))
     hass.states.async_set(
         TRV,
@@ -470,33 +530,18 @@ async def test_boost_bounded_by_trv_max_temp(hass, freezer):
             "max_temp": 21.5,
         },
     )
-    _, coordinator, calls = await _setup(hass, _config(), boost=2)
+    _, coordinator, calls = await _setup(hass, _config())
 
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
     assert calls[-1].data["temperature"] == 21.5
 
 
-async def test_boost_factor_defaults_before_any_tuning(hass, freezer):
-    """No learned factor yet → DEFAULT_PREHEAT_BOOST_FACTOR (2)."""
-    freezer.move_to(_utc("06:00"))
-    hass.states.async_set(
-        TRV, "heat", {"temperature": REDUCED, "current_temperature": 19.5}
-    )
-    config = _config()
-    config["rooms"] = {}
-    _, coordinator, calls = await _setup(hass, config, boost=None)
-
-    await coordinator.async_evaluate()
-    await hass.async_block_till_done()
-    assert calls[-1].data["temperature"] == NORMAL + 1.0
-
-
-async def test_no_boost_without_room_temperature(hass, freezer):
-    """No room reading → the plain target, as before."""
+async def test_no_boost_without_room_temperature(hass, freezer, with_boost):
+    """No room reading → the plain target."""
     freezer.move_to(_utc("06:00"))
     hass.states.async_set(TRV, "heat", {"temperature": REDUCED})
-    _, coordinator, calls = await _setup(hass, _config(), boost=2)
+    _, coordinator, calls = await _setup(hass, _config())
 
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
@@ -505,110 +550,116 @@ async def test_no_boost_without_room_temperature(hass, freezer):
 
 
 # ---------------------------------------------------------------------------
-# Auto boost factor
+# Heating speed and anticipation
 # ---------------------------------------------------------------------------
 
 
+def test_heating_slope_window():
+    """Slope over the last 30 min (plus the reading at its start); unknown
+    under 10 min of readings or when the room is not warming."""
+    t0 = datetime(2026, 1, 5, 14, 0, tzinfo=timezone.utc)
+    run = {"start_time": t0}
+
+    def read(minutes: int, temp: float) -> None:
+        add_reading(run, t0 + timedelta(minutes=minutes), temp)
+
+    read(0, 17.0)
+    assert heating_slope(run) is None
+    read(5, 17.5)
+    assert heating_slope(run) is None
+    read(10, 17.5)
+    assert heating_slope(run) == pytest.approx(0.05)
+    for minutes, temp in ((20, 18.0), (40, 19.0), (50, 19.0)):
+        read(minutes, temp)
+    assert [r[0] for r in run["readings"]] == [20, 40, 50]
+    assert heating_slope(run) == pytest.approx(1 / 30)
+    read(60, 17.5)
+    assert heating_slope(run) is None
+
+
 @pytest.mark.parametrize(
-    ("factor", "overshoot", "late", "expected"),
+    ("anticipation", "overshoot", "expected"),
     [
-        (2.0, 0.8, False, 1.5),  # overshoot → down
-        (2.0, 0.8, True, 1.5),  # overshoot wins over late
-        (2.0, 0.1, True, 2.5),  # late, no overshoot → up
-        (2.0, None, True, 2.5),  # never reached → up
-        (2.0, 0.3, True, 2.0),  # late but some overshoot → keep
-        (2.0, 0.1, False, 2.0),  # on time, no overshoot → keep
-        (0.5, 0.9, False, 0.5),  # bounded low
-        (5.0, None, True, 5.0),  # bounded high
+        (10, 0.5, 15),  # released too late → anticipate more
+        (10, 0.2, 10),  # within tolerance → keep
+        (10, -0.1, 10),
+        (10, -0.3, 5),  # released too early → anticipate less
+        (0, -1.0, 0),  # bounded low
+        (60, 1.0, 60),  # bounded high
     ],
 )
-def test_tune_boost_factor(factor, overshoot, late, expected):
-    assert tune_boost_factor(factor, overshoot, late) == expected
+def test_tune_anticipation(anticipation, overshoot, expected):
+    assert tune_anticipation(anticipation, overshoot) == expected
 
 
-async def test_auto_boost_factor_lowered_by_overshoot(hass, freezer, caplog):
-    """Reached at 06:30, peaks 0.8 °C above within the hour → 2 → 1.5."""
+async def _release_at_0630(hass, freezer, config):
+    """Boosted run released at 06:30 at 19.6 °C (4.6 min left)."""
+    freezer.move_to(_utc("06:00"))
+    _set_room(hass, 17.0)
+    entry, coordinator, calls = await _setup(hass, config)
+    for local, temp in (
+        ("06:00", 17.0),
+        ("06:10", 17.5),
+        ("06:20", 18.5),
+        ("06:30", 19.6),
+    ):
+        await _tick_room(hass, freezer, coordinator, calls, local, temp)
+    assert coordinator.rooms["a"]._preheat_in_progress["released"]
+    return entry, coordinator, calls
+
+
+async def test_anticipation_raised_by_overshoot(
+    hass, freezer, caplog, with_boost
+):
+    """Peaks 0.6 °C above within the hour after the release → 10 → 15."""
     caplog.set_level(logging.INFO, logger="custom_components.climate_manager")
-    freezer.move_to(_utc("06:00"))
-    hass.states.async_set(
-        TRV, "heat", {"temperature": REDUCED, "current_temperature": 17.0}
+    entry, coordinator, calls = await _release_at_0630(
+        hass, freezer, _sensor_config()
     )
-    entry, coordinator, calls = await _setup(hass, _config(), boost=None)
     stored = entry.runtime_data.preheat_data["rooms"]
 
-    await _tick(hass, freezer, coordinator, calls, "06:00", 19.9)
-    await _tick(hass, freezer, coordinator, calls, "06:30", NORMAL + 0.8)
-    assert stored["a"]["observe"]["late"] is False
-    await _tick(hass, freezer, coordinator, calls, "07:00", NORMAL + 0.3)
-    assert stored["a"]["observe"]["peak"] == NORMAL + 0.8
-    assert "boost_factor" not in stored["a"]
+    await _tick_room(hass, freezer, coordinator, calls, "06:45", NORMAL + 0.6)
+    await _tick_room(hass, freezer, coordinator, calls, "07:10", NORMAL + 0.2)
+    assert stored["a"]["observe"]["peak"] == NORMAL + 0.6
+    assert "anticipation" not in stored["a"]
 
-    await _tick(hass, freezer, coordinator, calls, "07:31", NORMAL + 0.3)
-    room = coordinator.rooms["a"]
-    assert stored["a"]["boost_factor"] == 1.5
+    await _tick_room(hass, freezer, coordinator, calls, "07:31", NORMAL + 0.2)
+    assert stored["a"]["anticipation"] == 15
     assert stored["a"]["observe"] is None
-    assert room.boost_factor() == 1.5
+    assert coordinator.rooms["a"].anticipation() == 15
     assert any(
-        "boost_factor=2.0→1.5 overshoot=+0.8°C" in m for m in caplog.messages
+        "anticipation=10→15min overshoot=+0.6°C" in m for m in caplog.messages
     )
-    payload = coordinator._build_status_payload()
-    status = next(r for r in payload["rooms_status"] if r["area_id"] == "a")
-    assert status["preheat_boost_factor"] == 1.5
+    assert _status(coordinator)["preheat_anticipation"] == 15
 
 
-async def test_auto_boost_factor_raised_when_late(hass, freezer):
-    """Reached after the occupied time without overshoot → 2 → 2.5."""
-    freezer.move_to(_utc("06:00"))
-    hass.states.async_set(
-        TRV, "heat", {"temperature": REDUCED, "current_temperature": 17.0}
+async def test_anticipation_lowered_when_short(hass, freezer, with_boost):
+    """Stalls 0.4 °C short of the target after the release → 10 → 5."""
+    entry, coordinator, calls = await _release_at_0630(
+        hass, freezer, _sensor_config()
     )
-    entry, coordinator, calls = await _setup(hass, _config(), boost=None)
-    stored = entry.runtime_data.preheat_data["rooms"]
 
-    await _tick(hass, freezer, coordinator, calls, "06:00", 18.0)
-    await _tick(hass, freezer, coordinator, calls, "07:00", 19.9)
-    await _tick(hass, freezer, coordinator, calls, "07:10", 19.9)
-    assert stored["a"]["observe"]["late"] is True
-
-    await _tick(hass, freezer, coordinator, calls, "08:11", 19.9)
-    assert stored["a"]["boost_factor"] == 2.5
+    await _tick_room(hass, freezer, coordinator, calls, "07:00", 19.6)
+    await _tick_room(hass, freezer, coordinator, calls, "07:31", 19.6)
+    assert entry.runtime_data.preheat_data["rooms"]["a"]["anticipation"] == 5
 
 
-async def test_auto_boost_factor_raised_when_never_reached(hass, freezer):
-    """A censored boosted run raises the factor at once."""
-    freezer.move_to(_utc("06:00"))
-    hass.states.async_set(
-        TRV, "heat", {"temperature": REDUCED, "current_temperature": 17.0}
-    )
-    entry, coordinator, calls = await _setup(hass, _config(), boost=None)
-
-    await _tick(hass, freezer, coordinator, calls, "06:00", 18.0)
-    await _tick(hass, freezer, coordinator, calls, "07:00", 19.0)
-    await _tick(hass, freezer, coordinator, calls, "10:01", 19.0)
-
-    assert entry.runtime_data.preheat_data["rooms"]["a"]["boost_factor"] == 2.5
-
-
-async def test_warmer_period_drops_the_overshoot_watch(hass, freezer):
+async def test_warmer_period_drops_the_overshoot_watch(
+    hass, freezer, with_boost
+):
     """A Comfort period during the window: the rise is not overshoot."""
-    freezer.move_to(_utc("06:00"))
-    hass.states.async_set(
-        TRV, "heat", {"temperature": REDUCED, "current_temperature": 17.0}
-    )
-    config = _config()
+    config = _sensor_config()
     for day in _DAYS:
         config["default_zone"]["time_program"][day] = [
             *MORNING_PROGRAM[day],
             {"start": "07:15", "mode": PERIOD_COMFORT},
         ]
-    entry, coordinator, calls = await _setup(hass, config, boost=None)
+    entry, coordinator, calls = await _release_at_0630(hass, freezer, config)
     stored = entry.runtime_data.preheat_data["rooms"]
-
-    await _tick(hass, freezer, coordinator, calls, "06:00", 19.9)
-    await _tick(hass, freezer, coordinator, calls, "06:30", NORMAL)
     assert stored["a"]["observe"]
-    await _tick(hass, freezer, coordinator, calls, "07:16", 21.5)
-    await _tick(hass, freezer, coordinator, calls, "07:17", 21.5)
+
+    await _tick_room(hass, freezer, coordinator, calls, "07:16", 21.5)
+    await _tick_room(hass, freezer, coordinator, calls, "07:17", 21.5)
 
     assert stored["a"]["observe"] is None
-    assert "boost_factor" not in stored["a"]
+    assert "anticipation" not in stored["a"]

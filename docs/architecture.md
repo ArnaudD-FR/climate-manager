@@ -193,13 +193,15 @@ weekend while others are home. The panel's "pre-heat disabled" hint
 presence can be scheduled (HA tracking or forced). Each room learns a heating
 rate in min/°C: the median of its last 7 samples (`learned_rate`). The lead is
 recomputed every tick as `rate × (upcoming − room_temp) × 1.1`, bounded to [10
-min, `preheat_max_lead_minutes`] (default 120 min), so a colder room starts
-earlier; while fewer than 3 samples exist, or the room temperature is unknown,
-the max lead is used. The run lives in `Room._preheat_in_progress`
-(`start_time`, `start_temp`, `target_temp`, `until`, `converged`, `measuring`).
-Until `until`, `Room.apply_setpoint` keeps the upcoming setpoint whenever it is
-warmer than the zone's scheduled one, and the room period is `preheat` (room
-period sensor state, panel badge, history timeline). Reaching the target
+min, `preheat_max_lead_minutes`] (default 240 min, a guard only), so a colder
+room starts earlier; while fewer than 3 samples exist, or the room temperature
+is unknown, the learning lead is used (`PREHEAT_LEARNING_LEAD_MINUTES`, 120 min,
+capped by the max lead). The run lives in `Room._preheat_in_progress`
+(`start_time`, `start_temp`, `target_temp`, `until`, `converged`, `measuring`,
+`boosted`, `released`, `readings`). Until `until`, `Room.apply_setpoint` keeps
+the upcoming setpoint whenever it is warmer than the zone's scheduled one, and
+the room period is `preheat` (room period sensor state, panel badge, history
+timeline). Reaching the target
 (`room_temp ≥ target − PREHEAT_CONVERGENCE_THRESHOLD`) records one sample but
 keeps holding until `until`. Not reached by `until`: the run switches to
 **measuring** (no hold; the zone setpoint is already the target) and records the
@@ -221,44 +223,61 @@ over the run; the sample copies them (`outdoor_temp`, `flow_temp`,
 `curve_slope`, `curve_shift`, `program`, unknown ones left out) and the
 `preheat | … reached/censored` log appends `outdoor=… flow=…`. They are not used
 by the lead yet. The status payload exposes `preheat_rate`, `preheat_samples`,
-`preheat_lead`, `preheat_boost` and `preheat_boost_factor` (shown in the room
-card). **Boost**: a TRV next to a hot radiator reads high and throttles before
-the room is warm, so while a run has not converged (hold and measuring)
-`apply_setpoint` pushes to the TRVs the setpoint plus the larger of
-`factor × (setpoint − room_temp)` (rounded to 0.5 °C) and the measured excess of
-the highest TRV reading over the room temperature (rounded up to 0.5 °C, so the
-TRV stays open until the room itself is warm; setpoints go through the local TRV
-entity, unlike offset writes), capped at `PREHEAT_BOOST_MAX` (3 °C) and the
-TRVs' `max_temp` (`Room._preheat_boost`). `_last_setpoint` keeps the unboosted
-value. On convergence the plain setpoint is re-pushed in the same tick
-(`_drop_boost`). The **factor is learned** per room, never set
-(`Room.boost_factor`, pre-heat store `boost_factor`, default 2): a run records
-`boosted` when the boost was applied; once it converges, `observe` follows the
-room's peak for `PREHEAT_OVERSHOOT_WINDOW_MINUTES` (60), then
-`tune_boost_factor` moves the factor by 0.5 within [0.5, 5]: down when the peak
-exceeds the target by more than 0.5 °C, up when the target came late (reached
-while measuring, or censored at once) with less than 0.2 °C overshoot. A warmer
-setpoint during the window drops the watch. Each change logs
-`preheat | room=… boost_factor=a→b overshoot=… late=…`. **Calibration**
-(`calibration.py`, `Calibrator`, owned by the coordinator): incremental offset
-toward the room reference sensor, for the calibration targets the vendors
-resolve (see [Vendors](#vendors--vendors)). Clamped ±5°C with a threshold guard
-to avoid jitter: `calibration_threshold` (0.5 °C), pre-heat or not (the boost
-compensates a TRV reading high next to its radiator). Only steady conditions are
-measured: the TRV mode and setpoint unchanged for 90 min, and the room sensor
-and the TRV reading both within 0.2 °C over the last 60 min. A heating or
-cooling radiator, or the sun on a TRV, shows a transient gap that the TRV
-cancels as soon as its offset changes: correcting it would wind the offset up to
-the clamp. A radiator also keeps warming its TRV for a while after it closed,
-and the top of that hump looks flat: the settle time after a setpoint change
-skips it. No calibration (nor readings recorded) while the room is boosting
-(`Room.preheat_boosting`): a long boost held at one setpoint looks settled too,
-and the TRV next to the hot radiator reads well above the room. Dropping the
-boost changes the setpoint, which restarts the settle time. After a write the
-TRV readings start over, so the next correction waits for the TRV to settle on
-its new offset. An offset that does not change (at the clamp) is not written. At
-most one write attempt per target every 5 min, failures included (cloud API
-quotas; with Tado X each write also triggers a refresh). Each write logs
+`preheat_lead`, `preheat_boost` and `preheat_anticipation` (shown in the room
+card). **Boost — valve wide open, released by anticipation**: the energy to warm
+a room is the same at any speed, while the losses favour heating late and fast,
+and an overshoot is pure waste; the boiler's flow temperature (its heating
+curve) is the only real speed lever. So a run starts as late as the learned rate
+allows, heats with the valve wide open, and releases the boost early enough for
+the radiator's residual heat to land on the target. A TRV next to a hot radiator
+also reads high and would throttle before the room is warm. Until released (hold
+and measuring), `apply_setpoint` pushes to the TRVs the setpoint plus the full
+boost allowed: `PREHEAT_BOOST_MAX` (3 °C), capped at the TRVs' `max_temp`,
+rounded down to 0.5 °C (`Room._preheat_boost`; none without a room temperature).
+`_last_setpoint` keeps the unboosted value. Each tick a boosting run records the
+room temperature (`readings`, the last 30 min plus the reading at the window's
+start); the **heating speed** is the slope over them (`heating_slope`; unknown
+under 10 min of readings or when not warming), else 1 / learned rate. The boost
+is **released** (`Room._release_due`) once
+`(target − room_temp) / speed ≤ anticipation`, or the room reached the target;
+without any speed, within `PREHEAT_CONVERGENCE_THRESHOLD` of it. The plain
+setpoint is then re-pushed in the same tick (`_drop_boost`), `released` is
+persisted and never undone (a dip does not boost again), and the log reads
+`preheat | room=… released left=…min slope=…°C/min`. A run already within the
+anticipation at its start is released at once and never boosted. Release and
+convergence are separate events. The **anticipation is learned** per room, in
+minutes, never set (`Room.anticipation`, pre-heat store `anticipation`, default
+10): after the release of a boosted run, `observe` follows the room's peak for
+`PREHEAT_OVERSHOOT_WINDOW_MINUTES` (60), then `tune_anticipation` moves it by 5
+min within [0, 60]: up when the peak exceeds the target by more than 0.2 °C
+(released too late), down when it stays more than 0.1 °C below (too early). A
+warmer setpoint during the window drops the watch. A change logs
+`preheat | room=… anticipation=a→bmin overshoot=…`. Minutes, not °C: after the
+release the radiator keeps warming the room for about its time constant τ, so
+the overshoot is about τ × the current speed — a hotter flow (cold weather)
+overshoots more in °C for the same τ. A legacy `boost_factor` key (the former
+factor model) is dropped from the store, and the registry entries of its
+`sensor.<area_id>_preheat_boost_factor` at setup
+(`sensor._remove_retired_sensors`). **Calibration** (`calibration.py`,
+`Calibrator`, owned by the coordinator): incremental offset toward the room
+reference sensor, for the calibration targets the vendors resolve (see
+[Vendors](#vendors--vendors)). Clamped ±5°C with a threshold guard to avoid
+jitter: `calibration_threshold` (0.5 °C), pre-heat or not (the boost compensates
+a TRV reading high next to its radiator). Only steady conditions are measured:
+the TRV mode and setpoint unchanged for 90 min, and the room sensor and the TRV
+reading both within 0.2 °C over the last 60 min. A heating or cooling radiator,
+or the sun on a TRV, shows a transient gap that the TRV cancels as soon as its
+offset changes: correcting it would wind the offset up to the clamp. A radiator
+also keeps warming its TRV for a while after it closed, and the top of that hump
+looks flat: the settle time after a setpoint change skips it. No calibration
+(nor readings recorded) while the room is boosting (`Room.preheat_boosting`): a
+long boost held at one setpoint looks settled too, and the TRV next to the hot
+radiator reads well above the room. Dropping the boost changes the setpoint,
+which restarts the settle time. After a write the TRV readings start over, so
+the next correction waits for the TRV to settle on its new offset. An offset
+that does not change (at the clamp) is not written. At most one write attempt
+per target every 5 min, failures included (cloud API quotas; with Tado X each
+write also triggers a refresh). Each write logs
 `calibrate | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`.
 Offsets are remembered per target (`last_offset`, keyed by device or entity);
 after a restart the first correction starts from the offset the vendor reports.
@@ -464,14 +483,14 @@ Native entities exist so the HA recorder historises zone modes and periods
 (history graphs, logbook, automations). Platform modules: `binary_sensor.py`,
 `select.py`, `sensor.py`; shared base and device helpers in `entity.py`.
 
-| Entity                                               | Device             | unique_id                                     | State                                          |
-| ---------------------------------------------------- | ------------------ | --------------------------------------------- | ---------------------------------------------- |
-| `select.<zone>_mode`                                 | zone               | `<entry>_zone_<zone_id>_mode`                 | zone mode, read from `runtime_config`          |
-| `sensor.<zone>_period` (enum)                        | zone               | `<entry>_zone_<zone_id>_period`               | `Zone.current_period` (schedule period)        |
-| `sensor.<area_id>_period` (enum)                     | room (in its area) | `<entry>_room_<area_id>_period`               | `Room.current_period` (presence-resolved)      |
-| `sensor.<area_id>_preheat_rate` (diagnostic, min/°C) | room (in its area) | `<entry>_room_<area_id>_preheat_rate`         | `Room.learned_rate()` (unknown while learning) |
-| `sensor.<area_id>_preheat_boost_factor` (diagnostic) | room (in its area) | `<entry>_room_<area_id>_preheat_boost_factor` | `Room.boost_factor()` (learned)                |
-| `binary_sensor.climate_manager_boiler_demand` (heat) | boiler             | `<entry>_boiler_demand`                       | on while a room needs heat; `rooms` attribute  |
+| Entity                                                    | Device             | unique_id                                     | State                                          |
+| --------------------------------------------------------- | ------------------ | --------------------------------------------- | ---------------------------------------------- |
+| `select.<zone>_mode`                                      | zone               | `<entry>_zone_<zone_id>_mode`                 | zone mode, read from `runtime_config`          |
+| `sensor.<zone>_period` (enum)                             | zone               | `<entry>_zone_<zone_id>_period`               | `Zone.current_period` (schedule period)        |
+| `sensor.<area_id>_period` (enum)                          | room (in its area) | `<entry>_room_<area_id>_period`               | `Room.current_period` (presence-resolved)      |
+| `sensor.<area_id>_preheat_rate` (diagnostic, min/°C)      | room (in its area) | `<entry>_room_<area_id>_preheat_rate`         | `Room.learned_rate()` (unknown while learning) |
+| `sensor.<area_id>_preheat_anticipation` (diagnostic, min) | room (in its area) | `<entry>_room_<area_id>_preheat_anticipation` | `Room.anticipation()` (learned)                |
+| `binary_sensor.climate_manager_boiler_demand` (heat)      | boiler             | `<entry>_boiler_demand`                       | on while a room needs heat; `rooms` attribute  |
 
 - **Devices**: one per zone (`(DOMAIN, "zone_<zone_id>")`, named after the zone,
   Default Zone = `zone_default`) and one per room (`(DOMAIN, "room_<area_id>")`,
@@ -507,7 +526,7 @@ Native entities exist so the HA recorder historises zone modes and periods
   opens the room period sensor's more-info.
 - **Room card history**: `rooms_status[]` also carries `temperature_entity_id` /
   `humidity_entity_id` (HA area setting → auto-discovered sensor) and
-  `preheat_rate_entity_id` / `preheat_boost_factor_entity_id`. The expanded card
+  `preheat_rate_entity_id` / `preheat_anticipation_entity_id`. The expanded card
   embeds HA's native `history-graph` card (`createHistoryCard` →
   `window.loadCardHelpers`) for the room period, temperature, humidity, the
   learned pre-heat parameters and the TRVs that receive setpoints (same rules as

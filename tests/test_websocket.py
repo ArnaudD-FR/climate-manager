@@ -1067,8 +1067,9 @@ async def test_set_room_config_pops_zone_id_when_null(hass, hass_ws_client):
     assert "zone_id" not in living_room
 
 
-async def test_set_room_config_drops_boost_factor(hass, hass_ws_client):
-    """The boost factor is learned: a sent or saved room value is dropped."""
+async def test_set_room_config_drops_learned_preheat_keys(hass, hass_ws_client):
+    """Learned pre-heat parameters (anticipation, the former boost
+    factor): a sent or saved room value is dropped."""
     entry = await _setup_entry(hass)
     entry.runtime_data.runtime_config.setdefault("rooms", {})["living_room"] = {
         "preheat_boost_factor": 3.0,
@@ -1080,7 +1081,10 @@ async def test_set_room_config_drops_boost_factor(hass, hass_ws_client):
         {
             "type": f"{DOMAIN}/set_room_config",
             "room_id": "living_room",
-            "config": {"preheat_boost_factor": 1.0},
+            "config": {
+                "preheat_boost_factor": 1.0,
+                "preheat_anticipation": 20,
+            },
         }
     )
     msg = await client.receive_json()

@@ -77,8 +77,11 @@ TRV_COMMAND_TIMEOUT: float = 30
 #   - Default Zone: top-level default_zone_preheat_enabled (bool, absent=False)
 # Sparse room key (still per-room):
 #   preheat_max_lead_minutes (int, absent=DEFAULT_PREHEAT_MAX_LEAD_MINUTES)
-DEFAULT_PREHEAT_MAX_LEAD_MINUTES: int = 120  # D-01 / PREHEAT-01
-# Min samples before the learned heating rate replaces the max lead (D-08)
+# Longest lead, a guard only: the lead is the learned rate × the gap.
+DEFAULT_PREHEAT_MAX_LEAD_MINUTES: int = 240  # D-01 / PREHEAT-01
+# Lead while learning (or room temperature unknown), capped by the max lead
+PREHEAT_LEARNING_LEAD_MINUTES: int = 120
+# Min samples before the learned heating rate replaces the learning lead
 PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD: int = 3
 # Samples kept per room; the learned rate is their median (D-08)
 PREHEAT_MAX_SAMPLES: int = 7
@@ -90,22 +93,27 @@ PREHEAT_LEAD_MARGIN: float = 0.1
 PREHEAT_MIN_LEAD_MINUTES: int = 10
 # Smallest start gap (°C) that yields a meaningful rate sample
 PREHEAT_MIN_SAMPLE_DELTA: float = 0.5
-# While a pre-heat runs, the TRV gets setpoint + factor × (setpoint − room
-# temperature), capped at PREHEAT_BOOST_MAX. The factor is learned per room
-# (no setting), starting at DEFAULT_PREHEAT_BOOST_FACTOR.
-DEFAULT_PREHEAT_BOOST_FACTOR: float = 2.0
-PREHEAT_BOOST_FACTOR_MAX: float = 5.0
+# While a pre-heat runs, the TRVs get setpoint + PREHEAT_BOOST_MAX (capped by
+# their max_temp): the valve stays wide open even though it reads high next
+# to its radiator. The boost is released once the target is closer than the
+# room's anticipation (minutes) at its current heating speed: the radiator's
+# residual heat then finishes the job.
 PREHEAT_BOOST_MAX: float = 3.0
-# Boost factor learning: after each boosted run, the peak above the target over
-# PREHEAT_OVERSHOOT_WINDOW_MINUTES once reached moves the factor by one
-# step, within [PREHEAT_BOOST_FACTOR_MIN, PREHEAT_BOOST_FACTOR_MAX]: down
-# above PREHEAT_OVERSHOOT_HIGH, up when the target came late (or never)
-# with less than PREHEAT_OVERSHOOT_LOW.
-PREHEAT_BOOST_FACTOR_MIN: float = 0.5
-PREHEAT_BOOST_FACTOR_STEP: float = 0.5
+# Current heating speed: room readings over the last window (since the start
+# when shorter), once they span at least the min span (sensor steps).
+PREHEAT_SLOPE_WINDOW_MINUTES: int = 30
+PREHEAT_SLOPE_MIN_SPAN_MINUTES: int = 10
+# Anticipation learning: the peak over PREHEAT_OVERSHOOT_WINDOW_MINUTES after
+# a boosted run's release moves the anticipation by one step, within
+# [MIN, MAX]: up above target + PREHEAT_OVERSHOOT_HIGH, down below
+# target − PREHEAT_UNDERSHOOT.
+PREHEAT_ANTICIPATION_DEFAULT_MINUTES: int = 10
+PREHEAT_ANTICIPATION_MIN_MINUTES: int = 0
+PREHEAT_ANTICIPATION_MAX_MINUTES: int = 60
+PREHEAT_ANTICIPATION_STEP_MINUTES: int = 5
 PREHEAT_OVERSHOOT_WINDOW_MINUTES: int = 60
-PREHEAT_OVERSHOOT_HIGH: float = 0.5
-PREHEAT_OVERSHOOT_LOW: float = 0.2
+PREHEAT_OVERSHOOT_HIGH: float = 0.2
+PREHEAT_UNDERSHOOT: float = 0.1
 # Highest setpoint assumed when a TRV does not report max_temp
 DEFAULT_TRV_MAX_TEMP: float = 30.0
 

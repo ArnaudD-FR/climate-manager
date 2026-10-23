@@ -11,8 +11,9 @@
 Both are enum sensors so the history panel renders them as a timeline.
 
 - Room pre-heat parameters (diagnostic, measurement): the learned heating
-  rate (min/°C, unknown while learning) and the learned boost factor, so
-  their evolution shows in the history and long-term statistics.
+  rate (min/°C, unknown while learning) and the learned anticipation
+  (minutes), so their evolution shows in the history and long-term
+  statistics.
 
 Values are re-read from the coordinator's live domain objects by id on
 every state write, because the coordinator rebuilds its Zone/Room graph
@@ -30,6 +31,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -56,6 +58,7 @@ async def async_setup_entry(
 ) -> None:
     """Create zone and room period sensors; add new ones as they appear."""
     coordinator = entry.runtime_data.coordinator
+    _remove_retired_sensors(hass, entry)
     async_add_entities_for_ids(
         entry,
         lambda: coordinator.zones,
@@ -68,10 +71,27 @@ async def async_setup_entry(
         lambda area_id: [
             RoomPeriodSensor(coordinator, entry, area_id),
             RoomPreheatRateSensor(coordinator, entry, area_id),
-            RoomBoostFactorSensor(coordinator, entry, area_id),
+            RoomPreheatAnticipationSensor(coordinator, entry, area_id),
         ],
         async_add_entities,
     )
+
+
+# Keys of room sensors no longer created (the boost factor gave way to
+# the anticipation).
+_RETIRED_ROOM_SENSOR_KEYS = ("preheat_boost_factor",)
+
+
+def _remove_retired_sensors(
+    hass: HomeAssistant, entry: ClimateManagerConfigEntry
+) -> None:
+    """Drop the registry entries of retired room sensors."""
+    reg = er.async_get(hass)
+    for reg_entry in er.async_entries_for_config_entry(reg, entry.entry_id):
+        if reg_entry.domain == "sensor" and reg_entry.unique_id.endswith(
+            tuple(f"_{key}" for key in _RETIRED_ROOM_SENSOR_KEYS)
+        ):
+            reg.async_remove(reg_entry.entity_id)
 
 
 class _PeriodSensor(ClimateManagerEntity, SensorEntity):
@@ -202,12 +222,14 @@ class RoomPreheatRateSensor(_RoomPreheatSensor):
         return room.learned_rate() if room is not None else None
 
 
-class RoomBoostFactorSensor(_RoomPreheatSensor):
-    """Learned pre-heat boost factor."""
+class RoomPreheatAnticipationSensor(_RoomPreheatSensor):
+    """Learned pre-heat anticipation (minutes before the target)."""
 
-    _key = "preheat_boost_factor"
+    _key = "preheat_anticipation"
+    _attr_native_unit_of_measurement = "min"
+    _attr_suggested_display_precision = 0
 
     @property
     def native_value(self) -> float | None:
         room = self.coordinator.rooms.get(self._area_id)
-        return room.boost_factor() if room is not None else None
+        return room.anticipation() if room is not None else None
