@@ -105,15 +105,15 @@ export interface ClimateConfig {
   rooms: Record<string, RoomConfig>;
   persons: Record<string, PersonConfig>;
   climate_entities: string[];
-  /** CALIB-01: global calibration on/off. Absent = false (sparse config). */
-  calibration_enabled?: boolean;
+  /** CALIB-01: global alignment on/off. Absent = false (sparse config). */
+  alignment_enabled?: boolean;
   /**
    * CALIB-04: jitter threshold in degrees C. Absent = 0.5 (sparse config).
    * TODO(phase-10): no mutation path exists yet — backend const only.
-   * Remove this field or add a setCalibrationThreshold WS command in
+   * Remove this field or add a setAlignmentThreshold WS command in
    * the phase that exposes threshold configuration to the user.
    */
-  calibration_threshold?: number;
+  alignment_threshold?: number;
   /**
    * Phase 13 (D-01): Matter entity pairings.
    * Key: a pairable (vendor cloud) climate entity_id.
@@ -247,24 +247,24 @@ export interface BoilerStatus {
   vendor?: string | null;
 }
 
-/** Per-TRV calibration status returned by get_calibration_status. */
-export interface TRVCalibrationEntry {
+/** Per-TRV alignment status returned by get_alignment_status. */
+export interface TRVAlignmentEntry {
   entity_id: string | null;
   /** Physical device carrying the offset; null for entity-based rows. */
   device_id?: string | null;
   area_id: string;
   friendly_name: string;
-  supports_calibration: boolean;
-  /** Label of the vendor calibrating this row ("Tado X"), else null. */
+  supports_alignment: boolean;
+  /** Label of the vendor aligning this row ("Tado X"), else null. */
   vendor?: string | null;
   trv_temperature: number | null;
   room_temperature: number | null;
   /**
    * Current offset: the last one written by Climate Manager, else the one
-   * the vendor reports. Null when not calibratable or unknown.
+   * the vendor reports. Null when not alignable or unknown.
    */
   current_offset: number | null;
-  last_calibrated_at: string | null;
+  last_aligned_at: string | null;
 }
 
 /** A vendor whose readings are polled from a cloud. */

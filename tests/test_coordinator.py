@@ -1246,8 +1246,8 @@ async def test_global_mode_off_does_not_affect_custom_zones(hass):
 
 
 # ---------------------------------------------------------------------------
-# Tests: TRV offset calibration pass (09-02)
-# CALIB-02/03/04/05 — _async_calibrate + _async_calibrate_room
+# Tests: TRV offset alignment pass (09-02)
+# CALIB-02/03/04/05 — _async_align + _async_align_room
 # ---------------------------------------------------------------------------
 
 
@@ -1297,7 +1297,7 @@ def _register_tado_x(hass, object_id: str, offset: float | None = None) -> str:
 
 
 async def _evaluate_steady(hass, coordinator, freezer) -> None:
-    """Evaluate twice, 90 min apart: calibration sees steady readings."""
+    """Evaluate twice, 90 min apart: alignment sees steady readings."""
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
     freezer.tick(datetime.timedelta(minutes=90))
@@ -1305,14 +1305,14 @@ async def _evaluate_steady(hass, coordinator, freezer) -> None:
     await hass.async_block_till_done()
 
 
-def _make_calibration_config(
-    calibration_enabled: bool = True,
-    calibration_threshold: float = 0.5,
+def _make_alignment_config(
+    alignment_enabled: bool = True,
+    alignment_threshold: float = 0.5,
     rooms_config: dict | None = None,
     sensor_entity_id: str | None = None,
     area_id: str = "bedroom",
 ) -> dict:
-    """Build a runtime_config with calibration settings for test use."""
+    """Build a runtime_config with alignment settings for test use."""
     room_cfg: dict = {}
     if sensor_entity_id is not None:
         room_cfg["temperature_sensor"] = sensor_entity_id
@@ -1323,19 +1323,19 @@ def _make_calibration_config(
         if rooms_config is not None
         else ({area_id: room_cfg} if room_cfg else {}),
     )
-    cfg["calibration_enabled"] = calibration_enabled
-    cfg["calibration_threshold"] = calibration_threshold
+    cfg["alignment_enabled"] = alignment_enabled
+    cfg["alignment_threshold"] = alignment_threshold
     return cfg
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibration_disabled_zero_offset_calls(hass):
-    """D-04: calibration_enabled=False → zero offset service calls.
+async def test_alignment_disabled_zero_offset_calls(hass):
+    """D-04: alignment_enabled=False → zero offset service calls.
 
     Even with a fully configured room+TRV+sensor, no tado_x calls must
-    be made when calibration is globally disabled.
+    be made when alignment is globally disabled.
     """
-    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    # A Tado X zone entity (no valve device): aligned by entity_id.
     _register_tado_x(hass, "bedroom_trv")
     hass.states.async_set(
         "climate.bedroom_trv",
@@ -1357,8 +1357,8 @@ async def test_calibration_disabled_zero_offset_calls(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    entry.runtime_data.runtime_config = _make_calibration_config(
-        calibration_enabled=False,
+    entry.runtime_data.runtime_config = _make_alignment_config(
+        alignment_enabled=False,
         sensor_entity_id="sensor.bedroom_temp",
     )
     entry.runtime_data.rooms = {"bedroom": ["climate.bedroom_trv"]}
@@ -1367,18 +1367,18 @@ async def test_calibration_disabled_zero_offset_calls(hass):
     await hass.async_block_till_done()
 
     assert len(offset_calls) == 0, (
-        f"calibration_enabled=False must produce zero offset calls; got {len(offset_calls)}"
+        f"alignment_enabled=False must produce zero offset calls; got {len(offset_calls)}"
     )
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibration_no_sensor_zero_offset_calls(hass):
+async def test_alignment_no_sensor_zero_offset_calls(hass):
     """CALIB-05/D-14: room with no temperature_sensor configured → zero calls.
 
-    calibration_enabled=True but no temperature_sensor key in rooms config
+    alignment_enabled=True but no temperature_sensor key in rooms config
     for this area — the room must be silently skipped.
     """
-    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    # A Tado X zone entity (no valve device): aligned by entity_id.
     _register_tado_x(hass, "bedroom_trv")
     hass.states.async_set(
         "climate.bedroom_trv",
@@ -1405,8 +1405,8 @@ async def test_calibration_no_sensor_zero_offset_calls(hass):
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={"bedroom": {}},  # no temperature_sensor key
     )
-    cfg["calibration_enabled"] = True
-    cfg["calibration_threshold"] = 0.5
+    cfg["alignment_enabled"] = True
+    cfg["alignment_threshold"] = 0.5
     entry.runtime_data.runtime_config = cfg
     entry.runtime_data.rooms = {"bedroom": ["climate.bedroom_trv"]}
 
@@ -1420,8 +1420,8 @@ async def test_calibration_no_sensor_zero_offset_calls(hass):
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibration_incompatible_trv_zero_offset_calls(hass):
-    """CALIB-03/D-08: a TRV of a brand no vendor knows is never calibrated.
+async def test_alignment_incompatible_trv_zero_offset_calls(hass):
+    """CALIB-03/D-08: a TRV of a brand no vendor knows is never aligned.
 
     Even with a temperature_offset attribute and the tado_x service
     registered, no tado_x call is made for a foreign entity.
@@ -1446,8 +1446,8 @@ async def test_calibration_incompatible_trv_zero_offset_calls(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    entry.runtime_data.runtime_config = _make_calibration_config(
-        calibration_enabled=True,
+    entry.runtime_data.runtime_config = _make_alignment_config(
+        alignment_enabled=True,
         sensor_entity_id="sensor.room_temp",
         area_id="study",
     )
@@ -1460,12 +1460,12 @@ async def test_calibration_incompatible_trv_zero_offset_calls(hass):
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibration_delta_below_threshold_zero_offset_calls(hass):
+async def test_alignment_delta_below_threshold_zero_offset_calls(hass):
     """CALIB-04/D-07: abs(delta) <= threshold → zero offset calls (jitter guard).
 
     sensor_temp=20.3, current_temperature=20.0 → delta=0.3 ≤ 0.5 → skip.
     """
-    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    # A Tado X zone entity (no valve device): aligned by entity_id.
     _register_tado_x(hass, "living_trv")
     hass.states.async_set(
         "climate.living_trv",
@@ -1487,9 +1487,9 @@ async def test_calibration_delta_below_threshold_zero_offset_calls(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    entry.runtime_data.runtime_config = _make_calibration_config(
-        calibration_enabled=True,
-        calibration_threshold=0.5,
+    entry.runtime_data.runtime_config = _make_alignment_config(
+        alignment_enabled=True,
+        alignment_threshold=0.5,
         sensor_entity_id="sensor.living_temp",
         area_id="living",
     )
@@ -1505,7 +1505,7 @@ async def test_calibration_delta_below_threshold_zero_offset_calls(hass):
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibration_delta_above_threshold_one_offset_call(hass, freezer):
+async def test_alignment_delta_above_threshold_one_offset_call(hass, freezer):
     """D-05/D-06: abs(delta) > threshold → exactly one offset call with correct value.
 
     sensor_temp=21.0, current_temperature=20.0, existing_offset=0.5
@@ -1531,9 +1531,9 @@ async def test_calibration_delta_above_threshold_one_offset_call(hass, freezer):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    entry.runtime_data.runtime_config = _make_calibration_config(
-        calibration_enabled=True,
-        calibration_threshold=0.5,
+    entry.runtime_data.runtime_config = _make_alignment_config(
+        alignment_enabled=True,
+        alignment_threshold=0.5,
         sensor_entity_id="sensor.hall_temp",
         area_id="hall",
     )
@@ -1553,13 +1553,13 @@ async def test_calibration_delta_above_threshold_one_offset_call(hass, freezer):
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibration_sensor_unavailable_zero_offset_calls(hass):
+async def test_alignment_sensor_unavailable_zero_offset_calls(hass):
     """Pitfall 5: sensor state 'unavailable' → zero offset calls.
 
-    The calibration pass must silently skip when the reference sensor
+    The alignment pass must silently skip when the reference sensor
     reports 'unavailable'.
     """
-    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    # A Tado X zone entity (no valve device): aligned by entity_id.
     _register_tado_x(hass, "kitchen_trv")
     hass.states.async_set(
         "climate.kitchen_trv",
@@ -1581,8 +1581,8 @@ async def test_calibration_sensor_unavailable_zero_offset_calls(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    entry.runtime_data.runtime_config = _make_calibration_config(
-        calibration_enabled=True,
+    entry.runtime_data.runtime_config = _make_alignment_config(
+        alignment_enabled=True,
         sensor_entity_id="sensor.kitchen_temp",
         area_id="kitchen",
     )
@@ -1598,13 +1598,13 @@ async def test_calibration_sensor_unavailable_zero_offset_calls(hass):
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibration_sensor_unknown_zero_offset_calls(hass):
+async def test_alignment_sensor_unknown_zero_offset_calls(hass):
     """Pitfall 5: sensor state 'unknown' → zero offset calls.
 
-    The calibration pass must silently skip when the reference sensor
+    The alignment pass must silently skip when the reference sensor
     reports 'unknown'.
     """
-    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    # A Tado X zone entity (no valve device): aligned by entity_id.
     _register_tado_x(hass, "bathroom_trv")
     hass.states.async_set(
         "climate.bathroom_trv",
@@ -1626,8 +1626,8 @@ async def test_calibration_sensor_unknown_zero_offset_calls(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    entry.runtime_data.runtime_config = _make_calibration_config(
-        calibration_enabled=True,
+    entry.runtime_data.runtime_config = _make_alignment_config(
+        alignment_enabled=True,
         sensor_entity_id="sensor.bathroom_temp",
         area_id="bathroom",
     )
@@ -1643,13 +1643,13 @@ async def test_calibration_sensor_unknown_zero_offset_calls(hass):
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibration_trv_current_temperature_none_zero_offset_calls(hass):
+async def test_alignment_trv_current_temperature_none_zero_offset_calls(hass):
     """Pitfall 2: TRV current_temperature attribute is None → zero offset calls.
 
-    The calibration pass must silently skip when the TRV's current_temperature
+    The alignment pass must silently skip when the TRV's current_temperature
     attribute is absent (None).
     """
-    # A Tado X zone entity (no valve device): calibrated by entity_id.
+    # A Tado X zone entity (no valve device): aligned by entity_id.
     _register_tado_x(hass, "office_trv")
     hass.states.async_set(
         "climate.office_trv",
@@ -1671,8 +1671,8 @@ async def test_calibration_trv_current_temperature_none_zero_offset_calls(hass):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    entry.runtime_data.runtime_config = _make_calibration_config(
-        calibration_enabled=True,
+    entry.runtime_data.runtime_config = _make_alignment_config(
+        alignment_enabled=True,
         sensor_entity_id="sensor.office_temp",
         area_id="office",
     )
@@ -1688,7 +1688,7 @@ async def test_calibration_trv_current_temperature_none_zero_offset_calls(hass):
 
 
 # ---------------------------------------------------------------------------
-# Phase 13 Matter→Tado X Real-Time Calibration — listener lifecycle tests
+# Phase 13 Matter→Tado X Real-Time Alignment — listener lifecycle tests
 # ---------------------------------------------------------------------------
 
 
@@ -1708,10 +1708,10 @@ async def test_matter_mappings_in_default_config(hass):
 
 
 async def test_matter_listeners_registered_on_first_evaluate(hass):
-    """D-09/D-10: after entry setup with a calibratable entity,
-    _calibration_listeners is non-empty after the first async_evaluate call.
+    """D-09/D-10: after entry setup with a alignable entity,
+    _alignment_listeners is non-empty after the first async_evaluate call.
 
-    Each calibration target's temperature source gets its own listener.
+    Each alignment target's temperature source gets its own listener.
     """
 
     # A Tado X zone with a valve: its zone entity gets a listener.
@@ -1737,20 +1737,20 @@ async def test_matter_listeners_registered_on_first_evaluate(hass):
 
     coordinator = entry.runtime_data.coordinator
     # Force a fresh listener registration
-    coordinator._calibration_listeners.clear()
+    coordinator._alignment_listeners.clear()
 
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
 
-    assert len(coordinator._calibration_listeners) > 0, (
-        "_calibration_listeners must be non-empty after first evaluate "
+    assert len(coordinator._alignment_listeners) > 0, (
+        "_alignment_listeners must be non-empty after first evaluate "
         "when rooms contain climate entities"
     )
 
 
-async def test_matter_listener_fires_calibrate_on_temp_change(hass):
+async def test_matter_listener_fires_align_on_temp_change(hass):
     """D-09: state_changed event with changed current_temperature calls
-    _async_calibrate_for_room for the listener's area_id.
+    _async_align_for_room for the listener's area_id.
     """
 
     # A Tado X zone with a valve: its zone entity gets a listener.
@@ -1775,22 +1775,22 @@ async def test_matter_listener_fires_calibrate_on_temp_change(hass):
     entry.runtime_data.rooms = {"living": ["climate.matter_valve"]}
 
     coordinator = entry.runtime_data.coordinator
-    coordinator._calibration_listeners.clear()
+    coordinator._alignment_listeners.clear()
 
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
 
-    assert "climate.matter_valve" in coordinator._calibration_listeners, (
+    assert "climate.matter_valve" in coordinator._alignment_listeners, (
         "Listener must be registered for climate.matter_valve"
     )
 
-    # Spy on _async_calibrate_for_room
-    calibrate_calls = []
+    # Spy on _async_align_for_room
+    align_calls = []
 
-    async def _fake_calibrate(area_id: str) -> None:
-        calibrate_calls.append(area_id)
+    async def _fake_align(area_id: str) -> None:
+        align_calls.append(area_id)
 
-    coordinator._async_calibrate_for_room = _fake_calibrate
+    coordinator._async_align_for_room = _fake_align
 
     # Build a mock event with changed current_temperature
 
@@ -1815,18 +1815,18 @@ async def test_matter_listener_fires_calibrate_on_temp_change(hass):
     )
     await hass.async_block_till_done()
 
-    assert len(calibrate_calls) >= 1, (
-        "_async_calibrate_for_room must be called when current_temperature changes; "
-        f"calibrate_calls={calibrate_calls}"
+    assert len(align_calls) >= 1, (
+        "_async_align_for_room must be called when current_temperature changes; "
+        f"align_calls={align_calls}"
     )
-    assert calibrate_calls[0] == "living", (
-        f"Expected area_id='living', got {calibrate_calls[0]!r}"
+    assert align_calls[0] == "living", (
+        f"Expected area_id='living', got {align_calls[0]!r}"
     )
 
 
 async def test_matter_listener_ignores_non_temp_change(hass):
     """D-09 attribute filter: state_changed with unchanged current_temperature
-    does NOT call _async_calibrate_for_room.
+    does NOT call _async_align_for_room.
     """
 
     # A Tado X zone with a valve: its zone entity gets a listener.
@@ -1851,17 +1851,17 @@ async def test_matter_listener_ignores_non_temp_change(hass):
     entry.runtime_data.rooms = {"hall": ["climate.stable_trv"]}
 
     coordinator = entry.runtime_data.coordinator
-    coordinator._calibration_listeners.clear()
+    coordinator._alignment_listeners.clear()
 
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
 
-    calibrate_calls: list[str] = []
+    align_calls: list[str] = []
 
-    async def _fake_calibrate(area_id: str) -> None:
-        calibrate_calls.append(area_id)
+    async def _fake_align(area_id: str) -> None:
+        align_calls.append(area_id)
 
-    coordinator._async_calibrate_for_room = _fake_calibrate
+    coordinator._async_align_for_room = _fake_align
 
     old_state = hass.states.get("climate.stable_trv")
 
@@ -1884,9 +1884,9 @@ async def test_matter_listener_ignores_non_temp_change(hass):
     )
     await hass.async_block_till_done()
 
-    assert len(calibrate_calls) == 0, (
-        "No calibration must fire when current_temperature is unchanged; "
-        f"calibrate_calls={calibrate_calls}"
+    assert len(align_calls) == 0, (
+        "No alignment must fire when current_temperature is unchanged; "
+        f"align_calls={align_calls}"
     )
 
 
@@ -1915,7 +1915,7 @@ async def test_matter_listener_handles_none_old_state(hass):
     entry.runtime_data.rooms = {"nursery": ["climate.new_entity"]}
 
     coordinator = entry.runtime_data.coordinator
-    coordinator._calibration_listeners.clear()
+    coordinator._alignment_listeners.clear()
 
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
@@ -1939,7 +1939,7 @@ async def test_matter_listener_handles_none_old_state(hass):
 
 
 async def test_refresh_matter_listeners_cancels_old(hass):
-    """MCALIB-02: calling _async_refresh_calibration_listeners() twice causes
+    """MCALIB-02: calling _async_refresh_alignment_listeners() twice causes
     every cancel callable from the first pass to be invoked before
     re-registration.
     """
@@ -1966,13 +1966,13 @@ async def test_refresh_matter_listeners_cancels_old(hass):
     entry.runtime_data.rooms = {"office": ["climate.refresh_trv"]}
 
     coordinator = entry.runtime_data.coordinator
-    coordinator._calibration_listeners.clear()
+    coordinator._alignment_listeners.clear()
 
     # First registration
-    await coordinator._async_refresh_calibration_listeners()
+    await coordinator._async_refresh_alignment_listeners()
 
-    assert len(coordinator._calibration_listeners) > 0, (
-        "First _async_refresh_calibration_listeners must register at least "
+    assert len(coordinator._alignment_listeners) > 0, (
+        "First _async_refresh_alignment_listeners must register at least "
         "one listener"
     )
 
@@ -1986,16 +1986,16 @@ async def test_refresh_matter_listeners_cancels_old(hass):
 
         return _tracked_cancel
 
-    for eid in list(coordinator._calibration_listeners):
-        real_cancel = coordinator._calibration_listeners[eid]
-        coordinator._calibration_listeners[eid] = _make_tracking_cancel(
+    for eid in list(coordinator._alignment_listeners):
+        real_cancel = coordinator._alignment_listeners[eid]
+        coordinator._alignment_listeners[eid] = _make_tracking_cancel(
             real_cancel, first_pass_cancels
         )
 
-    num_first = len(coordinator._calibration_listeners)
+    num_first = len(coordinator._alignment_listeners)
 
     # Second registration — must cancel all first-pass listeners
-    await coordinator._async_refresh_calibration_listeners()
+    await coordinator._async_refresh_alignment_listeners()
 
     assert len(first_pass_cancels) == num_first, (
         f"All {num_first} first-pass cancel callables must be invoked; "
@@ -2004,7 +2004,7 @@ async def test_refresh_matter_listeners_cancels_old(hass):
 
 
 async def test_unload_cancels_matter_listeners(hass):
-    """MCALIB-02/D-11: after async_unload_entry, every _calibration_listeners
+    """MCALIB-02/D-11: after async_unload_entry, every _alignment_listeners
     cancel callable was invoked and the dict is empty.
     """
 
@@ -2030,7 +2030,7 @@ async def test_unload_cancels_matter_listeners(hass):
     entry.runtime_data.rooms = {"garage": ["climate.unload_trv"]}
 
     coordinator = entry.runtime_data.coordinator
-    coordinator._calibration_listeners.clear()
+    coordinator._alignment_listeners.clear()
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
 
@@ -2044,13 +2044,13 @@ async def test_unload_cancels_matter_listeners(hass):
 
         return _tracked_cancel
 
-    for eid in list(coordinator._calibration_listeners):
-        real_cancel = coordinator._calibration_listeners[eid]
-        coordinator._calibration_listeners[eid] = _make_tracking_cancel(
+    for eid in list(coordinator._alignment_listeners):
+        real_cancel = coordinator._alignment_listeners[eid]
+        coordinator._alignment_listeners[eid] = _make_tracking_cancel(
             real_cancel, cancel_calls
         )
 
-    expected_count = len(coordinator._calibration_listeners)
+    expected_count = len(coordinator._alignment_listeners)
     assert expected_count > 0, (
         "At least one listener must be registered before unload"
     )
@@ -2062,13 +2062,13 @@ async def test_unload_cancels_matter_listeners(hass):
         f"All {expected_count} listener cancel callbacks must be called on unload; "
         f"got {len(cancel_calls)}"
     )
-    assert len(coordinator._calibration_listeners) == 0, (
-        "_calibration_listeners must be empty after unload"
+    assert len(coordinator._alignment_listeners) == 0, (
+        "_alignment_listeners must be empty after unload"
     )
 
 
 # ---------------------------------------------------------------------------
-# Phase 13 Task 2 — D-03 control-path dispatch + D-04..D-07 calibration
+# Phase 13 Task 2 — D-03 control-path dispatch + D-04..D-07 alignment
 #
 # IMPORTANT: Entity registry must be populated BEFORE hass.states.async_set.
 # HA's async_generate_entity_id checks the state machine for conflicts —
@@ -2263,7 +2263,7 @@ async def test_unmapped_matter_entity_gets_setpoint(hass):
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibrate_for_room_mapped_reads_matter_temp(hass, freezer):
+async def test_align_for_room_mapped_reads_matter_temp(hass, freezer):
     """D-04: for a mapped room the offset is computed on the Matter entity.
 
     tado_x reads 18.0 (cloud), the paired Matter valve 20.4, the sensor
@@ -2304,8 +2304,8 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass, freezer):
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={"kitchen": {"temperature_sensor": sensor_eid}},
     )
-    cfg["calibration_enabled"] = True
-    cfg["calibration_threshold"] = 0.5
+    cfg["alignment_enabled"] = True
+    cfg["alignment_threshold"] = 0.5
     cfg["matter_mappings"] = {tado_eid: [matter_eid]}
     entry.runtime_data.runtime_config = cfg
     entry.runtime_data.rooms = {"kitchen": [tado_eid, matter_eid]}
@@ -2314,8 +2314,8 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass, freezer):
     # Trigger domain object rebuild with updated config.
     await _evaluate_steady(hass, coordinator, freezer)
 
-    # The listener path calibrates again: the TRV must settle first.
-    await coordinator._async_calibrate_for_room("kitchen")
+    # The listener path aligns again: the TRV must settle first.
+    await coordinator._async_align_for_room("kitchen")
     await hass.async_block_till_done()
 
     assert [c.data for c in offset_calls] == [
@@ -2324,10 +2324,8 @@ async def test_calibrate_for_room_mapped_reads_matter_temp(hass, freezer):
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibrate_for_room_unmapped_tado_reads_zone_entity(
-    hass, freezer
-):
-    """D-06: an unmapped tado_x zone calibrates its valve, read on the
+async def test_align_for_room_unmapped_tado_reads_zone_entity(hass, freezer):
+    """D-06: an unmapped tado_x zone aligns its valve, read on the
     zone entity itself (cloud readings)."""
     valve_id = _register_tado_x(hass, "tado_off", offset=0.0)
     tado_eid = "climate.tado_off"
@@ -2354,8 +2352,8 @@ async def test_calibrate_for_room_unmapped_tado_reads_zone_entity(
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={"office": {"temperature_sensor": sensor_eid}},
     )
-    cfg["calibration_enabled"] = True
-    cfg["calibration_threshold"] = 0.5
+    cfg["alignment_enabled"] = True
+    cfg["alignment_threshold"] = 0.5
     cfg["matter_mappings"] = {}  # no mapping
     entry.runtime_data.runtime_config = cfg
     entry.runtime_data.rooms = {"office": [tado_eid]}
@@ -2370,7 +2368,7 @@ async def test_calibrate_for_room_unmapped_tado_reads_zone_entity(
 
 
 @pytest.mark.freeze_time("2026-01-05 12:00:00")
-async def test_calibrate_for_room_unmapped_matter_uses_room_path(hass):
+async def test_align_for_room_unmapped_matter_uses_room_path(hass):
     """D-07: a standalone Matter valve has no offset write path."""
     from homeassistant.helpers import entity_registry as er
 
@@ -2405,8 +2403,8 @@ async def test_calibrate_for_room_unmapped_matter_uses_room_path(hass):
         daily_program=ALL_DAYS_NORMAL_PROGRAM,
         rooms_config={"guest": {"temperature_sensor": sensor_eid}},
     )
-    cfg["calibration_enabled"] = True
-    cfg["calibration_threshold"] = 0.5
+    cfg["alignment_enabled"] = True
+    cfg["alignment_threshold"] = 0.5
     cfg["matter_mappings"] = {}  # no mapping — standalone Matter
     entry.runtime_data.runtime_config = cfg
     entry.runtime_data.rooms = {"guest": [matter_eid]}
@@ -2416,7 +2414,7 @@ async def test_calibrate_for_room_unmapped_matter_uses_room_path(hass):
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
 
-    await coordinator._async_calibrate_for_room("guest")
+    await coordinator._async_align_for_room("guest")
     await hass.async_block_till_done()
 
     assert offset_calls == []

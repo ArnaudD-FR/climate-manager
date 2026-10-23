@@ -5,7 +5,7 @@ Scenarios:
 - Room.apply_setpoint(period, temp, ctx) delegates to each TRVGroup in
   room._trv_groups — each group's push method is awaited exactly once with
   the given temp and period (D-09 apply_setpoint → group.push flow).
-- Room owns preheat and calibration state directly (D-06) — the Room
+- Room owns preheat and alignment state directly (D-06) — the Room
   instance exposes _preheat_active, _preheat_target, _preheat_suppressed
   as scalar attributes (not coordinator dicts).
 """

@@ -12,7 +12,7 @@ import dataclasses
 
 from homeassistant.core import HomeAssistant
 
-from .base import BoilerReadings, BoilerVendor, CalibrationTarget, TRVVendor
+from .base import BoilerReadings, BoilerVendor, AlignmentTarget, TRVVendor
 from .tado_x import TadoX
 from .vicare import ViCare
 
@@ -31,29 +31,29 @@ __all__ = [
     "VENDORS",
     "BoilerReadings",
     "BoilerVendor",
-    "CalibrationTarget",
+    "AlignmentTarget",
     "TRVVendor",
     "accessory_models",
     "boiler_readings",
     "boiler_vendor",
-    "calibration_targets",
+    "alignment_targets",
     "cloud_polling",
     "pairable_entities",
     "suggest_mappings",
 ]
 
 
-def calibration_targets(
+def alignment_targets(
     hass: HomeAssistant,
     area_id: str,
     entity_ids: list[str],
     mappings: dict[str, list[str]],
-) -> list[CalibrationTarget]:
-    """Every vendor's calibration targets for a room."""
+) -> list[AlignmentTarget]:
+    """Every vendor's alignment targets for a room."""
     return [
         target
         for vendor in VENDORS
-        for target in vendor.calibration_targets(
+        for target in vendor.alignment_targets(
             hass, area_id, entity_ids, mappings
         )
     ]

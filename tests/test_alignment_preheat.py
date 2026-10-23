@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: MIT
-"""Offset calibration while a pre-heat runs, logs and restart seeding.
+"""Offset alignment while a pre-heat runs, logs and restart seeding.
 
 Scenarios:
 - A pre-heat does not tighten the threshold: the boost compensates a TRV
   reading high next to its radiator, the offset only the steady bias.
-- Each offset written logs one INFO "calibrate |" line.
+- Each offset written logs one INFO "align |" line.
 - Tado X valves: after a restart (empty memory) the new offset accumulates
   on the offset the valve reports, not on 0.
 """
@@ -44,8 +44,8 @@ async def _setup(hass, area_id: str, trv: str, sensor: str):
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     config = entry.runtime_data.runtime_config
-    config["calibration_enabled"] = True
-    config["calibration_threshold"] = 0.5
+    config["alignment_enabled"] = True
+    config["alignment_threshold"] = 0.5
     config.setdefault("rooms", {})[area_id] = {"temperature_sensor": sensor}
     entry.runtime_data.rooms = {area_id: [trv]}
     coordinator = entry.runtime_data.coordinator
@@ -92,7 +92,7 @@ async def test_same_threshold_during_preheat(hass, freezer):
     coordinator.rooms[area.id]._preheat_in_progress = _running_preheat()
 
     freezer.tick(timedelta(minutes=90))
-    await coordinator._async_calibrate(config, ctx=object())
+    await coordinator._async_align(config, ctx=object())
     await hass.async_block_till_done()
 
     assert not offset_calls
@@ -116,14 +116,14 @@ async def test_tado_valve_offset_seeded_from_sensor_after_restart(
     )
     assert not offset_calls  # readings not steady yet
     freezer.tick(timedelta(minutes=90))
-    await coordinator._async_calibrate(config, ctx=object())
+    await coordinator._async_align(config, ctx=object())
     await hass.async_block_till_done()
 
     assert len(offset_calls) == 1
     assert offset_calls[0].data == {"device_id": valve.id, "offset": -1.9}
-    assert coordinator.calibrator.last_offset[valve.id] == -1.9
+    assert coordinator.aligner.last_offset[valve.id] == -1.9
     assert any(
-        m.startswith(f"calibrate | room={area.id} trv=Vanne bureau")
+        m.startswith(f"align | room={area.id} trv=Vanne bureau")
         and "offset=-1.2→-1.9 threshold=0.5" in m
         for m in caplog.messages
     )

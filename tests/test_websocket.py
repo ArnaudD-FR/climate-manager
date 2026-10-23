@@ -1404,53 +1404,53 @@ async def test_ws_set_person_config_revert_preserves_week_schedules(
 
 
 # ---------------------------------------------------------------------------
-# Tests: set_calibration_config WS command (Plan 09-03, CALIB-01)
+# Tests: set_alignment_config WS command (Plan 09-03, CALIB-01)
 # ---------------------------------------------------------------------------
 
 
-async def test_ws_set_calibration_config_enabled_true(hass, hass_ws_client):
-    """set_calibration_config {enabled: true} persists calibration_enabled=True.
+async def test_ws_set_alignment_config_enabled_true(hass, hass_ws_client):
+    """set_alignment_config {enabled: true} persists alignment_enabled=True.
 
     Verifies CALIB-01 happy path:
     - WS result is success
-    - runtime_config["calibration_enabled"] is True after the call
-    - No async_evaluate triggered (Pitfall 4: calibration config is not a
+    - runtime_config["alignment_enabled"] is True after the call
+    - No async_evaluate triggered (Pitfall 4: alignment config is not a
       mode change — it takes effect on the next scheduled cycle).
     """
     entry = await _setup_entry(hass)
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
-        {"type": f"{DOMAIN}/set_calibration_config", "enabled": True}
+        {"type": f"{DOMAIN}/set_alignment_config", "enabled": True}
     )
     msg = await client.receive_json()
 
     assert msg["success"] is True
     assert msg["result"]["success"] is True
-    assert entry.runtime_data.runtime_config["calibration_enabled"] is True
+    assert entry.runtime_data.runtime_config["alignment_enabled"] is True
 
 
-async def test_ws_set_calibration_config_enabled_false(hass, hass_ws_client):
-    """set_calibration_config {enabled: false} persists calibration_enabled=False.
+async def test_ws_set_alignment_config_enabled_false(hass, hass_ws_client):
+    """set_alignment_config {enabled: false} persists alignment_enabled=False.
 
     Verifies CALIB-01 disable path:
     - WS result is success
-    - runtime_config["calibration_enabled"] is False after the call
+    - runtime_config["alignment_enabled"] is False after the call
     """
     entry = await _setup_entry(hass)
 
-    # Pre-seed calibration_enabled=True to confirm the command can flip it
-    entry.runtime_data.runtime_config["calibration_enabled"] = True
+    # Pre-seed alignment_enabled=True to confirm the command can flip it
+    entry.runtime_data.runtime_config["alignment_enabled"] = True
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
-        {"type": f"{DOMAIN}/set_calibration_config", "enabled": False}
+        {"type": f"{DOMAIN}/set_alignment_config", "enabled": False}
     )
     msg = await client.receive_json()
 
     assert msg["success"] is True
     assert msg["result"]["success"] is True
-    assert entry.runtime_data.runtime_config["calibration_enabled"] is False
+    assert entry.runtime_data.runtime_config["alignment_enabled"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -1564,7 +1564,7 @@ async def test_set_matter_mapping_triggers_listener_refresh(
     async def _spy_refresh():
         refresh_called.append(True)
 
-    coordinator._async_refresh_calibration_listeners = _spy_refresh
+    coordinator._async_refresh_alignment_listeners = _spy_refresh
 
     client = await hass_ws_client()
     await client.send_json_auto_id(
@@ -1579,7 +1579,7 @@ async def test_set_matter_mapping_triggers_listener_refresh(
 
     assert msg["success"] is True
     assert len(refresh_called) == 1, (
-        "_async_refresh_calibration_listeners must be called once"
+        "_async_refresh_alignment_listeners must be called once"
     )
 
 
@@ -1608,14 +1608,14 @@ async def test_ws_suggest_matter_mappings_returns_mappings(
     assert isinstance(msg["result"]["mappings"], dict)
 
 
-async def test_calibration_status_hides_matter_grouped_with_tado_x(
+async def test_alignment_status_hides_matter_grouped_with_tado_x(
     hass, hass_ws_client
 ):
-    """get_calibration_status omits Matter valves grouped with a Tado X room.
+    """get_alignment_status omits Matter valves grouped with a Tado X room.
 
-    They are calibrated through the Tado X row (the zone's valve), read
+    They are aligned through the Tado X row (the zone's valve), read
     on the paired Matter valve; a standalone Matter valve is still listed,
-    as not calibratable.
+    as not alignable.
     """
     from homeassistant.helpers import area_registry as ar
     from homeassistant.helpers import device_registry as dr
@@ -1664,15 +1664,15 @@ async def test_calibration_status_hides_matter_grouped_with_tado_x(
     }
 
     client = await hass_ws_client()
-    await client.send_json_auto_id({"type": f"{DOMAIN}/get_calibration_status"})
+    await client.send_json_auto_id({"type": f"{DOMAIN}/get_alignment_status"})
     msg = await client.receive_json()
 
     assert msg["success"] is True
     rows = {t["entity_id"]: t for t in msg["result"]["trvs"]}
     assert set(rows) == {ids["lounge_room"], ids["lounge_standalone"]}
-    assert rows[ids["lounge_room"]]["supports_calibration"] is True
+    assert rows[ids["lounge_room"]]["supports_alignment"] is True
     assert rows[ids["lounge_room"]]["vendor"] == "Tado X"
     assert rows[ids["lounge_room"]]["device_id"] == valve.id
-    assert rows[ids["lounge_standalone"]]["supports_calibration"] is False
+    assert rows[ids["lounge_standalone"]]["supports_alignment"] is False
     assert rows[ids["lounge_standalone"]]["vendor"] is None
     assert msg["result"]["cloud_polling"] == []

@@ -25,7 +25,7 @@ Registers 20 WebSocket commands for the panel ↔ backend protocol:
   mutation
 - reset_zone_time_program: restores zone time_program from 'default' or 'global'
   target; zone_id="default" resets default_zone.time_program (D-09)
-- set_calibration_config: persists calibration_enabled bool (D-10, CALIB-01)
+- set_alignment_config: persists alignment_enabled bool (D-10, CALIB-01)
 - set_matter_mapping: persists sparse matter_mappings[entity_id] and
   triggers coordinator listener refresh (D-15/D-16, MCALIB-01/02)
 - suggest_matter_mappings: returns the vendors' auto-detected Matter
@@ -44,7 +44,7 @@ Removed in Phase 14 (D-08/D-09):
 All handlers access state via the entry closure (never hass.data[DOMAIN]).
 Write handlers follow the write-then-evaluate pattern:
   mutate runtime_config → store.async_save → send_result → coordinator.async_evaluate (background).
-Exception: set_calibration_config does NOT trigger async_evaluate (RESEARCH Pitfall 4).
+Exception: set_alignment_config does NOT trigger async_evaluate (RESEARCH Pitfall 4).
 
 Security:
 - T-03-04: vol.In/vol.Coerce schema gates reject invalid payloads before handler runs
@@ -58,7 +58,7 @@ Security:
 - T-05-08: set_zone_time_program validates BEFORE any runtime_config mutation (Pitfall 6)
 - T-05-09: reset_zone_time_program uses copy.deepcopy for both target branches (Pitfall 2)
 - T-05-11: delete_zone uses pop() never assigns None — sparse D-06 model preserved
-- T-09-01: set_calibration_config vol.Required("enabled"): bool rejects non-bool
+- T-09-01: set_alignment_config vol.Required("enabled"): bool rejects non-bool
            payloads before handler runs (T-03-04 parity)
 - T-13-04: set_matter_mapping filters matter_entity_ids to climate.* strings
            before storage (Pitfall 7 — non-climate entity_ids silently dropped)
@@ -161,10 +161,10 @@ def async_register_commands(
         hass, _make_ws_reset_zone_time_program(entry)
     )
     websocket_api.async_register_command(
-        hass, _make_ws_set_calibration_config(entry)
+        hass, _make_ws_set_alignment_config(entry)
     )
     websocket_api.async_register_command(
-        hass, _make_ws_get_calibration_status(entry)
+        hass, _make_ws_get_alignment_status(entry)
     )
     websocket_api.async_register_command(
         hass, _make_ws_set_matter_mapping(entry)
@@ -1108,75 +1108,73 @@ def _make_ws_subscribe_status(entry: ClimateManagerConfigEntry):
 
 
 # ---------------------------------------------------------------------------
-# Calibration config command (Plan 09-03, CALIB-01)
+# Alignment config command (Plan 09-03, CALIB-01)
 # ---------------------------------------------------------------------------
 
 
-def _make_ws_set_calibration_config(entry: ClimateManagerConfigEntry):
-    """Factory: create set_calibration_config handler."""
+def _make_ws_set_alignment_config(entry: ClimateManagerConfigEntry):
+    """Factory: create set_alignment_config handler."""
 
     @websocket_api.websocket_command(
         {
-            vol.Required("type"): f"{DOMAIN}/set_calibration_config",
+            vol.Required("type"): f"{DOMAIN}/set_alignment_config",
             vol.Required("enabled"): bool,
         }
     )
     @websocket_api.async_response
-    async def ws_set_calibration_config(
+    async def ws_set_alignment_config(
         hass: HomeAssistant,
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Persist calibration_enabled toggle to runtime_config.
+        """Persist alignment_enabled toggle to runtime_config.
 
         T-09-01: vol.Required("enabled"): bool in the schema rejects non-bool
                  payloads before the handler runs (T-03-04 parity).
         T-09-02: sensor and TRV entity_ids are read server-side from
                  runtime_config["rooms"] — never from the WS payload.
-        No async_evaluate trigger — calibration runs on the next scheduled
+        No async_evaluate trigger — alignment runs on the next scheduled
         cycle (RESEARCH Pitfall 4).
         """
-        old_value = entry.runtime_data.runtime_config.get("calibration_enabled")
-        entry.runtime_data.runtime_config["calibration_enabled"] = msg[
-            "enabled"
-        ]
+        old_value = entry.runtime_data.runtime_config.get("alignment_enabled")
+        entry.runtime_data.runtime_config["alignment_enabled"] = msg["enabled"]
         try:
             await entry.runtime_data.store.async_save(
                 entry.runtime_data.runtime_config
             )
         except Exception as exc:  # noqa: BLE001
-            entry.runtime_data.runtime_config["calibration_enabled"] = old_value
+            entry.runtime_data.runtime_config["alignment_enabled"] = old_value
             connection.send_error(
                 msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
             )
             return
         connection.send_result(msg["id"], {"success": True})
-        # NOTE: no async_evaluate trigger — calibration runs on the
+        # NOTE: no async_evaluate trigger — alignment runs on the
         # next scheduled cycle (RESEARCH Pitfall 4)
 
-    return ws_set_calibration_config
+    return ws_set_alignment_config
 
 
-def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
-    """Factory: create get_calibration_status handler."""
+def _make_ws_get_alignment_status(entry: ClimateManagerConfigEntry):
+    """Factory: create get_alignment_status handler."""
 
     @websocket_api.websocket_command(
         {
-            vol.Required("type"): f"{DOMAIN}/get_calibration_status",
+            vol.Required("type"): f"{DOMAIN}/get_alignment_status",
         }
     )
     @websocket_api.async_response
-    async def ws_get_calibration_status(
+    async def ws_get_alignment_status(
         hass: HomeAssistant,
         connection: websocket_api.ActiveConnection,
         msg: dict,
     ) -> None:
-        """Return per-TRV calibration status for the Options card table.
+        """Return per-TRV alignment status for the Options card table.
 
         For every TRV entity across all managed rooms, returns:
           - entity_id, friendly_name
-          - supports_calibration (bool)
-          - last_calibrated_at (ISO timestamp, or null if never calibrated this run)
+          - supports_alignment (bool)
+          - last_aligned_at (ISO timestamp, or null if never aligned this run)
         """
         coordinator = entry.runtime_data.coordinator
         rooms = entry.runtime_data.rooms
@@ -1185,7 +1183,7 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
 
         area_reg = ar.async_get(hass)
         room_auto_sensors = entry.runtime_data.room_auto_sensors
-        # Matter valves paired with another entity are calibrated through
+        # Matter valves paired with another entity are aligned through
         # its rows (same dedup set as TRVGroup).
         matter_mappings: dict[str, list[str]] = (
             entry.runtime_data.runtime_config.get("matter_mappings", {})
@@ -1211,10 +1209,10 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
                     except (ValueError, TypeError):
                         pass
 
-            # Calibratable offsets, as the vendors resolve them (one row per
-            # physical valve when the brand calibrates per device).
-            calibrator = coordinator.calibrator if coordinator else None
-            targets = calibrator.targets(area_id) if calibrator else []
+            # Alignable offsets, as the vendors resolve them (one row per
+            # physical valve when the brand aligns per device).
+            aligner = coordinator.aligner if coordinator else None
+            targets = aligner.targets(area_id) if aligner else []
             covered: set[str] = set()
             for target in targets:
                 covered.update(
@@ -1232,39 +1230,37 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
                             if target.device_id is not None
                             else _friendly_name(hass, target.key)
                         ),
-                        "supports_calibration": True,
+                        "supports_alignment": True,
                         "vendor": target.vendor.label,
                         "trv_temperature": _current_temperature(
                             hass, target.temp_entity_id
                         ),
                         "room_temperature": room_temperature,
-                        "current_offset": calibrator.current_offset(target),
-                        "last_calibrated_at": calibrator.last_changed.get(
-                            target.key
-                        ),
+                        "current_offset": aligner.current_offset(target),
+                        "last_aligned_at": aligner.last_changed.get(target.key),
                     }
                 )
 
-            # TRVs no vendor can calibrate
+            # TRVs no vendor can align
             for entity_id in entity_ids:
                 if not is_trv_entity(hass, entity_id):
                     continue
                 if entity_id in covered or entity_id in grouped_matter:
-                    continue  # shown via its calibration row
+                    continue  # shown via its alignment row
                 trvs.append(
                     {
                         "entity_id": entity_id,
                         "device_id": None,
                         "area_id": area_id,
                         "friendly_name": _friendly_name(hass, entity_id),
-                        "supports_calibration": False,
+                        "supports_alignment": False,
                         "vendor": None,
                         "trv_temperature": _current_temperature(
                             hass, entity_id
                         ),
                         "room_temperature": room_temperature,
                         "current_offset": None,
-                        "last_calibrated_at": None,
+                        "last_aligned_at": None,
                     }
                 )
 
@@ -1276,7 +1272,7 @@ def _make_ws_get_calibration_status(entry: ClimateManagerConfigEntry):
             },
         )
 
-    return ws_get_calibration_status
+    return ws_get_alignment_status
 
 
 def _make_ws_set_matter_mapping(entry: ClimateManagerConfigEntry):
@@ -1329,7 +1325,7 @@ def _make_ws_set_matter_mapping(entry: ClimateManagerConfigEntry):
         coordinator = entry.runtime_data.coordinator
         if coordinator is not None:
             hass.async_create_task(
-                coordinator._async_refresh_calibration_listeners()
+                coordinator._async_refresh_alignment_listeners()
             )
 
     return ws_set_matter_mapping

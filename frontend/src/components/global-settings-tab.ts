@@ -34,7 +34,7 @@ import type {
   StatusPayload,
   DailyProgram,
   Period,
-  TRVCalibrationEntry,
+  TRVAlignmentEntry,
   CloudPolling,
   BoilerConfig,
 } from "../types.js";
@@ -134,7 +134,7 @@ export class GlobalSettingsTab extends LitElement {
   /** HA hass object — used for resolving person entity friendly names. */
   @property({ attribute: false }) hass!: Hass;
 
-  @state() private _trvStatuses: TRVCalibrationEntry[] = [];
+  @state() private _trvStatuses: TRVAlignmentEntry[] = [];
   @state() private _loadingStatuses = false;
   @state() private _cloudPolling: CloudPolling[] = [];
 
@@ -372,7 +372,7 @@ export class GlobalSettingsTab extends LitElement {
         margin-right: 16px;
       }
 
-      /* ---- TRV calibration status table ---- */
+      /* ---- Sensor alignment status table ---- */
       .calib-table-wrap {
         margin-top: 16px;
         overflow-x: auto;
@@ -403,7 +403,7 @@ export class GlobalSettingsTab extends LitElement {
         border-bottom: none;
       }
 
-      .calib-badge {
+      .align-badge {
         display: inline-block;
         padding: 2px 8px;
         border-radius: 10px;
@@ -411,12 +411,12 @@ export class GlobalSettingsTab extends LitElement {
         font-weight: 600;
       }
 
-      .calib-badge.supported {
+      .align-badge.supported {
         background: rgba(34, 197, 94, 0.15);
         color: #15803d;
       }
 
-      .calib-badge.unsupported {
+      .align-badge.unsupported {
         background: rgba(0, 0, 0, 0.06);
         color: var(--secondary-text-color);
       }
@@ -562,22 +562,22 @@ export class GlobalSettingsTab extends LitElement {
     }
   };
 
-  private _onCalibrationToggle = async (e: Event) => {
+  private _onAlignmentToggle = async (e: Event) => {
     const enabled = (e.target as HTMLInputElement).checked;
     try {
-      await this.ws.setCalibrationConfig(enabled);
+      await this.ws.setAlignmentConfig(enabled);
       await this.panel.reloadConfig();
       this.panel.showToast("Saved", false);
-      if (enabled) void this._loadCalibrationStatuses();
+      if (enabled) void this._loadAlignmentStatuses();
     } catch {
       this.panel.showToast("Save failed", true);
     }
   };
 
-  private _loadCalibrationStatuses = async () => {
+  private _loadAlignmentStatuses = async () => {
     this._loadingStatuses = true;
     try {
-      const result = await this.ws.getCalibrationStatus();
+      const result = await this.ws.getAlignmentStatus();
       this._trvStatuses = result.trvs;
       this._cloudPolling = result.cloud_polling;
     } catch {
@@ -1082,11 +1082,11 @@ export class GlobalSettingsTab extends LitElement {
           </td>
           <td>
             <span
-              class="calib-badge ${trv.supports_calibration
+              class="align-badge ${trv.supports_alignment
                 ? "supported"
                 : "unsupported"}"
             >
-              ${trv.supports_calibration
+              ${trv.supports_alignment
                 ? trv.vendor ?? "Supported"
                 : "Not supported"}
             </span>
@@ -1110,8 +1110,8 @@ export class GlobalSettingsTab extends LitElement {
               : "—"}
           </td>
           <td>
-            ${trv.last_calibrated_at
-              ? new Date(trv.last_calibrated_at).toLocaleString()
+            ${trv.last_aligned_at
+              ? new Date(trv.last_aligned_at).toLocaleString()
               : "Never"}
           </td>
         </tr>
@@ -1128,7 +1128,7 @@ export class GlobalSettingsTab extends LitElement {
       return html`
         <button
           class="refresh-btn"
-          @click=${this._loadCalibrationStatuses}
+          @click=${this._loadAlignmentStatuses}
           style="margin-top: 8px;"
         >
           Refresh
@@ -1176,7 +1176,7 @@ export class GlobalSettingsTab extends LitElement {
           class="refresh-btn"
           style="margin-top: 8px; margin-bottom: 8px;"
           ?disabled=${this._loadingStatuses}
-          @click=${this._loadCalibrationStatuses}
+          @click=${this._loadAlignmentStatuses}
         >
           ${this._loadingStatuses ? "Refreshing…" : "Refresh"}
         </button>
@@ -1196,7 +1196,7 @@ export class GlobalSettingsTab extends LitElement {
           <thead>
             <tr>
               <th>TRV</th>
-              <th>Auto-calibration</th>
+              <th>Sensor alignment</th>
               <th>Current offset</th>
               <th>TRV temp</th>
               <th>Room temp</th>
@@ -1228,19 +1228,19 @@ export class GlobalSettingsTab extends LitElement {
   }
 
   private _renderOptionsCard() {
-    const enabled = this.config.calibration_enabled ?? false;
+    const enabled = this.config.alignment_enabled ?? false;
     if (enabled && this._trvStatuses.length === 0 && !this._loadingStatuses) {
-      void this._loadCalibrationStatuses();
+      void this._loadAlignmentStatuses();
     }
     return html`
       <ha-card>
-        <div class="card-header">TRV Auto-Calibration</div>
+        <div class="card-header">Sensor alignment</div>
         <div class="card-content">
           <div class="option-row">
-            <span class="option-label">Enable auto-calibration</span>
+            <span class="option-label">Enable sensor alignment</span>
             <ha-switch
               .checked=${enabled}
-              @change=${this._onCalibrationToggle}
+              @change=${this._onAlignmentToggle}
             ></ha-switch>
           </div>
           ${enabled ? this._renderTRVTable() : ""}

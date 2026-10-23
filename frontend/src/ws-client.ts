@@ -15,7 +15,7 @@ import type {
   PersonConfig,
   DailyProgram,
   ZoneConfig,
-  TRVCalibrationEntry,
+  TRVAlignmentEntry,
   CloudPolling,
   BoilerConfig,
 } from "./types.js";
@@ -218,10 +218,10 @@ export class WsClient {
       .then((r) => r.mappings);
   }
 
-  /** Enable or disable TRV offset auto-calibration globally. */
-  setCalibrationConfig(enabled: boolean): Promise<{ success: boolean }> {
+  /** Enable or disable TRV offset auto-alignment globally. */
+  setAlignmentConfig(enabled: boolean): Promise<{ success: boolean }> {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
-      type: "climate_manager/set_calibration_config",
+      type: "climate_manager/set_alignment_config",
       enabled,
     });
   }
@@ -239,16 +239,16 @@ export class WsClient {
     });
   }
 
-  /** Return per-TRV calibration status for the TRV Auto-Calibration card. */
-  getCalibrationStatus(): Promise<{
-    trvs: TRVCalibrationEntry[];
+  /** Return per-TRV alignment status for the TRV Auto-Alignment card. */
+  getAlignmentStatus(): Promise<{
+    trvs: TRVAlignmentEntry[];
     cloud_polling: CloudPolling[];
   }> {
     return this.hass.connection.sendMessagePromise<{
-      trvs: TRVCalibrationEntry[];
+      trvs: TRVAlignmentEntry[];
       cloud_polling: CloudPolling[];
     }>({
-      type: "climate_manager/get_calibration_status",
+      type: "climate_manager/get_alignment_status",
     });
   }
 }

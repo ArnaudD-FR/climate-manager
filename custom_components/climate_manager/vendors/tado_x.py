@@ -18,7 +18,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from ..trv import is_trv_entity
-from .base import CalibrationTarget, TRVVendor
+from .base import AlignmentTarget, TRVVendor
 
 _DOMAIN = "tado_x"
 _VALVE_MODEL = "Radiator Valve X"
@@ -33,19 +33,19 @@ class TadoX(TRVVendor):
     accessory_models = frozenset({_VALVE_MODEL})
     pairable = True
 
-    def calibration_targets(
+    def alignment_targets(
         self,
         hass: HomeAssistant,
         area_id: str,
         entity_ids: list[str],
         mappings: dict[str, list[str]],
-    ) -> list[CalibrationTarget]:
+    ) -> list[AlignmentTarget]:
         """One target per valve of the room.
 
         A valve is compared with its own Matter entity (same serial) when
         the room has one, else with the zone's first paired Matter entity,
         else with the zone entity (cloud readings). A zone without a known
-        valve is not calibrated: the offset service only takes a device.
+        valve is not aligned: the offset service only takes a device.
         """
         trvs = [e for e in entity_ids if is_trv_entity(hass, e)]
         zones = [e for e in trvs if self.owns(hass, e)]
@@ -79,7 +79,7 @@ class TadoX(TRVVendor):
             if temp_entity is None:
                 continue
             targets.append(
-                CalibrationTarget(
+                AlignmentTarget(
                     vendor=self,
                     key=valve.id,
                     name=valve.name_by_user or valve.name or valve.id,
@@ -91,7 +91,7 @@ class TadoX(TRVVendor):
         return targets
 
     def read_offset(
-        self, hass: HomeAssistant, target: CalibrationTarget
+        self, hass: HomeAssistant, target: AlignmentTarget
     ) -> float | None:
         """The valve's temperature_offset sensor."""
         if target.device_id is None:
@@ -107,7 +107,7 @@ class TadoX(TRVVendor):
         return None
 
     async def write_offset(
-        self, hass: HomeAssistant, target: CalibrationTarget, offset: float
+        self, hass: HomeAssistant, target: AlignmentTarget, offset: float
     ) -> None:
         """Call tado_x.set_temperature_offset on the valve device.
 

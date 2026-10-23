@@ -37,7 +37,7 @@ a room to appear in the panel, two conditions must be met:
 1. **At least one `climate` entity** (TRV / thermostat) must be assigned to the
    area, either directly on the entity, or via the device it belongs to.
 2. **A temperature sensor** in the same area is strongly recommended. Without
-   one, calibration is disabled and the Overview tab cannot show live room
+   one, sensor alignment is disabled and the Overview tab cannot show live room
    temperatures. Climate Manager auto-discovers the first `sensor` entity with
    `device_class: temperature` in the area; you can also override this manually
    in each room's settings.
@@ -79,8 +79,8 @@ a room to appear in the panel, two conditions must be met:
   temperature
 - **Live status**: Overview tab shows current period, temperature, and humidity
   for every room
-- **TRV calibration**: Optional auto-calibration of TRV offsets toward a room
-  temperature sensor (Tado X supported)
+- **Sensor alignment**: Optionally sets each TRV's temperature offset so that it
+  follows the room temperature sensor (Tado X supported)
 - **TRV control**: Works with any HA `climate` entity; no brand-specific APIs
 - **Boiler control**: Optionally switch a boiler (`climate`, `switch` or
   `input_boolean`) on while at least one room is in a Normal, Comfort or
@@ -261,7 +261,7 @@ No YAML editing required.
 - Boiler: entity to control, its heating / stopped modes (climate entity) and
   minimum on / off times. The boiler heats while at least one room's effective
   period is Normal, Comfort or Pre-heat
-- TRV auto-calibration (enable/disable; Tado X offset calibration)
+- Sensor alignment (enable/disable; Tado X offsets follow the room sensor)
 
 ### Zones
 
@@ -318,7 +318,7 @@ alternatives.
 | Calendar presence (HA `calendar.*`)      | Yes                                   | No                      | No                         | No                       | No                |
 | Even/odd week schedules                  | Yes                                   | No                      | No                         | No                       | No                |
 | Predictive pre-heat with learned inertia | Yes                                   | No                      | No                         | No                       | No                |
-| TRV temperature offset auto-calibration  | Yes                                   | Yes (MPC/PID/TPI)       | Yes (TPI)                  | No                       | No                |
+| TRV offset aligned on a room sensor      | Yes                                   | Yes (MPC/PID/TPI)       | Yes (TPI)                  | No                       | No                |
 | Dedicated dashboard (no YAML)            | Yes                                   | No (YAML + automations) | Partial                    | No (YAML)                | No (YAML)         |
 | Works with any `climate` entity          | Yes                                   | Specific TRV models     | Yes                        | No (switches only)       | Yes               |
 | Installation                             | HACS / manual                         | HACS                    | HACS                       | Built-in HA              | AppDaemon package |

@@ -25,7 +25,7 @@ files:
   - tests/test_room_domain.py
   - tests/test_vendor_tado_x.py
   - tests/test_websocket.py
-status: pending
+status: completed
 ---
 
 ## Problem

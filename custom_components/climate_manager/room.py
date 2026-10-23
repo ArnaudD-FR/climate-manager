@@ -108,7 +108,7 @@ class Room:
     The coordinator populates _trv_groups and _zone at setup time.
 
     Design decisions:
-    - D-06: preheat/calibration state is per-room (not coordinator dicts)
+    - D-06: preheat/alignment state is per-room (not coordinator dicts)
     - D-07: TRVGroup assembly happens at coordinator init
     - D-09: apply_setpoint delegates to every TRVGroup via asyncio.gather
     - T-16-09: inertia-model corruption guard (exclude samples that never
@@ -497,7 +497,7 @@ class Room:
     def _room_temperature(self, config: dict) -> float | None:
         """Current room temperature: room sensor first, else the first TRV.
 
-        The room sensor is the same reference calibration aims for; a TRV
+        The room sensor is the same reference alignment aims for; a TRV
         reads the radiator's surroundings and reaches the target early.
         """
         candidates: list[tuple[str, str | None]] = []

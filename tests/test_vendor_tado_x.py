@@ -11,7 +11,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.climate_manager.vendors import (
-    CalibrationTarget,
+    AlignmentTarget,
     accessory_models,
     cloud_polling,
     pairable_entities,
@@ -65,7 +65,7 @@ def _setup_room(hass):
 
 
 # ---------------------------------------------------------------------------
-# calibration_targets
+# alignment_targets
 # ---------------------------------------------------------------------------
 
 
@@ -73,7 +73,7 @@ async def test_targets_one_per_valve_read_on_zone_entity(hass):
     """Without Matter, every valve is compared with the zone entity."""
     area, _, zone, v1, v2 = _setup_room(hass)
 
-    targets = TadoX().calibration_targets(hass, area.id, [zone], {})
+    targets = TadoX().alignment_targets(hass, area.id, [zone], {})
 
     assert {(t.key, t.name, t.temp_entity_id) for t in targets} == {
         (v1.id, "Valve 1", zone),
@@ -91,7 +91,7 @@ async def test_targets_read_on_matter_entity_of_same_serial(hass):
     for eid in (m1, other):
         hass.states.async_set(eid, "heat", {"current_temperature": 20})
 
-    targets = TadoX().calibration_targets(
+    targets = TadoX().alignment_targets(
         hass, area.id, [zone], {zone: [other, m1]}
     )
 
@@ -113,7 +113,7 @@ async def test_valve_without_area_belongs_to_its_zone_room(hass):
     elsewhere = _valve(hass, entry, "VA9", "kitchen", "Valve K")
     device_reg.async_update_device(elsewhere.id, via_device_id=zone_device.id)
 
-    targets = TadoX().calibration_targets(hass, "parents", [zone.entity_id], {})
+    targets = TadoX().alignment_targets(hass, "parents", [zone.entity_id], {})
 
     assert [(t.key, t.device_id) for t in targets] == [(valve.id, valve.id)]
 
@@ -126,7 +126,7 @@ async def test_no_targets_for_zone_without_valve(hass):
     hass.states.async_set(zone.entity_id, "heat", {})
 
     assert (
-        TadoX().calibration_targets(
+        TadoX().alignment_targets(
             hass, "office", [zone.entity_id], {zone.entity_id: ["climate.m"]}
         )
         == []
@@ -138,7 +138,7 @@ async def test_no_targets_for_other_brands(hass):
     other = _register(hass, "climate", "other", "trv_1")
     hass.states.async_set(other.entity_id, "heat", {"temperature_offset": 0})
 
-    assert TadoX().calibration_targets(hass, "a", [other.entity_id], {}) == []
+    assert TadoX().alignment_targets(hass, "a", [other.entity_id], {}) == []
 
 
 # ---------------------------------------------------------------------------
@@ -152,14 +152,14 @@ async def test_read_offset_from_valve_sensor(hass):
         hass, "sensor", "tado_x", "VA1_temperature_offset", v1.id, entry
     )
     hass.states.async_set(sensor.entity_id, "-1.2")
-    target = CalibrationTarget(TadoX(), v1.id, "V", ZONE, device_id=v1.id)
+    target = AlignmentTarget(TadoX(), v1.id, "V", ZONE, device_id=v1.id)
 
     assert TadoX().read_offset(hass, target) == -1.2
 
 
 async def test_read_offset_unknown_without_sensor(hass):
     _, _, _, v1, _ = _setup_room(hass)
-    target = CalibrationTarget(TadoX(), v1.id, "V", ZONE, device_id=v1.id)
+    target = AlignmentTarget(TadoX(), v1.id, "V", ZONE, device_id=v1.id)
 
     assert TadoX().read_offset(hass, target) is None
 
@@ -167,7 +167,7 @@ async def test_read_offset_unknown_without_sensor(hass):
 async def test_write_offset_by_device_rounds_to_one_decimal(hass):
     """The Tado X API rejects more than one decimal place."""
     calls = async_mock_service(hass, "tado_x", "set_temperature_offset")
-    target = CalibrationTarget(TadoX(), "dev", "V", ZONE, device_id="dev")
+    target = AlignmentTarget(TadoX(), "dev", "V", ZONE, device_id="dev")
 
     await TadoX().write_offset(hass, target, 0.15 + 0.07)
 
@@ -175,7 +175,7 @@ async def test_write_offset_by_device_rounds_to_one_decimal(hass):
 
 
 async def test_write_offset_without_service_is_silent(hass):
-    target = CalibrationTarget(TadoX(), "dev", "V", ZONE, device_id="dev")
+    target = AlignmentTarget(TadoX(), "dev", "V", ZONE, device_id="dev")
 
     await TadoX().write_offset(hass, target, 1.0)
 

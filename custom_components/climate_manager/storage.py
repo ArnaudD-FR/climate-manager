@@ -129,6 +129,18 @@ class ClimateManagerStore:
             elif person_cfg.get("mode") == "absent":
                 person_cfg["mode"] = "force_absent"
 
+        # "Calibration" renamed "sensor alignment": move the stored keys.
+        # Only renames when the new key is absent from the stored data
+        # (the merged result always has it, from DEFAULT_CONFIG).
+        for old_key, new_key in (
+            ("calibration_enabled", "alignment_enabled"),
+            ("calibration_threshold", "alignment_threshold"),
+        ):
+            if old_key in result:
+                value = result.pop(old_key)
+                if new_key not in stored:
+                    result[new_key] = value
+
         # D-02 (Phase 12): rename preheat_lead_minutes →
         # wakeup_advance_minutes.  Only renames when the new key is absent;
         # never overwrites an existing wakeup_advance_minutes value (Pitfall 6:

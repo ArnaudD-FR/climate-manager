@@ -2,12 +2,12 @@
 """Vendor interface: what Climate Manager needs to know about a brand.
 
 The core only drives standard climate entities. Anything a TRV brand does
-on top of that (offset calibration, cloud entity paired with local Matter
+on top of that (offset alignment, cloud entity paired with local Matter
 valves, accessory devices) is described by a TRVVendor subclass; what a
 boiler brand reports about its heating (flow and outdoor temperatures,
 heating curve) by a BoilerVendor subclass. The defaults mean "nothing
 special": a brand without a vendor class is pushed setpoints and never
-calibrated, a boiler without one is only switched.
+aligned, a boiler without one is only switched.
 """
 
 from __future__ import annotations
@@ -19,10 +19,10 @@ from homeassistant.helpers import entity_registry as er
 
 
 @dataclass(frozen=True)
-class CalibrationTarget:
+class AlignmentTarget:
     """One offset to keep aligned on the room sensor.
 
-    key: identifies the offset in the calibration memory (device_id when
+    key: identifies the offset in the alignment memory (device_id when
          the offset belongs to a physical valve, else entity_id).
     name: shown in logs and in the panel.
     temp_entity_id: climate entity whose current_temperature is compared
@@ -83,24 +83,24 @@ class TRVVendor(Vendor):
     # True when the vendor's entities can be paired with Matter entities.
     pairable: bool = False
 
-    def calibration_targets(
+    def alignment_targets(
         self,
         hass: HomeAssistant,
         area_id: str,
         entity_ids: list[str],
         mappings: dict[str, list[str]],
-    ) -> list[CalibrationTarget]:
-        """Offsets to calibrate in a room (none by default)."""
+    ) -> list[AlignmentTarget]:
+        """Offsets to align in a room (none by default)."""
         return []
 
     def read_offset(
-        self, hass: HomeAssistant, target: CalibrationTarget
+        self, hass: HomeAssistant, target: AlignmentTarget
     ) -> float | None:
         """Offset currently applied on the target, or None if unknown."""
         return None
 
     async def write_offset(
-        self, hass: HomeAssistant, target: CalibrationTarget, offset: float
+        self, hass: HomeAssistant, target: AlignmentTarget, offset: float
     ) -> None:
         """Apply an absolute offset to the target."""
         raise NotImplementedError

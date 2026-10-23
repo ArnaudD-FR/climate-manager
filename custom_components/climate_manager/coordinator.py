@@ -59,7 +59,7 @@ from .entity import (
     zone_mode_unique_id,
     zone_period_unique_id,
 )
-from .calibration import Calibrator
+from .alignment import SensorAligner
 from .eval_context import EvalContext
 from .person import Person
 from .room import Room
@@ -123,9 +123,9 @@ class ClimateManagerCoordinator:
         # D-05: per-zone active period dict — "default" plus one key per custom
         # zone UUID. Populated by async_evaluate; consumed by _build_status_payload.
         self._last_zone_periods: dict[str, str | None] = {}
-        # Offset calibration and its memory (last offset written per
+        # Offset alignment and its memory (last offset written per
         # target), kept across domain rebuilds.
-        self._calibrator = Calibrator(hass, data, lambda: self._rooms)
+        self._aligner = SensorAligner(hass, data, lambda: self._rooms)
         # Cancel callbacks for active ha-tracker watchers, keyed by notif_id.
         # One entry per person: person_state_cancel — dismisses the notification
         # immediately when device_trackers becomes non-empty again.
@@ -141,12 +141,12 @@ class ClimateManagerCoordinator:
         # _frost_locked_rooms: snapshot from last zone evaluation pass.
         # Retained until consumed by Room (T-16-13 retention list).
         self._frost_locked_rooms: set[str] = set()
-        # D-08 (Phase 13): cancel callbacks for the calibration
-        # state_changed listeners, keyed by the calibration targets'
+        # D-08 (Phase 13): cancel callbacks for the alignment
+        # state_changed listeners, keyed by the alignment targets'
         # temperature source entity. Single Callable per key — unlike
         # _ha_tracker_listeners (list). Cancel-all-then-rebuild via
-        # _async_refresh_calibration_listeners().
-        self._calibration_listeners: dict[str, Callable] = {}
+        # _async_refresh_alignment_listeners().
+        self._alignment_listeners: dict[str, Callable] = {}
         # Cancel callbacks for the TRV availability listeners, keyed by
         # entity_id. A TRV coming back online (or appearing after startup)
         # gets its setpoint re-applied immediately.
@@ -413,7 +413,7 @@ class ClimateManagerCoordinator:
         """Return the TRV domain object for entity_id, or None if not found.
 
         Searches self._rooms for a TRV with the matching entity_id.
-        Used by the event-driven calibration path.
+        Used by the event-driven alignment path.
         """
         for room in self._rooms.values():
             for group in room._trv_groups:
@@ -616,18 +616,18 @@ class ClimateManagerCoordinator:
             for zone_id, zone in self._zones.items()
         }
 
-        # D-10 (Phase 13): (re)register calibration listeners whenever the
+        # D-10 (Phase 13): (re)register alignment listeners whenever the
         # watched entities change: first evaluate, room or pairing change,
         # a valve appearing in the registry.
-        if set(self._calibrator.watched_entities()) != set(
-            self._calibration_listeners
+        if set(self._aligner.watched_entities()) != set(
+            self._alignment_listeners
         ):
-            await self._async_refresh_calibration_listeners()
+            await self._async_refresh_alignment_listeners()
 
-        # Calibration pass (D-09).
-        await self._async_calibrate(config, ctx)
+        # Alignment pass (D-09).
+        await self._async_align(config, ctx)
 
-        # RESEARCH Open Question 1: fire status AFTER preheat/calibrate passes
+        # RESEARCH Open Question 1: fire status AFTER preheat/align passes
         # so the panel receives up-to-date preheat_active / preheat_suppressed
         # in the same cycle that triggered the preheat (avoids one-cycle lag).
         self._hass.bus.async_fire(
@@ -637,33 +637,33 @@ class ClimateManagerCoordinator:
         self._async_notify_listeners()
 
     @property
-    def calibrator(self) -> Calibrator:
-        """Offset calibration (targets and memory, for the panel status)."""
-        return self._calibrator
+    def aligner(self) -> SensorAligner:
+        """Offset alignment (targets and memory, for the panel status)."""
+        return self._aligner
 
-    async def _async_calibrate(
+    async def _async_align(
         self,
         config: dict,
         ctx: "EvalContext | None" = None,
     ) -> None:
-        """Offset-calibrate every room's TRVs toward their room sensors.
+        """Offset-align every room's TRVs toward their room sensors.
 
-        D-04: no-op when calibration_enabled is False.
+        D-04: no-op when alignment_enabled is False.
         D-03: concurrent gather over all rooms, same pattern as push pass.
         """
-        await self._calibrator.calibrate_all(config)
+        await self._aligner.align_all(config)
 
     # -----------------------------------------------------------------------
-    # Phase 13: calibration listener lifecycle (D-08..D-11)
+    # Phase 13: alignment listener lifecycle (D-08..D-11)
     # -----------------------------------------------------------------------
 
     @callback
-    def _make_calibration_listener(self, area_id: str) -> Callable:
+    def _make_alignment_listener(self, area_id: str) -> Callable:
         """Factory: create a state_changed callback for an entity in area_id.
 
-        D-09: only fires calibration when current_temperature changes.
+        D-09: only fires alignment when current_temperature changes.
         Guards old_state=None (Pitfall 5 — entity startup event).
-        Schedules _async_calibrate_for_room via hass.async_create_task
+        Schedules _async_align_for_room via hass.async_create_task
         (listener is @callback; cannot await directly).
         """
 
@@ -681,48 +681,44 @@ class ClimateManagerCoordinator:
             )
             if new_temp == old_temp:
                 return
-            self._hass.async_create_task(
-                self._async_calibrate_for_room(area_id)
-            )
+            self._hass.async_create_task(self._async_align_for_room(area_id))
 
         return _on_state_changed
 
-    async def _async_refresh_calibration_listeners(self) -> None:
-        """Cancel all calibration listeners and re-register.
+    async def _async_refresh_alignment_listeners(self) -> None:
+        """Cancel all alignment listeners and re-register.
 
         D-10: cancel-all-then-rebuild. Safe because WS commands are
         serialised on the HA event loop — no concurrent registration race.
-        One listener per calibration target temperature source (a paired
+        One listener per alignment target temperature source (a paired
         Matter valve rather than its cloud entity), so a fresh local
-        reading triggers the room's calibration immediately.
+        reading triggers the room's alignment immediately.
         """
         from homeassistant.helpers.event import (  # noqa: PLC0415
             async_track_state_change_event,
         )
 
         # Cancel all existing listeners before rebuild (Pitfall 1)
-        for cancel in self._calibration_listeners.values():
+        for cancel in self._alignment_listeners.values():
             cancel()
-        self._calibration_listeners.clear()
+        self._alignment_listeners.clear()
 
-        for entity_id, area_id in self._calibrator.watched_entities().items():
-            self._calibration_listeners[entity_id] = (
+        for entity_id, area_id in self._aligner.watched_entities().items():
+            self._alignment_listeners[entity_id] = (
                 async_track_state_change_event(
                     self._hass,
                     entity_id,
-                    self._make_calibration_listener(area_id),
+                    self._make_alignment_listener(area_id),
                 )
             )
 
-    async def _async_calibrate_for_room(self, area_id: str) -> None:
-        """Run calibration for a single room (event-driven path).
+    async def _async_align_for_room(self, area_id: str) -> None:
+        """Run alignment for a single room (event-driven path).
 
-        Called from the calibration listener callback via
+        Called from the alignment listener callback via
         hass.async_create_task.
         """
-        await self._calibrator.calibrate_room(
-            self._data.runtime_config, area_id
-        )
+        await self._aligner.align_room(self._data.runtime_config, area_id)
 
     def _dismiss_ha_tracker_notif(self, notif_id: str) -> None:
         """Cancel the tracker-restored watcher and dismiss the notification."""

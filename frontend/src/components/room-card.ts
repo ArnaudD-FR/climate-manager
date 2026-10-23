@@ -904,7 +904,7 @@ export class RoomCard extends LitElement {
       ${canPair
         ? html`<p class="schedule-hint">
             Drag Matter entities onto a cloud TRV entity to pair them: they
-            receive its setpoints locally and give sub-minute calibration.
+            receive its setpoints locally and give sub-minute sensor alignment.
           </p>`
         : ""}
       <div class=${this._dragActive ? "climate-pair" : ""}>

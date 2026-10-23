@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
-"""Offset calibration: keep each TRV reading aligned on its room sensor.
+"""Offset alignment: keep each TRV reading aligned on its room sensor.
 
-The vendors say what can be calibrated in a room (CalibrationTarget: which
+The vendors say what can be aligned in a room (AlignmentTarget: which
 offset, compared with which climate entity) and how to read and write the
 offset. This module owns the brand-neutral part:
 
@@ -15,17 +15,17 @@ offset. This module owns the brand-neutral part:
   warming its TRV for a while after closing, and the top of that hump
   looks flat: the settle time after a setpoint change skips it. Pre-heat
   throttling is the boost's job (room.py), not the offset's: no
-  calibration while a room is boosting, as a long boost held at a
+  alignment while a room is boosting, as a long boost held at a
   constant setpoint looks settled too. Once the boost drops, the
   setpoint change starts the settle time again;
 - after a write, the TRV readings start over: the next correction waits
   for the TRV to settle on its new offset;
-- at most one write attempt per target every _CALIBRATION_MIN_INTERVAL
+- at most one write attempt per target every _ALIGNMENT_MIN_INTERVAL
   (cloud API quotas), failed attempts included;
 - the new offset accumulates on the last one written, or on the one the
   vendor reports after a restart, clamped to ±_OFFSET_CLAMP; nothing is
   written when it does not change (at the clamp);
-- one INFO "calibrate |" log per offset written.
+- one INFO "align |" log per offset written.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import TRV_COMMAND_TIMEOUT
 from .room import resolve_room_sensor
-from .vendors import CalibrationTarget, calibration_targets
+from .vendors import AlignmentTarget, alignment_targets
 
 if TYPE_CHECKING:
     from . import ClimateManagerData
@@ -52,7 +52,7 @@ _LOGGER = logging.getLogger(__name__)
 # Hardware-safe maximum for a TRV temperature offset (±5 °C on most brands).
 _OFFSET_CLAMP = 5.0
 # Minimum time between two offset writes on a target (avoids HTTP 429s).
-_CALIBRATION_MIN_INTERVAL = timedelta(minutes=5)
+_ALIGNMENT_MIN_INTERVAL = timedelta(minutes=5)
 # Steady conditions: the TRV setpoint unchanged for _SETPOINT_SETTLE, both
 # readings within _STABLE_TOLERANCE (°C) over _STABLE_WINDOW.
 _SETPOINT_SETTLE = timedelta(minutes=90)
@@ -60,7 +60,7 @@ _STABLE_WINDOW = timedelta(minutes=60)
 _STABLE_TOLERANCE = 0.2
 
 
-def log_calibration(
+def log_alignment(
     area_id: str,
     trv: str,
     sensor_temp: float,
@@ -71,7 +71,7 @@ def log_calibration(
 ) -> None:
     """INFO log for one offset written to a TRV."""
     _LOGGER.info(
-        "calibrate | room=%s trv=%s sensor=%.1f°C trv=%.1f°C delta=%+.1f"
+        "align | room=%s trv=%s sensor=%.1f°C trv=%.1f°C delta=%+.1f"
         " offset=%+.1f→%+.1f threshold=%.1f",
         area_id,
         trv,
@@ -95,10 +95,10 @@ def _float_state(hass: HomeAssistant, entity_id: str | None) -> float | None:
         return None
 
 
-class Calibrator:
-    """Calibrates every room's targets and remembers what it wrote.
+class SensorAligner:
+    """Aligns every room's targets and remembers what it wrote.
 
-    The memory (keyed by CalibrationTarget.key) survives domain rebuilds:
+    The memory (keyed by AlignmentTarget.key) survives domain rebuilds:
     it lives on the coordinator, not on the Room objects.
     """
 
@@ -126,9 +126,9 @@ class Calibrator:
         # TRV mode and setpoint per entity, and since when they hold.
         self._setpoints: dict[str, tuple[tuple, datetime]] = {}
 
-    def targets(self, area_id: str) -> list[CalibrationTarget]:
-        """Calibration targets of a room, as the vendors resolve them."""
-        return calibration_targets(
+    def targets(self, area_id: str) -> list[AlignmentTarget]:
+        """Alignment targets of a room, as the vendors resolve them."""
+        return alignment_targets(
             self._hass,
             area_id,
             self._data.rooms.get(area_id, []),
@@ -143,7 +143,7 @@ class Calibrator:
             for target in self.targets(area_id)
         }
 
-    def current_offset(self, target: CalibrationTarget) -> float | None:
+    def current_offset(self, target: AlignmentTarget) -> float | None:
         """Offset last written, else the one the vendor reports."""
         if target.key in self.last_offset:
             return self.last_offset[target.key]
@@ -170,20 +170,17 @@ class Calibrator:
             return False
         return now - known[1] >= _SETPOINT_SETTLE
 
-    async def calibrate_all(self, config: dict) -> None:
-        """Calibrate every room concurrently (no-op when disabled)."""
-        if not config.get("calibration_enabled", False):
+    async def align_all(self, config: dict) -> None:
+        """Align every room concurrently (no-op when disabled)."""
+        if not config.get("alignment_enabled", False):
             return
         await asyncio.gather(
-            *(
-                self.calibrate_room(config, area_id)
-                for area_id in self._data.rooms
-            )
+            *(self.align_room(config, area_id) for area_id in self._data.rooms)
         )
 
-    async def calibrate_room(self, config: dict, area_id: str) -> None:
-        """Calibrate a room's targets toward its temperature sensor."""
-        if not config.get("calibration_enabled", False):
+    async def align_room(self, config: dict, area_id: str) -> None:
+        """Align a room's targets toward its temperature sensor."""
+        if not config.get("alignment_enabled", False):
             return
         room = self._rooms().get(area_id)
         if room is not None and room.preheat_boosting:
@@ -194,20 +191,20 @@ class Calibrator:
             return
         now = datetime.now(timezone.utc)
         sensor_steady = self._steady(sensor_id, now, sensor_temp)
-        threshold = config.get("calibration_threshold", 0.5)
+        threshold = config.get("alignment_threshold", 0.5)
         await asyncio.gather(
             *(
-                self._calibrate(
+                self._align(
                     area_id, target, now, sensor_temp, sensor_steady, threshold
                 )
                 for target in self.targets(area_id)
             )
         )
 
-    async def _calibrate(
+    async def _align(
         self,
         area_id: str,
-        target: CalibrationTarget,
+        target: AlignmentTarget,
         now: datetime,
         sensor_temp: float,
         sensor_steady: bool,
@@ -242,7 +239,7 @@ class Calibrator:
         last_attempt = self._last_attempt.get(target.key)
         if (
             last_attempt is not None
-            and now - last_attempt < _CALIBRATION_MIN_INTERVAL
+            and now - last_attempt < _ALIGNMENT_MIN_INTERVAL
         ):
             return
         self._last_attempt[target.key] = now
@@ -263,7 +260,7 @@ class Calibrator:
         self.last_delta[target.key] = round(delta, 2)
         # The reading shifts with the new offset: wait for it to settle.
         self._readings.pop(target.temp_entity_id, None)
-        log_calibration(
+        log_alignment(
             area_id,
             target.name,
             sensor_temp,

@@ -76,7 +76,8 @@ Default temperatures: frost=5°C, reduced=18°C, normal=20°C, comfort=22°C.
   `period_temperatures` merges key-by-key; `rooms`/`persons`/`zones` replace
   wholesale. Post-merge fills any empty day with default schedule periods. Runs
   field migrations (presence mode renames, `preheat_lead_minutes` →
-  `wakeup_advance_minutes`).
+  `wakeup_advance_minutes`, `calibration_enabled` / `calibration_threshold` →
+  `alignment_enabled` / `alignment_threshold`).
 - **Save**: calls `validate_zone_assignment()` before every write.
 
 Pre-heat inertia persists separately under key `climate_manager_preheat`
@@ -134,7 +135,7 @@ never pile up and no trigger is lost. Each run is `_async_evaluate_once()`:
 6. _check_ha_tracker_warnings (persistent notifications)
 7. snapshot status fields: _last_room_periods (per-room), _last_zone_periods,
    _last_present_persons
-8. calibration pass (Calibrator.calibrate_all) if calibration_enabled
+8. alignment pass (SensorAligner.align_all) if alignment_enabled
 9. Fire climate_manager_status_update bus event
 10. Notify update listeners (HA entities, async_sync_devices)
 ```
@@ -144,7 +145,7 @@ its command at the same time (`asyncio.gather`, `return_exceptions=True` at the
 zone and coordinator levels so one failure never cancels the others). Each
 service call is bounded by `TRV_COMMAND_TIMEOUT` (30 s): an unresponsive valve
 logs `timeout |`, keeps its `last_pushed`, and is retried on the next cycle.
-Calibration calls are bounded the same way.
+Alignment calls are bounded the same way.
 
 **Anti-flap push** (`TRV.push_temperature`): skip if the period (`slot`) is
 unchanged and `last_pushed == desired`. **Manual-override hold** (D-03): if the
@@ -258,31 +259,32 @@ the overshoot is about τ × the current speed — a hotter flow (cold weather)
 overshoots more in °C for the same τ. A legacy `boost_factor` key (the former
 factor model) is dropped from the store, and the registry entries of its
 `sensor.<area_id>_preheat_boost_factor` at setup
-(`sensor._remove_retired_sensors`). **Calibration** (`calibration.py`,
-`Calibrator`, owned by the coordinator): incremental offset toward the room
-reference sensor, for the calibration targets the vendors resolve (see
+(`sensor._remove_retired_sensors`). **Sensor alignment** (`alignment.py`,
+`SensorAligner`, owned by the coordinator; formerly "calibration": the TRV is
+not calibrated, only asked to follow the room sensor): incremental offset toward
+the room reference sensor, for the alignment targets the vendors resolve (see
 [Vendors](#vendors--vendors)). Clamped ±5°C with a threshold guard to avoid
-jitter: `calibration_threshold` (0.5 °C), pre-heat or not (the boost compensates
-a TRV reading high next to its radiator). Only steady conditions are measured:
-the TRV mode and setpoint unchanged for 90 min, and the room sensor and the TRV
+jitter: `alignment_threshold` (0.5 °C), pre-heat or not (the boost compensates a
+TRV reading high next to its radiator). Only steady conditions are measured: the
+TRV mode and setpoint unchanged for 90 min, and the room sensor and the TRV
 reading both within 0.2 °C over the last 60 min. A heating or cooling radiator,
 or the sun on a TRV, shows a transient gap that the TRV cancels as soon as its
 offset changes: correcting it would wind the offset up to the clamp. A radiator
 also keeps warming its TRV for a while after it closed, and the top of that hump
-looks flat: the settle time after a setpoint change skips it. No calibration
-(nor readings recorded) while the room is boosting (`Room.preheat_boosting`): a
-long boost held at one setpoint looks settled too, and the TRV next to the hot
+looks flat: the settle time after a setpoint change skips it. No alignment (nor
+readings recorded) while the room is boosting (`Room.preheat_boosting`): a long
+boost held at one setpoint looks settled too, and the TRV next to the hot
 radiator reads well above the room. Dropping the boost changes the setpoint,
 which restarts the settle time. After a write the TRV readings start over, so
 the next correction waits for the TRV to settle on its new offset. An offset
 that does not change (at the clamp) is not written. At most one write attempt
 per target every 5 min, failures included (cloud API quotas; with Tado X each
 write also triggers a refresh). Each write logs
-`calibrate | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`.
-Offsets are remembered per target (`last_offset`, keyed by device or entity);
-after a restart the first correction starts from the offset the vendor reports.
-The periodic pass runs every tick; a state listener on each target's temperature
-source (`watched_entities`, refreshed when that set changes) also calibrates the
+`align | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`. Offsets
+are remembered per target (`last_offset`, keyed by device or entity); after a
+restart the first correction starts from the offset the vendor reports. The
+periodic pass runs every tick; a state listener on each target's temperature
+source (`watched_entities`, refreshed when that set changes) also aligns the
 room as soon as a new reading arrives.
 
 ---
@@ -353,19 +355,19 @@ The core only drives standard `climate` entities and never names a brand.
 Brand-specific behaviour lives in `TRVVendor` subclasses (`vendors/base.py`),
 registered in `vendors.VENDORS`; the core calls the aggregate helpers of
 `vendors/__init__.py`. Every method has a neutral default, so a brand without a
-vendor is pushed setpoints and never calibrated.
+vendor is pushed setpoints and never aligned.
 
-| Member                                                | Used by                                                           |
-| ----------------------------------------------------- | ----------------------------------------------------------------- |
-| `calibration_targets(hass, area, entities, mappings)` | `Calibrator`: which offsets to keep aligned, read on which entity |
-| `read_offset` / `write_offset`                        | `Calibrator`: offset reported after a restart / offset write      |
-| `suggest_mappings(hass)`                              | Auto-pairing at startup and `suggest_matter_mappings` (WS)        |
-| `pairable` + `owns(hass, entity_id)`                  | `get_config.pairable_entities` (room card drag-and-drop pairing)  |
-| `accessory_models`                                    | `boiler_candidates` (valve switches are never a boiler)           |
-| `poll_interval(hass)`                                 | `get_calibration_status.cloud_polling` (calibration tab banner)   |
-| `label`                                               | Calibration tab badge (`vendor` field of each calibration row)    |
+| Member                                              | Used by                                                              |
+| --------------------------------------------------- | -------------------------------------------------------------------- |
+| `alignment_targets(hass, area, entities, mappings)` | `SensorAligner`: which offsets to keep aligned, read on which entity |
+| `read_offset` / `write_offset`                      | `SensorAligner`: offset reported after a restart / offset write      |
+| `suggest_mappings(hass)`                            | Auto-pairing at startup and `suggest_matter_mappings` (WS)           |
+| `pairable` + `owns(hass, entity_id)`                | `get_config.pairable_entities` (room card drag-and-drop pairing)     |
+| `accessory_models`                                  | `boiler_candidates` (valve switches are never a boiler)              |
+| `poll_interval(hass)`                               | `get_alignment_status.cloud_polling` (alignment tab banner)          |
+| `label`                                             | Alignment tab badge (`vendor` field of each alignment row)           |
 
-A `CalibrationTarget` names one offset: `key` (memory key: device or entity),
+An `AlignmentTarget` names one offset: `key` (memory key: device or entity),
 `name` (logs, panel), `temp_entity_id` (the climate entity compared with the
 room sensor), and optionally `entity_id` / `device_id`.
 
@@ -376,14 +378,14 @@ room: in its area, or, without an area, connected through the zone device
 (`device_id` only, one decimal) and read back from the valve's
 `temperature_offset` sensor. A valve is read on the Matter entity with its
 serial (`("matter", "serial_<serial>")`), else on the zone's first paired Matter
-entity, else on the zone entity. A zone without a known valve is not calibrated.
+entity, else on the zone entity. A zone without a known valve is not aligned.
 Suggestions pair a zone entity with the Matter entities of the valves connected
 through its device (`via_device_id`).
 
 To support a new brand: subclass `TRVVendor`, override what the brand needs, add
 an instance to `VENDORS`, and test it on its own (see
-`tests/test_vendor_tado_x.py`; `tests/test_calibration.py` drives the
-`Calibrator` with a fake vendor).
+`tests/test_vendor_tado_x.py`; `tests/test_alignment.py` drives the
+`SensorAligner` with a fake vendor).
 
 **Boiler vendors** (`BoilerVendor`, registered in `vendors.BOILER_VENDORS`)
 report the boiler's heating conditions: `readings(hass, entity_id)` returns a
@@ -404,12 +406,12 @@ vendor kinds share `Vendor.owns` (registry platform).
 
 ### TRV control — `trv.py`
 
-| Function                                            | Purpose                                                                                                                                                                                              |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `set_trv_temperature(hass, entity_id, temp, force)` | Step 1: ensure `hvac_mode=heat`; Step 2: `set_temperature` (skipped if already set, unless `force`). Some TRVs ignore setpoints in auto mode.                                                        |
-| `set_trv_off(hass, entity_id)`                      | `set_hvac_mode=off`                                                                                                                                                                                  |
-| `supports_hvac_off(hass, entity_id)`                | Inspects `hvac_modes` attribute                                                                                                                                                                      |
-| `is_trv_entity(hass, entity_id)`                    | True for room TRVs; False for boiler/HVAC entities (`max_temp > 45 °C`, read from the registry when there is no state yet). Applied in `TRVGroup.from_room_config` and every status/calibration path |
+| Function                                            | Purpose                                                                                                                                                                                            |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `set_trv_temperature(hass, entity_id, temp, force)` | Step 1: ensure `hvac_mode=heat`; Step 2: `set_temperature` (skipped if already set, unless `force`). Some TRVs ignore setpoints in auto mode.                                                      |
+| `set_trv_off(hass, entity_id)`                      | `set_hvac_mode=off`                                                                                                                                                                                |
+| `supports_hvac_off(hass, entity_id)`                | Inspects `hvac_modes` attribute                                                                                                                                                                    |
+| `is_trv_entity(hass, entity_id)`                    | True for room TRVs; False for boiler/HVAC entities (`max_temp > 45 °C`, read from the registry when there is no state yet). Applied in `TRVGroup.from_room_config` and every status/alignment path |
 
 The module also defines the `TRV` and `TRVGroup` domain classes (see
 [Domain model](#domain-model)). `TRVGroup` is assembled once per room and holds
@@ -459,17 +461,17 @@ The Default Zone is addressed by the sentinel `zone_id="default"` (writes
 `default_zone.*`); `set_global_mode` / `reset_time_program` / `reset_room_to_*`
 were removed in Phases 14–15.
 
-| Category    | Commands                                                                                                                             |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Read        | `get_status`, `get_config`, `get_calibration_status`                                                                                 |
-| Global      | `set_period_temperatures`, `set_time_program`, `reset_period_temperatures`                                                           |
-| Room        | `set_room_config`                                                                                                                    |
-| Person      | `set_person_config`                                                                                                                  |
-| Zone        | `create_zone`, `rename_zone`, `set_zone_mode`, `set_zone_preheat`, `delete_zone`, `set_zone_time_program`, `reset_zone_time_program` |
-| Calibration | `set_calibration_config`                                                                                                             |
-| Boiler      | `set_boiler_config` (`entity_id` null clears; climate hvac modes validated against the entity)                                       |
-| Matter      | `set_matter_mapping`, `suggest_matter_mappings`                                                                                      |
-| Push        | `subscribe_status`                                                                                                                   |
+| Category  | Commands                                                                                                                             |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Read      | `get_status`, `get_config`, `get_alignment_status`                                                                                   |
+| Global    | `set_period_temperatures`, `set_time_program`, `reset_period_temperatures`                                                           |
+| Room      | `set_room_config`                                                                                                                    |
+| Person    | `set_person_config`                                                                                                                  |
+| Zone      | `create_zone`, `rename_zone`, `set_zone_mode`, `set_zone_preheat`, `delete_zone`, `set_zone_time_program`, `reset_zone_time_program` |
+| Alignment | `set_alignment_config`                                                                                                               |
+| Boiler    | `set_boiler_config` (`entity_id` null clears; climate hvac modes validated against the entity)                                       |
+| Matter    | `set_matter_mapping`, `suggest_matter_mappings`                                                                                      |
+| Push      | `subscribe_status`                                                                                                                   |
 
 `subscribe_status` registers a listener for `climate_manager_status_update` bus
 events and pushes the status payload to the panel connection on each coordinator
@@ -572,7 +574,7 @@ Lit is bundled into `panel.js` — no dependency on HA's own Lit instance.
 | `components/rooms-tab.ts` + `room-card.ts`     | Per-room config and schedule editor                                                                    |
 | `components/zone-tab.ts`                       | Zone management (create/rename/delete/mode/schedule)                                                   |
 | `components/persons-tab.ts` + `person-card.ts` | Person presence config and schedule editor                                                             |
-| `components/global-settings-tab.ts`            | Global mode, period temps, calibration                                                                 |
+| `components/global-settings-tab.ts`            | Global mode, period temps, sensor alignment                                                            |
 | `components/presence-mode.ts`                  | Presence mode selector widget                                                                          |
 | `components/time-bar.ts`                       | Interactive weekly schedule bar (drag to resize periods)                                               |
 | `components/week-parity.ts`                    | Even/odd week selector for biweekly schedules                                                          |

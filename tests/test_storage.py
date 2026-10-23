@@ -102,6 +102,30 @@ async def test_load_room_override_survives(hass):
     assert loaded["rooms"]["living_room"] == {"preheat_max_lead_minutes": 90}
 
 
+async def test_load_migrates_calibration_keys_to_alignment(hass):
+    """Stored calibration_* keys become alignment_* (sensor alignment)."""
+    store = ClimateManagerStore(hass)
+    await store._store.async_save(
+        {"calibration_enabled": True, "calibration_threshold": 0.3}
+    )
+    result = await store.async_load()
+    assert result["alignment_enabled"] is True
+    assert result["alignment_threshold"] == 0.3
+    assert "calibration_enabled" not in result
+    assert "calibration_threshold" not in result
+
+
+async def test_load_alignment_key_wins_over_legacy(hass):
+    """An alignment_* key already stored is kept; the legacy one dropped."""
+    store = ClimateManagerStore(hass)
+    await store._store.async_save(
+        {"alignment_enabled": False, "calibration_enabled": True}
+    )
+    result = await store.async_load()
+    assert result["alignment_enabled"] is False
+    assert "calibration_enabled" not in result
+
+
 # ---------------------------------------------------------------------------
 # D-21 migration tests: present → force_present, absent → force_absent
 # ---------------------------------------------------------------------------

@@ -365,7 +365,7 @@ async def _async_auto_detect_matter_mappings(
     await entry.runtime_data.store.async_save(entry.runtime_data.runtime_config)
     coordinator = entry.runtime_data.coordinator
     if coordinator is not None:
-        await coordinator._async_refresh_calibration_listeners()
+        await coordinator._async_refresh_alignment_listeners()
 
 
 async def async_unload_entry(
@@ -385,14 +385,14 @@ async def async_unload_entry(
     for cancel in entry.runtime_data.cancel_registry_listeners:
         cancel()
 
-    # D-11 (Phase 13): cancel all calibration state_changed listeners.
-    # These live in coordinator._calibration_listeners, NOT in
+    # D-11 (Phase 13): cancel all alignment state_changed listeners.
+    # These live in coordinator._alignment_listeners, NOT in
     # cancel_registry_listeners (which is for bus registry events only).
     coordinator = entry.runtime_data.coordinator
     if coordinator is not None:
-        for cancel in coordinator._calibration_listeners.values():
+        for cancel in coordinator._alignment_listeners.values():
             cancel()
-        coordinator._calibration_listeners.clear()
+        coordinator._alignment_listeners.clear()
         coordinator.cancel_availability_listeners()
 
     # Drop the sidebar panel so a reload can register it again.

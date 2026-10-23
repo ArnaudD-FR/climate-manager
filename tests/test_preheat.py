@@ -412,8 +412,8 @@ def _make_preheat_config(
         "rooms": rooms_config or {},
         "persons": persons_config or {},
         "zones": zones or {},
-        "calibration_enabled": False,
-        "calibration_threshold": 0.5,
+        "alignment_enabled": False,
+        "alignment_threshold": 0.5,
     }
 
 
