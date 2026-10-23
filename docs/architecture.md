@@ -214,21 +214,27 @@ nothing could heat it); `room_temp` comes from the room temperature sensor, else
 the first TRV. The run is saved to the pre-heat store on each state change
 (start, convergence, measuring, end): a domain rebuild carries it over
 (`carry_preheat_state`) and a restart restores it (`restore_preheat_run`), so
-the hold and the measurement keep their original start time. The status payload
-exposes `preheat_rate`, `preheat_samples`, `preheat_lead`, `preheat_boost` and
-`preheat_boost_factor` (shown in the room card). **Boost**: a TRV next to a hot
-radiator reads high and throttles before the room is warm, so while a run has
-not converged (hold and measuring) `apply_setpoint` pushes to the TRVs the
-setpoint plus the larger of `factor × (setpoint − room_temp)` (rounded to 0.5
-°C) and the measured excess of the highest TRV reading over the room temperature
-(rounded up to 0.5 °C, so the TRV stays open until the room itself is warm;
-setpoints go through the local TRV entity, unlike offset writes), capped at
-`PREHEAT_BOOST_MAX` (3 °C) and the TRVs' `max_temp` (`Room._preheat_boost`).
-`_last_setpoint` keeps the unboosted value. On convergence the plain setpoint is
-re-pushed in the same tick (`_drop_boost`). The **factor is learned** per room,
-never set (`Room.boost_factor`, pre-heat store `boost_factor`, default 2): a run
-records `boosted` when the boost was applied; once it converges, `observe`
-follows the room's peak for `PREHEAT_OVERSHOOT_WINDOW_MINUTES` (60), then
+the hold and the measurement keep their original start time. Each run also
+records the boiler's conditions (`vendors.boiler_readings`): outdoor
+temperature, heating curve and program at the start, the mean flow temperature
+over the run; the sample copies them (`outdoor_temp`, `flow_temp`,
+`curve_slope`, `curve_shift`, `program`, unknown ones left out) and the
+`preheat | … reached/censored` log appends `outdoor=… flow=…`. They are not used
+by the lead yet. The status payload exposes `preheat_rate`, `preheat_samples`,
+`preheat_lead`, `preheat_boost` and `preheat_boost_factor` (shown in the room
+card). **Boost**: a TRV next to a hot radiator reads high and throttles before
+the room is warm, so while a run has not converged (hold and measuring)
+`apply_setpoint` pushes to the TRVs the setpoint plus the larger of
+`factor × (setpoint − room_temp)` (rounded to 0.5 °C) and the measured excess of
+the highest TRV reading over the room temperature (rounded up to 0.5 °C, so the
+TRV stays open until the room itself is warm; setpoints go through the local TRV
+entity, unlike offset writes), capped at `PREHEAT_BOOST_MAX` (3 °C) and the
+TRVs' `max_temp` (`Room._preheat_boost`). `_last_setpoint` keeps the unboosted
+value. On convergence the plain setpoint is re-pushed in the same tick
+(`_drop_boost`). The **factor is learned** per room, never set
+(`Room.boost_factor`, pre-heat store `boost_factor`, default 2): a run records
+`boosted` when the boost was applied; once it converges, `observe` follows the
+room's peak for `PREHEAT_OVERSHOOT_WINDOW_MINUTES` (60), then
 `tune_boost_factor` moves the factor by 0.5 within [0.5, 5]: down when the peak
 exceeds the target by more than 0.5 °C, up when the target came late (reached
 while measuring, or censored at once) with less than 0.2 °C overshoot. A warmer
@@ -359,6 +365,21 @@ To support a new brand: subclass `TRVVendor`, override what the brand needs, add
 an instance to `VENDORS`, and test it on its own (see
 `tests/test_vendor_tado_x.py`; `tests/test_calibration.py` drives the
 `Calibrator` with a fake vendor).
+
+**Boiler vendors** (`BoilerVendor`, registered in `vendors.BOILER_VENDORS`)
+report the boiler's heating conditions: `readings(hass, entity_id)` returns a
+`BoilerReadings` (`outdoor_temp`, `flow_temp`, `curve_slope`, `curve_shift`,
+`program`; `None` when unknown). `vendors.boiler_readings(hass, boiler_config)`
+takes the owning vendor's readings and lets the optional boiler config sensors
+(`outdoor_temperature_entity_id`, `flow_temperature_entity_id`) override them,
+so any boiler can record them. They are only recorded with the pre-heat samples
+for now (see Pre-heat). The boiler status carries the vendor `label` (panel hint
+"Auto (ViCare)"). **ViCare** (`vendors/vicare.py`): the heating circuit's
+climate entity carries `heating_curve_slope`, `heating_curve_shift` and
+`active_vicare_program`; the flow (`supply_temperature` of the same circuit
+suffix, else `boiler_supply_temperature`) and outdoor (`outside_temperature`)
+temperatures are sensors of the same device, found by translation key. Both
+vendor kinds share `Vendor.owns` (registry platform).
 
 ---
 

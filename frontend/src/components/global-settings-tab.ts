@@ -100,6 +100,12 @@ const MODE_LABELS: Record<string, string> = {
   [MODE_TIME_PROGRAM_PRESENCES]: "Time program & presences",
 };
 
+/** Optional boiler sensors recorded with each pre-heat sample. */
+const BOILER_READING_SENSORS = [
+  "outdoor_temperature_entity_id",
+  "flow_temperature_entity_id",
+] as const;
+
 /** Boiler defaults (mirror const.py DEFAULT_BOILER_*). */
 const BOILER_DEFAULTS = {
   on_hvac_mode: "heat",
@@ -771,6 +777,10 @@ export class GlobalSettingsTab extends LitElement {
         : {}),
       ...patch,
     };
+    for (const key of BOILER_READING_SENSORS) {
+      next[key] = key in patch ? patch[key] : current?.[key];
+      if (!next[key]) delete next[key];
+    }
     if (next.on_hvac_mode === undefined) delete next.on_hvac_mode;
     if (next.off_hvac_mode === undefined) delete next.off_hvac_mode;
     try {
@@ -827,6 +837,43 @@ export class GlobalSettingsTab extends LitElement {
             (mode) =>
               html`<option value=${mode} ?selected=${mode === value}>
                 ${mode}
+              </option>`,
+          )}
+        </select>
+      </div>
+    `;
+  }
+
+  /**
+   * Optional temperature sensor recorded with each pre-heat sample; empty
+   * means the boiler vendor's own reading ("Auto"), if any.
+   */
+  private _renderReadingSensorSelect(
+    label: string,
+    field: (typeof BOILER_READING_SENSORS)[number],
+  ) {
+    const value = this.config.boiler?.[field] ?? "";
+    const vendor = this.status?.boiler?.vendor;
+    const sensors = Object.entries(this.hass?.states ?? {})
+      .filter(
+        ([id, s]) =>
+          id.startsWith("sensor.") &&
+          s.attributes?.device_class === "temperature",
+      )
+      .map(([id]) => id)
+      .sort();
+    return html`
+      <div class="option-row">
+        <span class="option-label">${label}</span>
+        <select @change=${this._onBoilerFieldChange(field, false)}>
+          <option value="" ?selected=${!value}>
+            ${vendor ? `Auto (${vendor})` : "None"}
+          </option>
+          ${sensors.map(
+            (id) =>
+              html`<option value=${id} ?selected=${id === value}>
+                ${this.hass?.states[id]?.attributes?.friendly_name ?? id}
+                (${id})
               </option>`,
           )}
         </select>
@@ -939,6 +986,17 @@ export class GlobalSettingsTab extends LitElement {
                     )}
                   />
                 </div>
+                <p class="hint">
+                  Recorded with each pre-heat run, for later analysis.
+                </p>
+                ${this._renderReadingSensorSelect(
+                  "Outdoor temperature",
+                  "outdoor_temperature_entity_id",
+                )}
+                ${this._renderReadingSensorSelect(
+                  "Flow temperature",
+                  "flow_temperature_entity_id",
+                )}
               `
             : ""}
         </div>

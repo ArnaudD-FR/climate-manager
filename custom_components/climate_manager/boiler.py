@@ -39,7 +39,7 @@ from .const import (
     TRV_COMMAND_TIMEOUT,
 )
 from .trv import is_trv_entity
-from .vendors import accessory_models
+from .vendors import accessory_models, boiler_vendor
 
 if TYPE_CHECKING:
     from .room import Room
@@ -155,6 +155,7 @@ class Boiler:
 
     def status(self) -> dict:
         """Status payload entry for the panel."""
+        vendor = boiler_vendor(self._hass, self.entity_id)
         return {
             "entity_id": self.entity_id,
             "on": self._on,
@@ -162,6 +163,8 @@ class Boiler:
             "waiting_until": (
                 self.waiting_until.isoformat() if self.waiting_until else None
             ),
+            # Brand reporting flow / outdoor temperatures and heating curve.
+            "vendor": vendor.label if vendor is not None else None,
         }
 
     def _read_state(self) -> tuple[bool | None, datetime] | None:

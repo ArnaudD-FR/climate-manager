@@ -11,14 +11,22 @@ Persisted in the `climate_manager_preheat` Store (version 2):
                          "boost_factor": float, "observe": observe | None}}}
 
     sample  = {timestamp, duration_minutes, start_temp, target_temp, rate,
-               censored}
+               censored, [outdoor_temp, flow_temp, curve_slope,
+               curve_shift, program]}
     run     = {start_time, start_temp, target_temp, until, converged,
-               measuring, boosted}   # datetimes as ISO strings with offset
+               measuring, boosted, outdoor_temp, curve_slope, curve_shift,
+               program, flow_sum, flow_n}  # datetimes as ISO with offset
     observe = {target_temp, until, peak, late}   # overshoot watch
 
 boost_factor is the learned (auto) boost factor; absent until the first
 boosted run is judged. observe watches the room after a boosted run reached
 its target, to measure the overshoot that tunes it.
+
+The boiler's conditions (vendors.boiler_readings) are recorded with each
+run and copied into its sample, for later analysis: the outdoor
+temperature, heating curve and program at the start, the mean flow
+temperature over the run (it saw-tooths while the burner cycles). Unknown
+values are left out.
 
 A censored sample comes from a run that never reached its target: the
 elapsed time is a lower bound of the real duration, so its rate pulls the
@@ -33,6 +41,7 @@ from datetime import datetime, timedelta
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from .vendors import BoilerReadings
 from .const import (
     DEFAULT_PREHEAT_BOOST_FACTOR,
     PREHEAT_BOOST_FACTOR_MAX,
@@ -146,6 +155,38 @@ def compute_lead(
     return float(min(max(lead, PREHEAT_MIN_LEAD_MINUTES), max_lead))
 
 
+# Run fields copied as is into the sample (flow_temp is averaged).
+_CONDITIONS = ("outdoor_temp", "curve_slope", "curve_shift", "program")
+
+
+def start_conditions(readings: BoilerReadings) -> dict:
+    """Run fields recording the boiler's conditions at the start."""
+    return {
+        "outdoor_temp": readings.outdoor_temp,
+        "curve_slope": readings.curve_slope,
+        "curve_shift": readings.curve_shift,
+        "program": readings.program,
+        "flow_sum": 0.0,
+        "flow_n": 0,
+    }
+
+
+def record_flow(run: dict, flow_temp: float | None) -> None:
+    """Add one flow temperature reading to the run's mean."""
+    if flow_temp is None:
+        return
+    run["flow_sum"] = run.get("flow_sum", 0.0) + flow_temp
+    run["flow_n"] = run.get("flow_n", 0) + 1
+
+
+def run_conditions(run: dict) -> dict:
+    """The run's known boiler conditions, as sample fields."""
+    out = {key: run[key] for key in _CONDITIONS if run.get(key) is not None}
+    if run.get("flow_n"):
+        out["flow_temp"] = round(run["flow_sum"] / run["flow_n"], 1)
+    return out
+
+
 def make_sample(
     start_time: datetime,
     now: datetime,
@@ -153,6 +194,7 @@ def make_sample(
     target_temp: float,
     *,
     censored: bool,
+    conditions: dict | None = None,
 ) -> dict | None:
     """Build one sample, or None when it would only be noise.
 
@@ -174,6 +216,7 @@ def make_sample(
         "target_temp": target_temp,
         "rate": round(duration / delta, 2),
         "censored": censored,
+        **(conditions or {}),
     }
 
 

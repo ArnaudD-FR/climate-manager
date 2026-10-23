@@ -49,9 +49,12 @@ from .preheat import (
     learned_rate,
     make_sample,
     measure_cap,
+    record_flow,
     room_entry,
+    run_conditions,
     run_from_json,
     run_to_json,
+    start_conditions,
     tune_boost_factor,
 )
 from .schedule import (
@@ -61,6 +64,7 @@ from .schedule import (
     resolve_presence,
 )
 from .trv import is_trv_entity
+from .vendors import BoilerReadings, boiler_readings
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -581,6 +585,7 @@ class Room:
         # ----------------------------------------------------------------
         ip = self._preheat_in_progress
         if ip:
+            record_flow(ip, self._boiler_readings(config).flow_temp)
             reached = (
                 current_temp is not None
                 and current_temp
@@ -594,6 +599,7 @@ class Room:
                     ip["start_temp"],
                     ip["target_temp"],
                     censored=False,
+                    conditions=run_conditions(ip),
                 )
                 self._log_sample(sample, "reached")
                 self._watch_overshoot(now, current_temp)
@@ -619,6 +625,7 @@ class Room:
                         ip["start_temp"],
                         ip["target_temp"],
                         censored=True,
+                        conditions=run_conditions(ip),
                     )
                     self._log_sample(sample, "not reached, censored")
                     if ip.get("boosted"):
@@ -789,6 +796,7 @@ class Room:
             "converged": False,
             "measuring": False,
             "boosted": False,
+            **start_conditions(self._boiler_readings(config)),
         }
         self._preheat_active = True
         self._preheat_target = upcoming_setpoint
@@ -821,13 +829,26 @@ class Room:
                 outcome,
             )
             return
+        conditions = "".join(
+            f" {label}={sample[key]}°C"
+            for key, label in (
+                ("outdoor_temp", "outdoor"),
+                ("flow_temp", "flow"),
+            )
+            if key in sample
+        )
         _LOGGER.info(
-            "preheat | room=%s %s after %smin (%s min/°C)",
+            "preheat | room=%s %s after %smin (%s min/°C)%s",
             self.area_id,
             outcome,
             sample["duration_minutes"],
             sample["rate"],
+            conditions,
         )
+
+    def _boiler_readings(self, config: dict) -> BoilerReadings:
+        """Heating conditions of the configured boiler."""
+        return boiler_readings(self._hass, config.get("boiler"))
 
     def _resolve_room_sensor(self, config: dict) -> str | None:
         """Return the temperature sensor entity_id for this room."""

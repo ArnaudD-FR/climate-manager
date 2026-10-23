@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: MIT
-"""Vendor interface: what Climate Manager needs to know about a TRV brand.
+"""Vendor interface: what Climate Manager needs to know about a brand.
 
-The core only drives standard climate entities. Anything a brand does on
-top of that (offset calibration, cloud entity paired with local Matter
-valves, accessory devices) is described by a TRVVendor subclass. The
-defaults mean "nothing special": a brand without a vendor class is pushed
-setpoints and never calibrated.
+The core only drives standard climate entities. Anything a TRV brand does
+on top of that (offset calibration, cloud entity paired with local Matter
+valves, accessory devices) is described by a TRVVendor subclass; what a
+boiler brand reports about its heating (flow and outdoor temperatures,
+heating curve) by a BoilerVendor subclass. The defaults mean "nothing
+special": a brand without a vendor class is pushed setpoints and never
+calibrated, a boiler without one is only switched.
 """
 
 from __future__ import annotations
@@ -37,22 +39,49 @@ class CalibrationTarget:
     device_id: str | None = None
 
 
-class TRVVendor:
-    """Brand-specific behaviour; every method has a neutral default."""
+@dataclass(frozen=True)
+class BoilerReadings:
+    """What the boiler reports about its heating (None when unknown).
+
+    program: the boiler's own active program (e.g. ViCare "normal").
+    """
+
+    outdoor_temp: float | None = None
+    flow_temp: float | None = None
+    curve_slope: float | None = None
+    curve_shift: float | None = None
+    program: str | None = None
+
+
+class Vendor:
+    """A brand, identified by the integration owning its entities."""
 
     # Shown in the panel ("Tado X").
     label: str = ""
     # Integration domain whose entities this vendor owns.
     platform: str = ""
-    # Device models whose switches belong to a valve, not to a boiler.
-    accessory_models: frozenset[str] = frozenset()
-    # True when the vendor's entities can be paired with Matter entities.
-    pairable: bool = False
 
     def owns(self, hass: HomeAssistant, entity_id: str) -> bool:
         """True when entity_id belongs to this vendor's integration."""
         reg = er.async_get(hass).async_get(entity_id)
         return reg is not None and reg.platform == self.platform
+
+
+class BoilerVendor(Vendor):
+    """Boiler brand behaviour; every method has a neutral default."""
+
+    def readings(self, hass: HomeAssistant, entity_id: str) -> BoilerReadings:
+        """Heating conditions of the boiler entity_id (none by default)."""
+        return BoilerReadings()
+
+
+class TRVVendor(Vendor):
+    """TRV brand behaviour; every method has a neutral default."""
+
+    # Device models whose switches belong to a valve, not to a boiler.
+    accessory_models: frozenset[str] = frozenset()
+    # True when the vendor's entities can be paired with Matter entities.
+    pairable: bool = False
 
     def calibration_targets(
         self,

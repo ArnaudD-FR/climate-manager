@@ -1732,3 +1732,106 @@ async def test_ws_set_person_wakeup_advance(hass, hass_ws_client):
         f"Legacy preheat_lead_minutes should map to wakeup_advance_minutes: "
         f"{persisted2}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Boiler conditions recorded with each run and sample
+# ---------------------------------------------------------------------------
+
+
+def test_sample_carries_boiler_conditions():
+    """Start conditions as is, flow averaged; unknown values left out."""
+    from custom_components.climate_manager.preheat import (
+        record_flow,
+        run_conditions,
+        start_conditions,
+    )
+    from custom_components.climate_manager.vendors import BoilerReadings
+
+    run = start_conditions(
+        BoilerReadings(
+            outdoor_temp=11.5,
+            curve_slope=1.4,
+            curve_shift=6.0,
+            program="normal",
+        )
+    )
+    for flow in (40.0, None, 61.0):
+        record_flow(run, flow)
+    start = _dt(2026, 6, 1, 5, 0)
+    sample = make_sample(
+        start,
+        start + datetime.timedelta(minutes=60),
+        18.0,
+        20.0,
+        censored=False,
+        conditions=run_conditions(run),
+    )
+    assert sample["rate"] == 30.0
+    assert {k: sample[k] for k in run_conditions(run)} == {
+        "outdoor_temp": 11.5,
+        "curve_slope": 1.4,
+        "curve_shift": 6.0,
+        "program": "normal",
+        "flow_temp": 50.5,
+    }
+    assert run_conditions(start_conditions(BoilerReadings())) == {}
+
+
+@pytest.mark.freeze_time("2026-06-01 06:30:00")  # Monday 06:30 UTC
+async def test_run_records_boiler_conditions(hass):
+    """The run takes the outdoor temperature at the start and averages the
+    flow temperature on every pass (the boiler config's sensors)."""
+    from custom_components.climate_manager.coordinator import (
+        ClimateManagerCoordinator,
+    )
+    from custom_components.climate_manager.eval_context import EvalContext
+
+    hass.states.async_set(
+        "climate.salon_trv",
+        "heat",
+        {"temperature": 18.0, "current_temperature": 18.0},
+    )
+    hass.states.async_set("switch.boiler", "on")
+    hass.states.async_set("sensor.outdoor", "4.5")
+    hass.states.async_set("sensor.flow", "40.0")
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    config = _make_preheat_config(
+        global_mode=MODE_TIME_PROGRAM, default_zone_preheat_enabled=True
+    )
+    config["default_zone"]["time_program"] = {
+        day: [
+            {"start": "00:00", "mode": PERIOD_REDUCED},
+            {"start": "07:00", "mode": PERIOD_NORMAL},
+        ]
+        for day in _WEEK
+    }
+    config["boiler"] = {
+        "entity_id": "switch.boiler",
+        "outdoor_temperature_entity_id": "sensor.outdoor",
+        "flow_temperature_entity_id": "sensor.flow",
+    }
+    data = _make_mock_data(
+        runtime_config=config, rooms={"salon": ["climate.salon_trv"]}
+    )
+    coord = ClimateManagerCoordinator(hass, data)
+    room = coord._rooms["salon"]
+    room._frost_locked = False
+
+    for minute, flow in ((30, "40.0"), (31, "60.0")):
+        hass.states.async_set("sensor.flow", flow)
+        await room.compute_preheat(
+            EvalContext(
+                now=datetime.datetime(2026, 6, 1, 6, minute, tzinfo=TZ),
+                hass=hass,
+                period_temperatures=config["period_temperatures"],
+            )
+        )
+    await hass.async_block_till_done()
+
+    ip = room._preheat_in_progress
+    assert ip["outdoor_temp"] == 4.5
+    # The start pass only opens the run: the flow is read from the next.
+    assert (ip["flow_sum"], ip["flow_n"]) == (60.0, 1)

@@ -226,6 +226,9 @@ export interface BoilerConfig {
   off_hvac_mode?: string;
   min_on_minutes?: number;
   min_off_minutes?: number;
+  /** Sensors recorded with pre-heat samples (else the vendor's reading). */
+  outdoor_temperature_entity_id?: string;
+  flow_temperature_entity_id?: string;
 }
 
 /** Live boiler state in the status payload. */
@@ -239,6 +242,8 @@ export interface BoilerStatus {
   waiting_until: string | null;
   /** Boiler demand binary sensor (resolved from the registry). */
   demand_entity_id?: string | null;
+  /** Brand reporting the boiler's readings ("ViCare"), else null. */
+  vendor?: string | null;
 }
 
 /** Per-TRV calibration status returned by get_calibration_status. */

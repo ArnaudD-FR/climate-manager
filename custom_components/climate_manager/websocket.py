@@ -1359,6 +1359,12 @@ def _make_ws_suggest_matter_mappings(
 # ---------------------------------------------------------------------------
 
 
+_BOILER_READING_SENSORS = (
+    "outdoor_temperature_entity_id",
+    "flow_temperature_entity_id",
+)
+
+
 def _boiler_config_error(hass: HomeAssistant, msg: dict) -> str | None:
     """Validate a set_boiler_config payload against the live entity."""
     entity_id = msg["entity_id"]
@@ -1367,6 +1373,10 @@ def _boiler_config_error(hass: HomeAssistant, msg: dict) -> str | None:
     state = hass.states.get(entity_id)
     if state is None:
         return f"Unknown entity: {entity_id}"
+    for key in _BOILER_READING_SENSORS:
+        sensor = msg.get(key)
+        if sensor and not sensor.startswith("sensor."):
+            return f"{key} must be a sensor"
     if not entity_id.startswith("climate."):
         return None
     hvac_modes = state.attributes.get("hvac_modes") or []
@@ -1390,6 +1400,8 @@ def _make_ws_set_boiler_config(entry: ClimateManagerConfigEntry):
             vol.Optional("off_hvac_mode"): str,
             vol.Optional("min_on_minutes"): minutes,
             vol.Optional("min_off_minutes"): minutes,
+            vol.Optional("outdoor_temperature_entity_id"): vol.Any(None, str),
+            vol.Optional("flow_temperature_entity_id"): vol.Any(None, str),
         }
     )
     @websocket_api.async_response
@@ -1430,6 +1442,10 @@ def _make_ws_set_boiler_config(entry: ClimateManagerConfigEntry):
                 boiler["off_hvac_mode"] = msg.get(
                     "off_hvac_mode", DEFAULT_BOILER_OFF_HVAC_MODE
                 )
+            # Optional sensors recorded with each pre-heat sample.
+            for key in _BOILER_READING_SENSORS:
+                if msg.get(key):
+                    boiler[key] = msg[key]
             config["boiler"] = boiler
         try:
             await entry.runtime_data.store.async_save(config)

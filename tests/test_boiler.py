@@ -349,6 +349,7 @@ async def test_status_and_demand_sensor(hass, freezer):
         "on": True,
         "demand_rooms": ["a"],
         "waiting_until": None,
+        "vendor": None,
         "demand_entity_id": DEMAND,
     }
     state = hass.states.get(DEMAND)
@@ -387,6 +388,7 @@ async def test_ws_set_boiler_config(hass, hass_ws_client):
         {"entity_id": "switch.missing"},
         {"entity_id": CLIMATE_BOILER, "on_hvac_mode": "auto"},
         {"entity_id": SWITCH, "min_on_minutes": 61},
+        {"entity_id": SWITCH, "flow_temperature_entity_id": "light.x"},
     ):
         assert not (await send(**bad))["success"], bad
     assert "boiler" not in entry.runtime_data.runtime_config
@@ -406,6 +408,17 @@ async def test_ws_set_boiler_config(hass, hass_ws_client):
         "min_on_minutes": 10,
         "min_off_minutes": 5,
     }
+
+    assert (
+        await send(
+            entity_id=SWITCH,
+            outdoor_temperature_entity_id="sensor.outdoor",
+            flow_temperature_entity_id=None,
+        )
+    )["success"]
+    boiler = entry.runtime_data.runtime_config["boiler"]
+    assert boiler["outdoor_temperature_entity_id"] == "sensor.outdoor"
+    assert "flow_temperature_entity_id" not in boiler
 
     assert (await send(entity_id=None))["success"]
     assert "boiler" not in entry.runtime_data.runtime_config
