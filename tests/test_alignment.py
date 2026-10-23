@@ -19,7 +19,7 @@ from custom_components.climate_manager.vendors import (
 
 TRV = "climate.fake_trv"
 SENSOR = "sensor.room"
-STEADY = timedelta(minutes=90)
+STEADY = timedelta(minutes=60)
 _START = datetime(2026, 1, 5, 12, 0, tzinfo=timezone.utc)
 
 
@@ -68,7 +68,7 @@ def _set(hass, trv_temp, sensor_temp):
 
 
 async def _steady(aligner, config, freezer):
-    """Two passes 90 min apart: steady readings, settled setpoint."""
+    """Two passes 60 min apart: steady readings, settled setpoint."""
     await aligner.align_room(config, "office")
     freezer.tick(STEADY)
     await aligner.align_room(config, "office")
@@ -193,6 +193,8 @@ async def test_extra_readings_do_not_weigh_more(hass, fake, freezer):
     mean would be 20.7).
     """
     aligner, config = _aligner(hass)
+    # First seen at 30: the window is first covered at 90.
+    freezer.move_to(_START + timedelta(minutes=30))
     _set(hass, 20.0, 19.6)
     await aligner.align_room(config, "office")
     for burst in (40, 70):
@@ -209,26 +211,59 @@ async def test_extra_readings_do_not_weigh_more(hass, fake, freezer):
     assert fake.writes == [(f"dev_{TRV}", -0.6)]
 
 
+def _set_regulating(hass, trv_temp, sensor_temp, setpoint):
+    hass.states.async_set(
+        TRV,
+        "heat",
+        {"current_temperature": trv_temp, "temperature": setpoint},
+    )
+    hass.states.async_set(SENSOR, str(sensor_temp))
+
+
 async def test_waits_after_setpoint_change(hass, fake, freezer):
-    """A radiator keeps warming its TRV after closing: the flat top of
-    that hump is not a steady state."""
+    """The window lies under the current setpoint."""
     aligner, config = _aligner(hass)
-    _set(hass, 20.0, 19.0)
+    _set_regulating(hass, 18.2, 17.2, 18.5)
     await aligner.align_room(config, "office")
     freezer.tick(timedelta(minutes=30))
-    hass.states.async_set(
-        TRV, "heat", {"current_temperature": 20.0, "temperature": 18.0}
-    )
+    _set_regulating(hass, 18.2, 17.2, 18.0)
     await aligner.align_room(config, "office")
 
-    # Readings flat for 90 min, setpoint changed 60 min ago.
-    freezer.tick(timedelta(minutes=60))
+    # Readings flat for 89 min, setpoint changed 59 min ago.
+    freezer.tick(timedelta(minutes=59))
     await aligner.align_room(config, "office")
     assert fake.writes == []
 
-    freezer.tick(timedelta(minutes=30))
+    freezer.tick(timedelta(minutes=1))
     await aligner.align_room(config, "office")
     assert fake.writes == [(f"dev_{TRV}", -1.0)]
+
+
+@pytest.mark.parametrize(
+    ("trv_temp", "written"),
+    [
+        # Regulating around its setpoint (20.0): the gap is corrected.
+        (20.4, True),
+        (19.6, True),
+        # Valve closed on a radiator still warming its TRV, or a room
+        # already warmer than the setpoint: not the gap to correct.
+        (21.1, False),
+        # Still heating its radiator up.
+        (19.4, False),
+    ],
+)
+async def test_only_measured_while_regulating(
+    hass, fake, freezer, trv_temp, written
+):
+    """Lucie's room, 2026-10-23: 18 → 20 °C at 12:00, the TRV climbed to
+    21.1 and closed while the room was at 19.0; that plateau held 1 h."""
+    aligner, config = _aligner(hass)
+    sensor_temp = round(trv_temp - 2.1, 1)
+    _set_regulating(hass, trv_temp, sensor_temp, 20.0)
+
+    await _steady(aligner, config, freezer)
+
+    assert bool(fake.writes) is written
 
 
 async def test_waits_for_trv_to_settle_after_write(hass, fake, freezer):

@@ -10,19 +10,24 @@ offset. This module owns the brand-neutral part:
   regulating at its setpoint opens and closes its valve in cycles, and
   its reading next to the radiator swings with them: the means cancel
   the cycles;
-- only measured in settled conditions: the TRV setpoint unchanged for
-  _SETPOINT_SETTLE, and neither reading drifting: the means of the two
-  halves of the window within _STABLE_TOLERANCE, for the sensor and for
-  the TRV. A TRV next to a radiator heating up or cooling down, or in
-  the sun, drifts away from the room: correcting that gap winds the
-  offset up to the clamp. A radiator keeps warming its TRV for a while
-  after closing: the settle time after a setpoint change skips that
-  hump. No alignment while a pre-heat runs (room.py): the boost and its
+- only measured while the TRV regulates: its mean reading within
+  _REGULATING_BAND of its setpoint. Only then does its reading decide
+  the room temperature. Below, the TRV is still heating up its radiator;
+  above, its valve is closed (a radiator still warming its TRV after
+  closing, or a room already warmer than the setpoint): the gap seen
+  there is not the one to correct;
+- and only in settled conditions: the TRV setpoint unchanged for
+  _SETPOINT_SETTLE (the window lies under the current setpoint), and
+  neither reading drifting: the means of the two halves of the window
+  within _STABLE_TOLERANCE, for the sensor and for the TRV. A TRV next
+  to a radiator heating up or cooling down, or in the sun, drifts away
+  from the room: correcting that gap winds the offset up to the clamp.
+  No alignment while a pre-heat runs (room.py): the boost and its
   release drive the TRV far from its usual regime: the window starts
   after the run (its readings are dropped, never seeded). Once the run
   ends, the setpoint change starts the settle time again;
 - the readings and the setpoint history are kept in memory, seeded once
-  per entity from the recorder (the last _SETPOINT_SETTLE): a restart
+  per entity from the recorder (the last _SEED_SPAN): a restart
   does not wait for a new window. Without the recorder (not loaded,
   entity excluded, query failed) the window fills from the passes;
 - after a write, the TRV readings start over: the next correction waits
@@ -64,9 +69,13 @@ _ALIGNMENT_MIN_INTERVAL = timedelta(minutes=5)
 # Settled conditions: the TRV setpoint unchanged for _SETPOINT_SETTLE, the
 # means of the two halves of _STABLE_WINDOW within _STABLE_TOLERANCE (°C)
 # for both readings.
-_SETPOINT_SETTLE = timedelta(minutes=90)
+_SETPOINT_SETTLE = timedelta(minutes=60)
 _STABLE_WINDOW = timedelta(minutes=60)
 _STABLE_TOLERANCE = 0.2
+# A regulating TRV's mean reading stays this close to its setpoint (°C).
+_REGULATING_BAND = 0.5
+# History read when seeding: the window and the setpoint age.
+_SEED_SPAN = max(_STABLE_WINDOW, _SETPOINT_SETTLE)
 
 
 def log_alignment(
@@ -138,6 +147,14 @@ async def _recorded_states(
         for state in result.get(entity_id, [])
         if state.state not in ("unavailable", "unknown")
     ]
+
+
+def _regulating(trv_temp: float, setpoint: object) -> bool:
+    """True when the TRV mean reading is within _REGULATING_BAND of its
+    setpoint (always without a setpoint)."""
+    if not isinstance(setpoint, (int, float)) or isinstance(setpoint, bool):
+        return True
+    return abs(trv_temp - setpoint) <= _REGULATING_BAND + 1e-9
 
 
 def _setpoint_since(states: list[State]) -> tuple[tuple, datetime]:
@@ -304,7 +321,7 @@ class SensorAligner:
         self._seeded.update(entity_id for entity_id, _ in todo)
         if "recorder" not in self._hass.config.components:
             return
-        start = now - _SETPOINT_SETTLE
+        start = now - _SEED_SPAN
         for entity_id, is_trv in todo:
             states = await _recorded_states(self._hass, entity_id, start, now)
             readings: list[tuple[datetime, float]] = []
@@ -350,6 +367,8 @@ class SensorAligner:
             return
         sensor_temp = sum(sensor_window) / 2
         trv_temp = sum(trv_window) / 2
+        if not _regulating(trv_temp, state.attributes.get("temperature")):
+            return
 
         delta = sensor_temp - trv_temp
         if abs(delta) <= threshold:

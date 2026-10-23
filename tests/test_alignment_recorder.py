@@ -12,7 +12,10 @@ from pytest_homeassistant_custom_component.components.recorder.common import (
     async_wait_recording_done,
 )
 
-from tests.test_alignment import TRV, _START, _aligner, _set, fake  # noqa: F401
+from tests import test_alignment
+from tests.test_alignment import TRV, _START, _aligner, _set
+
+fake = test_alignment.fake
 
 
 @pytest.fixture(autouse=True)
@@ -20,9 +23,7 @@ def auto_enable_custom_integrations(recorder_mock, enable_custom_integrations):
     """Recorder first, then the package's custom integrations."""
 
 
-async def test_seeded_from_recorder_after_restart(
-    hass, fake, freezer
-):
+async def test_seeded_from_recorder_after_restart(hass, fake, freezer):
     """Readings and setpoint recorded before a restart: a new aligner
     corrects at its first pass instead of waiting for a new window."""
     freezer.move_to(_START)
@@ -37,19 +38,17 @@ async def test_seeded_from_recorder_after_restart(
     assert fake.writes == [(f"dev_{TRV}", -1.0)]
 
 
-async def test_recorded_setpoint_change_still_settles(
-    hass, fake, freezer
-):
-    """A setpoint changed 60 min before the restart: still 30 min to go."""
+async def test_recorded_setpoint_change_still_settles(hass, fake, freezer):
+    """A setpoint changed 30 min before the restart: still 30 min to go."""
     freezer.move_to(_START)
-    _set(hass, 20.0, 19.0)
+    _set(hass, 18.2, 17.2)
     await async_wait_recording_done(hass)
-    freezer.tick(timedelta(minutes=35))
+    freezer.tick(timedelta(minutes=65))
     hass.states.async_set(
-        TRV, "heat", {"current_temperature": 20.0, "temperature": 18.0}
+        TRV, "heat", {"current_temperature": 18.2, "temperature": 18.0}
     )
     await async_wait_recording_done(hass)
-    freezer.tick(timedelta(minutes=60))
+    freezer.tick(timedelta(minutes=30))
 
     aligner, config = _aligner(hass)
     await aligner.align_room(config, "office")
@@ -58,7 +57,6 @@ async def test_recorded_setpoint_change_still_settles(
     freezer.tick(timedelta(minutes=30))
     await aligner.align_room(config, "office")
     assert fake.writes == [(f"dev_{TRV}", -1.0)]
-
 
 
 async def test_recorded_trv_ramp_not_corrected(hass, fake, freezer):

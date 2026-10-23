@@ -107,9 +107,9 @@ async def test_tado_valve_offset_seeded_from_sensor_after_restart(
     hass.states.async_set(
         "climate.office",
         "heat",
-        {"temperature": 20.0, "current_temperature": 20.6},
+        {"temperature": 20.0, "current_temperature": 20.4},
     )
-    hass.states.async_set("sensor.office_temp", "19.9")
+    hass.states.async_set("sensor.office_temp", "19.7")
 
     coordinator, config, offset_calls = await _setup(
         hass, area.id, "climate.office", "sensor.office_temp"

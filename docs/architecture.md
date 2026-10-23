@@ -268,22 +268,27 @@ jitter: `alignment_threshold` (0.5 °C). The gap compared is the time-weighted
 mean of the room sensor minus that of the TRV reading over the last 60 min (each
 reading holds until the next, so event-driven passes do not weigh more): a TRV
 regulating at its setpoint opens and closes in cycles, and its reading next to
-the radiator swings with them; the means cancel the cycles. Only settled
-conditions are measured: the TRV mode and setpoint unchanged for 90 min, and
-neither reading drifting — the means of the two half-hours of the window within
-0.2 °C, for the sensor and for the TRV. A radiator heating up or cooling down,
-or the sun on a TRV, makes the TRV drift away from the room: correcting that gap
-would wind the offset up to the clamp. A radiator also keeps warming its TRV for
-a while after it closed: the settle time after a setpoint change skips that
-hump. No alignment (nor readings recorded) while a pre-heat runs
-(`Room.preheat_running`: hold, release and measuring): the boost and its release
-drive the TRV far from its usual regime; the window starts after the run. The
-end of the run changes the setpoint, which restarts the settle time. The window
-and the setpoint age are seeded once per entity from the recorder (the last 90
-min, every update: a TRV reading is an attribute), so a restart does not wait
-for a new window; without history (recorder not loaded, entity excluded) the
-window fills from the passes. The manifest lists `recorder` in
-`after_dependencies`. After a write the TRV readings start over, so the next
+the radiator swings with them; the means cancel the cycles. Only measured while
+the TRV regulates: its mean reading within 0.5 °C of its setpoint, the only
+regime where its reading decides the room temperature. Below, it is still
+heating its radiator up; above, its valve is closed — a radiator still warming
+its TRV after closing (a plateau that held over an hour in Lucie's room on
+2026-10-23), or a room already warmer than the setpoint. Over two days of
+history, steady TRVs sat either within −0.3…+0.5 °C of their setpoint or +1…+2.5
+°C above it. Only settled conditions are measured: the TRV mode and setpoint
+unchanged for 60 min (the window lies under the current setpoint), and neither
+reading drifting — the means of the two half-hours of the window within 0.2 °C,
+for the sensor and for the TRV. A radiator heating up or cooling down, or the
+sun on a TRV, makes the TRV drift away from the room: correcting that gap would
+wind the offset up to the clamp. No alignment (nor readings recorded) while a
+pre-heat runs (`Room.preheat_running`: hold, release and measuring): the boost
+and its release drive the TRV far from its usual regime; the window starts after
+the run. The end of the run changes the setpoint, which restarts the settle
+time. The window and the setpoint age are seeded once per entity from the
+recorder (the last 60 min, every update: a TRV reading is an attribute), so a
+restart does not wait for a new window; without history (recorder not loaded,
+entity excluded) the window fills from the passes. The manifest lists `recorder`
+in `after_dependencies`. After a write the TRV readings start over, so the next
 correction waits for the TRV to settle on its new offset. An offset that does
 not change (at the clamp) is not written. At most one write attempt per target
 every 5 min, failures included (cloud API quotas; with Tado X each write also
