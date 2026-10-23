@@ -18,8 +18,13 @@ offset. This module owns the brand-neutral part:
   offset up to the clamp. A radiator keeps warming its TRV for a while
   after closing: the settle time after a setpoint change skips that
   hump. No alignment while a pre-heat runs (room.py): the boost and its
-  release drive the TRV far from its usual regime. Once the run ends,
-  the setpoint change starts the settle time again;
+  release drive the TRV far from its usual regime: the window starts
+  after the run (its readings are dropped, never seeded). Once the run
+  ends, the setpoint change starts the settle time again;
+- the readings and the setpoint history are kept in memory, seeded once
+  per entity from the recorder (the last _SETPOINT_SETTLE): a restart
+  does not wait for a new window. Without the recorder (not loaded,
+  entity excluded, query failed) the window fills from the passes;
 - after a write, the TRV readings start over: the next correction waits
   for the TRV to settle on its new offset;
 - at most one write attempt per target every _ALIGNMENT_MIN_INTERVAL
@@ -37,9 +42,10 @@ import logging
 from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from typing import TYPE_CHECKING
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 
 from .const import TRV_COMMAND_TIMEOUT
 from .room import resolve_room_sensor
@@ -102,6 +108,49 @@ def _mean(
     return total / (end - start).total_seconds()
 
 
+async def _recorded_states(
+    hass: HomeAssistant, entity_id: str, start: datetime, end: datetime
+) -> list[State]:
+    """entity_id's recorded states over [start, end] (with the one at
+    start); [] when the recorder cannot tell."""
+    from homeassistant.components.recorder import (  # noqa: PLC0415
+        get_instance,
+        history,
+    )
+
+    try:
+        # Every update: a TRV reading is an attribute, not its state.
+        result = await get_instance(hass).async_add_executor_job(
+            partial(
+                history.get_significant_states,
+                hass,
+                start,
+                end,
+                [entity_id],
+                significant_changes_only=False,
+            )
+        )
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("align | no history for %s: %r", entity_id, err)
+        return []
+    return [
+        state
+        for state in result.get(entity_id, [])
+        if state.state not in ("unavailable", "unknown")
+    ]
+
+
+def _setpoint_since(states: list[State]) -> tuple[tuple, datetime]:
+    """(TRV mode and setpoint, since when) from time-ordered states."""
+    key: tuple | None = None
+    since = states[0].last_updated
+    for state in states:
+        current = (state.state, state.attributes.get("temperature"))
+        if current != key:
+            key, since = current, state.last_updated
+    return key, since
+
+
 def _level(window: tuple[float, float]) -> bool:
     """True when the two half-window means are within _STABLE_TOLERANCE."""
     return abs(window[1] - window[0]) <= _STABLE_TOLERANCE + 1e-9
@@ -148,6 +197,8 @@ class SensorAligner:
         self._readings: dict[str, deque[tuple[datetime, float]]] = {}
         # TRV mode and setpoint per entity, and since when they hold.
         self._setpoints: dict[str, tuple[tuple, datetime]] = {}
+        # Entities whose readings were seeded from the recorder (or tried).
+        self._seeded: set[str] = set()
 
     def targets(self, area_id: str) -> list[AlignmentTarget]:
         """Alignment targets of a room, as the vendors resolve them."""
@@ -212,22 +263,68 @@ class SensorAligner:
         """Align a room's targets toward its temperature sensor."""
         if not config.get("alignment_enabled", False):
             return
+        sensor_id = resolve_room_sensor(self._hass, area_id, config)
+        targets = self.targets(area_id)
         room = self._rooms().get(area_id)
         if room is not None and room.preheat_running:
+            # The window starts after the run: none of its readings, live
+            # or recorded.
+            sources = [t.temp_entity_id for t in targets]
+            for entity_id in filter(None, (sensor_id, *sources)):
+                self._readings.pop(entity_id, None)
+                self._seeded.add(entity_id)
             return
-        sensor_id = resolve_room_sensor(self._hass, area_id, config)
         sensor_temp = _float_state(self._hass, sensor_id)
         if sensor_id is None or sensor_temp is None:
             return
         now = datetime.now(timezone.utc)
+        await self._seed([sensor_id], [t.temp_entity_id for t in targets], now)
         sensor_window = self._window(sensor_id, now, sensor_temp)
         threshold = config.get("alignment_threshold", 0.5)
         await asyncio.gather(
             *(
                 self._align(area_id, target, now, sensor_window, threshold)
-                for target in self.targets(area_id)
+                for target in targets
             )
         )
+
+    async def _seed(
+        self, sensors: list[str], trvs: list[str], now: datetime
+    ) -> None:
+        """Seed readings and setpoints never seen from the recorder."""
+        todo = [
+            (entity_id, is_trv)
+            for entity_ids, is_trv in ((sensors, False), (trvs, True))
+            for entity_id in entity_ids
+            if entity_id not in self._seeded
+        ]
+        if not todo:
+            return
+        # Marked first: a concurrent pass does not query again.
+        self._seeded.update(entity_id for entity_id, _ in todo)
+        if "recorder" not in self._hass.config.components:
+            return
+        start = now - _SETPOINT_SETTLE
+        for entity_id, is_trv in todo:
+            states = await _recorded_states(self._hass, entity_id, start, now)
+            readings: list[tuple[datetime, float]] = []
+            for state in states:
+                raw = (
+                    state.attributes.get("current_temperature")
+                    if is_trv
+                    else state.state
+                )
+                try:
+                    readings.append((state.last_updated, float(raw)))
+                except (TypeError, ValueError):
+                    continue
+            # Passes that ran meanwhile stay, in time order.
+            known = self._readings.get(entity_id, deque())
+            self._readings[entity_id] = deque(
+                sorted([*readings, *known], key=lambda r: r[0])
+            )
+            if is_trv and states and entity_id not in self._setpoints:
+                self._setpoints[entity_id] = _setpoint_since(states)
 
     async def _align(
         self,

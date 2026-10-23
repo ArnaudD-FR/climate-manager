@@ -277,12 +277,17 @@ would wind the offset up to the clamp. A radiator also keeps warming its TRV for
 a while after it closed: the settle time after a setpoint change skips that
 hump. No alignment (nor readings recorded) while a pre-heat runs
 (`Room.preheat_running`: hold, release and measuring): the boost and its release
-drive the TRV far from its usual regime. The end of the run changes the
-setpoint, which restarts the settle time. After a write the TRV readings start
-over, so the next correction waits for the TRV to settle on its new offset. An
-offset that does not change (at the clamp) is not written. At most one write
-attempt per target every 5 min, failures included (cloud API quotas; with Tado X
-each write also triggers a refresh). Each write logs
+drive the TRV far from its usual regime; the window starts after the run. The
+end of the run changes the setpoint, which restarts the settle time. The window
+and the setpoint age are seeded once per entity from the recorder (the last 90
+min, every update: a TRV reading is an attribute), so a restart does not wait
+for a new window; without history (recorder not loaded, entity excluded) the
+window fills from the passes. The manifest lists `recorder` in
+`after_dependencies`. After a write the TRV readings start over, so the next
+correction waits for the TRV to settle on its new offset. An offset that does
+not change (at the clamp) is not written. At most one write attempt per target
+every 5 min, failures included (cloud API quotas; with Tado X each write also
+triggers a refresh). Each write logs
 `align | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`. Offsets
 are remembered per target (`last_offset`, keyed by device or entity); after a
 restart the first correction starts from the offset the vendor reports. The
