@@ -5,19 +5,21 @@ The vendors say what can be aligned in a room (AlignmentTarget: which
 offset, compared with which climate entity) and how to read and write the
 offset. This module owns the brand-neutral part:
 
-- delta = room sensor - TRV current_temperature, ignored within the
-  threshold;
-- only measured in steady conditions: the TRV setpoint unchanged for
-  _SETPOINT_SETTLE, and the room sensor and the TRV reading both within
-  _STABLE_TOLERANCE over the last _STABLE_WINDOW. A TRV next to a
-  radiator heating or cooling down, or in the sun, reads a transient
-  gap: correcting it winds the offset up to the clamp. A radiator keeps
-  warming its TRV for a while after closing, and the top of that hump
-  looks flat: the settle time after a setpoint change skips it. Pre-heat
-  throttling is the boost's job (room.py), not the offset's: no
-  alignment while a room is boosting, as a long boost held at a
-  constant setpoint looks settled too. Once the boost drops, the
-  setpoint change starts the settle time again;
+- delta = mean room sensor - mean TRV current_temperature over the last
+  _STABLE_WINDOW (time-weighted), ignored within the threshold. A TRV
+  regulating at its setpoint opens and closes its valve in cycles, and
+  its reading next to the radiator swings with them: the means cancel
+  the cycles;
+- only measured in settled conditions: the TRV setpoint unchanged for
+  _SETPOINT_SETTLE, and neither reading drifting: the means of the two
+  halves of the window within _STABLE_TOLERANCE, for the sensor and for
+  the TRV. A TRV next to a radiator heating up or cooling down, or in
+  the sun, drifts away from the room: correcting that gap winds the
+  offset up to the clamp. A radiator keeps warming its TRV for a while
+  after closing: the settle time after a setpoint change skips that
+  hump. No alignment while a pre-heat runs (room.py): the boost and its
+  release drive the TRV far from its usual regime. Once the run ends,
+  the setpoint change starts the settle time again;
 - after a write, the TRV readings start over: the next correction waits
   for the TRV to settle on its new offset;
 - at most one write attempt per target every _ALIGNMENT_MIN_INTERVAL
@@ -53,8 +55,9 @@ _LOGGER = logging.getLogger(__name__)
 _OFFSET_CLAMP = 5.0
 # Minimum time between two offset writes on a target (avoids HTTP 429s).
 _ALIGNMENT_MIN_INTERVAL = timedelta(minutes=5)
-# Steady conditions: the TRV setpoint unchanged for _SETPOINT_SETTLE, both
-# readings within _STABLE_TOLERANCE (°C) over _STABLE_WINDOW.
+# Settled conditions: the TRV setpoint unchanged for _SETPOINT_SETTLE, the
+# means of the two halves of _STABLE_WINDOW within _STABLE_TOLERANCE (°C)
+# for both readings.
 _SETPOINT_SETTLE = timedelta(minutes=90)
 _STABLE_WINDOW = timedelta(minutes=60)
 _STABLE_TOLERANCE = 0.2
@@ -82,6 +85,26 @@ def log_alignment(
         new_offset,
         threshold,
     )
+
+
+def _mean(
+    readings: deque[tuple[datetime, float]], start: datetime, end: datetime
+) -> float:
+    """Time-weighted mean over [start, end]; readings[0] is at or before
+    start, each reading holds until the next one."""
+    total = 0.0
+    points = list(readings)
+    for i, (at, value) in enumerate(points):
+        until = points[i + 1][0] if i + 1 < len(points) else end
+        span = (min(until, end) - max(at, start)).total_seconds()
+        if span > 0:
+            total += value * span
+    return total / (end - start).total_seconds()
+
+
+def _level(window: tuple[float, float]) -> bool:
+    """True when the two half-window means are within _STABLE_TOLERANCE."""
+    return abs(window[1] - window[0]) <= _STABLE_TOLERANCE + 1e-9
 
 
 def _float_state(hass: HomeAssistant, entity_id: str | None) -> float | None:
@@ -149,17 +172,24 @@ class SensorAligner:
             return self.last_offset[target.key]
         return target.vendor.read_offset(self._hass, target)
 
-    def _steady(self, entity_id: str, now: datetime, value: float) -> bool:
-        """Record a reading; True once steady over the whole window."""
+    def _window(
+        self, entity_id: str, now: datetime, value: float
+    ) -> tuple[float, float] | None:
+        """Record a reading; the means of the window's two halves.
+
+        None until the readings cover the whole window. Each reading
+        holds until the next one (time-weighted): an event-driven tick
+        does not count twice.
+        """
         readings = self._readings.setdefault(entity_id, deque())
         readings.append((now, value))
         start = now - _STABLE_WINDOW
         while len(readings) > 1 and readings[1][0] <= start:
             readings.popleft()
         if readings[0][0] > start:
-            return False
-        values = [v for _, v in readings]
-        return max(values) - min(values) <= _STABLE_TOLERANCE + 1e-9
+            return None
+        middle = start + _STABLE_WINDOW / 2
+        return _mean(readings, start, middle), _mean(readings, middle, now)
 
     def _settled(self, state, now: datetime) -> bool:
         """Record the TRV setpoint; True once unchanged for the settle time."""
@@ -183,20 +213,18 @@ class SensorAligner:
         if not config.get("alignment_enabled", False):
             return
         room = self._rooms().get(area_id)
-        if room is not None and room.preheat_boosting:
+        if room is not None and room.preheat_running:
             return
         sensor_id = resolve_room_sensor(self._hass, area_id, config)
         sensor_temp = _float_state(self._hass, sensor_id)
         if sensor_id is None or sensor_temp is None:
             return
         now = datetime.now(timezone.utc)
-        sensor_steady = self._steady(sensor_id, now, sensor_temp)
+        sensor_window = self._window(sensor_id, now, sensor_temp)
         threshold = config.get("alignment_threshold", 0.5)
         await asyncio.gather(
             *(
-                self._align(
-                    area_id, target, now, sensor_temp, sensor_steady, threshold
-                )
+                self._align(area_id, target, now, sensor_window, threshold)
                 for target in self.targets(area_id)
             )
         )
@@ -206,8 +234,7 @@ class SensorAligner:
         area_id: str,
         target: AlignmentTarget,
         now: datetime,
-        sensor_temp: float,
-        sensor_steady: bool,
+        sensor_window: tuple[float, float] | None,
         threshold: float,
     ) -> None:
         state = self._hass.states.get(target.temp_entity_id)
@@ -218,13 +245,17 @@ class SensorAligner:
         except (KeyError, TypeError, ValueError):
             return
         # Both record the current state: evaluate them before any return.
-        trv_steady = self._steady(target.temp_entity_id, now, trv_temp)
+        trv_window = self._window(target.temp_entity_id, now, trv_temp)
         settled = self._settled(state, now)
+        if not settled or sensor_window is None or trv_window is None:
+            return
+        if not (_level(sensor_window) and _level(trv_window)):
+            return
+        sensor_temp = sum(sensor_window) / 2
+        trv_temp = sum(trv_window) / 2
 
         delta = sensor_temp - trv_temp
         if abs(delta) <= threshold:
-            return
-        if not (sensor_steady and trv_steady and settled):
             return
 
         existing = self.current_offset(target)

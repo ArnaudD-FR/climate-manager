@@ -264,22 +264,25 @@ factor model) is dropped from the store, and the registry entries of its
 not calibrated, only asked to follow the room sensor): incremental offset toward
 the room reference sensor, for the alignment targets the vendors resolve (see
 [Vendors](#vendors--vendors)). Clamped ±5°C with a threshold guard to avoid
-jitter: `alignment_threshold` (0.5 °C), pre-heat or not (the boost compensates a
-TRV reading high next to its radiator). Only steady conditions are measured: the
-TRV mode and setpoint unchanged for 90 min, and the room sensor and the TRV
-reading both within 0.2 °C over the last 60 min. A heating or cooling radiator,
-or the sun on a TRV, shows a transient gap that the TRV cancels as soon as its
-offset changes: correcting it would wind the offset up to the clamp. A radiator
-also keeps warming its TRV for a while after it closed, and the top of that hump
-looks flat: the settle time after a setpoint change skips it. No alignment (nor
-readings recorded) while the room is boosting (`Room.preheat_boosting`): a long
-boost held at one setpoint looks settled too, and the TRV next to the hot
-radiator reads well above the room. Dropping the boost changes the setpoint,
-which restarts the settle time. After a write the TRV readings start over, so
-the next correction waits for the TRV to settle on its new offset. An offset
-that does not change (at the clamp) is not written. At most one write attempt
-per target every 5 min, failures included (cloud API quotas; with Tado X each
-write also triggers a refresh). Each write logs
+jitter: `alignment_threshold` (0.5 °C). The gap compared is the time-weighted
+mean of the room sensor minus that of the TRV reading over the last 60 min (each
+reading holds until the next, so event-driven passes do not weigh more): a TRV
+regulating at its setpoint opens and closes in cycles, and its reading next to
+the radiator swings with them; the means cancel the cycles. Only settled
+conditions are measured: the TRV mode and setpoint unchanged for 90 min, and
+neither reading drifting — the means of the two half-hours of the window within
+0.2 °C, for the sensor and for the TRV. A radiator heating up or cooling down,
+or the sun on a TRV, makes the TRV drift away from the room: correcting that gap
+would wind the offset up to the clamp. A radiator also keeps warming its TRV for
+a while after it closed: the settle time after a setpoint change skips that
+hump. No alignment (nor readings recorded) while a pre-heat runs
+(`Room.preheat_running`: hold, release and measuring): the boost and its release
+drive the TRV far from its usual regime. The end of the run changes the
+setpoint, which restarts the settle time. After a write the TRV readings start
+over, so the next correction waits for the TRV to settle on its new offset. An
+offset that does not change (at the clamp) is not written. At most one write
+attempt per target every 5 min, failures included (cloud API quotas; with Tado X
+each write also triggers a refresh). Each write logs
 `align | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`. Offsets
 are remembered per target (`last_offset`, keyed by device or entity); after a
 restart the first correction starts from the offset the vendor reports. The

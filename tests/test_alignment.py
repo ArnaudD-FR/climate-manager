@@ -5,7 +5,7 @@ TRVVendor interface only.
 """
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -20,6 +20,7 @@ from custom_components.climate_manager.vendors import (
 TRV = "climate.fake_trv"
 SENSOR = "sensor.room"
 STEADY = timedelta(minutes=90)
+_START = datetime(2026, 1, 5, 12, 0, tzinfo=timezone.utc)
 
 
 class FakeVendor(TRVVendor):
@@ -128,19 +129,20 @@ async def test_waits_for_steady_readings(hass, fake, freezer):
     assert fake.writes == [(f"dev_{TRV}", -1.0)]
 
 
-async def test_no_alignment_while_boosting(hass, fake, freezer):
-    """A long boost held at one setpoint looks settled: still skipped.
+async def test_no_alignment_while_preheating(hass, fake, freezer):
+    """A pre-heat run (boost held at one setpoint, then released) is
+    skipped as a whole.
 
-    Readings are not recorded meanwhile: steadiness starts after it.
+    Readings are not recorded meanwhile: the window starts after it.
     """
-    room = SimpleNamespace(preheat_boosting=True)
+    room = SimpleNamespace(preheat_running=True)
     aligner, config = _aligner(hass, lambda: {"office": room})
     _set(hass, 21.9, 20.5)
 
     await _steady(aligner, config, freezer)
     assert fake.writes == []
 
-    room.preheat_boosting = False
+    room.preheat_running = False
     await aligner.align_room(config, "office")
     assert fake.writes == []
     freezer.tick(STEADY)
@@ -151,10 +153,10 @@ async def test_no_alignment_while_boosting(hass, fake, freezer):
 @pytest.mark.parametrize(
     ("trv_temps", "sensor_temps"),
     [
-        # TRV warming next to the radiator (pre-heat, sun).
-        ((20.0, 20.3, 20.6), (19.6, 19.6, 19.6)),
+        # TRV warming next to the radiator (0.8 °C/h).
+        ((20.0, 20.6, 21.2), (19.6, 19.6, 19.6)),
         # Room sensor warming in the sun.
-        ((19.0, 19.0, 19.0), (19.6, 20.0, 20.4)),
+        ((19.0, 19.0, 19.0), (19.6, 20.2, 20.8)),
     ],
 )
 async def test_moving_reading_nothing_written(
@@ -167,6 +169,44 @@ async def test_moving_reading_nothing_written(
         freezer.tick(STEADY / 2)
 
     assert fake.writes == []
+
+
+async def test_regulation_cycles_averaged(hass, fake, freezer):
+    """A TRV regulating at its setpoint swings with its valve cycles
+    (20.0 ↔ 21.0 every 15 min): the mean gap is corrected."""
+    aligner, config = _aligner(hass)
+    for minute in range(0, 91, 15):
+        _set(hass, 20.0 if minute % 30 == 0 else 21.0, 19.6)
+        await aligner.align_room(config, "office")
+        if minute < 90:
+            freezer.tick(timedelta(minutes=15))
+
+    assert fake.writes == [(f"dev_{TRV}", -0.9)]
+
+
+@pytest.mark.freeze_time(_START)
+async def test_extra_readings_do_not_weigh_more(hass, fake, freezer):
+    """Event-driven passes add readings: the mean is time-weighted.
+
+    5 min at 21.0 in each half-hour, seen by 5 passes, against 25 min at
+    20.0 seen by one: mean 20.17, gap -0.57 (counted per reading, the
+    mean would be 20.7).
+    """
+    aligner, config = _aligner(hass)
+    _set(hass, 20.0, 19.6)
+    await aligner.align_room(config, "office")
+    for burst in (40, 70):
+        freezer.move_to(_START + timedelta(minutes=burst))
+        _set(hass, 21.0, 19.6)
+        for _ in range(5):
+            await aligner.align_room(config, "office")
+            freezer.tick(timedelta(minutes=1))
+        _set(hass, 20.0, 19.6)
+        await aligner.align_room(config, "office")
+    freezer.move_to(_START + timedelta(minutes=90))
+    await aligner.align_room(config, "office")
+
+    assert fake.writes == [(f"dev_{TRV}", -0.6)]
 
 
 async def test_waits_after_setpoint_change(hass, fake, freezer):

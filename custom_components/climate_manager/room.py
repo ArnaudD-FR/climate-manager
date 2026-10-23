@@ -231,6 +231,11 @@ class Room:
         ip = self._preheat_in_progress
         return bool(ip) and not ip.get("released") and not ip["converged"]
 
+    @property
+    def preheat_running(self) -> bool:
+        """True while a pre-heat run exists (hold, release or measuring)."""
+        return bool(self._preheat_in_progress)
+
     def _preheat_boost(self, base: float) -> float:
         """°C added to base for the TRVs while a pre-heat runs.
 
