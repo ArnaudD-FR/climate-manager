@@ -51,14 +51,14 @@ def fake(monkeypatch):
     return vendor
 
 
-def _calibrator(hass):
+def _calibrator(hass, rooms=dict):
     config = {
         "calibration_enabled": True,
         "calibration_threshold": 0.5,
         "rooms": {"office": {"temperature_sensor": SENSOR}},
     }
     data = SimpleNamespace(rooms={"office": [TRV]}, runtime_config=config)
-    return Calibrator(hass, data), config
+    return Calibrator(hass, data, rooms), config
 
 
 def _set(hass, trv_temp, sensor_temp):
@@ -126,6 +126,26 @@ async def test_waits_for_steady_readings(hass, fake, freezer):
     freezer.tick(timedelta(minutes=1))
     await calibrator.calibrate_room(config, "office")
     assert fake.writes == [(f"dev_{TRV}", -1.0)]
+
+
+async def test_no_calibration_while_boosting(hass, fake, freezer):
+    """A long boost held at one setpoint looks settled: still skipped.
+
+    Readings are not recorded meanwhile: steadiness starts after it.
+    """
+    room = SimpleNamespace(preheat_boosting=True)
+    calibrator, config = _calibrator(hass, lambda: {"office": room})
+    _set(hass, 21.9, 20.5)
+
+    await _steady(calibrator, config, freezer)
+    assert fake.writes == []
+
+    room.preheat_boosting = False
+    await calibrator.calibrate_room(config, "office")
+    assert fake.writes == []
+    freezer.tick(STEADY)
+    await calibrator.calibrate_room(config, "office")
+    assert fake.writes == [(f"dev_{TRV}", -1.4)]
 
 
 @pytest.mark.parametrize(

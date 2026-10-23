@@ -2,8 +2,9 @@
 """Boiler control: heat while at least one room needs heat.
 
 A room needs heat when its effective period (schedule, presence and
-pre-heat resolved — Room.current_period) is one of BOILER_HEATING_PERIODS.
-Room temperatures and valve openings are not considered (v1).
+pre-heat resolved — Room.current_period) is one of BOILER_HEATING_PERIODS
+and at least one of its TRVs is available: a room without a valve, or
+whose valves are offline, cannot use the heat. Room temperatures and valve openings are not considered (v1).
 
 The boiler is a climate entity (its hvac_mode toggles between the
 configured on/off modes) or a switch / input_boolean (turn_on/turn_off).
@@ -186,6 +187,7 @@ class Boiler:
             area_id
             for area_id, room in rooms.items()
             if room.current_period in BOILER_HEATING_PERIODS
+            and room.has_available_trv
         )
         wanted = bool(self.demand_rooms)
 

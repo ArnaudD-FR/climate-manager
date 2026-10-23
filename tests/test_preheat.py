@@ -613,6 +613,47 @@ async def test_far_arrival_does_not_mask_setpoint_increase(
     )
 
 
+@pytest.mark.freeze_time("2026-06-01 06:30:00")  # Monday 06:30 UTC
+@pytest.mark.parametrize("trvs", [[], ["climate.salon_trv"]])
+async def test_no_preheat_without_available_trv(hass, trvs):
+    """No TRV, or its only TRV offline: the 07:00 increase is not
+    pre-heated (nothing could heat the room)."""
+    from custom_components.climate_manager.coordinator import (
+        ClimateManagerCoordinator,
+    )
+    from custom_components.climate_manager.eval_context import EvalContext
+
+    hass.states.async_set("climate.salon_trv", "unavailable")
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+
+    config = _make_preheat_config(
+        global_mode=MODE_TIME_PROGRAM, default_zone_preheat_enabled=True
+    )
+    config["default_zone"]["time_program"] = {
+        day: [
+            {"start": "00:00", "mode": PERIOD_REDUCED},
+            {"start": "07:00", "mode": PERIOD_NORMAL},
+        ]
+        for day in _WEEK
+    }
+    data = _make_mock_data(runtime_config=config, rooms={"salon": trvs})
+    coord = ClimateManagerCoordinator(hass, data)
+    room = coord._rooms["salon"]
+    room._frost_locked = False
+
+    ctx = EvalContext(
+        now=datetime.datetime(2026, 6, 1, 6, 30, tzinfo=TZ),
+        hass=hass,
+        period_temperatures=config["period_temperatures"],
+    )
+    await room.compute_preheat(ctx)
+    await hass.async_block_till_done()
+
+    assert room._preheat_active is False
+    assert room._preheat_in_progress == {}
+
+
 # ---------------------------------------------------------------------------
 # Test: frost-locked room never pre-heats (T-12-03)
 # ---------------------------------------------------------------------------

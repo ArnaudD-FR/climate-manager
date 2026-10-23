@@ -23,6 +23,7 @@ import math
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -263,6 +264,21 @@ class Room:
             pushed = max(pushed, math.ceil((base + excess) * 2) / 2)
         pushed = min(pushed, math.floor((base + cap) * 2) / 2)
         return max(0.0, pushed - base)
+
+    @property
+    def has_available_trv(self) -> bool:
+        """True when at least one of the room's TRVs is available."""
+        if self._hass is None:
+            return False
+        for group in self._trv_groups:
+            for trv in getattr(group, "_trvs", []):
+                state = self._hass.states.get(trv.entity_id)
+                if state is not None and state.state not in (
+                    STATE_UNAVAILABLE,
+                    STATE_UNKNOWN,
+                ):
+                    return True
+        return False
 
     def _trv_reading(self) -> float | None:
         """Highest current_temperature among this room's TRVs."""
@@ -709,7 +725,13 @@ class Room:
         # ----------------------------------------------------------------
         # TRIGGER (D-08, T-12-03)
         # ----------------------------------------------------------------
-        if next_occupied is None or presence_suppressed or self._frost_locked:
+        # No available TRV (none assigned, or all offline): nothing can heat.
+        if (
+            next_occupied is None
+            or presence_suppressed
+            or self._frost_locked
+            or not self.has_available_trv
+        ):
             self._preheat_active = False
             self._preheat_lead = None
             return

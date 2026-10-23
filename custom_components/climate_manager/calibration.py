@@ -14,7 +14,10 @@ offset. This module owns the brand-neutral part:
   gap: correcting it winds the offset up to the clamp. A radiator keeps
   warming its TRV for a while after closing, and the top of that hump
   looks flat: the settle time after a setpoint change skips it. Pre-heat
-  throttling is the boost's job (room.py), not the offset's;
+  throttling is the boost's job (room.py), not the offset's: no
+  calibration while a room is boosting, as a long boost held at a
+  constant setpoint looks settled too. Once the boost drops, the
+  setpoint change starts the settle time again;
 - after a write, the TRV readings start over: the next correction waits
   for the TRV to settle on its new offset;
 - at most one write attempt per target every _CALIBRATION_MIN_INTERVAL
@@ -30,6 +33,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import deque
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
@@ -41,6 +45,7 @@ from .vendors import CalibrationTarget, calibration_targets
 
 if TYPE_CHECKING:
     from . import ClimateManagerData
+    from .room import Room
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,9 +102,16 @@ class Calibrator:
     it lives on the coordinator, not on the Room objects.
     """
 
-    def __init__(self, hass: HomeAssistant, data: ClimateManagerData) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        data: ClimateManagerData,
+        rooms: Callable[[], dict[str, Room]] = dict,
+    ) -> None:
         self._hass = hass
         self._data = data
+        # The coordinator's current Room objects (rebuilt on config changes).
+        self._rooms = rooms
         # Last absolute offset written per target.
         self.last_offset: dict[str, float] = {}
         # When each target's offset was last written (ISO 8601, UTC).
@@ -172,6 +184,9 @@ class Calibrator:
     async def calibrate_room(self, config: dict, area_id: str) -> None:
         """Calibrate a room's targets toward its temperature sensor."""
         if not config.get("calibration_enabled", False):
+            return
+        room = self._rooms().get(area_id)
+        if room is not None and room.preheat_boosting:
             return
         sensor_id = resolve_room_sensor(self._hass, area_id, config)
         sensor_temp = _float_state(self._hass, sensor_id)

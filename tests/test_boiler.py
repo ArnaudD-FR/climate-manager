@@ -208,6 +208,28 @@ async def test_zone_off_and_empty_room_do_not_heat(hass, freezer):
     assert not calls.on
 
 
+async def test_room_without_available_trv_does_not_heat(hass, freezer):
+    """Room b has no TRV, room c's TRV is offline: only a demands."""
+    freezer.move_to(_utc("07:00"))
+    _trv(hass)
+    hass.states.async_set("climate.c_trv", "unavailable")
+    hass.states.async_set(SWITCH, "off")
+    _, coordinator, calls = await _setup(
+        hass,
+        _config(_switch_boiler()),
+        rooms={"a": [TRV], "b": [], "c": ["climate.c_trv"]},
+    )
+
+    await _tick(hass, freezer, coordinator, "07:00")
+    assert coordinator.rooms["c"].current_period == PERIOD_NORMAL
+    assert coordinator.boiler.demand_rooms == ["a"]
+
+    hass.states.async_set(TRV, "unavailable")
+    await _tick(hass, freezer, coordinator, "07:01")
+    assert coordinator.boiler.demand_rooms == []
+    assert len(calls.off) == 1
+
+
 async def test_climate_boiler_uses_hvac_modes(hass, freezer):
     """Climate boiler: configured hvac modes, never a valve setpoint."""
     freezer.move_to(_utc("06:00"))

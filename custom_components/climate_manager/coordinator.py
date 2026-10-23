@@ -125,7 +125,7 @@ class ClimateManagerCoordinator:
         self._last_zone_periods: dict[str, str | None] = {}
         # Offset calibration and its memory (last offset written per
         # target), kept across domain rebuilds.
-        self._calibrator = Calibrator(hass, data)
+        self._calibrator = Calibrator(hass, data, lambda: self._rooms)
         # Cancel callbacks for active ha-tracker watchers, keyed by notif_id.
         # One entry per person: person_state_cancel — dismisses the notification
         # immediately when device_trackers becomes non-empty again.

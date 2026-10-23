@@ -158,17 +158,18 @@ the setpoint, since its HA state may be stale.
 **Boiler** (`boiler.py`, optional `runtime_config["boiler"]`): the boiler heats
 while at least one room's effective period (`Room.current_period`: schedule,
 presence and pre-heat resolved) is in `BOILER_HEATING_PERIODS` (Normal, Comfort,
-Pre-heat); Reduced, Frost protection and an Off zone ask for nothing. Room
-temperatures and valve openings are not used. A `climate` boiler toggles
-`hvac_mode` between `on_hvac_mode` / `off_hvac_mode`; a `switch` /
-`input_boolean` uses `turn_on` / `turn_off` (bounded by `TRV_COMMAND_TIMEOUT`).
-Like the TRVs it is push-on-change: a command only when the demand changes, so a
-manual change stays until the next one. The first evaluation (startup, new
-entity) and a return online read the real entity state and align it. A switch
-waits for `min_on_minutes` / `min_off_minutes` since the last switch (the
-entity's `last_changed` after a restart) — `waiting_until` in the status. The
-boiler entity is removed from the rooms' TRV lists. Rebuilds carry its state
-(`Boiler.carry_state`); the config is part of the fingerprint.
+Pre-heat) and at least one of its TRVs is available (`Room.has_available_trv`);
+Reduced, Frost protection, an Off zone and a room without a working valve ask
+for nothing. Room temperatures and valve openings are not used. A `climate`
+boiler toggles `hvac_mode` between `on_hvac_mode` / `off_hvac_mode`; a `switch`
+/ `input_boolean` uses `turn_on` / `turn_off` (bounded by
+`TRV_COMMAND_TIMEOUT`). Like the TRVs it is push-on-change: a command only when
+the demand changes, so a manual change stays until the next one. The first
+evaluation (startup, new entity) and a return online read the real entity state
+and align it. A switch waits for `min_on_minutes` / `min_off_minutes` since the
+last switch (the entity's `last_changed` after a restart) — `waiting_until` in
+the status. The boiler entity is removed from the rooms' TRV lists. Rebuilds
+carry its state (`Boiler.carry_state`); the config is part of the fingerprint.
 
 **Back-online resync**: `_availability_listeners` track every TRV push target
 and every room climate entity. A transition from no state / `unavailable` /
@@ -208,9 +209,10 @@ setpoint drops below the target or after 2 × max lead. A start gap under 0.5 °
 yields no sample. A run whose reason vanished (pre-heat disabled, zone off,
 presence suppressed, occupied time no longer within the max lead) is cancelled
 without a sample. Skipped when the room is already at/above the upcoming
-setpoint; `room_temp` comes from the room temperature sensor, else the first
-TRV. The run is saved to the pre-heat store on each state change (start,
-convergence, measuring, end): a domain rebuild carries it over
+setpoint, or has no available TRV (none assigned, or all unavailable / unknown:
+nothing could heat it); `room_temp` comes from the room temperature sensor, else
+the first TRV. The run is saved to the pre-heat store on each state change
+(start, convergence, measuring, end): a domain rebuild carries it over
 (`carry_preheat_state`) and a restart restores it (`restore_preheat_run`), so
 the hold and the measurement keep their original start time. The status payload
 exposes `preheat_rate`, `preheat_samples`, `preheat_lead`, `preheat_boost` and
@@ -243,11 +245,14 @@ cooling radiator, or the sun on a TRV, shows a transient gap that the TRV
 cancels as soon as its offset changes: correcting it would wind the offset up to
 the clamp. A radiator also keeps warming its TRV for a while after it closed,
 and the top of that hump looks flat: the settle time after a setpoint change
-skips it. After a write the TRV readings start over, so the next correction
-waits for the TRV to settle on its new offset. An offset that does not change
-(at the clamp) is not written. At most one write attempt per target every 5 min,
-failures included (cloud API quotas; with Tado X each write also triggers a
-refresh). Each write logs
+skips it. No calibration (nor readings recorded) while the room is boosting
+(`Room.preheat_boosting`): a long boost held at one setpoint looks settled too,
+and the TRV next to the hot radiator reads well above the room. Dropping the
+boost changes the setpoint, which restarts the settle time. After a write the
+TRV readings start over, so the next correction waits for the TRV to settle on
+its new offset. An offset that does not change (at the clamp) is not written. At
+most one write attempt per target every 5 min, failures included (cloud API
+quotas; with Tado X each write also triggers a refresh). Each write logs
 `calibrate | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`.
 Offsets are remembered per target (`last_offset`, keyed by device or entity);
 after a restart the first correction starts from the offset the vendor reports.
