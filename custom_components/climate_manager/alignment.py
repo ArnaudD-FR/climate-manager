@@ -28,7 +28,8 @@ offset. This module owns the brand-neutral part:
   ends, the setpoint change starts the settle time again;
 - the readings and the setpoint history are kept in memory, seeded once
   per entity from the recorder (the last _SEED_SPAN): a restart
-  does not wait for a new window. Without the recorder (not loaded,
+  does not wait for a new window. A TRV's readings are seeded from its
+  last recorded offset change (vendor offset_entity_id) only. Without the recorder (not loaded,
   entity excluded, query failed) the window fills from the passes;
 - after a write, the TRV readings start over: the next correction waits
   for the TRV to settle on its new offset;
@@ -147,6 +148,15 @@ async def _recorded_states(
         for state in result.get(entity_id, [])
         if state.state not in ("unavailable", "unknown")
     ]
+
+
+def _last_change(states: list[State]) -> datetime | None:
+    """When the state last changed after the first one, or None."""
+    changed = None
+    for before, after in zip(states, states[1:]):
+        if after.state != before.state:
+            changed = after.last_updated
+    return changed
 
 
 def _regulating(trv_temp: float, setpoint: object) -> bool:
@@ -295,7 +305,7 @@ class SensorAligner:
         if sensor_id is None or sensor_temp is None:
             return
         now = datetime.now(timezone.utc)
-        await self._seed([sensor_id], [t.temp_entity_id for t in targets], now)
+        await self._seed(sensor_id, targets, now)
         sensor_window = self._window(sensor_id, now, sensor_temp)
         threshold = config.get("alignment_threshold", 0.5)
         await asyncio.gather(
@@ -306,13 +316,18 @@ class SensorAligner:
         )
 
     async def _seed(
-        self, sensors: list[str], trvs: list[str], now: datetime
+        self, sensor_id: str, targets: list[AlignmentTarget], now: datetime
     ) -> None:
-        """Seed readings and setpoints never seen from the recorder."""
+        """Seed readings and setpoints never seen from the recorder.
+
+        A TRV's readings start after the last offset change its vendor
+        recorded: a write restarts its window, a restart must not undo
+        that (the same gap would be corrected twice).
+        """
+        trvs = {t.temp_entity_id for t in targets}
         todo = [
-            (entity_id, is_trv)
-            for entity_ids, is_trv in ((sensors, False), (trvs, True))
-            for entity_id in entity_ids
+            (entity_id, entity_id in trvs)
+            for entity_id in dict.fromkeys([sensor_id, *trvs])
             if entity_id not in self._seeded
         ]
         if not todo:
@@ -322,8 +337,20 @@ class SensorAligner:
         if "recorder" not in self._hass.config.components:
             return
         start = now - _SEED_SPAN
+        written: dict[str, datetime] = {}
+        for target in targets:
+            offset_id = target.vendor.offset_entity_id(self._hass, target)
+            if offset_id is None:
+                continue
+            changed = _last_change(
+                await _recorded_states(self._hass, offset_id, start, now)
+            )
+            known = written.get(target.temp_entity_id)
+            if changed is not None and (known is None or changed > known):
+                written[target.temp_entity_id] = changed
         for entity_id, is_trv in todo:
             states = await _recorded_states(self._hass, entity_id, start, now)
+            since = written.get(entity_id, start)
             readings: list[tuple[datetime, float]] = []
             for state in states:
                 raw = (
@@ -331,6 +358,8 @@ class SensorAligner:
                     if is_trv
                     else state.state
                 )
+                if state.last_updated < since:
+                    continue
                 try:
                     readings.append((state.last_updated, float(raw)))
                 except (TypeError, ValueError):

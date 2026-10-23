@@ -94,16 +94,22 @@ class TadoX(TRVVendor):
         self, hass: HomeAssistant, target: AlignmentTarget
     ) -> float | None:
         """The valve's temperature_offset sensor."""
+        entity_id = self.offset_entity_id(hass, target)
+        state = hass.states.get(entity_id) if entity_id else None
+        return _to_float(state.state) if state else None
+
+    def offset_entity_id(
+        self, hass: HomeAssistant, target: AlignmentTarget
+    ) -> str | None:
+        """The valve's temperature_offset sensor entity."""
         if target.device_id is None:
             return None
         entity_reg = er.async_get(hass)
         for entry in er.async_entries_for_device(entity_reg, target.device_id):
             if entry.platform != _DOMAIN or entry.domain != "sensor":
                 continue
-            if not entry.unique_id.endswith("_temperature_offset"):
-                continue
-            state = hass.states.get(entry.entity_id)
-            return _to_float(state.state) if state else None
+            if entry.unique_id.endswith("_temperature_offset"):
+                return entry.entity_id
         return None
 
     async def write_offset(

@@ -91,3 +91,25 @@ async def test_not_seeded_across_a_preheat(hass, fake, freezer):
     freezer.tick(timedelta(minutes=90))
     await aligner.align_room(config, "office")
     assert fake.writes == [(f"dev_{TRV}", -1.0)]
+
+
+async def test_not_seeded_before_last_write(hass, fake, freezer):
+    """Parents' room, 2026-10-23: written at 14:32, restarted at 14:38,
+    corrected again on the readings of before the write."""
+    fake.offset_entity = "sensor.fake_offset"
+    freezer.move_to(_START)
+    _set(hass, 20.0, 19.0)
+    hass.states.async_set("sensor.fake_offset", "0.0")
+    await async_wait_recording_done(hass)
+    freezer.tick(timedelta(minutes=90))
+    hass.states.async_set("sensor.fake_offset", "-1.0")
+    await async_wait_recording_done(hass)
+    freezer.tick(timedelta(minutes=5))
+
+    aligner, config = _aligner(hass)
+    await aligner.align_room(config, "office")
+    assert fake.writes == []
+
+    freezer.tick(timedelta(minutes=60))
+    await aligner.align_room(config, "office")
+    assert fake.writes == [(f"dev_{TRV}", -1.0)]

@@ -155,6 +155,7 @@ async def test_read_offset_from_valve_sensor(hass):
     target = AlignmentTarget(TadoX(), v1.id, "V", ZONE, device_id=v1.id)
 
     assert TadoX().read_offset(hass, target) == -1.2
+    assert TadoX().offset_entity_id(hass, target) == sensor.entity_id
 
 
 async def test_read_offset_unknown_without_sensor(hass):

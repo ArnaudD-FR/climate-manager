@@ -286,9 +286,12 @@ and its release drive the TRV far from its usual regime; the window starts after
 the run. The end of the run changes the setpoint, which restarts the settle
 time. The window and the setpoint age are seeded once per entity from the
 recorder (the last 60 min, every update: a TRV reading is an attribute), so a
-restart does not wait for a new window; without history (recorder not loaded,
-entity excluded) the window fills from the passes. The manifest lists `recorder`
-in `after_dependencies`. After a write the TRV readings start over, so the next
+restart does not wait for a new window. A TRV's readings are seeded only from
+its last recorded offset change (`offset_entity_id`, the Tado X
+`temperature_offset` sensor): a restart right after a write must not correct the
+same gap twice. Without history (recorder not loaded, entity excluded) the
+window fills from the passes. The manifest lists `recorder` in
+`after_dependencies`. After a write the TRV readings start over, so the next
 correction waits for the TRV to settle on its new offset. An offset that does
 not change (at the clamp) is not written. At most one write attempt per target
 every 5 min, failures included (cloud API quotas; with Tado X each write also
@@ -374,6 +377,7 @@ vendor is pushed setpoints and never aligned.
 | --------------------------------------------------- | -------------------------------------------------------------------- |
 | `alignment_targets(hass, area, entities, mappings)` | `SensorAligner`: which offsets to keep aligned, read on which entity |
 | `read_offset` / `write_offset`                      | `SensorAligner`: offset reported after a restart / offset write      |
+| `offset_entity_id(hass, target)`                    | `SensorAligner`: seeding starts at the last recorded offset change   |
 | `suggest_mappings(hass)`                            | Auto-pairing at startup and `suggest_matter_mappings` (WS)           |
 | `pairable` + `owns(hass, entity_id)`                | `get_config.pairable_entities` (room card drag-and-drop pairing)     |
 | `accessory_models`                                  | `boiler_candidates` (valve switches are never a boiler)              |

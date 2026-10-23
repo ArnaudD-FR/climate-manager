@@ -30,6 +30,7 @@ class FakeVendor(TRVVendor):
 
     def __init__(self, reported=None):
         self.reported = reported
+        self.offset_entity = None
         self.writes = []
 
     def alignment_targets(self, hass, area_id, entity_ids, mappings):
@@ -40,6 +41,9 @@ class FakeVendor(TRVVendor):
 
     def read_offset(self, hass, target):
         return self.reported
+
+    def offset_entity_id(self, hass, target):
+        return self.offset_entity
 
     async def write_offset(self, hass, target, offset):
         self.writes.append((target.key, offset))

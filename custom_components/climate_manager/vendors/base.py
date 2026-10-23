@@ -99,6 +99,16 @@ class TRVVendor(Vendor):
         """Offset currently applied on the target, or None if unknown."""
         return None
 
+    def offset_entity_id(
+        self, hass: HomeAssistant, target: AlignmentTarget
+    ) -> str | None:
+        """Entity whose state is the target's offset, when there is one.
+
+        Its recorded changes date the last writes: readings taken before
+        are not seeded after a restart.
+        """
+        return None
+
     async def write_offset(
         self, hass: HomeAssistant, target: AlignmentTarget, offset: float
     ) -> None:
