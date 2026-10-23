@@ -168,6 +168,9 @@ class Room:
         # Last setpoint actually applied (zone or pre-heat). A measuring run
         # ends when the zone setpoint drops below its target.
         self._last_setpoint: float | None = None
+        # Last setpoint the zone asked for, before any pre-heat override:
+        # no pre-heat toward a target the room already gets.
+        self._scheduled_setpoint: float | None = None
 
         # ---------------------------------------------------------------
         # Frost-lock flag — set at zone evaluation time (coordinator
@@ -199,6 +202,8 @@ class Room:
         Until the room reaches the target, the TRVs get a boosted setpoint
         (see _preheat_boost); _last_setpoint keeps the unboosted one.
         """
+        if period != PERIOD_PREHEAT:
+            self._scheduled_setpoint = temp
         ip = self._preheat_in_progress
         if (
             ip
@@ -423,6 +428,7 @@ class Room:
         """Push MODE_OFF to all TRV groups: off for off-capable, frost for others."""
         self._last_period = PERIOD_FROST_PROTECTION
         self._last_setpoint = frost_temp
+        self._scheduled_setpoint = frost_temp
         if not self._trv_groups:
             return
         await asyncio.gather(
@@ -498,6 +504,7 @@ class Room:
         self._preheat_boost_applied = old._preheat_boost_applied
         self._last_period = old._last_period
         self._last_setpoint = old._last_setpoint
+        self._scheduled_setpoint = old._scheduled_setpoint
 
     def _room_temperature(self, config: dict) -> float | None:
         """Current room temperature: room sensor first, else the first TRV.
@@ -738,6 +745,7 @@ class Room:
                 or presence_suppressed
                 or self._frost_locked
                 or next_occupied - now > timedelta(minutes=preheat_max_lead)
+                or self._scheduled_reaches(ip["target_temp"])
             ):
                 # The pre-heat lost its reason: cancel, no sample.
                 await self._end_preheat()
@@ -797,6 +805,12 @@ class Room:
                 self._preheat_active = False
                 return
 
+        # Guard: the room already gets that setpoint (someone home in a
+        # presence zone: the zone pushes its occupied period now).
+        if self._scheduled_reaches(upcoming_setpoint):
+            self._preheat_active = False
+            return
+
         # Guard: room already warm.
         if (
             current_temp is not None
@@ -839,6 +853,13 @@ class Room:
         )
         await self._save_preheat()
         await self.apply_setpoint(PERIOD_PREHEAT, upcoming_setpoint, ctx)
+
+    def _scheduled_reaches(self, target: float) -> bool:
+        """True when the zone already asks for target (or warmer)."""
+        return (
+            self._scheduled_setpoint is not None
+            and self._scheduled_setpoint >= target
+        )
 
     async def _drop_boost(self, ctx: "EvalContext") -> None:
         """Re-push the unboosted setpoint once the boost is released."""

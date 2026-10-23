@@ -615,6 +615,77 @@ async def test_far_arrival_does_not_mask_setpoint_increase(
 
 
 @pytest.mark.freeze_time("2026-06-01 06:30:00")  # Monday 06:30 UTC
+async def test_no_preheat_toward_a_setpoint_already_applied(hass):
+    """Lucie's room, 2026-10-23: home since noon, so the zone pushes
+    Normal while its program is Reduced until 17:00. That 17:00 increase
+    is no increase for the room: no pre-heat, and a running one ends."""
+    from custom_components.climate_manager.coordinator import (
+        ClimateManagerCoordinator,
+    )
+    from custom_components.climate_manager.eval_context import EvalContext
+
+    hass.states.async_set(
+        "climate.salon_trv",
+        "heat",
+        {"temperature": 20.0, "current_temperature": 18.0},
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    config = _make_preheat_config(
+        persons_config={
+            "person.home": {
+                "mode": "scheduled",
+                "schedule_type": "single",
+                "schedule": {
+                    day: [{"start": "00:00", "state": "present"}]
+                    for day in _WEEK
+                },
+                "room_ids": ["salon"],
+            }
+        },
+        default_zone_preheat_enabled=True,
+    )
+    config["default_zone"]["time_program"] = {
+        day: [
+            {"start": "00:00", "mode": PERIOD_REDUCED},
+            {"start": "07:00", "mode": PERIOD_NORMAL},
+        ]
+        for day in _WEEK
+    }
+    data = _make_mock_data(
+        runtime_config=config,
+        rooms={"salon": ["climate.salon_trv"]},
+    )
+    coord = ClimateManagerCoordinator(hass, data)
+    room = coord._rooms["salon"]
+    room._frost_locked = False
+    ctx = EvalContext(
+        now=datetime.datetime(2026, 6, 1, 6, 30, tzinfo=TZ),
+        hass=hass,
+        period_temperatures=config["period_temperatures"],
+    )
+    normal = DEFAULT_PERIOD_TEMPERATURES[PERIOD_NORMAL]
+
+    await room.apply_setpoint(PERIOD_NORMAL, normal, ctx)
+    await room.compute_preheat(ctx)
+    assert room._preheat_active is False
+    assert not room._preheat_in_progress
+
+    # A run started on the Reduced setpoint (before the guard) ends once
+    # the zone asks for its target.
+    await room.apply_setpoint(
+        PERIOD_REDUCED, DEFAULT_PERIOD_TEMPERATURES[PERIOD_REDUCED], ctx
+    )
+    await room.compute_preheat(ctx)
+    assert room._preheat_in_progress
+    await room.apply_setpoint(PERIOD_NORMAL, normal, ctx)
+    await room.compute_preheat(ctx)
+    await hass.async_block_till_done()
+    assert not room._preheat_in_progress
+    assert room._preheat_active is False
+
+
+@pytest.mark.freeze_time("2026-06-01 06:30:00")  # Monday 06:30 UTC
 @pytest.mark.parametrize("trvs", [[], ["climate.salon_trv"]])
 async def test_no_preheat_without_available_trv(hass, trvs):
     """No TRV, or its only TRV offline: the 07:00 increase is not

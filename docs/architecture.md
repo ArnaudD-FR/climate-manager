@@ -210,36 +210,42 @@ real duration once reached, so a lead that was too short grows. A measuring run
 ends **censored** (elapsed time as a lower bound of the rate) when the zone
 setpoint drops below the target or after 2 × max lead. A start gap under 0.5 °C
 yields no sample. A run whose reason vanished (pre-heat disabled, zone off,
-presence suppressed, occupied time no longer within the max lead) is cancelled
-without a sample. Skipped when the room is already at/above the upcoming
-setpoint, or has no available TRV (none assigned, or all unavailable / unknown:
-nothing could heat it); `room_temp` comes from the room temperature sensor, else
-the first TRV. The run is saved to the pre-heat store on each state change
-(start, convergence, measuring, end): a domain rebuild carries it over
-(`carry_preheat_state`) and a restart restores it (`restore_preheat_run`), so
-the hold and the measurement keep their original start time. Each run also
-records the boiler's conditions (`vendors.boiler_readings`): outdoor
-temperature, heating curve and program at the start, the mean flow temperature
-over the run; the sample copies them (`outdoor_temp`, `flow_temp`,
-`curve_slope`, `curve_shift`, `program`, unknown ones left out) and the
-`preheat | … reached/censored` log appends `outdoor=… flow=…`. They are not used
-by the lead yet. The status payload exposes `preheat_rate`, `preheat_samples`,
-`preheat_lead`, `preheat_boost` and `preheat_anticipation` (shown in the room
-card). **Boost — valve wide open, released by anticipation**: the energy to warm
-a room is the same at any speed, while the losses favour heating late and fast,
-and an overshoot is pure waste; the boiler's flow temperature (its heating
-curve) is the only real speed lever. So a run starts as late as the learned rate
-allows, heats with the valve wide open, and releases the boost early enough for
-the radiator's residual heat to land on the target. A TRV next to a hot radiator
-also reads high and would throttle before the room is warm. Until released (hold
-and measuring), `apply_setpoint` pushes to the TRVs the setpoint plus the full
-boost allowed: `PREHEAT_BOOST_MAX` (3 °C), capped at the TRVs' `max_temp`,
-rounded down to 0.5 °C (`Room._preheat_boost`; none without a room temperature).
-`_last_setpoint` keeps the unboosted value. Each tick a boosting run records the
-room temperature (`readings`, the last 30 min plus the reading at the window's
-start); the **heating speed** is the slope over them (`heating_slope`; unknown
-under 10 min of readings or when not warming), else 1 / learned rate. The boost
-is **released** (`Room._release_due`) once
+presence suppressed, occupied time no longer within the max lead, the zone
+already asking for the target) is cancelled without a sample. Skipped when the
+zone already asks the room for the upcoming setpoint
+(`Room._scheduled_setpoint`, the last setpoint the zone pushed before any
+pre-heat override: in a presence zone with someone home, the occupied period is
+pushed now, so the program's later Reduced → Normal is no increase for the room
+— Lucie's room started a needless boosted run at 15:00 on 2026-10-23), when the
+room is already at/above the upcoming setpoint, or has no available TRV (none
+assigned, or all unavailable / unknown: nothing could heat it); `room_temp`
+comes from the room temperature sensor, else the first TRV. The run is saved to
+the pre-heat store on each state change (start, convergence, measuring, end): a
+domain rebuild carries it over (`carry_preheat_state`) and a restart restores it
+(`restore_preheat_run`), so the hold and the measurement keep their original
+start time. Each run also records the boiler's conditions
+(`vendors.boiler_readings`): outdoor temperature, heating curve and program at
+the start, the mean flow temperature over the run; the sample copies them
+(`outdoor_temp`, `flow_temp`, `curve_slope`, `curve_shift`, `program`, unknown
+ones left out) and the `preheat | … reached/censored` log appends
+`outdoor=… flow=…`. They are not used by the lead yet. The status payload
+exposes `preheat_rate`, `preheat_samples`, `preheat_lead`, `preheat_boost` and
+`preheat_anticipation` (shown in the room card). **Boost — valve wide open,
+released by anticipation**: the energy to warm a room is the same at any speed,
+while the losses favour heating late and fast, and an overshoot is pure waste;
+the boiler's flow temperature (its heating curve) is the only real speed lever.
+So a run starts as late as the learned rate allows, heats with the valve wide
+open, and releases the boost early enough for the radiator's residual heat to
+land on the target. A TRV next to a hot radiator also reads high and would
+throttle before the room is warm. Until released (hold and measuring),
+`apply_setpoint` pushes to the TRVs the setpoint plus the full boost allowed:
+`PREHEAT_BOOST_MAX` (3 °C), capped at the TRVs' `max_temp`, rounded down to 0.5
+°C (`Room._preheat_boost`; none without a room temperature). `_last_setpoint`
+keeps the unboosted value. Each tick a boosting run records the room temperature
+(`readings`, the last 30 min plus the reading at the window's start); the
+**heating speed** is the slope over them (`heating_slope`; unknown under 10 min
+of readings or when not warming), else 1 / learned rate. The boost is
+**released** (`Room._release_due`) once
 `(target − room_temp) / speed ≤ anticipation`, or the room reached the target;
 without any speed, within `PREHEAT_CONVERGENCE_THRESHOLD` of it. The plain
 setpoint is then re-pushed in the same tick (`_drop_boost`), `released` is
