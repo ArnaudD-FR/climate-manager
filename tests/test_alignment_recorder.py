@@ -81,11 +81,11 @@ async def test_not_seeded_across_a_preheat(hass, fake, freezer):
     _set(hass, 20.0, 19.0)
     await async_wait_recording_done(hass)
     freezer.tick(timedelta(minutes=95))
-    room = SimpleNamespace(preheat_running=True)
+    room = SimpleNamespace(preheat_boosting=True)
     aligner, config = _aligner(hass, lambda: {"office": room})
     await aligner.align_room(config, "office")
 
-    room.preheat_running = False
+    room.preheat_boosting = False
     await aligner.align_room(config, "office")
     assert fake.writes == []
     freezer.tick(timedelta(minutes=90))

@@ -274,34 +274,33 @@ jitter: `alignment_threshold` (0.5 °C). The gap compared is the time-weighted
 mean of the room sensor minus that of the TRV reading over the last 60 min (each
 reading holds until the next, so event-driven passes do not weigh more): a TRV
 regulating at its setpoint opens and closes in cycles, and its reading next to
-the radiator swings with them; the means cancel the cycles. Only measured while
-the TRV regulates: its mean reading within 0.5 °C of its setpoint, the only
-regime where its reading decides the room temperature. Below, it is still
-heating its radiator up; above, its valve is closed — a radiator still warming
-its TRV after closing (a plateau that held over an hour in Lucie's room on
-2026-10-23), or a room already warmer than the setpoint. Over two days of
-history, steady TRVs sat either within −0.3…+0.5 °C of their setpoint or +1…+2.5
-°C above it. Only settled conditions are measured: the TRV mode and setpoint
-unchanged for 60 min (the window lies under the current setpoint), and neither
-reading drifting — the means of the two half-hours of the window within 0.2 °C,
-for the sensor and for the TRV. A radiator heating up or cooling down, or the
-sun on a TRV, makes the TRV drift away from the room: correcting that gap would
-wind the offset up to the clamp. No alignment (nor readings recorded) while a
-pre-heat runs (`Room.preheat_running`: hold, release and measuring): the boost
-and its release drive the TRV far from its usual regime; the window starts after
-the run. The end of the run changes the setpoint, which restarts the settle
-time. The window and the setpoint age are seeded once per entity from the
-recorder (the last 60 min, every update: a TRV reading is an attribute), so a
-restart does not wait for a new window. A TRV's readings are seeded only from
-its last recorded offset change (`offset_entity_id`, the Tado X
-`temperature_offset` sensor): a restart right after a write must not correct the
-same gap twice. Without history (recorder not loaded, entity excluded) the
-window fills from the passes. The manifest lists `recorder` in
-`after_dependencies`. After a write the TRV readings start over, so the next
-correction waits for the TRV to settle on its new offset. An offset that does
-not change (at the clamp) is not written. At most one write attempt per target
-every 5 min, failures included (cloud API quotas; with Tado X each write also
-triggers a refresh). Each write logs
+the radiator swings with them; the means cancel the cycles. Measured whatever
+the TRV does — heating, regulating, or closed on a cold radiator at night: the
+TRV should read the room temperature at all times, so its display is right and a
+lower setpoint does not reopen it on a reading 1–2 °C low (on 2026-10-24, with
+offsets learned on hot radiators, the valves read 1–1.7 °C below their rooms all
+night). Without valve position feedback (none over Matter), the only regime left
+out is the pre-heat boost, with the valve held wide open. Only settled
+conditions are measured: the TRV mode and setpoint unchanged for 60 min (the
+window lies under the current setpoint), and neither reading drifting — the
+means of the two half-hours of the window within 0.2 °C, for the sensor and for
+the TRV. A radiator heating up or cooling down, or the sun on a TRV, makes the
+TRV drift away from the room: correcting that gap would wind the offset up to
+the clamp. No alignment (nor readings recorded) while a pre-heat boosts
+(`Room.preheat_boosting`, measuring included until the boost is released): the
+valve held wide open drives the TRV far from the room; the window starts after
+the boost. Its release changes the setpoint, which restarts the settle time. The
+window and the setpoint age are seeded once per entity from the recorder (the
+last 60 min, every update: a TRV reading is an attribute), so a restart does not
+wait for a new window. A TRV's readings are seeded only from its last recorded
+offset change (`offset_entity_id`, the Tado X `temperature_offset` sensor): a
+restart right after a write must not correct the same gap twice. Without history
+(recorder not loaded, entity excluded) the window fills from the passes. The
+manifest lists `recorder` in `after_dependencies`. After a write the TRV
+readings start over, so the next correction waits for the TRV to settle on its
+new offset. An offset that does not change (at the clamp) is not written. At
+most one write attempt per target every 5 min, failures included (cloud API
+quotas; with Tado X each write also triggers a refresh). Each write logs
 `align | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`. Offsets
 are remembered per target (`last_offset`, keyed by device or entity); after a
 restart the first correction starts from the offset the vendor reports. The

@@ -139,14 +139,14 @@ async def test_no_alignment_while_preheating(hass, fake, freezer):
 
     Readings are not recorded meanwhile: the window starts after it.
     """
-    room = SimpleNamespace(preheat_running=True)
+    room = SimpleNamespace(preheat_boosting=True)
     aligner, config = _aligner(hass, lambda: {"office": room})
     _set(hass, 21.9, 20.5)
 
     await _steady(aligner, config, freezer)
     assert fake.writes == []
 
-    room.preheat_running = False
+    room.preheat_boosting = False
     await aligner.align_room(config, "office")
     assert fake.writes == []
     freezer.tick(STEADY)
@@ -244,30 +244,50 @@ async def test_waits_after_setpoint_change(hass, fake, freezer):
 
 
 @pytest.mark.parametrize(
-    ("trv_temp", "written"),
+    ("trv_temp", "sensor_temp", "setpoint"),
     [
-        # Regulating around its setpoint (20.0): the gap is corrected.
-        (20.4, True),
-        (19.6, True),
-        # Valve closed on a radiator still warming its TRV, or a room
-        # already warmer than the setpoint: not the gap to correct.
-        (21.1, False),
-        # Still heating its radiator up.
-        (19.4, False),
+        # Regulating around its setpoint.
+        (20.4, 19.7, 20.0),
+        # Valve closed on a radiator still warming its TRV (Lucie's room,
+        # 2026-10-23: 21.1 against 19.0 for an hour).
+        (21.1, 19.0, 20.0),
+        # Night, boiler off, radiator cold: the offset learned hot makes
+        # the TRV read low (salon, 2026-10-24 01:37).
+        (18.0, 19.5, 18.0),
     ],
 )
-async def test_only_measured_while_regulating(
-    hass, fake, freezer, trv_temp, written
+async def test_measured_whatever_the_trv_regime(
+    hass, fake, freezer, trv_temp, sensor_temp, setpoint
 ):
-    """Lucie's room, 2026-10-23: 18 → 20 °C at 12:00, the TRV climbed to
-    21.1 and closed while the room was at 19.0; that plateau held 1 h."""
+    """The TRV should read the room at all times: every steady gap is
+    corrected, not only the one seen while it regulates."""
     aligner, config = _aligner(hass)
-    sensor_temp = round(trv_temp - 2.1, 1)
-    _set_regulating(hass, trv_temp, sensor_temp, 20.0)
+    _set_regulating(hass, trv_temp, sensor_temp, setpoint)
 
     await _steady(aligner, config, freezer)
 
-    assert bool(fake.writes) is written
+    assert fake.writes == [(f"dev_{TRV}", round(sensor_temp - trv_temp, 1))]
+
+
+async def test_aligned_after_preheat_release(hass, fake, freezer):
+    """Only the boost is left out: once released (the setpoint drops back
+    to the target), a settled window is aligned even if the run goes on
+    (hold until the occupied time, or measuring)."""
+    room = SimpleNamespace(preheat_boosting=True)
+    aligner, config = _aligner(hass, lambda: {"office": room})
+    _set_regulating(hass, 22.0, 19.5, 23.0)
+    await _steady(aligner, config, freezer)
+    assert fake.writes == []
+
+    room.preheat_boosting = False
+    _set_regulating(hass, 20.4, 19.8, 20.0)
+    await aligner.align_room(config, "office")
+    freezer.tick(STEADY - timedelta(minutes=1))
+    await aligner.align_room(config, "office")
+    assert fake.writes == []
+    freezer.tick(timedelta(minutes=1))
+    await aligner.align_room(config, "office")
+    assert fake.writes == [(f"dev_{TRV}", -0.6)]
 
 
 async def test_waits_for_trv_to_settle_after_write(hass, fake, freezer):
