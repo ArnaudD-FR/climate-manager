@@ -115,7 +115,7 @@ async def test_tado_valve_offset_seeded_from_sensor_after_restart(
         hass, area.id, "climate.office", "sensor.office_temp"
     )
     assert not offset_calls  # readings not steady yet
-    freezer.tick(timedelta(minutes=90))
+    freezer.tick(timedelta(minutes=125))
     await coordinator._async_align(config, ctx=object())
     await hass.async_block_till_done()
 

@@ -1297,10 +1297,10 @@ def _register_tado_x(hass, object_id: str, offset: float | None = None) -> str:
 
 
 async def _evaluate_steady(hass, coordinator, freezer) -> None:
-    """Evaluate twice, 90 min apart: alignment sees steady readings."""
+    """Evaluate twice, 125 min apart: alignment sees steady readings."""
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
-    freezer.tick(datetime.timedelta(minutes=90))
+    freezer.tick(datetime.timedelta(minutes=125))
     await coordinator.async_evaluate()
     await hass.async_block_till_done()
 

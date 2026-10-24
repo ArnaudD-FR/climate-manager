@@ -26,14 +26,16 @@ offset. This module owns the brand-neutral part:
 - the readings and the setpoint history are kept in memory, seeded once
   per entity from the recorder (the last _SEED_SPAN): a restart
   does not wait for a new window. A TRV's readings are seeded from its
-  last recorded offset change (vendor offset_entity_id) only. Without the recorder (not loaded,
-  entity excluded, query failed) the window fills from the passes;
+  last offset write only (persisted in ALIGNMENT_STORE_KEY, or the
+  vendor's offset_entity_id change if later). Without the recorder (not
+  loaded, entity excluded, query failed) the window fills from the
+  passes;
 - after a write, the TRV readings start over: the next correction waits
   for the TRV to settle on its new offset;
 - at most one write attempt per target every _ALIGNMENT_MIN_INTERVAL
   (cloud API quotas), failed attempts included;
-- the new offset accumulates on the last one written, or on the one the
-  vendor reports after a restart, clamped to ±_OFFSET_CLAMP; nothing is
+- the new offset accumulates on the last one written (persisted), or on
+  the one the vendor reports when none was written yet, clamped to ±_OFFSET_CLAMP; nothing is
   written when it does not change (at the clamp);
 - one INFO "align |" log per offset written.
 """
@@ -49,6 +51,7 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers.storage import Store
 
 from .const import TRV_COMMAND_TIMEOUT
 from .room import resolve_room_sensor
@@ -66,12 +69,18 @@ _OFFSET_CLAMP = 5.0
 _ALIGNMENT_MIN_INTERVAL = timedelta(minutes=5)
 # Settled conditions: the TRV setpoint unchanged for _SETPOINT_SETTLE, the
 # means of the two halves of _STABLE_WINDOW within _STABLE_TOLERANCE (°C)
-# for both readings.
-_SETPOINT_SETTLE = timedelta(minutes=60)
-_STABLE_WINDOW = timedelta(minutes=60)
+# for both readings. The window spans a full valve cycle: a TRV regulating
+# a steady room swings 19.6 ↔ 20.8 °C over 1-1.5 h (parents' room,
+# 2026-10-24); a 60 min mean caught either phase and the offset went back
+# and forth (5 writes in 8 h).
+_STABLE_WINDOW = timedelta(minutes=120)
+_SETPOINT_SETTLE = _STABLE_WINDOW
 _STABLE_TOLERANCE = 0.2
 # History read when seeding: the window and the setpoint age.
 _SEED_SPAN = max(_STABLE_WINDOW, _SETPOINT_SETTLE)
+# What was written per target, kept across restarts.
+ALIGNMENT_STORE_KEY = "climate_manager_alignment"
+_ALIGNMENT_STORE_VERSION = 1
 
 
 def log_alignment(
@@ -213,6 +222,43 @@ class SensorAligner:
         self._setpoints: dict[str, tuple[tuple, datetime]] = {}
         # Entities whose readings were seeded from the recorder (or tried).
         self._seeded: set[str] = set()
+        # last_offset / last_changed / last_delta, persisted: a restart
+        # neither forgets a write (the vendor may report it late) nor
+        # seeds the readings taken before it.
+        self._store: Store = Store(
+            hass, _ALIGNMENT_STORE_VERSION, ALIGNMENT_STORE_KEY
+        )
+        self._load_lock = asyncio.Lock()
+        self._loaded = False
+
+    async def _load(self) -> None:
+        """Load the writes made before a restart (once)."""
+        async with self._load_lock:
+            if self._loaded:
+                return
+            self._loaded = True
+            data = await self._store.async_load() or {}
+        for key, written in data.get("targets", {}).items():
+            self.last_offset.setdefault(key, written["offset"])
+            self.last_changed.setdefault(key, written["changed"])
+            if written.get("delta") is not None:
+                self.last_delta.setdefault(key, written["delta"])
+
+    def _save(self) -> None:
+        """Persist the writes (delayed: several rooms in one pass)."""
+        self._store.async_delay_save(
+            lambda: {
+                "targets": {
+                    key: {
+                        "offset": offset,
+                        "changed": self.last_changed.get(key),
+                        "delta": self.last_delta.get(key),
+                    }
+                    for key, offset in self.last_offset.items()
+                }
+            },
+            1,
+        )
 
     def targets(self, area_id: str) -> list[AlignmentTarget]:
         """Alignment targets of a room, as the vendors resolve them."""
@@ -292,6 +338,7 @@ class SensorAligner:
         if sensor_id is None or sensor_temp is None:
             return
         now = datetime.now(timezone.utc)
+        await self._load()
         await self._seed(sensor_id, targets, now)
         sensor_window = self._window(sensor_id, now, sensor_temp)
         threshold = config.get("alignment_threshold", 0.5)
@@ -307,9 +354,12 @@ class SensorAligner:
     ) -> None:
         """Seed readings and setpoints never seen from the recorder.
 
-        A TRV's readings start after the last offset change its vendor
-        recorded: a write restarts its window, a restart must not undo
-        that (the same gap would be corrected twice).
+        A TRV's readings start after its last offset write, as persisted
+        here or as its vendor recorded it (a change made elsewhere): a
+        write restarts its window, a restart must not undo that (the same
+        gap would be corrected twice). Tado X reports a write late: its
+        offset sensor changed only at the next poll (Lucie's room,
+        2026-10-24 11:14, restarted 11:18, corrected twice).
         """
         trvs = {t.temp_entity_id for t in targets}
         todo = [
@@ -326,12 +376,18 @@ class SensorAligner:
         start = now - _SEED_SPAN
         written: dict[str, datetime] = {}
         for target in targets:
+            changed = None
+            if target.key in self.last_changed:
+                changed = datetime.fromisoformat(self.last_changed[target.key])
             offset_id = target.vendor.offset_entity_id(self._hass, target)
-            if offset_id is None:
-                continue
-            changed = _last_change(
-                await _recorded_states(self._hass, offset_id, start, now)
-            )
+            if offset_id is not None:
+                reported = _last_change(
+                    await _recorded_states(self._hass, offset_id, start, now)
+                )
+                if reported is not None and (
+                    changed is None or reported > changed
+                ):
+                    changed = reported
             known = written.get(target.temp_entity_id)
             if changed is not None and (known is None or changed > known):
                 written[target.temp_entity_id] = changed
@@ -419,6 +475,7 @@ class SensorAligner:
         self.last_offset[target.key] = new_offset
         self.last_changed[target.key] = now.isoformat(timespec="seconds")
         self.last_delta[target.key] = round(delta, 2)
+        self._save()
         # The reading shifts with the new offset: wait for it to settle.
         self._readings.pop(target.temp_entity_id, None)
         log_alignment(

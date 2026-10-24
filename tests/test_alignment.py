@@ -9,9 +9,15 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
+from pytest_homeassistant_custom_component.common import (
+    async_fire_time_changed,
+)
 
 from custom_components.climate_manager import vendors
-from custom_components.climate_manager.alignment import SensorAligner
+from custom_components.climate_manager.alignment import (
+    ALIGNMENT_STORE_KEY,
+    SensorAligner,
+)
 from custom_components.climate_manager.vendors import (
     AlignmentTarget,
     TRVVendor,
@@ -19,7 +25,7 @@ from custom_components.climate_manager.vendors import (
 
 TRV = "climate.fake_trv"
 SENSOR = "sensor.room"
-STEADY = timedelta(minutes=60)
+STEADY = timedelta(minutes=120)
 _START = datetime(2026, 1, 5, 12, 0, tzinfo=timezone.utc)
 
 
@@ -179,10 +185,10 @@ async def test_regulation_cycles_averaged(hass, fake, freezer):
     """A TRV regulating at its setpoint swings with its valve cycles
     (20.0 ↔ 21.0 every 15 min): the mean gap is corrected."""
     aligner, config = _aligner(hass)
-    for minute in range(0, 91, 15):
+    for minute in range(0, 181, 15):
         _set(hass, 20.0 if minute % 30 == 0 else 21.0, 19.6)
         await aligner.align_room(config, "office")
-        if minute < 90:
+        if minute < 180:
             freezer.tick(timedelta(minutes=15))
 
     assert fake.writes == [(f"dev_{TRV}", -0.9)]
@@ -192,24 +198,24 @@ async def test_regulation_cycles_averaged(hass, fake, freezer):
 async def test_extra_readings_do_not_weigh_more(hass, fake, freezer):
     """Event-driven passes add readings: the mean is time-weighted.
 
-    5 min at 21.0 in each half-hour, seen by 5 passes, against 25 min at
+    10 min at 21.0 in each hour, seen by 10 passes, against 50 min at
     20.0 seen by one: mean 20.17, gap -0.57 (counted per reading, the
-    mean would be 20.7).
+    mean would be 20.8).
     """
     aligner, config = _aligner(hass)
-    # First seen at 30: the window is first covered at 90.
+    # First seen at 30: the window is first covered at 150.
     freezer.move_to(_START + timedelta(minutes=30))
     _set(hass, 20.0, 19.6)
     await aligner.align_room(config, "office")
-    for burst in (40, 70):
+    for burst in (50, 110):
         freezer.move_to(_START + timedelta(minutes=burst))
         _set(hass, 21.0, 19.6)
-        for _ in range(5):
+        for _ in range(10):
             await aligner.align_room(config, "office")
             freezer.tick(timedelta(minutes=1))
         _set(hass, 20.0, 19.6)
         await aligner.align_room(config, "office")
-    freezer.move_to(_START + timedelta(minutes=90))
+    freezer.move_to(_START + timedelta(minutes=150))
     await aligner.align_room(config, "office")
 
     assert fake.writes == [(f"dev_{TRV}", -0.6)]
@@ -233,8 +239,8 @@ async def test_waits_after_setpoint_change(hass, fake, freezer):
     _set_regulating(hass, 18.2, 17.2, 18.0)
     await aligner.align_room(config, "office")
 
-    # Readings flat for 89 min, setpoint changed 59 min ago.
-    freezer.tick(timedelta(minutes=59))
+    # Readings flat for 149 min, setpoint changed 119 min ago.
+    freezer.tick(timedelta(minutes=119))
     await aligner.align_room(config, "office")
     assert fake.writes == []
 
@@ -363,3 +369,48 @@ async def test_failed_write_waits_min_interval(hass, fake, freezer, caplog):
     freezer.tick(241)
     await aligner.align_room(config, "office")
     assert attempts == [-1.0, -1.0]
+
+
+async def test_write_persisted(hass, fake, freezer, hass_storage):
+    """What was written survives a restart: offset, time and delta."""
+    aligner, config = _aligner(hass)
+    _set(hass, 20.0, 19.0)
+    await _steady(aligner, config, freezer)
+
+    freezer.tick(2)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    written = hass_storage[ALIGNMENT_STORE_KEY]["data"]["targets"]
+    assert written == {
+        f"dev_{TRV}": {
+            "offset": -1.0,
+            "changed": aligner.last_changed[f"dev_{TRV}"],
+            "delta": -1.0,
+        }
+    }
+
+
+async def test_persisted_write_is_the_base(hass, fake, freezer, hass_storage):
+    """After a restart the offset accumulates on the one written, not on
+    the one the vendor reports (Tado X reports a write late)."""
+    fake.reported = -0.2
+    hass_storage[ALIGNMENT_STORE_KEY] = {
+        "version": 1,
+        "key": ALIGNMENT_STORE_KEY,
+        "data": {
+            "targets": {
+                f"dev_{TRV}": {
+                    "offset": -0.8,
+                    "changed": "2026-01-05T09:00:00+00:00",
+                    "delta": -0.6,
+                }
+            }
+        },
+    }
+    aligner, config = _aligner(hass)
+    _set(hass, 20.0, 19.0)
+
+    await _steady(aligner, config, freezer)
+
+    assert fake.writes == [(f"dev_{TRV}", -1.8)]
