@@ -257,22 +257,50 @@ async def test_waits_after_setpoint_change(hass, fake, freezer):
         # Valve closed on a radiator still warming its TRV (Lucie's room,
         # 2026-10-23: 21.1 against 19.0 for an hour).
         (21.1, 19.0, 20.0),
-        # Night, boiler off, radiator cold: the offset learned hot makes
-        # the TRV read low (salon, 2026-10-24 01:37).
-        (18.0, 19.5, 18.0),
+        # Reading low while regulating: the room ends up above its
+        # setpoint, within _IDLE_MARGIN.
+        (20.0, 21.0, 20.0),
     ],
 )
-async def test_measured_whatever_the_trv_regime(
+async def test_measured_while_the_trv_regulates(
     hass, fake, freezer, trv_temp, sensor_temp, setpoint
 ):
-    """The TRV should read the room at all times: every steady gap is
-    corrected, not only the one seen while it regulates."""
+    """Every steady gap is corrected while the reading drives the valve,
+    not only the one seen at the setpoint."""
     aligner, config = _aligner(hass)
     _set_regulating(hass, trv_temp, sensor_temp, setpoint)
 
     await _steady(aligner, config, freezer)
 
     assert fake.writes == [(f"dev_{TRV}", round(sensor_temp - trv_temp, 1))]
+
+
+@pytest.mark.parametrize(
+    ("state", "trv_temp", "sensor_temp", "setpoint"),
+    [
+        # Night on a cold radiator: aligned there, the salon TRV read
+        # 21.3 °C for a 19.8 °C room once heating (2026-10-25).
+        ("heat", 18.2, 19.9, 18.0),
+        ("heat", 19.9, 21.1, 20.0),
+        ("off", 17.0, 19.0, None),
+    ],
+)
+async def test_shut_valve_not_measured(
+    hass, fake, freezer, state, trv_temp, sensor_temp, setpoint
+):
+    """TRV off, or the room more than _IDLE_MARGIN above its setpoint:
+    the reading regulates nothing, nothing is written."""
+    aligner, config = _aligner(hass)
+    hass.states.async_set(
+        TRV,
+        state,
+        {"current_temperature": trv_temp, "temperature": setpoint},
+    )
+    hass.states.async_set(SENSOR, str(sensor_temp))
+
+    await _steady(aligner, config, freezer)
+
+    assert fake.writes == []
 
 
 async def test_aligned_after_preheat_release(hass, fake, freezer):

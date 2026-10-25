@@ -10,9 +10,12 @@ offset. This module owns the brand-neutral part:
   regulating at its setpoint opens and closes its valve in cycles, and
   its reading next to the radiator swings with them: the means cancel
   the cycles;
-- measured whatever the TRV does (heating, regulating, closed on a cold
-  radiator at night): the TRV should read the room temperature at all
-  times. Only a pre-heat boost (valve held wide open) is left out;
+- measured while the TRV heats or regulates: the TRV should read the
+  room temperature whenever its reading drives the valve. Left out: a
+  pre-heat boost (valve held wide open), and a shut valve (TRV off, or
+  the room more than _IDLE_MARGIN above its setpoint, as at night): a
+  cold radiator reads lower, and an offset aligned on it reads high once
+  heating (the salon stayed under its target all morning);
 - and only in settled conditions: the TRV setpoint unchanged for
   _SETPOINT_SETTLE (the window lies under the current setpoint), and
   neither reading drifting: the means of the two halves of the window
@@ -76,6 +79,14 @@ _ALIGNMENT_MIN_INTERVAL = timedelta(minutes=5)
 _STABLE_WINDOW = timedelta(minutes=120)
 _SETPOINT_SETTLE = _STABLE_WINDOW
 _STABLE_TOLERANCE = 0.2
+# A room more than _IDLE_MARGIN (°C) above the TRV setpoint keeps the valve
+# shut: the reading regulates nothing, and next to a cold radiator it reads
+# lower than while heating. Aligned at night on a cold radiator, the salon
+# TRV read 21.3 °C for a 19.8 °C room once heating, and stayed shut until
+# 08:20 (2026-10-25). At night the rooms stay 1.6-2.7 °C above an 18 °C
+# setpoint; a TRV reading up to the margin low while it regulates is still
+# corrected.
+_IDLE_MARGIN = 1.0
 # History read when seeding: the window and the setpoint age.
 _SEED_SPAN = max(_STABLE_WINDOW, _SETPOINT_SETTLE)
 # What was written per target, kept across restarts.
@@ -177,6 +188,17 @@ def _setpoint_since(states: list[State]) -> tuple[tuple, datetime]:
 def _level(window: tuple[float, float]) -> bool:
     """True when the two half-window means are within _STABLE_TOLERANCE."""
     return abs(window[1] - window[0]) <= _STABLE_TOLERANCE + 1e-9
+
+
+def _idle(state: State, room_temp: float) -> bool:
+    """True when the TRV keeps its valve shut: off, or the room more than
+    _IDLE_MARGIN above its setpoint."""
+    if state.state == "off":
+        return True
+    setpoint = state.attributes.get("temperature")
+    if not isinstance(setpoint, (int, float)):
+        return False
+    return room_temp > setpoint + _IDLE_MARGIN + 1e-9
 
 
 def _float_state(hass: HomeAssistant, entity_id: str | None) -> float | None:
@@ -439,6 +461,8 @@ class SensorAligner:
             return
         sensor_temp = sum(sensor_window) / 2
         trv_temp = sum(trv_window) / 2
+        if _idle(state, sensor_temp):
+            return
 
         delta = sensor_temp - trv_temp
         if abs(delta) <= threshold:

@@ -334,13 +334,16 @@ class Room:
         await self._drop_boost(ctx)
 
     def _watch_overshoot(self, now: datetime, room_temp: float | None) -> None:
-        """Start watching the overshoot of a boosted run just released.
+        """Start watching the overshoot of a boosted run whose boost ends.
 
-        The caller persists the store.
+        Not in a room read on a TRV: the reading peaks with the radiator,
+        not with the room (WC +1.0 °C after a 9 min boost, kitchen 20.3
+        then 19.4 an hour later, 2026-10-25). The caller persists the
+        store.
         """
         ip = self._preheat_in_progress
         entry = self._preheat_store_entry()
-        if entry is None or not ip.get("boosted"):
+        if entry is None or not ip.get("boosted") or self._reads_on_trv():
             return
         entry["observe"] = {
             "target_temp": ip["target_temp"],
@@ -349,6 +352,30 @@ class Room:
             ).isoformat(),
             "peak": room_temp,
         }
+
+    def _reads_on_trv(self) -> bool:
+        """True when the room temperature comes from one of its TRVs.
+
+        No room sensor, or one on a TRV's device (the valve's own sensor
+        set as the area's temperature): it reads next to the radiator.
+        """
+        from homeassistant.helpers import (  # noqa: PLC0415
+            entity_registry as er,
+        )
+
+        sensor_id = self._resolve_room_sensor(self._runtime_config())
+        if not sensor_id:
+            return True
+        registry = er.async_get(self._hass)
+        sensor = registry.async_get(sensor_id)
+        if sensor is None or sensor.device_id is None:
+            return False
+        for group in self._trv_groups:
+            for trv in getattr(group, "_trvs", []):
+                entry = registry.async_get(trv.entity_id)
+                if entry is not None and entry.device_id == sensor.device_id:
+                    return True
+        return False
 
     def _tune_anticipation(self, overshoot: float) -> None:
         """Move the learned anticipation after one boosted run.
@@ -620,6 +647,10 @@ class Room:
                 >= ip["target_temp"] - PREHEAT_CONVERGENCE_THRESHOLD
             )
             if reached and not ip["converged"]:
+                if not ip.get("released"):
+                    # Too slow a rise for the release: the boost ends
+                    # here, its overshoot tunes the anticipation too.
+                    self._watch_overshoot(now, current_temp)
                 ip["converged"] = True
                 sample = make_sample(
                     ip["start_time"],

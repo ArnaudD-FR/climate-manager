@@ -16,7 +16,8 @@ Tests:
 - Store v1 → v2 migration
 - Boost: valve wide open until released at the learned anticipation
   (minutes before the target at the current heating speed), tuned by the
-  overshoot after the release
+  overshoot after the release (or after a convergence before it), except
+  in a room read on its TRV
 
 The boost is off (plain pre-heat target) unless a test requests the
 with_boost fixture.
@@ -27,6 +28,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from homeassistant.helpers import (
+    device_registry as dr,
+    entity_registry as er,
+)
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_mock_service,
@@ -87,7 +92,10 @@ def _config(
         "default_zone": {
             "name": "Home",
             "mode": zone_mode,
-            "time_program": MORNING_PROGRAM,
+            # A copy: a test may add periods.
+            "time_program": {
+                day: list(periods) for day, periods in MORNING_PROGRAM.items()
+            },
             "preheat_enabled": True,
         },
         "period_temperatures": dict(DEFAULT_PERIOD_TEMPERATURES),
@@ -662,4 +670,62 @@ async def test_warmer_period_drops_the_overshoot_watch(
     await _tick_room(hass, freezer, coordinator, calls, "07:17", 21.5)
 
     assert stored["a"]["observe"] is None
+    assert "anticipation" not in stored["a"]
+
+
+async def test_converged_before_release_watched(hass, freezer, with_boost):
+    """Too slow a rise for the release (0.2 °C left at 0.013 °C/min: 15
+    min > 10): the boost ends at the convergence, the overshoot after it
+    tunes the anticipation (salon, 2026-10-25)."""
+    freezer.move_to(_utc("06:00"))
+    _set_room(hass, 19.2)
+    entry, coordinator, calls = await _setup(hass, _sensor_config())
+    stored = entry.runtime_data.preheat_data["rooms"]
+    for local, temp in (
+        ("06:00", 19.2),
+        ("06:15", 19.4),
+        ("06:30", 19.5),
+        ("06:45", 19.8),
+    ):
+        await _tick_room(hass, freezer, coordinator, calls, local, temp)
+    ip = coordinator.rooms["a"]._preheat_in_progress
+    assert ip["converged"]
+    assert not ip["released"]
+    assert stored["a"]["observe"]["peak"] == 19.8
+
+    await _tick_room(hass, freezer, coordinator, calls, "07:00", NORMAL + 0.4)
+    await _tick_room(hass, freezer, coordinator, calls, "07:46", NORMAL + 0.3)
+    assert stored["a"]["anticipation"] == 15
+
+
+async def test_room_read_on_trv_not_tuned(hass, freezer, with_boost):
+    """The room sensor is the TRV's own: its peak follows the radiator,
+    not the room (WC +1.0 °C after a 9 min boost, 2026-10-25)."""
+    device_entry = MockConfigEntry(domain="matter", data={})
+    device_entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=device_entry.entry_id,
+        identifiers={("matter", "valve_a")},
+    )
+    entities = er.async_get(hass)
+    for domain, unique_id, suggested in (
+        ("climate", "valve_a", "a_trv"),
+        ("sensor", "valve_a_temp", "a_temperature"),
+    ):
+        entities.async_get_or_create(
+            domain,
+            "matter",
+            unique_id,
+            suggested_object_id=suggested,
+            device_id=device.id,
+        )
+    entry, coordinator, calls = await _release_at_0630(
+        hass, freezer, _sensor_config()
+    )
+    stored = entry.runtime_data.preheat_data["rooms"]
+    assert coordinator.rooms["a"]._preheat_in_progress["boosted"]
+    assert not stored["a"].get("observe")
+
+    await _tick_room(hass, freezer, coordinator, calls, "06:45", NORMAL + 1.0)
+    await _tick_room(hass, freezer, coordinator, calls, "07:31", NORMAL)
     assert "anticipation" not in stored["a"]

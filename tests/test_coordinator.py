@@ -2334,7 +2334,7 @@ async def test_align_for_room_unmapped_tado_reads_zone_entity(hass, freezer):
     hass.states.async_set(
         tado_eid,
         "heat",
-        {"temperature": 18.0, "current_temperature": 18.0},
+        {"temperature": 20.0, "current_temperature": 18.0},
     )
     hass.states.async_set(sensor_eid, "21.0")
 
