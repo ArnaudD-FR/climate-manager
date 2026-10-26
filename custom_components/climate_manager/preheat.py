@@ -176,17 +176,43 @@ def heating_slope(run: dict) -> float | None:
     return slope if slope > 0 else None
 
 
+def learning_rate(samples: list[dict]) -> float | None:
+    """Slowest rate (min/°C) of the samples, None without any.
+
+    While learning (fewer samples than the median needs), a room already
+    seen slow must not start later than it needs: the salon, at 230
+    min/°C with 2 samples, started 120 min ahead and was 18 min late
+    (2026-10-26).
+    """
+    rates = [
+        s["rate"]
+        for s in samples[-PREHEAT_MAX_SAMPLES:]
+        if isinstance(s.get("rate"), (int, float))
+    ]
+    return max(rates, default=None)
+
+
 def compute_lead(
-    rate: float | None, delta: float | None, max_lead: float
+    rate: float | None,
+    delta: float | None,
+    max_lead: float,
+    slowest: float | None = None,
 ) -> float:
     """Lead (minutes) to close `delta` °C at `rate` min/°C, with margin.
 
     Falls back to PREHEAT_LEARNING_LEAD_MINUTES while learning (rate None)
-    or when the room temperature is unknown (delta None). Bounded to
-    [PREHEAT_MIN_LEAD_MINUTES, max_lead].
+    or when the room temperature is unknown (delta None); while learning,
+    longer when the slowest rate seen so far (`slowest`, see
+    learning_rate) needs it. Bounded to [PREHEAT_MIN_LEAD_MINUTES,
+    max_lead].
     """
     if rate is None or delta is None:
-        return float(min(PREHEAT_LEARNING_LEAD_MINUTES, max_lead))
+        lead = float(PREHEAT_LEARNING_LEAD_MINUTES)
+        if slowest is not None and delta is not None:
+            lead = max(
+                lead, slowest * max(delta, 0.0) * (1 + PREHEAT_LEAD_MARGIN)
+            )
+        return float(min(lead, max_lead))
     lead = rate * max(delta, 0.0) * (1 + PREHEAT_LEAD_MARGIN)
     return float(min(max(lead, PREHEAT_MIN_LEAD_MINUTES), max_lead))
 

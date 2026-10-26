@@ -288,6 +288,21 @@ async def test_room_preheat_parameter_sensors(hass):
     )
     entity_reg.async_update_entity(reg_entry.entity_id, area_id=area.id)
     hass.states.async_set(reg_entry.entity_id, "heat", {"temperature": 15.0})
+    # A room sensor of its own: a room read on its TRV keeps the default
+    # anticipation.
+    sensor = entity_reg.async_get_or_create(
+        "sensor",
+        "test",
+        "lounge_temp",
+        suggested_object_id="lounge_temp",
+        original_device_class="temperature",
+    )
+    hass.states.async_set(
+        sensor.entity_id, "19.0", {"device_class": "temperature"}
+    )
+    ar.async_get(hass).async_update(
+        area.id, temperature_entity_id=sensor.entity_id
+    )
 
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)

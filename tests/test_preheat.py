@@ -26,6 +26,7 @@ from pytest_homeassistant_custom_component.common import (
 
 from custom_components.climate_manager.preheat import (
     compute_lead,
+    learning_rate,
     empty_preheat_data,
     learned_rate,
     make_sample,
@@ -812,6 +813,23 @@ def test_default_lead_time():
     assert compute_lead(None, 3.0, 60) == 60
     # A learned rate may use the whole max lead.
     assert compute_lead(80.0, 3.0, max_lead) == max_lead
+
+
+def test_learning_lead_follows_the_slowest_sample():
+    """While learning, the slowest rate seen lengthens the lead past 120
+    min, never shortens it (salon: 230 min/°C, 0.6 °C short)."""
+    max_lead = DEFAULT_PREHEAT_MAX_LEAD_MINUTES
+    slowest = learning_rate(_rate_samples(134.0, 230.0))
+    assert slowest == 230.0
+    assert compute_lead(None, 0.6, max_lead, slowest) == pytest.approx(151.8)
+    assert compute_lead(None, 0.2, max_lead, slowest) == (
+        PREHEAT_LEARNING_LEAD_MINUTES
+    )
+    assert compute_lead(None, 3.0, max_lead, slowest) == max_lead
+    assert compute_lead(None, None, max_lead, slowest) == (
+        PREHEAT_LEARNING_LEAD_MINUTES
+    )
+    assert learning_rate([]) is None
 
 
 def test_legacy_boost_factor_dropped():

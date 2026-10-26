@@ -49,6 +49,7 @@ from .preheat import (
     heating_slope,
     learned_anticipation,
     learned_rate,
+    learning_rate,
     make_sample,
     measure_cap,
     record_flow,
@@ -286,9 +287,15 @@ class Room:
         )
 
     def anticipation(self) -> float:
-        """Learned anticipation of the room, minutes (default until tuned)."""
+        """Learned anticipation of the room, minutes (default until tuned).
+
+        Always the default in a room read on its TRV: never tuned there
+        (see _watch_overshoot), a value tuned before is ignored (kitchen
+        at 20 min, 2026-10-26: released at its start, never boosted, 16
+        min late).
+        """
         entry = self._preheat_store_entry()
-        if entry is None:
+        if entry is None or self._reads_on_trv():
             return float(PREHEAT_ANTICIPATION_DEFAULT_MINUTES)
         return learned_anticipation(entry)
 
@@ -363,6 +370,8 @@ class Room:
             entity_registry as er,
         )
 
+        if self._hass is None:
+            return False
         sensor_id = self._resolve_room_sensor(self._runtime_config())
         if not sensor_id:
             return True
@@ -812,7 +821,9 @@ class Room:
             if current_temp is not None
             else None
         )
-        lead = compute_lead(rate, delta, preheat_max_lead)
+        entry = self._preheat_store_entry()
+        slowest = learning_rate(entry["samples"]) if entry else None
+        lead = compute_lead(rate, delta, preheat_max_lead, slowest)
         self._preheat_lead = lead
 
         trigger_start = next_occupied - timedelta(minutes=lead)

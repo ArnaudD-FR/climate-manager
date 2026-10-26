@@ -729,3 +729,7 @@ async def test_room_read_on_trv_not_tuned(hass, freezer, with_boost):
     await _tick_room(hass, freezer, coordinator, calls, "06:45", NORMAL + 1.0)
     await _tick_room(hass, freezer, coordinator, calls, "07:31", NORMAL)
     assert "anticipation" not in stored["a"]
+
+    # A value tuned before is ignored.
+    stored["a"]["anticipation"] = 20.0
+    assert coordinator.rooms["a"].anticipation() == 10

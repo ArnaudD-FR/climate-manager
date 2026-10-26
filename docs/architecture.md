@@ -205,7 +205,9 @@ recomputed every tick as `rate × (upcoming − room_temp) × 1.1`, bounded to [
 min, `preheat_max_lead_minutes`] (default 240 min, a guard only), so a colder
 room starts earlier; while fewer than 3 samples exist, or the room temperature
 is unknown, the learning lead is used (`PREHEAT_LEARNING_LEAD_MINUTES`, 120 min,
-capped by the max lead). The run lives in `Room._preheat_in_progress`
+capped by the max lead), or longer when the slowest sample so far needs it
+(`learning_rate`: the salon, 230 min/°C with 2 samples, started 120 min ahead
+and was 18 min late on 2026-10-26). The run lives in `Room._preheat_in_progress`
 (`start_time`, `start_temp`, `target_temp`, `until`, `converged`, `measuring`,
 `boosted`, `released`, `readings`). Until `until`, `Room.apply_setpoint` keeps
 the upcoming setpoint whenever it is warmer than the zone's scheduled one, and
@@ -271,7 +273,9 @@ min within [0, 60]: up when the peak exceeds the target by more than 0.2 °C
 warmer setpoint during the window drops the watch. Not in a room read on its TRV
 (`Room._reads_on_trv`: no room sensor, or the area's temperature sensor on a
 TRV's device): the reading peaks with the radiator, not the room (WC +1.0 °C
-after a 9 min boost, kitchen 20.3 then 19.4 °C an hour later). A change logs
+after a 9 min boost, kitchen 20.3 then 19.4 °C an hour later); such a room keeps
+the default anticipation, a value tuned before is ignored (the kitchen, tuned to
+20 min, was released at its start and never boosted). A change logs
 `preheat | room=… anticipation=a→bmin overshoot=…`. Minutes, not °C: after the
 release the radiator keeps warming the room for about its time constant τ, so
 the overshoot is about τ × the current speed — a hotter flow (cold weather)
