@@ -9,6 +9,7 @@ Scenarios:
 - Two callers requesting the same entity trigger exactly one service call.
 """
 
+from homeassistant.core import SupportsResponse
 from pytest_homeassistant_custom_component.common import async_mock_service
 
 from custom_components.climate_manager.eval_context import EvalContext
@@ -179,4 +180,32 @@ async def test_calendar_service_missing_once_running_warns(hass, caplog):
         for r in caplog.records
         if r.levelno == logging.WARNING
     )
+    assert CALENDAR_ENTITY in ctx._warn_issued
+
+
+async def test_calendar_platform_bug_treated_as_no_event(hass, caplog):
+    """A calendar platform raising a non-HA error (pronote TypeError) gives
+    no event and a warning instead of aborting the evaluation pass.
+    """
+    import datetime
+    import logging
+
+    async def broken(call):
+        raise TypeError("'NoneType' object is not subscriptable")
+
+    hass.services.async_register(
+        "calendar",
+        "get_events",
+        broken,
+        supports_response=SupportsResponse.ONLY,
+    )
+    ctx = EvalContext(
+        now=datetime.datetime.now(),
+        hass=hass,
+        period_temperatures={},
+    )
+
+    with caplog.at_level(logging.WARNING):
+        assert await ctx.calendar_events(CALENDAR_ENTITY) == []
+
     assert CALENDAR_ENTITY in ctx._warn_issued

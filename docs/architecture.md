@@ -491,7 +491,9 @@ These are pure helpers; the per-mode dispatch lives in `person.py`'s
 
 - `PersonModeHA` — reads HA `person.*` entity state directly (`== "home"`)
 - `PersonModeCalendar` — resolves via `ctx.calendar_events()` +
-  `resolve_calendar_presence()`
+  `resolve_calendar_presence()`. A failing `get_events` (any exception, not only
+  `HomeAssistantError`: a platform bug must not abort the evaluation pass)
+  counts as no event, with one warning until it recovers.
 - `PersonModeScheduled` — `resolve_presence()`
 - `PersonModeForcePresent` / `PersonModeForceAbsent` — constant `True` / `False`
 

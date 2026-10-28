@@ -26,7 +26,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.core import CoreState
-from homeassistant.exceptions import HomeAssistantError, ServiceNotFound
+from homeassistant.exceptions import ServiceNotFound
 from homeassistant.util import dt as dt_util
 
 if TYPE_CHECKING:
@@ -68,7 +68,7 @@ class EvalContext:
         T-16-03: entity_id must start with "calendar." — any other value is
         rejected immediately with an empty list and a WARNING (ASVS V5).
 
-        T-16-04: On HomeAssistantError, returns [] and logs a WARNING once per
+        T-16-04: On any error, returns [] and logs a WARNING once per
         entity per cycle (suppressed on further failures via _warn_issued set).
 
         Args:
@@ -114,7 +114,10 @@ class EvalContext:
             self._calendar_cache[entity_id] = events
             # D-04: clear warn flag so WARNING re-fires after recovery
             self._warn_issued.discard(entity_id)
-        except HomeAssistantError as err:
+        except Exception as err:  # noqa: BLE001
+            # Not only HomeAssistantError: a calendar platform's own bug
+            # (pronote raised a TypeError, 2026-10-28 01:12–01:26) must not
+            # abort the whole evaluation pass.
             self._calendar_cache[entity_id] = []
             if (
                 isinstance(err, ServiceNotFound)
