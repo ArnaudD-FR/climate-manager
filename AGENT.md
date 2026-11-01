@@ -1,5 +1,3 @@
-<!-- GSD:project-start source:PROJECT.md -->
-
 ## Project
 
 **Climate Manager**
@@ -21,10 +19,7 @@ actually home.
 - **TRV interface**: Standard HA `climate` entity only — no brand-specific APIs
 - **HA version**: Latest only — no legacy compatibility required
 - **Presence v1**: Periodic schedule only — no external calendar or GPS
-dependencies in v1
-<!-- GSD:project-end -->
-
-<!-- GSD:stack-start source:research/STACK.md -->
+  dependencies in v1
 
 ## Technology Stack
 
@@ -130,9 +125,6 @@ dependencies in v1
 - [Integration manifest | HA Developer Docs](https://developers.home-assistant.io/docs/creating_integration_manifest/)
 - [HACS Integration publish requirements](https://www.hacs.xyz/docs/publish/integration/)
 - [integration_blueprint | ludeeus/integration_blueprint](https://github.com/ludeeus/integration_blueprint)
-<!-- GSD:stack-end -->
-
-<!-- GSD:conventions-start source:CONVENTIONS.md -->
 
 ## Conventions
 
@@ -166,52 +158,8 @@ All generated code **must** comply with `.editorconfig`. Key rules:
 
 Run `make lint` to validate all files against editorconfig before committing.
 
-<!-- GSD:conventions-end -->
-
-<!-- GSD:architecture-start source:architecture.md -->
-
 ## Architecture
 
 See [`docs/architecture.md`](docs/architecture.md) for the full architecture
 reference. Keep this document current — refresh it when completing each
 milestone.
-
-<!-- GSD:architecture-end -->
-
-<!-- GSD:skills-start source:skills/ -->
-
-## Project Skills
-
-No project skills found. Add skills to any of: `.claude/skills/`,
-`.agents/skills/`, `.cursor/skills/`, `.github/skills/`, or `.codex/skills/`
-with a `SKILL.md` index file.
-
-<!-- GSD:skills-end -->
-
-<!-- GSD:workflow-start source:GSD defaults -->
-
-## GSD Workflow Enforcement
-
-Before using Edit, Write, or other file-changing tools, start work through a GSD
-command so planning artifacts and execution context stay in sync.
-
-Use these entry points:
-
-- `/gsd-quick` for small fixes, doc updates, and ad-hoc tasks
-- `/gsd-debug` for investigation and bug fixing
-- `/gsd-execute-phase` for planned phase work
-
-Do not make direct repo edits outside a GSD workflow unless the user explicitly
-asks to bypass it.
-
-<!-- GSD:workflow-end -->
-
-<!-- GSD:profile-start -->
-
-## Developer Profile
-
-> Profile not yet configured. Run `/gsd-profile-user` to generate your developer
-> profile. This section is managed by `generate-claude-profile` -- do not edit
-> manually.
-
-<!-- GSD:profile-end -->

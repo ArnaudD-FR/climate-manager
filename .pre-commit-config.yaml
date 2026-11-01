@@ -14,7 +14,6 @@ repos:
         exclude: >-
           (?x)^(
             frontend/package-lock\.json|
-            \.planning/.*|
             \.claude/.*
           )$
 
@@ -22,4 +21,3 @@ repos:
     rev: v0.22.1
     hooks:
       - id: markdownlint-cli2
-        exclude: ^\.planning/
