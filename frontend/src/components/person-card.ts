@@ -37,6 +37,7 @@ import {
   floorGroupLabelStyles,
 } from "../shared-styles.js";
 
+import { haEntity, haSelect } from "../ha-controls.js";
 import "./time-bar.js";
 import "./search-picker.js";
 
@@ -385,8 +386,7 @@ export class PersonCard extends LitElement {
     }
   }
 
-  private async _onModeChange(e: Event) {
-    const newMode = (e.target as HTMLSelectElement).value;
+  private async _onModeChange(newMode: string) {
     if (!newMode) return;
     try {
       // D-22: seed default schedule when switching to Scheduled (no existing)
@@ -425,10 +425,7 @@ export class PersonCard extends LitElement {
     }
   }
 
-  private async _onScheduleTypeChange(e: Event) {
-    const newType = (e.target as HTMLSelectElement).value as
-      | "single"
-      | "even_odd";
+  private async _onScheduleTypeChange(newType: "single" | "even_odd") {
     try {
       await this.ws.setPersonConfig(this.personId, {
         schedule_type: newType,
@@ -555,76 +552,57 @@ export class PersonCard extends LitElement {
         Calendar source
       </div>
       <div class="select-wrapper">
-        <select
-          class="mode-select"
-          @change=${(e: Event) => {
-            const newId = (e.target as HTMLSelectElement).value;
-            onChange({
-              ...(cfg ?? { event_means: "absent" }),
-              entity_id: newId,
-            });
-          }}
-        >
-          ${entityIds.length === 0
-            ? html`<option value="" disabled selected>
-                No calendar entities found in Home Assistant.
-              </option>`
-            : html`
-                <option value="" disabled ?selected=${!entityId}>
-                  — Select a calendar —
-                </option>
-                ${entityIds.map(
-                  (id) => html`
-                    <option value=${id} ?selected=${entityId === id}>
-                      ${(this.panel.hass?.states[id]?.attributes
-                        ?.friendly_name as string | undefined) ?? id}
-                    </option>
-                  `,
-                )}
-              `}
-        </select>
+        ${entityIds.length === 0
+          ? html`<p class="schedule-hint">
+              No calendar entities found in Home Assistant.
+            </p>`
+          : haEntity(
+              this.panel.hass,
+              entityId,
+              { include_entities: entityIds },
+              (newId) => {
+                if (!newId) return;
+                onChange({
+                  ...(cfg ?? { event_means: "absent" }),
+                  entity_id: newId,
+                });
+              },
+              { cls: "mode-select", placeholder: "Select a calendar" },
+            )}
       </div>
       <div class="section-label">Event means</div>
       <div class="select-wrapper">
-        <select
-          class="mode-select"
-          @change=${(e: Event) => {
-            const means = (e.target as HTMLSelectElement).value as
-              | "absent"
-              | "present";
-            guardedChange({ event_means: means });
-          }}
-        >
-          <option value="absent" ?selected=${eventMeans === "absent"}>
-            Absent during events
-          </option>
-          <option value="present" ?selected=${eventMeans === "present"}>
-            Present during events
-          </option>
-        </select>
+        ${haSelect(
+          this.panel.hass,
+          eventMeans,
+          [
+            { value: "absent", label: "Absent during events" },
+            { value: "present", label: "Present during events" },
+          ],
+          (means) =>
+            guardedChange({ event_means: means as "absent" | "present" }),
+          { cls: "mode-select" },
+        )}
       </div>
       <div class="section-label">Gap handling</div>
       <div class="select-wrapper">
-        <select
-          class="mode-select"
-          @change=${(e: Event) => {
-            const gap = (e.target as HTMLSelectElement).value as
-              | "exact"
-              | "day_span"
-              | "threshold";
-            guardedChange({ gap_handling: gap });
-          }}
-        >
-          <option value="exact" ?selected=${gapHandling === "exact"}>
-            Return home between events
-          </option>
-          <option value="day_span" ?selected=${gapHandling === "day_span"}>
-            Absent all day (first to last event)
-          </option>
-          <option value="threshold" ?selected=${gapHandling === "threshold"}>
-            Return home in long gaps only
-          </option>
-        </select>
+        ${haSelect(
+          this.panel.hass,
+          gapHandling,
+          [
+            { value: "exact", label: "Return home between events" },
+            {
+              value: "day_span",
+              label: "Absent all day (first to last event)",
+            },
+            { value: "threshold", label: "Return home in long gaps only" },
+          ],
+          (gap) =>
+            guardedChange({
+              gap_handling: gap as "exact" | "day_span" | "threshold",
+            }),
+          { cls: "mode-select" },
+        )}
       </div>
       ${gapHandling === "threshold"
         ? html`
@@ -896,38 +874,28 @@ export class PersonCard extends LitElement {
                   Presence mode
                 </div>
                 <div class="select-wrapper">
-                  <select class="mode-select" @change=${this._onModeChange}>
-                    <option
-                      value=${PRESENCE_MODE_SCHEDULED}
-                      ?selected=${currentMode === PRESENCE_MODE_SCHEDULED}
-                    >
-                      Scheduled
-                    </option>
-                    <option
-                      value=${PRESENCE_MODE_HA}
-                      ?selected=${currentMode === PRESENCE_MODE_HA}
-                    >
-                      ${haOptionLabel(this.hasDeviceTrackers)}
-                    </option>
-                    <option
-                      value=${PRESENCE_MODE_CALENDAR}
-                      ?selected=${currentMode === PRESENCE_MODE_CALENDAR}
-                    >
-                      Calendar
-                    </option>
-                    <option
-                      value=${PRESENCE_MODE_FORCE_PRESENT}
-                      ?selected=${currentMode === PRESENCE_MODE_FORCE_PRESENT}
-                    >
-                      Force Present
-                    </option>
-                    <option
-                      value=${PRESENCE_MODE_FORCE_ABSENT}
-                      ?selected=${currentMode === PRESENCE_MODE_FORCE_ABSENT}
-                    >
-                      Force Absent
-                    </option>
-                  </select>
+                  ${haSelect(
+                    this.panel.hass,
+                    currentMode,
+                    [
+                      { value: PRESENCE_MODE_SCHEDULED, label: "Scheduled" },
+                      {
+                        value: PRESENCE_MODE_HA,
+                        label: haOptionLabel(this.hasDeviceTrackers),
+                      },
+                      { value: PRESENCE_MODE_CALENDAR, label: "Calendar" },
+                      {
+                        value: PRESENCE_MODE_FORCE_PRESENT,
+                        label: "Force Present",
+                      },
+                      {
+                        value: PRESENCE_MODE_FORCE_ABSENT,
+                        label: "Force Absent",
+                      },
+                    ],
+                    (mode) => void this._onModeChange(mode),
+                    { cls: "mode-select" },
+                  )}
                 </div>
 
                 <!-- 2. Hint / stuck-mode paragraph -->
@@ -999,23 +967,19 @@ export class PersonCard extends LitElement {
                         Presence schedule
                       </div>
                       <div class="select-wrapper">
-                        <select
-                          class="mode-select"
-                          @change=${this._onScheduleTypeChange}
-                        >
-                          <option
-                            value="single"
-                            ?selected=${scheduleType === "single"}
-                          >
-                            Single week
-                          </option>
-                          <option
-                            value="even_odd"
-                            ?selected=${scheduleType === "even_odd"}
-                          >
-                            Even / Odd weeks
-                          </option>
-                        </select>
+                        ${haSelect(
+                          this.panel.hass,
+                          scheduleType,
+                          [
+                            { value: "single", label: "Single week" },
+                            { value: "even_odd", label: "Even / Odd weeks" },
+                          ],
+                          (type) =>
+                            void this._onScheduleTypeChange(
+                              type as "single" | "even_odd",
+                            ),
+                          { cls: "mode-select" },
+                        )}
                       </div>
                       ${isEvenOdd
                         ? html`

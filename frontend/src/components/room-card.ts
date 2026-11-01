@@ -35,6 +35,7 @@ import {
   validEntityIds,
   type LovelaceCard,
 } from "../ha-nav.js";
+import { haSelect } from "../ha-controls.js";
 import "./search-picker.js";
 
 /** History graph durations offered in the card (hours). */
@@ -45,6 +46,9 @@ const HISTORY_HOURS: Array<[number, string]> = [
   [168, "7 days"],
 ];
 const HISTORY_HOURS_KEY = "climate-manager-history-hours";
+
+/** Zone select value of the Default Zone (rooms without zone_id). */
+const DEFAULT_ZONE_VALUE = "default";
 const DEFAULT_HISTORY_HOURS = 24;
 const ANTICIPATION_HINT =
   "Boost released when the target is this close at the current speed;" +
@@ -234,13 +238,7 @@ export class RoomCard extends LitElement {
       }
 
       .history-hours {
-        padding: 2px 4px;
-        font-size: 13px;
-        font-family: inherit;
-        color: var(--primary-text-color);
-        background: var(--card-background-color);
-        border: 1px solid var(--divider-color);
-        border-radius: 4px;
+        min-width: 120px;
       }
 
       .history-open {
@@ -375,11 +373,11 @@ export class RoomCard extends LitElement {
     );
   }
 
-  private async _onZoneChange(e: Event) {
-    const newZoneId = (e.target as HTMLSelectElement).value;
-    const patch: Partial<RoomConfig> = newZoneId
-      ? { zone_id: newZoneId }
-      : { zone_id: null as unknown as string | undefined };
+  private async _onZoneChange(newZoneId: string) {
+    const patch: Partial<RoomConfig> =
+      newZoneId !== DEFAULT_ZONE_VALUE
+        ? { zone_id: newZoneId }
+        : { zone_id: null as unknown as string | undefined };
     try {
       await this.ws.setRoomConfig(this.roomId, patch);
       await this.panel.reloadConfig();
@@ -677,8 +675,7 @@ export class RoomCard extends LitElement {
     this._historyKey = "";
   }
 
-  private _onHistoryHoursChange(e: Event) {
-    const hours = Number((e.target as HTMLSelectElement).value);
+  private _onHistoryHoursChange(hours: number) {
     this._historyHours = hours;
     try {
       localStorage.setItem(HISTORY_HOURS_KEY, String(hours));
@@ -698,19 +695,16 @@ export class RoomCard extends LitElement {
         >
           History
         </div>
-        <select
-          class="history-hours"
-          title="Time range"
-          @change=${this._onHistoryHoursChange}
-        >
-          ${HISTORY_HOURS.map(
-            ([hours, label]) => html`
-              <option value=${hours} ?selected=${hours === this._historyHours}>
-                ${label}
-              </option>
-            `,
-          )}
-        </select>
+        ${haSelect(
+          this.hass,
+          String(this._historyHours),
+          HISTORY_HOURS.map(([hours, label]) => ({
+            value: String(hours),
+            label,
+          })),
+          (hours) => this._onHistoryHoursChange(Number(hours)),
+          { cls: "history-hours" },
+        )}
         <ha-icon-button
           class="history-open"
           title="Open in the HA history page"
@@ -1173,21 +1167,26 @@ export class RoomCard extends LitElement {
                   Zone
                 </div>
                 <div class="select-wrapper">
-                  <select class="mode-select" @change=${this._onZoneChange}>
-                    <option value="" ?selected=${!this.config?.zone_id}>
-                      ${this.panelConfig?.default_zone?.name ?? "Default Zone"}
-                    </option>
-                    ${Object.entries(this.panelConfig?.zones ?? {}).map(
-                      ([zoneId, zone]) => html`
-                        <option
-                          value=${zoneId}
-                          ?selected=${this.config?.zone_id === zoneId}
-                        >
-                          ${zone.name}
-                        </option>
-                      `,
-                    )}
-                  </select>
+                  ${haSelect(
+                    this.hass,
+                    this.config?.zone_id ?? DEFAULT_ZONE_VALUE,
+                    [
+                      {
+                        value: DEFAULT_ZONE_VALUE,
+                        label:
+                          this.panelConfig?.default_zone?.name ??
+                          "Default Zone",
+                      },
+                      ...Object.entries(this.panelConfig?.zones ?? {}).map(
+                        ([zoneId, zone]) => ({
+                          value: zoneId,
+                          label: zone.name,
+                        }),
+                      ),
+                    ],
+                    (zoneId) => void this._onZoneChange(zoneId),
+                    { cls: "mode-select" },
+                  )}
                 </div>
 
                 ${this._renderPersonsSection()}

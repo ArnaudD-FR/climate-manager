@@ -94,27 +94,11 @@ export const sectionLabelStyles = css`
   }
 `;
 
-/** Native <select> styled to match HA card aesthetic. */
+/** Full-width select ha-selector (mode pickers). */
 export const selectStyles = css`
   .mode-select {
+    display: block;
     width: 100%;
-    padding: 10px 12px;
-    font-size: 16px;
-    font-family: inherit;
-    color: var(--primary-text-color);
-    background-color: var(
-      --card-background-color,
-      var(--secondary-background-color)
-    );
-    border: 1px solid var(--divider-color);
-    border-radius: 4px;
-    outline: none;
-    cursor: pointer;
-  }
-
-  .mode-select:focus {
-    border-color: var(--primary-color);
-    border-width: 2px;
   }
 `;
 

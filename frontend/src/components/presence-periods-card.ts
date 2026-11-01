@@ -17,6 +17,7 @@ import { LitElement, html, css } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import { chipStyles } from "../shared-styles.js";
+import { haSelect } from "../ha-controls.js";
 import {
   covers,
   currentAndUpcoming,
@@ -37,17 +38,6 @@ import type {
 } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
-
-/** Selector of the period type. */
-const KIND_SELECTOR = {
-  select: {
-    mode: "dropdown",
-    options: [
-      { value: "absent", label: "Absence" },
-      { value: "present", label: "Presence" },
-    ],
-  },
-};
 
 interface ButtonOptions {
   primary?: boolean;
@@ -358,19 +348,21 @@ export class PresencePeriodsCard extends LitElement {
   }
 
   private _renderKind(kind: PresencePeriodKind) {
-    const onKind = (value: unknown) => {
+    const onKind = (value: string) => {
       if (value === "absent" || value === "present") {
         this._update({ kind: value });
       }
     };
-    return html`<ha-selector
-      class="kind-select"
-      .hass=${this.hass}
-      .selector=${KIND_SELECTOR}
-      .value=${kind}
-      .required=${true}
-      @value-changed=${(e: Event) => onKind((e as CustomEvent).detail?.value)}
-    ></ha-selector>`;
+    return haSelect(
+      this.hass,
+      kind,
+      [
+        { value: "absent", label: "Absence" },
+        { value: "present", label: "Presence" },
+      ],
+      onKind,
+      { cls: "kind-select" },
+    );
   }
 
   /** A date and a time, joined as a local "YYYY-MM-DDTHH:MM". */

@@ -27,7 +27,8 @@ import {
 } from "../types.js";
 import { chipStyles } from "../shared-styles.js";
 import { historyPath, navigateTo, openMoreInfo } from "../ha-nav.js";
-import { BOILER_GROUPS, boilerCandidates } from "../boiler-candidates.js";
+import { boilerCandidates } from "../boiler-candidates.js";
+import { haEntity, haSelect } from "../ha-controls.js";
 import type {
   Hass,
   ClimateConfig,
@@ -344,7 +345,11 @@ export class GlobalSettingsTab extends LitElement {
         color: var(--secondary-text-color);
       }
 
-      .option-row select,
+      .option-row ha-selector {
+        flex: 0 1 60%;
+        min-width: 0;
+      }
+
       .option-row input[type="number"] {
         font: inherit;
         color: var(--primary-text-color);
@@ -798,8 +803,7 @@ export class GlobalSettingsTab extends LitElement {
     }
   }
 
-  private _onBoilerEntityChange = async (e: Event) => {
-    const value = (e.target as HTMLSelectElement).value;
+  private _onBoilerEntityChange = async (value: string) => {
     if (value) {
       await this._saveBoiler({ entity_id: value });
       return;
@@ -834,14 +838,12 @@ export class GlobalSettingsTab extends LitElement {
     return html`
       <div class="option-row">
         <span class="option-label">${label}</span>
-        <select @change=${this._onBoilerFieldChange(field, false)}>
-          ${modes.map(
-            (mode) =>
-              html`<option value=${mode} ?selected=${mode === value}>
-                ${mode}
-              </option>`,
-          )}
-        </select>
+        ${haSelect(
+          this.hass,
+          value,
+          modes.map((mode) => ({ value: mode, label: mode })),
+          (mode) => void this._saveBoiler({ [field]: mode }),
+        )}
       </div>
     `;
   }
@@ -856,29 +858,16 @@ export class GlobalSettingsTab extends LitElement {
   ) {
     const value = this.config.boiler?.[field] ?? "";
     const vendor = this.status?.boiler?.vendor;
-    const sensors = Object.entries(this.hass?.states ?? {})
-      .filter(
-        ([id, s]) =>
-          id.startsWith("sensor.") &&
-          s.attributes?.device_class === "temperature",
-      )
-      .map(([id]) => id)
-      .sort();
     return html`
       <div class="option-row">
         <span class="option-label">${label}</span>
-        <select @change=${this._onBoilerFieldChange(field, false)}>
-          <option value="" ?selected=${!value}>
-            ${vendor ? `Auto (${vendor})` : "None"}
-          </option>
-          ${sensors.map(
-            (id) =>
-              html`<option value=${id} ?selected=${id === value}>
-                ${this.hass?.states[id]?.attributes?.friendly_name ?? id}
-                (${id})
-              </option>`,
-          )}
-        </select>
+        ${haEntity(
+          this.hass,
+          value,
+          { domain: "sensor", device_class: "temperature" },
+          (id) => void this._saveBoiler({ [field]: id }),
+          { placeholder: vendor ? `Auto (${vendor})` : "None" },
+        )}
       </div>
     `;
   }
@@ -899,27 +888,6 @@ export class GlobalSettingsTab extends LitElement {
   }
 
   /** Boiler entity options, grouped (heating devices, switches, helpers). */
-  private _renderBoilerOptions(entityId: string) {
-    const candidates = boilerCandidates(
-      this.hass?.states ?? {},
-      this.hass?.entities,
-      entityId,
-      this.config.boiler_candidates,
-    );
-    return BOILER_GROUPS.map(([group, label]) => {
-      const items = candidates.filter((c) => c.group === group);
-      if (!items.length) return "";
-      return html`<optgroup label=${label}>
-        ${items.map(
-          (c) =>
-            html`<option value=${c.id} ?selected=${c.id === entityId}>
-              ${c.name} (${c.id})
-            </option>`,
-        )}
-      </optgroup>`;
-    });
-  }
-
   private _renderBoilerCard() {
     const boiler = this.config.boiler;
     const entityId = boiler?.entity_id ?? "";
@@ -940,10 +908,20 @@ export class GlobalSettingsTab extends LitElement {
           </p>
           <div class="option-row">
             <span class="option-label">Boiler entity</span>
-            <select @change=${this._onBoilerEntityChange}>
-              <option value="" ?selected=${!entityId}>None</option>
-              ${this._renderBoilerOptions(entityId)}
-            </select>
+            ${haEntity(
+              this.hass,
+              entityId,
+              {
+                include_entities: boilerCandidates(
+                  this.hass?.states ?? {},
+                  this.hass?.entities,
+                  entityId,
+                  this.config.boiler_candidates,
+                ).map((c) => c.id),
+              },
+              (id) => void this._onBoilerEntityChange(id),
+              { placeholder: "None" },
+            )}
           </div>
           ${isClimate
             ? html`

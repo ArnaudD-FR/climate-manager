@@ -9,7 +9,7 @@
  * Layout (top-to-bottom per D-04):
  *   1. Delete button / inline confirm row (custom zones only, D-05)
  *   2. Zone name (click-to-edit, D-06 / D-07)
- *   3. Mode picker (native <select>, HA 2026.x)
+ *   3. Mode picker (select ha-selector)
  *   4. Weekly time-bar
  *   5. Assigned Rooms section (chips + search-picker, D-08 / D-09 / D-10)
  *
@@ -46,6 +46,7 @@ import {
   floorGroupLabelStyles,
 } from "../shared-styles.js";
 
+import { haSelect } from "../ha-controls.js";
 import "./time-bar.js";
 import "./search-picker.js";
 
@@ -283,8 +284,7 @@ export class ZoneTab extends LitElement {
   };
 
   /** Mode select change — auto-save the new zone mode. */
-  private _onModeChange = async (e: Event) => {
-    const newMode = (e.target as HTMLSelectElement).value;
+  private _onModeChange = async (newMode: string) => {
     if (!newMode || newMode === this.zoneConfig.mode) return;
     try {
       await this.ws.setZoneMode(this.zoneId, newMode);
@@ -667,23 +667,20 @@ export class ZoneTab extends LitElement {
         ${this._renderHistoryButton()}
       </div>
       <div class="select-wrapper">
-        <select class="mode-select" @change=${this._onModeChange}>
-          <option value="off" ?selected=${this.zoneConfig.mode === "off"}>
-            Off
-          </option>
-          <option
-            value="time_program"
-            ?selected=${this.zoneConfig.mode === "time_program"}
-          >
-            Time program
-          </option>
-          <option
-            value="time_program_presences"
-            ?selected=${this.zoneConfig.mode === "time_program_presences"}
-          >
-            Time program &amp; presences
-          </option>
-        </select>
+        ${haSelect(
+          this.hass,
+          this.zoneConfig.mode,
+          [
+            { value: "off", label: "Off" },
+            { value: "time_program", label: "Time program" },
+            {
+              value: "time_program_presences",
+              label: "Time program & presences",
+            },
+          ],
+          (mode) => void this._onModeChange(mode),
+          { cls: "mode-select" },
+        )}
       </div>
       ${this._renderModeDescription()} ${this._renderCurrentPeriod()}
 
