@@ -163,6 +163,7 @@ export class PersonsTab extends LitElement {
             .ws=${this.ws}
             .panel=${this.panel}
             .status=${this.status}
+            .presencePeriods=${this.config?.presence_periods ?? []}
             .autoExpand=${this.expandPersonId === personId}
             .hasDeviceTrackers=${hasDeviceTrackersMap.get(personId) ?? false}
           ></climate-manager-person-card>

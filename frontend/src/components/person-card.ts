@@ -21,6 +21,7 @@ import type {
   PersonConfig,
   DailyProgram,
   Period,
+  PresencePeriod,
   StatusPayload,
 } from "../types.js";
 import type { WsClient } from "../ws-client.js";
@@ -85,6 +86,11 @@ import { getISOWeekNumber, getWeekParity } from "./week-parity.js";
 // Pure functions — no Lit deps — imported for consistent labels and
 // conditional option rendering (D-04) and stuck-mode hint (D-05).
 import { haOptionLabel, presenceModeHint } from "./presence-mode.js";
+import {
+  personPeriodBadge,
+  toLocalInput,
+  useAmPm,
+} from "../presence-periods.js";
 export { getISOWeekNumber, getWeekParity };
 
 export interface RoomChoice {
@@ -104,6 +110,8 @@ export class PersonCard extends LitElement {
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
   @property({ attribute: false }) status: StatusPayload | null = null;
+  /** Dated presence / absence periods (all persons'). */
+  @property({ attribute: false }) presencePeriods: PresencePeriod[] = [];
 
   @state() _expanded = false;
   // Active week for even/odd schedule mode (D-10: not persisted).
@@ -224,6 +232,11 @@ export class PersonCard extends LitElement {
         border-radius: 12px;
         font-size: 12px;
         font-weight: 400;
+      }
+
+      .mode-badge.period {
+        border: 1px solid var(--warning-color, #f57c00);
+        color: var(--warning-color, #f57c00);
       }
 
       .mode-badge.scheduled {
@@ -816,6 +829,12 @@ export class PersonCard extends LitElement {
 
   render() {
     const { cls: badgeCls, text: badgeText } = this._getBadgeInfo();
+    const periodBadge = personPeriodBadge(
+      this.presencePeriods,
+      this.personId,
+      toLocalInput(new Date()),
+      useAmPm(this.panel?.hass?.locale),
+    );
     const currentMode = this.config?.mode ?? PRESENCE_MODE_SCHEDULED;
     const isScheduled = currentMode === PRESENCE_MODE_SCHEDULED;
     const isCalendar = currentMode === PRESENCE_MODE_CALENDAR;
@@ -877,6 +896,9 @@ export class PersonCard extends LitElement {
             >
             <span class="person-name">${this.personName}</span>
             <span class="mode-badge ${badgeCls}">${badgeText}</span>
+            ${periodBadge
+              ? html`<span class="mode-badge period">${periodBadge}</span>`
+              : ""}
           </div>
           <ha-icon
             class="expand-icon ${this._expanded ? "expanded" : ""}"
