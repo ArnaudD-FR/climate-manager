@@ -35,7 +35,7 @@ import {
   validEntityIds,
   type LovelaceCard,
 } from "../ha-nav.js";
-import { haSelect } from "../ha-controls.js";
+import { haNumber, haSelect } from "../ha-controls.js";
 import "./search-picker.js";
 
 /** History graph durations offered in the card (hours). */
@@ -235,6 +235,10 @@ export class RoomCard extends LitElement {
 
       .history-header .section-label {
         margin-bottom: 0;
+      }
+
+      .minutes {
+        width: 140px;
       }
 
       .history-hours {
@@ -727,10 +731,8 @@ export class RoomCard extends LitElement {
   // Pre-heat handlers and render (Phase 12 D-11)
   // -----------------------------------------------------------------------
 
-  private async _onPreheatMaxLeadChange(e: Event) {
-    const value = (e.target as HTMLInputElement).value;
-    const val = parseInt(value, 10);
-    if (isNaN(val) || val < 0 || val > 480) return;
+  private async _onPreheatMaxLeadChange(val: number) {
+    if (!Number.isInteger(val) || val < 0 || val > 480) return;
     try {
       await this.ws.setRoomConfig(this.roomId, {
         preheat_max_lead_minutes: val,
@@ -1056,20 +1058,18 @@ export class RoomCard extends LitElement {
       <div class="section-label">Pre-heat</div>
       ${enabled
         ? html`
-            <label
+            <div
               style="display:flex;align-items:center;gap:8px;margin-top:6px;"
             >
-              Max lead time (min)
-              <input
-                type="number"
-                min="0"
-                max="480"
-                step="5"
-                .value=${String(maxLead)}
-                @change=${this._onPreheatMaxLeadChange}
-                style="width:70px;"
-              />
-            </label>
+              Max lead time
+              ${haNumber(
+                this.hass,
+                maxLead,
+                { min: 0, max: 480, step: 5, unit: "min" },
+                (val) => void this._onPreheatMaxLeadChange(val),
+                { cls: "minutes" },
+              )}
+            </div>
           `
         : ""}
       ${preheatActive && preheatTarget != null

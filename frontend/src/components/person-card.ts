@@ -37,7 +37,7 @@ import {
   floorGroupLabelStyles,
 } from "../shared-styles.js";
 
-import { haEntity, haSelect } from "../ha-controls.js";
+import { haEntity, haNumber, haSelect } from "../ha-controls.js";
 import "./time-bar.js";
 import "./search-picker.js";
 
@@ -329,25 +329,8 @@ export class PersonCard extends LitElement {
         margin-bottom: 4px;
       }
 
-      .preheat-row input[type="number"] {
-        width: 72px;
-        padding: 6px 8px;
-        font-size: 14px;
-        font-family: inherit;
-        border: 1px solid var(--divider-color, #e0e0e0);
-        border-radius: 4px;
-        background: var(--card-background-color);
-        color: var(--primary-text-color);
-      }
-
-      .preheat-row input[type="number"]:focus {
-        outline: none;
-        border-color: var(--primary-color, #03a9f4);
-      }
-
-      .preheat-row span {
-        font-size: 14px;
-        color: var(--secondary-text-color);
+      .minutes {
+        width: 140px;
       }
 
       /* Even/Odd week switcher (D-06, D-07) */
@@ -608,31 +591,21 @@ export class PersonCard extends LitElement {
         ? html`
             <div class="section-label">Minimum gap to return home</div>
             <div class="preheat-row">
-              <input
-                type="number"
-                min="0"
-                max="480"
-                step="5"
-                .value=${String(gapThreshold)}
-                @change=${(e: Event) => {
-                  const val = parseInt(
-                    (e.target as HTMLInputElement).value,
-                    10,
-                  );
-                  if (isNaN(val) || val < 0 || val > 480) return;
-                  guardedChange({ gap_threshold_minutes: val });
-                }}
-              />
-              <span>min</span>
+              ${haNumber(
+                this.panel.hass,
+                gapThreshold,
+                { min: 0, max: 480, step: 5, unit: "min" },
+                (val) => guardedChange({ gap_threshold_minutes: val }),
+                { cls: "minutes" },
+              )}
             </div>
           `
         : ""}
     `;
   }
 
-  private async _onPreheatChange(e: Event) {
-    const val = parseInt((e.target as HTMLInputElement).value, 10);
-    if (!isNaN(val) && val >= 0 && val <= 480) {
+  private async _onPreheatChange(val: number) {
+    if (Number.isInteger(val) && val >= 0 && val <= 480) {
       try {
         await this.ws.setPersonConfig(this.personId, {
           wakeup_advance_minutes: val,
@@ -938,17 +911,13 @@ export class PersonCard extends LitElement {
                       )}
                       <div class="section-label">Wake-up advance</div>
                       <div class="preheat-row">
-                        <input
-                          type="number"
-                          min="0"
-                          max="480"
-                          step="5"
-                          .value=${String(
-                            this.config?.wakeup_advance_minutes ?? 60,
-                          )}
-                          @change=${this._onPreheatChange}
-                        />
-                        <span>min</span>
+                        ${haNumber(
+                          this.panel.hass,
+                          this.config?.wakeup_advance_minutes ?? 60,
+                          { min: 0, max: 480, step: 5, unit: "min" },
+                          (val) => void this._onPreheatChange(val),
+                          { cls: "minutes" },
+                        )}
                       </div>
                       <p class="schedule-hint">
                         Minutes to start heating before your first calendar

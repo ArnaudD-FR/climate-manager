@@ -13,8 +13,7 @@
  * Auto-save on every change — no Save button (D-08).
  * Toast feedback on success/error (D-10).
  *
- * HA 2026.x: uses native <input type="number"> for temperature fields
- * (ha-textfield renders nothing in HA 2026.x).
+ * Fields are HA number selectors (ha-controls.ts).
  */
 
 import { LitElement, html, css, unsafeCSS } from "lit";
@@ -28,7 +27,7 @@ import {
 import { chipStyles } from "../shared-styles.js";
 import { historyPath, navigateTo, openMoreInfo } from "../ha-nav.js";
 import { boilerCandidates } from "../boiler-candidates.js";
-import { haEntity, haSelect } from "../ha-controls.js";
+import { haEntity, haNumber, haSelect } from "../ha-controls.js";
 import type {
   Hass,
   ClimateConfig,
@@ -251,51 +250,6 @@ export class GlobalSettingsTab extends LitElement {
         margin-bottom: 16px;
       }
 
-      .temp-field {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-
-      .temp-label {
-        display: block;
-        font-size: 12px;
-        color: var(--secondary-text-color);
-      }
-
-      .temp-input-row {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-      }
-
-      .temp-input {
-        width: 100%;
-        padding: 8px 10px;
-        font-size: 15px;
-        font-family: inherit;
-        color: var(--primary-text-color);
-        background-color: var(
-          --card-background-color,
-          var(--secondary-background-color)
-        );
-        border: 1px solid var(--divider-color);
-        border-radius: 4px;
-        outline: none;
-        box-sizing: border-box;
-      }
-
-      .temp-input:focus {
-        border-color: var(--primary-color);
-        border-width: 2px;
-      }
-
-      .temp-suffix {
-        font-size: 14px;
-        color: var(--secondary-text-color);
-        flex-shrink: 0;
-      }
-
       /* Reset row + button — matches zone-tab reset styling */
       .reset-row {
         display: flex;
@@ -350,18 +304,8 @@ export class GlobalSettingsTab extends LitElement {
         min-width: 0;
       }
 
-      .option-row input[type="number"] {
-        font: inherit;
-        color: var(--primary-text-color);
-        background: var(--card-background-color);
-        border: 1px solid var(--divider-color);
-        border-radius: 4px;
-        padding: 4px 6px;
-        max-width: 60%;
-      }
-
-      .option-row input[type="number"] {
-        width: 70px;
+      .option-row ha-selector.minutes {
+        flex: 0 0 140px;
       }
 
       .option-row {
@@ -518,22 +462,14 @@ export class GlobalSettingsTab extends LitElement {
   // would otherwise set `this` to the DOM element).
   // -----------------------------------------------------------------------
 
-  private _tempSaveTimer: ReturnType<typeof setTimeout> | null = null;
-
-  private async _saveTemperatures(): Promise<void> {
-    const root = this.shadowRoot;
-    if (!root) return;
-    const getValue = (id: string): number => {
-      const field = root.querySelector<HTMLInputElement>(`#temp-${id}`);
-      return field
-        ? parseFloat(field.value)
-        : this.config.period_temperatures[id] ?? 0;
-    };
+  private async _saveTemperature(id: string, value: number): Promise<void> {
+    const current = this.config.period_temperatures;
     const temperatures = {
-      frost_protection: getValue("frost_protection"),
-      reduced: getValue("reduced"),
-      normal: getValue("normal"),
-      comfort: getValue("comfort"),
+      frost_protection: current.frost_protection,
+      reduced: current.reduced,
+      normal: current.normal,
+      comfort: current.comfort,
+      [id]: value,
     };
     try {
       await this.ws.setPeriodTemperatures(temperatures);
@@ -543,21 +479,6 @@ export class GlobalSettingsTab extends LitElement {
       this.panel.showToast("Save failed — retrying...", true);
     }
   }
-
-  private _onTemperatureInput = () => {
-    if (this._tempSaveTimer !== null) clearTimeout(this._tempSaveTimer);
-    this._tempSaveTimer = setTimeout(() => {
-      void this._saveTemperatures();
-    }, 600);
-  };
-
-  private _onTemperatureBlur = () => {
-    if (this._tempSaveTimer !== null) {
-      clearTimeout(this._tempSaveTimer);
-      this._tempSaveTimer = null;
-    }
-    void this._saveTemperatures();
-  };
 
   private _onResetTemperatures = async () => {
     try {
@@ -817,16 +738,15 @@ export class GlobalSettingsTab extends LitElement {
     }
   };
 
-  private _onBoilerFieldChange(field: keyof BoilerConfig, numeric: boolean) {
-    return (e: Event) => {
-      const raw = (e.target as HTMLInputElement | HTMLSelectElement).value;
-      const value = numeric ? Number(raw) : raw;
-      if (numeric && (!Number.isInteger(value) || +value < 0 || +value > 60)) {
-        this.panel.showToast("Enter whole minutes between 0 and 60", true);
-        return;
-      }
-      void this._saveBoiler({ [field]: value } as Partial<BoilerConfig>);
-    };
+  private _saveBoilerMinutes(
+    field: "min_on_minutes" | "min_off_minutes",
+    value: number,
+  ) {
+    if (!Number.isInteger(value) || value < 0 || value > 60) {
+      this.panel.showToast("Enter whole minutes between 0 and 60", true);
+      return;
+    }
+    return this._saveBoiler({ [field]: value });
   }
 
   private _renderHvacModeSelect(
@@ -942,29 +862,26 @@ export class GlobalSettingsTab extends LitElement {
           ${entityId
             ? html`
                 <div class="option-row">
-                  <span class="option-label">Minimum on time (min)</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="60"
-                    step="1"
-                    .value=${String(minOn)}
-                    @change=${this._onBoilerFieldChange("min_on_minutes", true)}
-                  />
+                  <span class="option-label">Minimum on time</span>
+                  ${haNumber(
+                    this.hass,
+                    minOn,
+                    { min: 0, max: 60, step: 1, unit: "min" },
+                    (val) =>
+                      void this._saveBoilerMinutes("min_on_minutes", val),
+                    { cls: "minutes" },
+                  )}
                 </div>
                 <div class="option-row">
-                  <span class="option-label">Minimum off time (min)</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="60"
-                    step="1"
-                    .value=${String(minOff)}
-                    @change=${this._onBoilerFieldChange(
-                      "min_off_minutes",
-                      true,
-                    )}
-                  />
+                  <span class="option-label">Minimum off time</span>
+                  ${haNumber(
+                    this.hass,
+                    minOff,
+                    { min: 0, max: 60, step: 1, unit: "min" },
+                    (val) =>
+                      void this._saveBoilerMinutes("min_off_minutes", val),
+                    { cls: "minutes" },
+                  )}
                 </div>
                 <p class="hint">
                   Recorded with each pre-heat run, for later analysis.
@@ -987,29 +904,14 @@ export class GlobalSettingsTab extends LitElement {
   private _renderTemperaturesCard() {
     const temps = this.config.period_temperatures;
 
-    const tempField = (id: string, label: string) => html`
-      <div class="temp-field">
-        <label class="temp-label" for="temp-${id}">${label}</label>
-        <div class="temp-input-row">
-          <input
-            id="temp-${id}"
-            class="temp-input"
-            type="number"
-            step="0.5"
-            min="5"
-            max="30"
-            data-key="${id}"
-            .value=${temps[id] != null ? String(temps[id]) : ""}
-            @input=${this._onTemperatureInput}
-            @blur=${this._onTemperatureBlur}
-            @keydown=${(e: KeyboardEvent) => {
-              if (e.key === "Enter") (e.target as HTMLElement).blur();
-            }}
-          />
-          <span class="temp-suffix">°C</span>
-        </div>
-      </div>
-    `;
+    const tempField = (id: string, label: string) =>
+      haNumber(
+        this.hass,
+        temps[id] ?? undefined,
+        { min: 5, max: 30, step: 0.5, unit: "°C" },
+        (value) => void this._saveTemperature(id, value),
+        { label },
+      );
 
     return html`
       <ha-card>

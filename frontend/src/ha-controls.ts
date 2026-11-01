@@ -87,3 +87,65 @@ export function haEntity(
     }}
   ></ha-selector>`;
 }
+
+interface NumberConfig {
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+}
+
+/** Values typed in a number selector, not committed yet. */
+const pendingNumbers = new WeakMap<EventTarget, number | undefined>();
+
+/**
+ * A number box (with its unit). The number selector reports every
+ * keystroke, so the value is committed like a native change event: when
+ * the focus leaves the box or on Enter, and only when it is a number in
+ * [min, max] that differs from `value`.
+ */
+export function haNumber(
+  hass: Hass,
+  value: number | undefined,
+  { min, max, step, unit }: NumberConfig,
+  onCommit: (value: number) => void,
+  { label, cls, disabled = false }: ControlOptions = {},
+) {
+  const commit = (el: EventTarget) => {
+    if (!pendingNumbers.has(el)) return;
+    const next = pendingNumbers.get(el);
+    pendingNumbers.delete(el);
+    if (next === undefined || Number.isNaN(next) || next === value) return;
+    if ((min !== undefined && next < min) || (max !== undefined && next > max))
+      return;
+    onCommit(next);
+  };
+  return html`<ha-selector
+    class=${cls ?? ""}
+    .hass=${hass}
+    .selector=${{
+      number: { mode: "box", min, max, step, unit_of_measurement: unit },
+    }}
+    .value=${value}
+    .label=${label}
+    .disabled=${disabled}
+    .required=${true}
+    @value-changed=${(e: Event) => {
+      const next = changedValue(e);
+      pendingNumbers.set(
+        e.currentTarget as EventTarget,
+        typeof next === "number" ? next : undefined,
+      );
+    }}
+    @focusout=${(e: FocusEvent) => {
+      const el = e.currentTarget as HTMLElement;
+      // Focus may move inside the selector's own shadow trees.
+      setTimeout(() => {
+        if (!el.matches(":focus-within")) commit(el);
+      });
+    }}
+    @keydown=${(e: KeyboardEvent) => {
+      if (e.key === "Enter") commit(e.currentTarget as EventTarget);
+    }}
+  ></ha-selector>`;
+}

@@ -13,8 +13,8 @@
  *   4. Weekly time-bar
  *   5. Assigned Rooms section (chips + search-picker, D-08 / D-09 / D-10)
  *
- * HA 2026.x compatibility: uses native <input> and native <select> only.
- * No ha-textfield, ha-select, ha-tabs, paper-tab, or ha-dialog.
+ * Controls are HA's own (ha-selector, ha-switch, ha-button…), loaded at
+ * startup by ha-elements.ts.
  *
  * All writes use write-then-reload pattern:
  *   await this.ws.X(); await this.panel.reloadConfig(); this.panel.showToast(…)
@@ -705,14 +705,13 @@ export class ZoneTab extends LitElement {
 
       <!-- Pre-heat enable toggle (Phase 12 GAP-01) -->
       <div class="section-label">Pre-heat</div>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-        <input
-          type="checkbox"
+      <div style="display:flex;align-items:center;gap:8px;">
+        <ha-switch
           .checked=${this.zoneConfig?.preheat_enabled ?? false}
           @change=${this._onPreheatToggle}
-        />
+        ></ha-switch>
         Enable pre-heat for all rooms in this zone
-      </label>
+      </div>
       <p class="schedule-hint">
         When enabled, the coordinator may start heating each room in this zone
         ahead of the first occupied period of the day.
