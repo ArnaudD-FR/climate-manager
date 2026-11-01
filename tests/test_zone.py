@@ -160,3 +160,95 @@ def test_zone_mode_only_change_logged(caplog):
     msg = records[0].getMessage()
     assert "normal[time_program]" in msg
     assert "normal[off]" in msg
+
+
+# ---------------------------------------------------------------------------
+# Household presence / absence periods in a time program zone
+# ---------------------------------------------------------------------------
+
+import datetime  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock  # noqa: E402
+
+from custom_components.climate_manager.const import (  # noqa: E402
+    DEFAULT_PERIOD_TEMPERATURES,
+    MODE_TIME_PROGRAM,
+)
+from custom_components.climate_manager.eval_context import (  # noqa: E402
+    EvalContext,
+)
+
+_DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+# Normal 07–08 and 17–22, Reduced otherwise.
+_PROGRAM = {
+    day: [
+        {"start": "00:00", "mode": "reduced"},
+        {"start": "07:00", "mode": "normal"},
+        {"start": "08:00", "mode": "reduced"},
+        {"start": "17:00", "mode": "normal"},
+        {"start": "22:00", "mode": "reduced"},
+    ]
+    for day in _DAYS
+}
+
+
+async def _evaluate_with(periods, now):
+    zone = Zone(
+        zone_id="zone_main",
+        initial_mode=MODE_TIME_PROGRAM,
+        time_program=_PROGRAM,
+    )
+    room = MagicMock()
+    room.apply_setpoint = AsyncMock()
+    zone._rooms = [room]
+    ctx = EvalContext(
+        now=now,
+        hass=None,
+        period_temperatures=dict(DEFAULT_PERIOD_TEMPERATURES),
+        presence_periods=periods,
+    )
+    await zone.evaluate(ctx)
+    return zone, room.apply_setpoint.call_args.args
+
+
+async def test_household_absence_holds_reduced():
+    trip = {
+        "id": "trip",
+        "kind": "absent",
+        "start": "2026-11-05T08:00",
+        "end": "2026-11-12T18:30",
+    }
+    zone, (period, temp, _) = await _evaluate_with(
+        [trip], datetime.datetime(2026, 11, 8, 18, 0)
+    )
+    assert period == "reduced"
+    assert temp == DEFAULT_PERIOD_TEMPERATURES["reduced"]
+    # The zone period stays the program's.
+    assert zone.current_period == "normal"
+
+
+async def test_household_presence_fills_the_day():
+    stay = {
+        "id": "stay",
+        "kind": "present",
+        "start": "2026-11-05T08:00",
+        "end": "2026-11-12T18:30",
+    }
+    _, (period, temp, _) = await _evaluate_with(
+        [stay], datetime.datetime(2026, 11, 8, 12, 0)
+    )
+    assert period == "normal"
+    assert temp == DEFAULT_PERIOD_TEMPERATURES["normal"]
+
+
+async def test_absence_of_some_persons_leaves_the_program():
+    trip = {
+        "id": "trip",
+        "kind": "absent",
+        "start": "2026-11-05T08:00",
+        "end": "2026-11-12T18:30",
+        "person_ids": ["person.a"],
+    }
+    _, (period, _, _) = await _evaluate_with(
+        [trip], datetime.datetime(2026, 11, 8, 18, 0)
+    )
+    assert period == "normal"

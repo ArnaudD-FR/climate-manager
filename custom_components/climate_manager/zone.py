@@ -29,8 +29,13 @@ from .const import (
     MODE_TIME_PROGRAM,
     MODE_TIME_PROGRAM_PRESENCES,
     PERIOD_FROST_PROTECTION,
+    PERIOD_REDUCED,
 )
-from .schedule import compute_occupied_temp, evaluate_schedule
+from .schedule import (
+    compute_occupied_temp,
+    evaluate_schedule,
+    presence_override,
+)
 
 if TYPE_CHECKING:
     from .eval_context import EvalContext
@@ -136,17 +141,36 @@ class ZoneModeTimeProgram(ZoneMode):
         """Apply schedule-based setpoint to all rooms."""
         zone = self.zone
         period: str = evaluate_schedule(zone.time_program, ctx.now)
-        temp: float | None = ctx.period_temperatures.get(period)
+        # A household period (covering everyone): away → Reduced, home →
+        # the day filled as for a present person. The zone period stays
+        # the program's; each room's lives on room._last_period.
+        room_period = period
+        periods = getattr(ctx, "presence_periods", None)
+        household = (
+            presence_override(periods, ctx.now)
+            if isinstance(periods, list)
+            else None
+        )
+        if household is False:
+            room_period = PERIOD_REDUCED
+        temp: float | None = ctx.period_temperatures.get(room_period)
+        if household is True:
+            temp, room_period = compute_occupied_temp(
+                zone.time_program, ctx.now, True, ctx.period_temperatures
+            )
         if temp is None:
             _LOGGER.warning(
                 "Unknown period %r in zone %s — skipping setpoint",
-                period,
+                room_period,
                 zone.zone_id,
             )
             return period, self.mode_name
         await _gather_rooms(
             zone,
-            (room.apply_setpoint(period, temp, ctx) for room in zone.rooms),
+            (
+                room.apply_setpoint(room_period, temp, ctx)
+                for room in zone.rooms
+            ),
         )
         return period, self.mode_name
 

@@ -51,6 +51,8 @@ from .const import (
     DOMAIN,
     MODE_TIME_PROGRAM,
     PRESENCE_HA,
+    PRESENCE_PERIOD_ABSENT,
+    PRESENCE_PERIOD_PRESENT,
 )
 from .entity import (
     boiler_demand_unique_id,
@@ -63,6 +65,7 @@ from .alignment import SensorAligner
 from .eval_context import EvalContext
 from .person import Person
 from .room import Room
+from .schedule import period_bounds, presence_override
 from .trv import (
     TRV,
     TRVGroup,
@@ -118,6 +121,9 @@ class ClimateManagerCoordinator:
         # Wave 2: track last evaluation results for status push and get_status WS command.
         self._last_active_period: str | None = None
         self._last_present_persons: list[str] = []
+        # Household presence forced by a period (None: no period), for the
+        # presence log on change.
+        self._last_household: bool | None = None
         # Per-room effective period (may differ from global in time_program_presences mode).
         self._last_room_periods: dict[str, str] = {}
         # D-05: per-zone active period dict — "default" plus one key per custom
@@ -524,6 +530,47 @@ class ClimateManagerCoordinator:
                 self._eval_requested = False
                 await self._async_evaluate_once()
 
+    async def _async_prune_presence_periods(
+        self, config: dict, now: datetime
+    ) -> list:
+        """Drop the presence periods whose return has passed, and save.
+
+        Returns the periods left. A failed save keeps them pruned in
+        memory; the next config save persists it.
+        """
+        periods: list = config.get("presence_periods") or []
+        kept = [p for p in periods if period_bounds(p, now.tzinfo)[1] > now]
+        if len(kept) == len(periods):
+            return periods
+        config["presence_periods"] = kept
+        _LOGGER.info(
+            "presence | %d period(s) ended, removed", len(periods) - len(kept)
+        )
+        try:
+            await self._data.store.async_save(config)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Saving the pruned presence periods: %s", err)
+        return kept
+
+    def _log_household_presence(self, periods: list, now: datetime) -> None:
+        """Log a household period (covering everyone) starting or ending."""
+        household = presence_override(periods, now)
+        if household == self._last_household:
+            return
+        if household is None:
+            _LOGGER.info("presence | household period ended")
+        else:
+            _LOGGER.info(
+                "presence | household home=%s reason=%s_period",
+                household,
+                (
+                    PRESENCE_PERIOD_PRESENT
+                    if household
+                    else PRESENCE_PERIOD_ABSENT
+                ),
+            )
+        self._last_household = household
+
     async def _async_evaluate_once(self) -> None:
         """Run one evaluation cycle (see async_evaluate).
 
@@ -541,11 +588,15 @@ class ClimateManagerCoordinator:
         if new_fp != self._config_fingerprint or self._rebuild_requested:
             self._build_domain_objects(config)
 
+        presence_periods = await self._async_prune_presence_periods(config, now)
+        self._log_household_presence(presence_periods, now)
+
         # D-09: build one EvalContext per cycle (OBS-01 / RESEARCH D-02).
         ctx = EvalContext(
             now=now,
             hass=self._hass,
             period_temperatures=period_temperatures,
+            presence_periods=presence_periods,
             _warn_issued=self._calendar_warn_issued,
         )
 

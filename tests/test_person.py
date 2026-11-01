@@ -181,3 +181,76 @@ def test_person_presence_cache_dedup(caplog):
         f"Expected mode.is_present NOT to be called on cache hit, "
         f"called {call_count} times"
     )
+
+
+# ---------------------------------------------------------------------------
+# Dated presence / absence periods
+# ---------------------------------------------------------------------------
+
+
+def _period_ctx(periods, now):
+    from unittest.mock import MagicMock
+
+    ctx = MagicMock()
+    ctx._presence_cache = {}
+    ctx.now = now
+    ctx.presence_periods = periods
+    return ctx
+
+
+def test_absence_period_overrides_force_present(caplog):
+    """A period covering the person wins over the mode, logged with the
+    period kind as reason."""
+    import datetime
+
+    person = Person(person_id="person.alice")
+    person._mode = PersonModeForcePresent(person)
+    trip = {
+        "id": "trip",
+        "kind": "absent",
+        "start": "2026-11-05T08:00",
+        "end": "2026-11-12T18:30",
+    }
+    ctx = _period_ctx([trip], datetime.datetime(2026, 11, 8, 12, 0))
+
+    with caplog.at_level(logging.INFO, logger=PERSON_LOGGER):
+        assert person.evaluate_sync(ctx) is False
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("home=False reason=absent_period" in m for m in messages)
+
+
+def test_presence_period_of_another_person_is_ignored():
+    import datetime
+
+    person = Person(person_id="person.alice")
+    person._mode = PersonModeForceAbsent(person)
+    stay = {
+        "id": "stay",
+        "kind": "present",
+        "start": "2026-11-05T08:00",
+        "end": "2026-11-12T18:30",
+        "person_ids": ["person.bob"],
+    }
+    ctx = _period_ctx([stay], datetime.datetime(2026, 11, 8, 12, 0))
+    assert person.evaluate_sync(ctx) is False
+
+    bob = Person(person_id="person.bob")
+    bob._mode = PersonModeForceAbsent(bob)
+    ctx = _period_ctx([stay], datetime.datetime(2026, 11, 8, 12, 0))
+    assert bob.evaluate_sync(ctx) is True
+
+
+def test_mode_takes_over_at_the_return():
+    import datetime
+
+    person = Person(person_id="person.alice")
+    person._mode = PersonModeForcePresent(person)
+    trip = {
+        "id": "trip",
+        "kind": "absent",
+        "start": "2026-11-05T08:00",
+        "end": "2026-11-12T18:30",
+    }
+    ctx = _period_ctx([trip], datetime.datetime(2026, 11, 12, 18, 30))
+    assert person.evaluate_sync(ctx) is True

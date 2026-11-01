@@ -44,6 +44,11 @@ class EvalContext:
         hass:                The HomeAssistant core object.
         period_temperatures: Mapping from period name to target temperature.
 
+    Optional fields:
+        presence_periods:    The dated presence / absence periods
+                             (runtime_config["presence_periods"]); they
+                             override the presence of the persons they cover.
+
     Internal cache fields (populated lazily during the cycle):
         _calendar_cache:  entity_id → list of event dicts (filled on demand).
         _presence_cache:  person_id → is_home bool (filled by Person.evaluate).
@@ -55,6 +60,7 @@ class EvalContext:
     now: datetime
     hass: "HomeAssistant"
     period_temperatures: dict[str, float]
+    presence_periods: list = field(default_factory=list)
     _calendar_cache: dict[str, list] = field(default_factory=dict)
     _presence_cache: dict[str, bool] = field(default_factory=dict)
     _warn_issued: set[str] = field(default_factory=set)

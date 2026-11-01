@@ -30,9 +30,14 @@ from .const import (
     PRESENCE_AUTOMATIC,
     PRESENCE_CALENDAR,
     PRESENCE_HA,
+    PRESENCE_PERIOD_PRESENT,
     PRESENCE_PRESENT,
 )
-from .schedule import resolve_calendar_presence, resolve_presence
+from .schedule import (
+    active_presence_period,
+    resolve_calendar_presence,
+    resolve_presence,
+)
 
 if TYPE_CHECKING:
     from .eval_context import EvalContext
@@ -308,7 +313,20 @@ class Person:
         if self.person_id in ctx._presence_cache:
             return ctx._presence_cache[self.person_id]
 
-        result: bool = await self._mode.is_present(ctx)
+        # A dated presence / absence period covering the person wins over
+        # the mode.
+        periods = getattr(ctx, "presence_periods", None)
+        period = (
+            active_presence_period(periods, ctx.now, self.person_id)
+            if isinstance(periods, list)
+            else None
+        )
+        if period is not None:
+            result: bool = period["kind"] == PRESENCE_PERIOD_PRESENT
+            reason = f"{period['kind']}_period"
+        else:
+            result = await self._mode.is_present(ctx)
+            reason = self._mode.reason_label
 
         # D-10: log only on flip — anti-spam via _last_home, no separate dict
         if result != self._last_home:
@@ -316,7 +334,7 @@ class Person:
                 "presence | person=%s home=%s reason=%s",
                 _short_name(self.person_id),
                 result,
-                self._mode.reason_label,
+                reason,
             )
             self._last_home = result
 

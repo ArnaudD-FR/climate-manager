@@ -2418,3 +2418,40 @@ async def test_align_for_room_unmapped_matter_uses_room_path(hass):
     await hass.async_block_till_done()
 
     assert offset_calls == []
+
+
+# ---------------------------------------------------------------------------
+# Presence / absence periods: pruning
+# ---------------------------------------------------------------------------
+
+
+async def test_ended_presence_periods_are_pruned_and_saved(hass):
+    from unittest.mock import AsyncMock
+
+    coordinator = _make_simple_coordinator(hass)
+    coordinator._data.store.async_save = AsyncMock()
+    ended = {
+        "id": "ended",
+        "kind": "absent",
+        "start": "2026-11-01T08:00",
+        "end": "2026-11-02T18:30",
+    }
+    ongoing = {
+        "id": "ongoing",
+        "kind": "absent",
+        "start": "2026-11-05T08:00",
+        "end": "2026-11-12T18:30",
+    }
+    config = coordinator._data.runtime_config
+    config["presence_periods"] = [ended, ongoing]
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+
+    kept = await coordinator._async_prune_presence_periods(config, now)
+
+    assert kept == [ongoing]
+    assert config["presence_periods"] == [ongoing]
+    coordinator._data.store.async_save.assert_awaited_once()
+
+    # Nothing left to prune: no save.
+    await coordinator._async_prune_presence_periods(config, now)
+    coordinator._data.store.async_save.assert_awaited_once()
