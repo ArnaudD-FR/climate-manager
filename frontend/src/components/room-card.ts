@@ -35,7 +35,7 @@ import {
   validEntityIds,
   type LovelaceCard,
 } from "../ha-nav.js";
-import { haEntityAdd, haNumber, haSelect } from "../ha-controls.js";
+import { haEntityAdd, haItemChip, haNumber, haSelect } from "../ha-controls.js";
 
 /** History graph durations offered in the card (hours). */
 const HISTORY_HOURS: Array<[number, string]> = [
@@ -517,7 +517,7 @@ export class RoomCard extends LitElement {
     }
 
     return html`
-      <div class="chips">
+      <ha-chip-set class="chips">
         ${entityIds.map((entityId) => {
           const state = this.hass?.states[entityId];
           const name =
@@ -528,17 +528,16 @@ export class RoomCard extends LitElement {
               ? `${state.attributes["current_temperature"]}°C`
               : "—";
           return html`
-            <span
-              class="chip"
+            <ha-assist-chip
+              .label=${name}
               @click=${() => this._openEntityMoreInfo(entityId)}
             >
-              <ha-icon icon="mdi:thermometer"></ha-icon>
-              ${name}
-              <span class="chip-temp">${temp}</span>
-            </span>
+              <ha-icon slot="icon" icon="mdi:thermometer"></ha-icon>
+              <span slot="trailing-icon" class="chip-temp">${temp}</span>
+            </ha-assist-chip>
           `;
         })}
-      </div>
+      </ha-chip-set>
     `;
   }
 
@@ -553,38 +552,26 @@ export class RoomCard extends LitElement {
       <div class="section-label" title="Persons whose presence heats this room">
         Associated persons
       </div>
-      <div class="chips">
-        ${assignedPersonIds.map(
-          (personId) => html`
-            <span
-              class="chip"
-              @click=${() => void this.panel.navigateToPerson(personId)}
-            >
-              <ha-icon icon="mdi:account"></ha-icon>
-              ${this._getPersonName(personId)}
-              <button
-                class="chip-remove"
-                @click=${(e: Event) => {
-                  e.stopPropagation();
-                  void this._onRemovePerson(personId);
-                }}
-              >
-                ×
-              </button>
-            </span>
-          `,
+      <ha-chip-set class="chips">
+        ${assignedPersonIds.map((personId) =>
+          haItemChip(
+            this._getPersonName(personId),
+            "mdi:account",
+            () => void this.panel.navigateToPerson(personId),
+            () => void this._onRemovePerson(personId),
+          ),
         )}
-        ${unassignedPersonIds.length > 0
-          ? html`
-              ${haEntityAdd(
-                this.hass,
-                unassignedPersonIds,
-                "Add person",
-                (id) => void this._onAddPerson(id),
-              )}
-            `
-          : ""}
-      </div>
+      </ha-chip-set>
+      ${unassignedPersonIds.length > 0
+        ? html`<div class="chips">
+            ${haEntityAdd(
+              this.hass,
+              unassignedPersonIds,
+              "Add person",
+              (id) => void this._onAddPerson(id),
+            )}
+          </div>`
+        : ""}
     `;
   }
 
@@ -894,8 +881,9 @@ export class RoomCard extends LitElement {
               const isMatter = matterEntities.includes(id);
               const draggable = canPair && isMatter;
               return html`
-                <span
-                  class=${`chip${draggable ? " chip-draggable" : ""}`}
+                <ha-assist-chip
+                  class=${draggable ? "chip-draggable" : ""}
+                  .label=${name}
                   .draggable=${draggable}
                   @dragstart=${draggable
                     ? (e: DragEvent) => this._startDrag(id, "matter", null, e)
@@ -903,10 +891,9 @@ export class RoomCard extends LitElement {
                   @dragend=${draggable ? () => this._onDragEnd() : undefined}
                   @click=${() => this._openEntityMoreInfo(id)}
                 >
-                  <ha-icon icon="mdi:thermometer"></ha-icon>
-                  ${name}
-                  <span class="chip-temp">${temp}</span>
-                </span>
+                  <ha-icon slot="icon" icon="mdi:thermometer"></ha-icon>
+                  <span slot="trailing-icon" class="chip-temp">${temp}</span>
+                </ha-assist-chip>
               `;
             }
 
@@ -927,8 +914,9 @@ export class RoomCard extends LitElement {
                   @dragenter=${this._onMatterDragEnter}
                   @dragleave=${this._onMatterDragLeave}
                 >
-                  <span
-                    class=${`chip${canPair ? " chip-draggable" : ""}`}
+                  <ha-assist-chip
+                    class=${canPair ? "chip-draggable" : ""}
+                    .label=${name}
                     .draggable=${canPair}
                     @dragstart=${canPair
                       ? (e: DragEvent) => this._startDrag(id, "parent", null, e)
@@ -936,10 +924,9 @@ export class RoomCard extends LitElement {
                     @dragend=${canPair ? () => this._onDragEnd() : undefined}
                     @click=${() => this._openEntityMoreInfo(id)}
                   >
-                    <ha-icon icon="mdi:thermometer"></ha-icon>
-                    ${name}
-                    <span class="chip-temp">${temp}</span>
-                  </span>
+                    <ha-icon slot="icon" icon="mdi:thermometer"></ha-icon>
+                    <span slot="trailing-icon" class="chip-temp">${temp}</span>
+                  </ha-assist-chip>
                   <div class="matter-children">
                     ${mapped.map((mid) => {
                       const ms = this.hass?.states[mid];
@@ -948,8 +935,9 @@ export class RoomCard extends LitElement {
                           ? `${ms.attributes["current_temperature"]}°C`
                           : "—";
                       return html`
-                        <span
-                          class=${`chip${canPair ? " chip-draggable" : ""}`}
+                        <ha-assist-chip
+                          class=${canPair ? "chip-draggable" : ""}
+                          .label=${this._entityName(mid)}
                           .draggable=${canPair}
                           @dragstart=${canPair
                             ? (e: DragEvent) =>
@@ -960,10 +948,11 @@ export class RoomCard extends LitElement {
                             : undefined}
                           @click=${() => this._openEntityMoreInfo(mid)}
                         >
-                          <ha-icon icon="mdi:thermometer"></ha-icon>
-                          ${this._entityName(mid)}
-                          <span class="chip-temp">${mt}</span>
-                        </span>
+                          <ha-icon slot="icon" icon="mdi:thermometer"></ha-icon>
+                          <span slot="trailing-icon" class="chip-temp"
+                            >${mt}</span
+                          >
+                        </ha-assist-chip>
                       `;
                     })}
                   </div>
@@ -973,8 +962,8 @@ export class RoomCard extends LitElement {
 
             // Ungrouped pairable entity — plain chip, drop target for Matter
             return html`
-              <span
-                class="chip"
+              <ha-assist-chip
+                .label=${name}
                 @dragover=${canPair ? this._onMatterDragOver : undefined}
                 @drop=${canPair
                   ? (e: DragEvent) => void this._onDropOnParent(id, e)
@@ -983,10 +972,9 @@ export class RoomCard extends LitElement {
                 @dragleave=${canPair ? this._onMatterDragLeave : undefined}
                 @click=${() => this._openEntityMoreInfo(id)}
               >
-                <ha-icon icon="mdi:thermometer"></ha-icon>
-                ${name}
-                <span class="chip-temp">${temp}</span>
-              </span>
+                <ha-icon slot="icon" icon="mdi:thermometer"></ha-icon>
+                <span slot="trailing-icon" class="chip-temp">${temp}</span>
+              </ha-assist-chip>
             `;
           })}
         </div>

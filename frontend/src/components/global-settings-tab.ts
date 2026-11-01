@@ -954,13 +954,12 @@ export class GlobalSettingsTab extends LitElement {
       (trv) => html`
         <tr>
           <td>
-            <span
-              class="chip"
+            <ha-assist-chip
+              .label=${trv.friendly_name}
               @click=${() => this._openEntityMoreInfo(trv.entity_id)}
             >
-              <ha-icon icon="mdi:thermometer"></ha-icon>
-              ${trv.friendly_name}
-            </span>
+              <ha-icon slot="icon" icon="mdi:thermometer"></ha-icon>
+            </ha-assist-chip>
           </td>
           <td>
             <span

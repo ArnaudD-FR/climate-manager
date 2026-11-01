@@ -205,3 +205,26 @@ export function haEntityAdd(
     }}
   ></ha-entity-picker>`;
 }
+
+/**
+ * A chip naming an item (room, person) that opens it on click; with
+ * `onRemove`, an ha-input-chip whose × calls it (the chip must not remove
+ * itself: Lit owns the DOM).
+ */
+export function haItemChip(
+  label: string,
+  icon: string,
+  onClick: () => void,
+  onRemove?: () => void,
+) {
+  return html`<ha-input-chip
+    .label=${label}
+    .removable=${!!onRemove}
+    @click=${onClick}
+    @remove=${(e: Event) => {
+      e.preventDefault();
+      onRemove?.();
+    }}
+    ><ha-icon slot="icon" icon=${icon}></ha-icon
+  ></ha-input-chip>`;
+}

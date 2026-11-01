@@ -14,72 +14,6 @@ export const chipStyles = css`
     gap: 8px;
     margin-bottom: 16px;
   }
-
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: 16px;
-    background: var(--secondary-background-color, #f5f5f5);
-    border: 1px solid var(--divider-color, #e0e0e0);
-    font-size: 13px;
-    color: var(--primary-text-color);
-    cursor: pointer;
-  }
-
-  .chip:hover {
-    background: var(--secondary-background-color, #eeeeee);
-    border-color: var(--primary-color);
-  }
-
-  .chip ha-icon {
-    --mdc-icon-size: 16px;
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-  }
-
-  .chip-remove {
-    background: none;
-    border: none;
-    padding: 0 0 0 2px;
-    margin: 0;
-    cursor: pointer;
-    color: var(--secondary-text-color);
-    font-size: 18px;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-  }
-
-  .chip-remove:hover {
-    color: var(--error-color, #f44336);
-  }
-
-  .chip-add {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 16px;
-    background: none;
-    border: 1px solid var(--primary-color, #03a9f4);
-    font-size: 13px;
-    color: var(--primary-color, #03a9f4);
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  .chip-add:hover {
-    background: var(--secondary-background-color);
-  }
-
-  .chip-add ha-icon {
-    --mdc-icon-size: 16px;
-    width: 16px;
-    height: 16px;
-  }
 `;
 
 /** Uppercase section label — used by room-card, person-card, zone-tab. */
@@ -204,14 +138,15 @@ export const groupDndStyles = css`
   /* Temperature span inside a chip */
   .chip-temp {
     color: var(--secondary-text-color);
-    margin-left: 4px;
     font-size: 12px;
+    white-space: nowrap;
   }
 
   /* Drop highlight on an ungrouped pairable chip */
-  .chip.drag-over {
-    border-color: var(--primary-color, #03a9f4);
-    background: var(--secondary-background-color, #f5f5f5);
+  ha-assist-chip.drag-over {
+    outline: 2px dashed var(--primary-color, #03a9f4);
+    outline-offset: 2px;
+    border-radius: 8px;
   }
 
   /* Unassign zone — appears to the right during any drag */

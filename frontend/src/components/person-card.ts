@@ -37,7 +37,13 @@ import {
   floorGroupLabelStyles,
 } from "../shared-styles.js";
 
-import { haAreaAdd, haEntity, haNumber, haSelect } from "../ha-controls.js";
+import {
+  haAreaAdd,
+  haEntity,
+  haItemChip,
+  haNumber,
+  haSelect,
+} from "../ha-controls.js";
 import "./time-bar.js";
 
 // Presence mode constants (D-21)
@@ -786,24 +792,13 @@ export class PersonCard extends LitElement {
       .filter((id) => id.startsWith("calendar."))
       .sort();
 
-    const renderChip = (room: RoomChoice) => html`
-      <span
-        class="chip"
-        @click=${() => void this.panel.navigateToRoom(room.id)}
-      >
-        <ha-icon icon="mdi:home-outline"></ha-icon>
-        ${room.name}
-        <button
-          class="chip-remove"
-          @click=${(e: Event) => {
-            e.stopPropagation();
-            void this._onRoomToggle(room.id, false);
-          }}
-        >
-          ×
-        </button>
-      </span>
-    `;
+    const renderChip = (room: RoomChoice) =>
+      haItemChip(
+        room.name,
+        "mdi:home-outline",
+        () => void this.panel.navigateToRoom(room.id),
+        () => void this._onRoomToggle(room.id, false),
+      );
 
     return html`
       <ha-card>
@@ -1078,7 +1073,9 @@ export class PersonCard extends LitElement {
                           >${group.floorName}
                         </div>`
                       : ""}
-                    <div class="chips">${group.rooms.map(renderChip)}</div>
+                    <ha-chip-set class="chips"
+                      >${group.rooms.map(renderChip)}</ha-chip-set
+                    >
                   `,
                 )}
                 ${assignedGroups.length === 0

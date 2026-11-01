@@ -15,6 +15,7 @@
 
 import { LitElement, html, css } from "lit";
 import { property, state } from "lit/decorators.js";
+import { live } from "lit/directives/live.js";
 
 import { chipStyles } from "../shared-styles.js";
 import { haSelect } from "../ha-controls.js";
@@ -195,12 +196,6 @@ export class PresencePeriodsCard extends LitElement {
         margin-bottom: 12px;
       }
 
-      .chip.selected {
-        background: var(--primary-color);
-        border-color: var(--primary-color);
-        color: var(--text-primary-color, #fff);
-      }
-
       .actions {
         display: flex;
         justify-content: flex-end;
@@ -331,19 +326,17 @@ export class PresencePeriodsCard extends LitElement {
         ${this._button("All", () => this._update({ selected: all }))}
         ${this._button("None", () => this._update({ selected: [] }))}
       </div>
-      <div class="chips">
+      <ha-chip-set class="chips">
         ${all.map(
           (id) => html`
-            <span
-              class="chip ${draft.selected.includes(id) ? "selected" : ""}"
-              role="checkbox"
-              aria-checked=${draft.selected.includes(id)}
+            <ha-filter-chip
+              .label=${this._personName(id)}
+              .selected=${live(draft.selected.includes(id))}
               @click=${() => this._toggle(id)}
-              >${this._personName(id)}</span
-            >
+            ></ha-filter-chip>
           `,
         )}
-      </div>
+      </ha-chip-set>
     `;
   }
 

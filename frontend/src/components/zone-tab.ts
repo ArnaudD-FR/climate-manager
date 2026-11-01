@@ -46,7 +46,7 @@ import {
   floorGroupLabelStyles,
 } from "../shared-styles.js";
 
-import { haAreaAdd, haSelect } from "../ha-controls.js";
+import { haAreaAdd, haItemChip, haSelect } from "../ha-controls.js";
 import "./time-bar.js";
 
 export class ZoneTab extends LitElement {
@@ -623,23 +623,13 @@ export class ZoneTab extends LitElement {
     const roomGroups = this._getSortedAssignedRoomGroups();
     const unassignedRooms = this._getUnassignedRoomItems();
 
-    const renderChip = (roomId: string) => html`
-      <span class="chip" @click=${() => void this.panel.navigateToRoom(roomId)}>
-        <ha-icon icon="mdi:home-outline"></ha-icon>
-        ${this._getRoomName(roomId)}
-        ${!this.isDefault
-          ? html`<button
-              class="chip-remove"
-              @click=${(e: Event) => {
-                e.stopPropagation();
-                void this._onRemoveRoom(roomId);
-              }}
-            >
-              ×
-            </button>`
-          : ""}
-      </span>
-    `;
+    const renderChip = (roomId: string) =>
+      haItemChip(
+        this._getRoomName(roomId),
+        "mdi:home-outline",
+        () => void this.panel.navigateToRoom(roomId),
+        this.isDefault ? undefined : () => void this._onRemoveRoom(roomId),
+      );
 
     return html`
       <!-- 1. Mode picker -->
@@ -721,7 +711,9 @@ export class ZoneTab extends LitElement {
                 >${group.floorName}
               </div>`
             : ""}
-          <div class="chips">${group.roomIds.map(renderChip)}</div>
+          <ha-chip-set class="chips"
+            >${group.roomIds.map(renderChip)}</ha-chip-set
+          >
         `,
       )}
       ${unassignedRooms.length > 0
