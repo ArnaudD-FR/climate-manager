@@ -15,6 +15,7 @@
 
 import { LitElement, html, css, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
+import { live } from "lit/directives/live.js";
 
 import type {
   CalendarConfig,
@@ -350,29 +351,7 @@ export class PersonCard extends LitElement {
 
       /* Even/Odd week switcher (D-06, D-07) */
       .week-switcher {
-        display: flex;
-        gap: 4px;
         margin-bottom: 8px;
-      }
-
-      .week-switcher .tab-btn {
-        background: none;
-        border: none;
-        border-bottom: 2px solid transparent;
-        padding: 8px 16px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 500;
-        color: var(--secondary-text-color);
-        text-transform: uppercase;
-        letter-spacing: 0.07em;
-        font-family: inherit;
-        outline: none;
-      }
-
-      .week-switcher .tab-btn.active {
-        border-bottom-color: var(--primary-color);
-        color: var(--primary-color);
       }
     `,
   ];
@@ -1044,28 +1023,28 @@ export class PersonCard extends LitElement {
                               Week ${getISOWeekNumber(new Date())} is currently
                               active (${getWeekParity(new Date())} week).
                             </p>
-                            <div class="week-switcher">
-                              <button
-                                class="tab-btn ${this._activeWeek === "even"
-                                  ? "active"
-                                  : ""}"
-                                @click=${() => {
-                                  this._activeWeek = "even";
-                                }}
+                            <ha-tab-group
+                              class="week-switcher"
+                              @wa-tab-show=${(e: CustomEvent) => {
+                                const name = e.detail?.name;
+                                if (name === "even" || name === "odd") {
+                                  this._activeWeek = name;
+                                }
+                              }}
+                            >
+                              <ha-tab-group-tab
+                                slot="nav"
+                                panel="even"
+                                .active=${live(this._activeWeek === "even")}
+                                >Even</ha-tab-group-tab
                               >
-                                Even
-                              </button>
-                              <button
-                                class="tab-btn ${this._activeWeek === "odd"
-                                  ? "active"
-                                  : ""}"
-                                @click=${() => {
-                                  this._activeWeek = "odd";
-                                }}
+                              <ha-tab-group-tab
+                                slot="nav"
+                                panel="odd"
+                                .active=${live(this._activeWeek === "odd")}
+                                >Odd</ha-tab-group-tab
                               >
-                                Odd
-                              </button>
-                            </div>
+                            </ha-tab-group>
                           `
                         : ""}
                       <div class="schedule-section">

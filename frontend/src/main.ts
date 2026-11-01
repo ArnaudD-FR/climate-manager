@@ -14,12 +14,13 @@
  * to coordinator push events via climate_manager/subscribe_status.
  * On disconnect: unsubscribes the status subscription.
  *
- * Renders a ha-tabs shell with three tabs: Global Settings / Rooms / Persons.
- * Tab bodies are placeholder stubs in this plan; filled in by the next plan.
+ * Renders an ha-tab-group: Overview / Rooms / Persons, then one tab per
+ * zone (double click to rename) and an add-zone button.
  */
 
 import { LitElement, html, css } from "lit";
 import { property, state, query } from "lit/decorators.js";
+import { live } from "lit/directives/live.js";
 
 import { WsClient } from "./ws-client.js";
 import { loadHaElements } from "./ha-elements.js";
@@ -108,36 +109,15 @@ export class ClimateManagerPanel extends LitElement {
 
     .tab-bar {
       display: flex;
+      align-items: center;
       border-bottom: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
       background: var(--primary-background-color);
       padding: 0 8px;
-      overflow-x: auto;
     }
 
-    .tab-btn {
-      background: none;
-      border: none;
-      border-bottom: 2px solid transparent;
-      padding: 12px 16px;
-      margin-bottom: -1px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--secondary-text-color);
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      white-space: nowrap;
-      outline: none;
-      transition: color 0.15s;
-    }
-
-    .tab-btn.active {
-      border-bottom-color: var(--primary-color);
-      color: var(--primary-color);
-    }
-
-    .tab-btn:hover:not(.active) {
-      color: var(--primary-text-color);
+    ha-tab-group {
+      flex: 1;
+      min-width: 0;
     }
 
     .tab-content {
@@ -154,9 +134,8 @@ export class ClimateManagerPanel extends LitElement {
     }
 
     .add-zone-btn {
-      font-size: 18px;
-      font-weight: 300;
-      padding: 12px 14px;
+      flex-shrink: 0;
+      color: var(--secondary-text-color);
     }
 
     .zone-dot {
@@ -170,18 +149,7 @@ export class ClimateManagerPanel extends LitElement {
     }
 
     .tab-name-input {
-      font-size: 14px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      border: none;
-      border-bottom: 2px solid var(--primary-color);
-      outline: none;
-      background: transparent;
-      color: var(--primary-color);
-      padding: 0;
-      width: 10ch;
-      max-width: 20ch;
+      width: 16ch;
     }
   `;
 
@@ -327,30 +295,28 @@ export class ClimateManagerPanel extends LitElement {
       const result = await this._ws.createZone(newName);
       await this._loadConfig();
       this._setTab("zone_" + result.zone_id);
-      // D-03: focus zone name field so user can rename immediately.
-      await this.updateComplete;
-      const zoneTab = this.shadowRoot?.querySelector(
-        "climate-manager-zone-tab",
-      );
-      zoneTab?.shadowRoot?.querySelector<HTMLElement>(".zone-name")?.click();
+      // D-03: edit the new tab's name so the user can rename it at once.
+      await this._onTabRename(result.zone_id, newName);
       this.showToast("Zone created", false);
     } catch {
       this.showToast("Create zone failed", true);
     }
   }
 
-  private async _onTabRename(zoneId: string, currentName: string, e: Event) {
-    e.stopPropagation();
+  private async _onTabRename(zoneId: string, currentName: string, e?: Event) {
+    e?.stopPropagation();
     this._editingTabId = zoneId;
     this._tabNameInput = currentName;
     await this.updateComplete;
-    this.shadowRoot
-      ?.querySelector<HTMLInputElement>(`input[data-zone="${zoneId}"]`)
-      ?.select();
+    const input = this.shadowRoot?.querySelector<
+      HTMLElement & { select?: () => void }
+    >(`ha-input[data-zone="${zoneId}"]`);
+    input?.focus();
+    input?.select?.();
   }
 
   private _onTabNameInput(e: Event) {
-    this._tabNameInput = (e.target as HTMLInputElement).value;
+    this._tabNameInput = (e.target as HTMLInputElement).value ?? "";
   }
 
   private async _onTabNameBlur(zoneId: string) {
@@ -442,91 +408,79 @@ export class ClimateManagerPanel extends LitElement {
       ${this._renderMissing()}
 
       <div class="tab-bar">
-        <button
-          class="tab-btn ${this._activeTab === "global" ? "active" : ""}"
-          @click=${() => this._setTab("global")}
+        <ha-tab-group
+          @wa-tab-show=${(e: CustomEvent) => {
+            const name = e.detail?.name;
+            if (typeof name === "string") this._setTab(name);
+          }}
         >
-          Overview
-        </button>
-        <button
-          class="tab-btn ${this._activeTab === "rooms" ? "active" : ""}"
-          @click=${() => this._setTab("rooms")}
-        >
-          Rooms
-        </button>
-        <button
-          class="tab-btn ${this._activeTab === "persons" ? "active" : ""}"
-          @click=${() => this._setTab("persons")}
-        >
-          Persons
-        </button>
-        <button
-          class="tab-btn ${this._activeTab === "zone_default" ? "active" : ""}"
-          @click=${() => this._setTab("zone_default")}
-          @dblclick=${(e: Event) =>
-            this._onTabRename("default", this._config!.default_zone.name, e)}
-        >
-          ${this._editingTabId === "default"
-            ? html`<input
-                data-zone="default"
-                class="tab-name-input"
-                .value=${this._tabNameInput}
-                @input=${this._onTabNameInput}
-                @blur=${() => this._onTabNameBlur("default")}
-                @keydown=${(e: KeyboardEvent) =>
-                  this._onTabNameKeydown("default", e)}
-                @click=${(e: Event) => e.stopPropagation()}
-              />`
-            : html`<span
-                  class="zone-dot"
-                  style="background:${getZoneColor(undefined, []).color}"
-                ></span
-                >${this._config.default_zone.name}`}
-        </button>
-        ${Object.entries(this._config.zones).map(
-          ([zoneId, zone]) => html`
-            <button
-              class="tab-btn ${this._activeTab === "zone_" + zoneId
-                ? "active"
-                : ""}"
-              @click=${() => this._setTab("zone_" + zoneId)}
-              @dblclick=${(e: Event) => this._onTabRename(zoneId, zone.name, e)}
-            >
-              ${this._editingTabId === zoneId
-                ? html`<input
-                    data-zone="${zoneId}"
-                    class="tab-name-input"
-                    .value=${this._tabNameInput}
-                    @input=${this._onTabNameInput}
-                    @blur=${() => this._onTabNameBlur(zoneId)}
-                    @keydown=${(e: KeyboardEvent) =>
-                      this._onTabNameKeydown(zoneId, e)}
-                    @click=${(e: Event) => e.stopPropagation()}
-                  />`
-                : html`<span
-                      class="zone-dot"
-                      style="background:${getZoneColor(
-                        zoneId,
-                        Object.keys(this._config?.zones ?? {}),
-                      ).color}"
-                    ></span
-                    >${zone.name}`}
-            </button>
-          `,
-        )}
-        <button
-          class="tab-btn add-zone-btn"
+          ${this._renderTab("global", "Overview")}
+          ${this._renderTab("rooms", "Rooms")}
+          ${this._renderTab("persons", "Persons")}
+          ${this._renderZoneTab("default", this._config.default_zone.name)}
+          ${Object.entries(this._config.zones).map(([zoneId, zone]) =>
+            this._renderZoneTab(zoneId, zone.name),
+          )}
+        </ha-tab-group>
+        <ha-icon-button
+          class="add-zone-btn"
           title="Add zone"
+          .label=${"Add zone"}
           @click=${() => void this._onCreateZone()}
-        >
-          +
-        </button>
+          ><ha-icon icon="mdi:plus"></ha-icon
+        ></ha-icon-button>
       </div>
 
       <div class="tab-content">${this._renderTabContent()}</div>
 
       <climate-manager-toast></climate-manager-toast>
     `;
+  }
+
+  private _renderTab(id: string, label: unknown) {
+    return html`<ha-tab-group-tab
+      slot="nav"
+      panel=${id}
+      .active=${live(this._activeTab === id)}
+      >${label}</ha-tab-group-tab
+    >`;
+  }
+
+  /**
+   * A zone tab: coloured dot and name; a double click renames it in an
+   * ha-input (keys and clicks stay out of the tab group).
+   */
+  private _renderZoneTab(zoneId: string, name: string) {
+    const tabId = zoneId === "default" ? "zone_default" : "zone_" + zoneId;
+    const color = getZoneColor(
+      zoneId === "default" ? undefined : zoneId,
+      Object.keys(this._config?.zones ?? {}),
+    ).color;
+    const stop = (e: Event) => e.stopPropagation();
+    const label =
+      this._editingTabId === zoneId
+        ? html`<ha-input
+            data-zone=${zoneId}
+            class="tab-name-input"
+            .value=${this._tabNameInput}
+            @input=${this._onTabNameInput}
+            @blur=${() => this._onTabNameBlur(zoneId)}
+            @keydown=${(e: KeyboardEvent) => {
+              stop(e);
+              this._onTabNameKeydown(zoneId, e);
+            }}
+            @click=${stop}
+            @dblclick=${stop}
+          ></ha-input>`
+        : html`<span class="zone-dot" style="background:${color}"></span
+            >${name}`;
+    return html`<ha-tab-group-tab
+      slot="nav"
+      panel=${tabId}
+      .active=${live(this._activeTab === tabId)}
+      @dblclick=${(e: Event) => this._onTabRename(zoneId, name, e)}
+      >${label}</ha-tab-group-tab
+    >`;
   }
 
   private _renderTabContent() {

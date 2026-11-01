@@ -152,7 +152,10 @@ async function main() {
   async function clickTab(label) {
     const found = await page.evaluate((text) => {
       const host = document.querySelector("#mount climate-manager-panel");
-      const btns = [...(host?.shadowRoot?.querySelectorAll(".tab-btn") ?? [])];
+      const btns = [
+        ...(host?.shadowRoot?.querySelectorAll(".tab-bar ha-tab-group-tab") ??
+          []),
+      ];
       const btn = btns.find((b) => b.textContent.trim() === text);
       if (!btn) return false;
       btn.click();
@@ -241,8 +244,9 @@ async function main() {
           "climate-manager-person-card",
         );
         const btns = [
-          ...(card?.shadowRoot?.querySelectorAll(".week-switcher .tab-btn") ??
-            []),
+          ...(card?.shadowRoot?.querySelectorAll(
+            ".week-switcher ha-tab-group-tab",
+          ) ?? []),
         ];
         return btns.map((b) => b.textContent.trim()).filter(Boolean);
       });
@@ -258,8 +262,9 @@ async function main() {
             "climate-manager-person-card",
           );
           const btns = [
-            ...(card?.shadowRoot?.querySelectorAll(".week-switcher .tab-btn") ??
-              []),
+            ...(card?.shadowRoot?.querySelectorAll(
+              ".week-switcher ha-tab-group-tab",
+            ) ?? []),
           ];
           const btn = btns.find((b) => b.textContent.trim() === text);
           if (!btn) return false;
@@ -295,7 +300,8 @@ async function main() {
       const zoneLabels = await page.evaluate(() => {
         const host = document.querySelector("#mount climate-manager-panel");
         const btns = [
-          ...(host?.shadowRoot?.querySelectorAll(".tab-btn") ?? []),
+          ...(host?.shadowRoot?.querySelectorAll(".tab-bar ha-tab-group-tab") ??
+            []),
         ];
         const fixed = new Set(["Overview", "Rooms", "Persons", "+"]);
         return btns
