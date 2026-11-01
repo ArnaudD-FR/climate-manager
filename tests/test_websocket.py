@@ -23,6 +23,8 @@ pytest-homeassistant-custom-component.
 
 import copy
 
+import pytest
+
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.climate_manager.const import (
@@ -1676,3 +1678,114 @@ async def test_alignment_status_hides_matter_grouped_with_tado_x(
     assert rows[ids["lounge_standalone"]]["supports_alignment"] is False
     assert rows[ids["lounge_standalone"]]["vendor"] is None
     assert msg["result"]["cloud_polling"] == []
+
+
+# ---------------------------------------------------------------------------
+# Presence / absence periods
+# ---------------------------------------------------------------------------
+
+
+async def _send(client, payload: dict) -> dict:
+    await client.send_json_auto_id(payload)
+    return await client.receive_json()
+
+
+@pytest.mark.freeze_time("2026-11-01 12:00:00")
+async def test_ws_presence_period_create_update_delete(hass, hass_ws_client):
+    entry = await _setup_entry(hass)
+    client = await hass_ws_client()
+
+    msg = await _send(
+        client,
+        {
+            "type": f"{DOMAIN}/set_presence_period",
+            "kind": "absent",
+            "start": "2026-11-05T08:00",
+            "end": "2026-11-12T18:30",
+        },
+    )
+    assert msg["success"] is True
+    period_id = msg["result"]["period_id"]
+    periods = entry.runtime_data.runtime_config["presence_periods"]
+    assert periods == [
+        {
+            "id": period_id,
+            "kind": "absent",
+            "start": "2026-11-05T08:00",
+            "end": "2026-11-12T18:30",
+        }
+    ]
+
+    msg = await _send(
+        client,
+        {
+            "type": f"{DOMAIN}/set_presence_period",
+            "period_id": period_id,
+            "kind": "present",
+            "start": "2026-11-05T08:00",
+            "end": "2026-11-13T18:30",
+            "person_ids": ["person.b", "person.a", "person.a"],
+        },
+    )
+    assert msg["success"] is True
+    (period,) = entry.runtime_data.runtime_config["presence_periods"]
+    assert period["kind"] == "present"
+    assert period["end"] == "2026-11-13T18:30"
+    assert period["person_ids"] == ["person.a", "person.b"]
+
+    msg = await _send(
+        client,
+        {"type": f"{DOMAIN}/delete_presence_period", "period_id": period_id},
+    )
+    assert msg["success"] is True
+    assert entry.runtime_data.runtime_config["presence_periods"] == []
+
+    msg = await _send(
+        client,
+        {"type": f"{DOMAIN}/delete_presence_period", "period_id": period_id},
+    )
+    assert msg["success"] is False
+
+
+@pytest.mark.freeze_time("2026-11-01 12:00:00")
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # Return before the start.
+        {"start": "2026-11-12T18:30", "end": "2026-11-05T08:00"},
+        # Return already past.
+        {"start": "2026-10-20T08:00", "end": "2026-10-25T18:30"},
+        # Not a local date and time.
+        {"start": "2026-11-05", "end": "2026-11-12T18:30"},
+        # Overlaps the everyone absence below.
+        {
+            "start": "2026-11-10T08:00",
+            "end": "2026-11-20T18:30",
+            "person_ids": ["person.a"],
+        },
+        # Unknown period.
+        {
+            "period_id": "nope",
+            "start": "2026-12-05T08:00",
+            "end": "2026-12-12T18:30",
+        },
+    ],
+)
+async def test_ws_set_presence_period_rejects(hass, hass_ws_client, payload):
+    entry = await _setup_entry(hass)
+    existing = {
+        "id": "trip",
+        "kind": "absent",
+        "start": "2026-11-05T08:00",
+        "end": "2026-11-12T18:30",
+    }
+    entry.runtime_data.runtime_config["presence_periods"] = [existing]
+    client = await hass_ws_client()
+
+    msg = await _send(
+        client,
+        {"type": f"{DOMAIN}/set_presence_period", "kind": "absent", **payload},
+    )
+
+    assert msg["success"] is False
+    assert entry.runtime_data.runtime_config["presence_periods"] == [existing]

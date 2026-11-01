@@ -32,6 +32,9 @@ Registers 20 WebSocket commands for the panel ↔ backend protocol:
   pairings (read-only, no mutation)
 - set_boiler_config: sets or clears the controlled boiler (climate, switch
   or input_boolean) and its min on/off durations
+- set_presence_period: creates (no id) or replaces (id) a dated presence /
+  absence period; the whole list is validated (bounds, overlaps) first
+- delete_presence_period: removes a presence / absence period by id
 
 Removed in Phase 15 (D-06):
 - reset_room_to_default_zone_program: rooms no longer have independent
@@ -73,6 +76,7 @@ from typing import TYPE_CHECKING
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 import voluptuous as vol
 
 if TYPE_CHECKING:
@@ -94,9 +98,14 @@ from .const import (
     PERIOD_NORMAL,
     PERIOD_REDUCED,
     VALID_MODES,
+    VALID_PRESENCE_PERIOD_KINDS,
     _DEFAULT_DAILY_PROGRAM,
 )
-from .schedule import validate_daily_program
+from .schedule import (
+    period_bounds,
+    validate_daily_program,
+    validate_presence_periods,
+)
 from .trv import is_trv_entity
 from .vendors import cloud_polling, pairable_entities, suggest_mappings
 
@@ -174,6 +183,12 @@ def async_register_commands(
     )
     websocket_api.async_register_command(
         hass, _make_ws_set_boiler_config(entry)
+    )
+    websocket_api.async_register_command(
+        hass, _make_ws_set_presence_period(entry)
+    )
+    websocket_api.async_register_command(
+        hass, _make_ws_delete_presence_period(entry)
     )
 
 
@@ -1460,3 +1475,136 @@ def _make_ws_set_boiler_config(entry: ClimateManagerConfigEntry):
         hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
 
     return ws_set_boiler_config
+
+
+async def _async_save_presence_periods(
+    hass: HomeAssistant,
+    entry: ClimateManagerConfigEntry,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+    periods: list,
+    result: dict,
+) -> None:
+    """Save the new presence periods, rolling back on failure."""
+    config = entry.runtime_data.runtime_config
+    old_periods = config.get("presence_periods", [])
+    config["presence_periods"] = periods
+    try:
+        await entry.runtime_data.store.async_save(config)
+    except Exception as exc:  # noqa: BLE001
+        config["presence_periods"] = old_periods
+        connection.send_error(
+            msg["id"], websocket_api.ERR_UNKNOWN_ERROR, str(exc)
+        )
+        return
+    connection.send_result(msg["id"], result)
+    hass.async_create_task(entry.runtime_data.coordinator.async_evaluate())
+
+
+def _make_ws_set_presence_period(entry: ClimateManagerConfigEntry):
+    """Factory: create set_presence_period handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/set_presence_period",
+            vol.Optional("period_id"): str,
+            vol.Required("kind"): vol.In(VALID_PRESENCE_PERIOD_KINDS),
+            vol.Required("start"): str,
+            vol.Required("end"): str,
+            # Absent = everyone (time program zones included).
+            vol.Optional("person_ids"): [vol.All(str, vol.Match(r"^person\."))],
+        }
+    )
+    @websocket_api.async_response
+    async def ws_set_presence_period(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Create (no period_id) or replace a presence / absence period.
+
+        The resulting list is validated as a whole (bounds, kinds,
+        overlaps between periods sharing a person) before any mutation; a
+        return already past is refused, the period would be pruned at
+        once.
+        """
+        config = entry.runtime_data.runtime_config
+        periods: list = list(config.get("presence_periods") or [])
+        period_id = msg.get("period_id")
+        period = {
+            "id": period_id or uuid.uuid4().hex,
+            "kind": msg["kind"],
+            "start": msg["start"],
+            "end": msg["end"],
+        }
+        if "person_ids" in msg:
+            period["person_ids"] = sorted(set(msg["person_ids"]))
+        index = next(
+            (i for i, p in enumerate(periods) if p.get("id") == period_id),
+            None,
+        )
+        if period_id is not None and index is None:
+            connection.send_error(
+                msg["id"],
+                websocket_api.ERR_NOT_FOUND,
+                f"Presence period {period_id!r} not found",
+            )
+            return
+        if index is None:
+            periods.append(period)
+        else:
+            periods[index] = period
+        valid, error = validate_presence_periods(periods)
+        if valid:
+            now = dt_util.now()
+            if period_bounds(period, now.tzinfo)[1] <= now:
+                valid, error = False, "The return is already past"
+        if not valid:
+            connection.send_error(
+                msg["id"], websocket_api.ERR_INVALID_FORMAT, error
+            )
+            return
+        periods.sort(key=lambda p: p["start"])
+        await _async_save_presence_periods(
+            hass,
+            entry,
+            connection,
+            msg,
+            periods,
+            {"success": True, "period_id": period["id"]},
+        )
+
+    return ws_set_presence_period
+
+
+def _make_ws_delete_presence_period(entry: ClimateManagerConfigEntry):
+    """Factory: create delete_presence_period handler."""
+
+    @websocket_api.websocket_command(
+        {
+            vol.Required("type"): f"{DOMAIN}/delete_presence_period",
+            vol.Required("period_id"): str,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_delete_presence_period(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict,
+    ) -> None:
+        """Remove a presence / absence period by id."""
+        config = entry.runtime_data.runtime_config
+        old: list = config.get("presence_periods") or []
+        periods = [p for p in old if p.get("id") != msg["period_id"]]
+        if len(periods) == len(old):
+            connection.send_error(
+                msg["id"],
+                websocket_api.ERR_NOT_FOUND,
+                f"Presence period {msg['period_id']!r} not found",
+            )
+            return
+        await _async_save_presence_periods(
+            hass, entry, connection, msg, periods, {"success": True}
+        )
+
+    return ws_delete_presence_period
