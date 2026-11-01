@@ -19,16 +19,14 @@
  */
 
 import { LitElement, html, css } from "lit";
-import { property, state, query } from "lit/decorators.js";
+import { property, state } from "lit/decorators.js";
 import { live } from "lit/directives/live.js";
 
 import { WsClient } from "./ws-client.js";
 import { loadHaElements } from "./ha-elements.js";
 import type { Hass, ClimateConfig, StatusPayload } from "./types.js";
 import { getZoneColor } from "./types.js";
-import type { ClimateManagerToast } from "./toast.js";
 
-import "./toast.js";
 import "./components/time-bar.js";
 import "./components/global-settings-tab.js";
 import "./components/rooms-tab.js";
@@ -54,9 +52,6 @@ export class ClimateManagerPanel extends LitElement {
   @state() private _expandPersonId: string | null = null;
   /** HA elements still undefined once loaded; null while loading. */
   @state() private _haMissing: string[] | null = null;
-
-  @query("climate-manager-toast")
-  private _toast?: ClimateManagerToast;
 
   // Shared WS client instance — created once after hass is set
   private _ws: WsClient | null = null;
@@ -99,12 +94,14 @@ export class ClimateManagerPanel extends LitElement {
       height: 200px;
     }
 
-    .error-banner {
-      background: var(--error-color, #db4437);
-      color: var(--text-primary-color, white);
-      padding: 8px 16px;
-      font-size: 14px;
-      text-align: center;
+    ha-alert {
+      display: block;
+      margin: 8px 16px 0;
+    }
+
+    .missing {
+      margin: 8px 16px 0;
+      color: var(--error-color);
     }
 
     .tab-bar {
@@ -243,9 +240,24 @@ export class ClimateManagerPanel extends LitElement {
       });
   }
 
-  /** Show a toast notification. Called by tab components after a save. */
+  /**
+   * Show a message in HA's own toast. Called by tab components after a
+   * save; a new message replaces the previous one; errors stay longer and
+   * can be dismissed.
+   */
   showToast(message: string, isError: boolean): void {
-    this._toast?.show(message, isError);
+    this.dispatchEvent(
+      new CustomEvent("hass-notification", {
+        detail: {
+          id: "climate-manager",
+          message,
+          duration: isError ? 10000 : 4000,
+          dismissable: isError,
+        },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   /** Navigate to a zone tab. Pass undefined/null for the Default Zone. */
@@ -352,15 +364,24 @@ export class ClimateManagerPanel extends LitElement {
     );
   }
 
+  private _renderWsError() {
+    return this._wsError
+      ? html`<ha-alert alert-type="error"
+          >Connection lost. Reconnecting…</ha-alert
+        >`
+      : "";
+  }
+
   /** Banner listing the HA elements HA did not provide. */
   private _renderMissing() {
     if (!this._haMissing?.length) return "";
     const text =
       "Some Home Assistant elements could not be loaded; parts of the " +
       `panel will not render: ${this._haMissing.join(", ")}`;
+    // ha-alert itself may be missing: plain text then.
     return customElements.get("ha-alert")
       ? html`<ha-alert alert-type="error">${text}</ha-alert>`
-      : html`<div class="error-banner">${text}</div>`;
+      : html`<p class="missing">${text}</p>`;
   }
 
   render() {
@@ -378,13 +399,10 @@ export class ClimateManagerPanel extends LitElement {
             : ""}
           Climate Manager
         </div>
-        ${this._wsError
-          ? html`<div class="error-banner">Connection lost. Reconnecting…</div>`
-          : ""}
+        ${this._renderWsError()}
         <div class="loading">
           <ha-circular-progress active></ha-circular-progress>
         </div>
-        <climate-manager-toast></climate-manager-toast>
       `;
     }
 
@@ -402,10 +420,7 @@ export class ClimateManagerPanel extends LitElement {
         Climate Manager
       </div>
 
-      ${this._wsError
-        ? html`<div class="error-banner">Connection lost. Reconnecting…</div>`
-        : ""}
-      ${this._renderMissing()}
+      ${this._renderWsError()} ${this._renderMissing()}
 
       <div class="tab-bar">
         <ha-tab-group
@@ -432,8 +447,6 @@ export class ClimateManagerPanel extends LitElement {
       </div>
 
       <div class="tab-content">${this._renderTabContent()}</div>
-
-      <climate-manager-toast></climate-manager-toast>
     `;
   }
 

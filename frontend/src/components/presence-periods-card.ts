@@ -87,10 +87,6 @@ export class PresencePeriodsCard extends LitElement {
         color: var(--secondary-text-color);
       }
 
-      .hint.warning {
-        color: var(--warning-color, #f57c00);
-      }
-
       .period-row {
         display: flex;
         align-items: center;

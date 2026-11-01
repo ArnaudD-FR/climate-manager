@@ -257,16 +257,9 @@ export class RoomCard extends LitElement {
         margin: 0 -16px;
       }
 
-      /* No TRV badge */
-      .no-trv-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 8px;
-        border-radius: 4px;
-        background: var(--secondary-background-color);
-        color: var(--warning-color, #e65100);
-        font-size: 12px;
+      /* No TRV warning */
+      .no-trv {
+        display: block;
         margin-bottom: 12px;
       }
 
@@ -509,10 +502,9 @@ export class RoomCard extends LitElement {
 
     if (entityIds.length === 0) {
       return html`
-        <div class="no-trv-badge">
-          <ha-icon icon="mdi:alert"></ha-icon>
-          No climate entities
-        </div>
+        <ha-alert class="no-trv" alert-type="warning"
+          >No climate entities</ha-alert
+        >
       `;
     }
 

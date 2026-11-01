@@ -365,27 +365,9 @@ export class GlobalSettingsTab extends LitElement {
       }
 
       /* ---- Cloud polling info banner ---- */
-      .calib-info-banner {
-        display: flex;
-        align-items: flex-start;
-        gap: 8px;
-        padding: 8px 10px;
+      .calib-info {
+        display: block;
         margin-bottom: 10px;
-        border-radius: 4px;
-        background: rgba(3, 169, 244, 0.08);
-        border: 1px solid rgba(3, 169, 244, 0.25);
-        font-size: 12px;
-        color: var(--secondary-text-color);
-        line-height: 1.5;
-      }
-
-      .calib-info-banner ha-icon {
-        --mdc-icon-size: 16px;
-        width: 16px;
-        height: 16px;
-        flex-shrink: 0;
-        color: #0288d1;
-        margin-top: 1px;
       }
 
       .calib-info-fetched {
@@ -1017,14 +999,11 @@ export class GlobalSettingsTab extends LitElement {
         </div>
         ${polled.map(
           (p) => html`
-            <div class="calib-info-banner">
-              <ha-icon icon="mdi:information-outline"></ha-icon>
-              <div>
-                ${p.vendor} data is fetched from the cloud every
-                ${scanLabel(p.interval)} — displayed temperatures may lag behind
-                actual values.
-              </div>
-            </div>
+            <ha-alert class="calib-info" alert-type="info">
+              ${p.vendor} data is fetched from the cloud every
+              ${scanLabel(p.interval)} — displayed temperatures may lag behind
+              actual values.
+            </ha-alert>
           `,
         )}
         <table class="calib-table">

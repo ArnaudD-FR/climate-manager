@@ -45,6 +45,7 @@ import {
   haNumber,
   haSelect,
 } from "../ha-controls.js";
+import { navigateTo } from "../ha-nav.js";
 import "./time-bar.js";
 
 // Presence mode constants (D-21)
@@ -310,6 +311,11 @@ export class PersonCard extends LitElement {
         margin-top: 8px;
         margin-bottom: 8px;
         justify-content: flex-end;
+      }
+
+      .mode-warning {
+        display: block;
+        margin: 6px 0 12px;
       }
 
       /* Calendar config block inline row (D-11, D-16) */
@@ -748,6 +754,11 @@ export class PersonCard extends LitElement {
     }
   }
 
+  /** Open this person in HA's settings (to link a device tracker). */
+  private _editPersonInHa = () => {
+    const slug = this.personId.replace(/^person\./, "");
+    if (/^[\w-]+$/.test(slug)) navigateTo(`/config/person/edit/${slug}`);
+  };
   render() {
     const { cls: badgeCls, text: badgeText } = this._getBadgeInfo();
     const periodBadge = personPeriodBadge(
@@ -851,35 +862,24 @@ export class PersonCard extends LitElement {
                   )}
                 </div>
 
-                <!-- 2. Hint / stuck-mode paragraph -->
-                <p class="schedule-hint">
-                  ${isCalendar
-                    ? "Presence determined by calendar events on the" +
-                      " selected entity."
-                    : presenceModeHint(currentMode, this.hasDeviceTrackers)}
-                  ${currentMode === PRESENCE_MODE_HA && !this.hasDeviceTrackers
-                    ? html`<ha-icon-button
-                        title="Edit person in HA"
-                        .label=${"Edit person in HA"}
-                        @click=${() => {
-                          const slug = this.personId.replace(/^person\./, "");
-                          if (!/^[\w-]+$/.test(slug)) return;
-                          history.pushState(
-                            null,
-                            "",
-                            `/config/person/edit/${slug}`,
-                          );
-                          window.dispatchEvent(
-                            new CustomEvent("location-changed", {
-                              composed: true,
-                            }),
-                          );
-                        }}
+                <!-- 2. Hint; a warning when HA tracking has no tracker -->
+                ${currentMode === PRESENCE_MODE_HA && !this.hasDeviceTrackers
+                  ? html`<ha-alert class="mode-warning" alert-type="warning">
+                      ${presenceModeHint(currentMode, false)}
+                      <ha-button
+                        slot="action"
+                        size="s"
+                        appearance="plain"
+                        @click=${this._editPersonInHa}
+                        >Edit person</ha-button
                       >
-                        <ha-icon icon="mdi:account-edit"></ha-icon>
-                      </ha-icon-button>`
-                    : ""}
-                </p>
+                    </ha-alert>`
+                  : html`<p class="schedule-hint">
+                      ${isCalendar
+                        ? "Presence determined by calendar events on the" +
+                          " selected entity."
+                        : presenceModeHint(currentMode, this.hasDeviceTrackers)}
+                    </p>`}
 
                 <!-- 3. Calendar config block (Calendar mode only) -->
                 ${isCalendar
