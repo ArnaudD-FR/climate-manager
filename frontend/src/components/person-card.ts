@@ -39,6 +39,7 @@ import {
 
 import {
   haAreaAdd,
+  haButton,
   haEntity,
   haItemChip,
   haNumber,
@@ -309,21 +310,6 @@ export class PersonCard extends LitElement {
         margin-top: 8px;
         margin-bottom: 8px;
         justify-content: flex-end;
-      }
-
-      .reset-btn {
-        background: none;
-        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
-        color: var(--secondary-text-color);
-        padding: 5px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 13px;
-        font-family: inherit;
-      }
-
-      .reset-btn:hover {
-        background: var(--secondary-background-color);
       }
 
       /* Calendar config block inline row (D-11, D-16) */
@@ -1046,12 +1032,10 @@ export class PersonCard extends LitElement {
                         `;
                       })()}
                       <div class="reset-row">
-                        <button
-                          class="reset-btn"
-                          @click=${() => void this._onResetSchedule()}
-                        >
-                          ${resetLabel}
-                        </button>
+                        ${haButton(
+                          resetLabel,
+                          () => void this._onResetSchedule(),
+                        )}
                       </div>
                     `
                   : ""}

@@ -27,7 +27,7 @@ import {
 import { chipStyles } from "../shared-styles.js";
 import { historyPath, navigateTo, openMoreInfo } from "../ha-nav.js";
 import { boilerCandidates } from "../boiler-candidates.js";
-import { haEntity, haNumber, haSelect } from "../ha-controls.js";
+import { haButton, haEntity, haNumber, haSelect } from "../ha-controls.js";
 import type {
   Hass,
   ClimateConfig,
@@ -259,38 +259,12 @@ export class GlobalSettingsTab extends LitElement {
         justify-content: flex-end;
       }
 
-      .reset-btn {
-        background: none;
-        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
-        color: var(--secondary-text-color);
-        padding: 5px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 13px;
-        font-family: inherit;
-      }
-
-      .reset-btn:hover {
-        background: var(--secondary-background-color);
-      }
-
       /* ---- Options card ---- */
       .boiler-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
         padding-right: 16px;
-      }
-
-      .history-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        font-weight: normal;
-      }
-
-      .history-link ha-icon {
-        --mdc-icon-size: 16px;
       }
 
       .hint {
@@ -386,19 +360,8 @@ export class GlobalSettingsTab extends LitElement {
         font-size: 13px;
       }
 
-      .refresh-btn {
-        margin-top: 8px;
-        background: none;
-        border: 1px solid var(--divider-color, #e0e0e0);
-        border-radius: 4px;
-        padding: 4px 10px;
-        font-size: 12px;
-        cursor: pointer;
-        color: var(--primary-text-color);
-      }
-
-      .refresh-btn:hover {
-        background: var(--secondary-background-color, #f5f5f5);
+      .refresh-row {
+        margin: 8px 0;
       }
 
       /* ---- Cloud polling info banner ---- */
@@ -797,14 +760,10 @@ export class GlobalSettingsTab extends LitElement {
     const entityId = this.config.boiler?.entity_id;
     const path = historyPath([entityId, this.status?.boiler?.demand_entity_id]);
     if (!entityId || !path) return "";
-    return html`<button
-      class="reset-btn history-link"
-      title="Open the HA history of the boiler and its demand"
-      @click=${() => navigateTo(path)}
-    >
-      <ha-icon icon="mdi:open-in-new"></ha-icon>
-      History
-    </button>`;
+    return haButton("History", () => navigateTo(path), {
+      icon: "mdi:open-in-new",
+      title: "Open the HA history of the boiler and its demand",
+    });
   }
 
   /** Boiler entity options, grouped (heating devices, switches, helpers). */
@@ -923,9 +882,7 @@ export class GlobalSettingsTab extends LitElement {
             ${tempField("comfort", "Comfort")}
           </div>
           <div class="reset-row">
-            <button class="reset-btn" @click=${this._onResetTemperatures}>
-              Reset to default
-            </button>
+            ${haButton("Reset to default", this._onResetTemperatures)}
           </div>
         </div>
       </ha-card>
@@ -1007,13 +964,11 @@ export class GlobalSettingsTab extends LitElement {
         return html`<div class="calib-loading">Loading TRV status…</div>`;
       }
       return html`
-        <button
-          class="refresh-btn"
-          @click=${this._loadAlignmentStatuses}
-          style="margin-top: 8px;"
-        >
-          Refresh
-        </button>
+        <div class="refresh-row">
+          ${haButton("Refresh", this._loadAlignmentStatuses, {
+            icon: "mdi:refresh",
+          })}
+        </div>
         <div class="calib-empty">No managed TRVs found.</div>
       `;
     }
@@ -1053,14 +1008,13 @@ export class GlobalSettingsTab extends LitElement {
     // stays visible (no layout jump) and the button shows "Refreshing…".
     return html`
       <div class="calib-table-wrap">
-        <button
-          class="refresh-btn"
-          style="margin-top: 8px; margin-bottom: 8px;"
-          ?disabled=${this._loadingStatuses}
-          @click=${this._loadAlignmentStatuses}
-        >
-          ${this._loadingStatuses ? "Refreshing…" : "Refresh"}
-        </button>
+        <div class="refresh-row">
+          ${haButton(
+            this._loadingStatuses ? "Refreshing…" : "Refresh",
+            this._loadAlignmentStatuses,
+            { icon: "mdi:refresh", disabled: this._loadingStatuses },
+          )}
+        </div>
         ${polled.map(
           (p) => html`
             <div class="calib-info-banner">

@@ -18,7 +18,7 @@ import { property, state } from "lit/decorators.js";
 import { live } from "lit/directives/live.js";
 
 import { chipStyles } from "../shared-styles.js";
-import { haSelect } from "../ha-controls.js";
+import { haButton, haSelect } from "../ha-controls.js";
 import {
   covers,
   currentAndUpcoming,
@@ -40,11 +40,6 @@ import type {
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 
-interface ButtonOptions {
-  primary?: boolean;
-  disabled?: boolean;
-}
-
 interface PeriodDraft {
   periodId?: string;
   kind: PresencePeriodKind;
@@ -62,20 +57,6 @@ export class PresencePeriodsCard extends LitElement {
 
   @state() private _draft: PeriodDraft | null = null;
   @state() private _saving = false;
-  /** An ha-button. */
-  private _button(
-    label: string,
-    onClick: () => void,
-    { primary = false, disabled = false }: ButtonOptions = {},
-  ) {
-    return html`<ha-button
-      size="s"
-      appearance=${primary ? "accent" : "plain"}
-      ?disabled=${disabled}
-      @click=${onClick}
-      >${label}</ha-button
-    >`;
-  }
 
   static styles = [
     chipStyles,
@@ -323,8 +304,8 @@ export class PresencePeriodsCard extends LitElement {
     return html`
       <div class="persons-head">
         <span>Persons</span>
-        ${this._button("All", () => this._update({ selected: all }))}
-        ${this._button("None", () => this._update({ selected: [] }))}
+        ${haButton("All", () => this._update({ selected: all }))}
+        ${haButton("None", () => this._update({ selected: [] }))}
       </div>
       <ha-chip-set class="chips">
         ${all.map(
@@ -405,9 +386,9 @@ export class PresencePeriodsCard extends LitElement {
           ? this._renderPersons(draft)
           : html`<p class="hint">Everyone</p>`}
         <div class="actions">
-          ${this._button("Cancel", () => (this._draft = null))}
-          ${this._button("Save", () => void this._onSave(), {
-            primary: true,
+          ${haButton("Cancel", () => (this._draft = null))}
+          ${haButton("Save", () => void this._onSave(), {
+            appearance: "accent",
             disabled: this._saving,
           })}
         </div>
@@ -469,8 +450,8 @@ export class PresencePeriodsCard extends LitElement {
           ${periods.map((p) => this._renderPeriod(p, now, amPm))}
           ${this._draft
             ? this._renderEditor(this._draft)
-            : this._button("Add period", () => this._onAdd(), {
-                primary: true,
+            : haButton("Add period", () => this._onAdd(), {
+                appearance: "accent",
               })}
         </div>
       </ha-card>

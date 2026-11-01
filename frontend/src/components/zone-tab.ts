@@ -46,7 +46,7 @@ import {
   floorGroupLabelStyles,
 } from "../shared-styles.js";
 
-import { haAreaAdd, haItemChip, haSelect } from "../ha-controls.js";
+import { haAreaAdd, haButton, haItemChip, haSelect } from "../ha-controls.js";
 import "./time-bar.js";
 
 export class ZoneTab extends LitElement {
@@ -135,51 +135,6 @@ export class ZoneTab extends LitElement {
         margin-top: 24px;
       }
 
-      .delete-btn {
-        background: none;
-        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
-        color: var(--secondary-text-color);
-        padding: 6px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 14px;
-        font-family: inherit;
-      }
-
-      .delete-btn:hover {
-        background: var(--secondary-background-color);
-      }
-
-      .cancel-btn {
-        background: none;
-        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
-        color: var(--secondary-text-color);
-        padding: 6px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 14px;
-        font-family: inherit;
-      }
-
-      .cancel-btn:hover {
-        background: var(--secondary-background-color);
-      }
-
-      .danger-btn {
-        background: var(--error-color, #db4437);
-        color: white;
-        border: none;
-        padding: 6px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 14px;
-        font-family: inherit;
-      }
-
-      .danger-btn:hover {
-        opacity: 0.9;
-      }
-
       .select-wrapper {
         margin-bottom: 16px;
       }
@@ -204,16 +159,6 @@ export class ZoneTab extends LitElement {
         --mdc-icon-button-size: 28px;
         --mdc-icon-size: 18px;
         color: var(--secondary-text-color);
-      }
-
-      .history-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-      }
-
-      .history-link ha-icon {
-        --mdc-icon-size: 16px;
       }
 
       .current-period {
@@ -243,21 +188,6 @@ export class ZoneTab extends LitElement {
         margin-top: 8px;
         margin-bottom: 8px;
         justify-content: flex-end;
-      }
-
-      .reset-btn {
-        background: none;
-        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
-        color: var(--secondary-text-color);
-        padding: 5px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 13px;
-        font-family: inherit;
-      }
-
-      .reset-btn:hover {
-        background: var(--secondary-background-color);
       }
     `,
   ];
@@ -549,14 +479,10 @@ export class ZoneTab extends LitElement {
       ...roomEntityIds,
     ]);
     if (!path) return nothing;
-    return html`<button
-      class="reset-btn history-link"
-      title="Open the HA history of this zone and its rooms"
-      @click=${() => navigateTo(path)}
-    >
-      <ha-icon icon="mdi:open-in-new"></ha-icon>
-      History
-    </button>`;
+    return haButton("History", () => navigateTo(path), {
+      icon: "mdi:open-in-new",
+      title: "Open the HA history of this zone and its rooms",
+    });
   }
 
   /** Current zone period (schedule period; frost protection when off). */
@@ -675,13 +601,12 @@ export class ZoneTab extends LitElement {
       <!-- Reset row: Default Zone gets one button; custom zones get two -->
       <div class="reset-row">
         ${!this.isDefault
-          ? html`<button class="reset-btn" @click=${this._onResetToGlobal}>
-              Reset to ${this.config.default_zone.name}
-            </button>`
+          ? haButton(
+              `Reset to ${this.config.default_zone.name}`,
+              this._onResetToGlobal,
+            )
           : ""}
-        <button class="reset-btn" @click=${this._onResetToDefault}>
-          Reset to default
-        </button>
+        ${haButton("Reset to default", this._onResetToDefault)}
       </div>
 
       <!-- Pre-heat enable toggle (Phase 12 GAP-01) -->
@@ -736,21 +661,16 @@ export class ZoneTab extends LitElement {
               ${this._confirmingDelete
                 ? html`
                     <span>Delete zone?</span>
-                    <button class="cancel-btn" @click=${this._onCancelDelete}>
-                      Cancel
-                    </button>
-                    <button
-                      class="danger-btn"
-                      @click=${() => void this._onConfirmDelete()}
-                    >
-                      Confirm
-                    </button>
+                    ${haButton("Cancel", () => this._onCancelDelete())}
+                    ${haButton("Confirm", () => void this._onConfirmDelete(), {
+                      appearance: "accent",
+                      variant: "danger",
+                    })}
                   `
-                : html`
-                    <button class="delete-btn" @click=${this._onDeleteClick}>
-                      Delete zone
-                    </button>
-                  `}
+                : haButton("Delete zone", () => this._onDeleteClick(), {
+                    variant: "danger",
+                    icon: "mdi:delete-outline",
+                  })}
             </div>
           `
         : ""}

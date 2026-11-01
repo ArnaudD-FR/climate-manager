@@ -28,6 +28,8 @@
 import { LitElement, html, css, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 
+import { haButton } from "../ha-controls.js";
+
 import {
   PERIOD_COLORS,
   PRESENCE_COLORS,
@@ -326,23 +328,14 @@ export class ClimateManagerTimeBar extends LitElement {
       gap: 4px;
     }
 
-    .mode-option {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 8px;
-      border-radius: 3px;
-      cursor: pointer;
-      font-size: 13px;
-      color: var(--primary-text-color);
-      border: none;
-      background: transparent;
+    .mode-options ha-button,
+    .popup-actions ha-button {
       width: 100%;
-      text-align: left;
     }
 
-    .mode-option:hover {
-      background: var(--secondary-background-color, #f5f5f5);
+    .mode-options ha-button::part(base),
+    .popup-actions ha-button::part(base) {
+      justify-content: flex-start;
     }
 
     .mode-swatch {
@@ -359,26 +352,6 @@ export class ClimateManagerTimeBar extends LitElement {
       margin-top: 8px;
       padding-top: 8px;
       border-top: 1px solid var(--divider-color, #e0e0e0);
-    }
-
-    .popup-btn {
-      padding: 6px 8px;
-      border-radius: 3px;
-      cursor: pointer;
-      font-size: 13px;
-      border: none;
-      background: transparent;
-      width: 100%;
-      text-align: left;
-      color: var(--primary-text-color);
-    }
-
-    .popup-btn:hover {
-      background: var(--secondary-background-color, #f5f5f5);
-    }
-
-    .popup-btn.danger {
-      color: var(--error-color, #db4437);
     }
   `;
 
@@ -1137,16 +1110,20 @@ export class ClimateManagerTimeBar extends LitElement {
         <div class="mode-options">
           ${this._modeOptions().map(
             (opt) => html`
-              <button
+              <ha-button
                 class="mode-option"
+                size="s"
+                appearance="plain"
+                variant="neutral"
                 @click=${() => this._onSplitModeSelect(opt.key)}
               >
                 <span
+                  slot="start"
                   class="mode-swatch"
                   style="background:${opt.color}"
                 ></span>
                 ${opt.label}
-              </button>
+              </ha-button>
             `,
           )}
         </div>
@@ -1180,37 +1157,34 @@ export class ClimateManagerTimeBar extends LitElement {
           </div>
           ${this._modeOptions().map(
             (opt) => html`
-              <button
+              <ha-button
                 class="mode-option"
+                size="s"
+                appearance="plain"
+                variant="neutral"
                 @click=${() => this._onEditModeSelect(opt.key)}
               >
                 <span
+                  slot="start"
                   class="mode-swatch"
                   style="background:${opt.color}"
                 ></span>
                 ${opt.label}
-              </button>
+              </ha-button>
             `,
           )}
         </div>
 
         <div class="popup-actions">
-          <button
-            class="popup-btn"
-            ?disabled=${!canSplit}
-            style=${!canSplit ? "opacity:0.4;cursor:default" : ""}
-            @click=${this._onSplitPeriod}
-          >
-            Split period
-          </button>
-          <button
-            class="popup-btn danger"
-            ?disabled=${!canDelete}
-            style=${!canDelete ? "opacity:0.4;cursor:default" : ""}
-            @click=${this._onDeleteSegment}
-          >
-            Delete period
-          </button>
+          ${haButton("Split period", () => this._onSplitPeriod(), {
+            icon: "mdi:content-cut",
+            disabled: !canSplit,
+          })}
+          ${haButton("Delete period", () => this._onDeleteSegment(), {
+            icon: "mdi:delete-outline",
+            variant: "danger",
+            disabled: !canDelete,
+          })}
         </div>
       `;
     }

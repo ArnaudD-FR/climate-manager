@@ -8,7 +8,7 @@
  * renders are loaded at startup by ha-elements.ts.
  */
 
-import { html } from "lit";
+import { html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 
 import type { Hass } from "./types.js";
@@ -227,4 +227,39 @@ export function haItemChip(
     }}
     ><ha-icon slot="icon" icon=${icon}></ha-icon
   ></ha-input-chip>`;
+}
+
+export interface ButtonOptions {
+  /** accent: the main action; plain (default): the others. */
+  appearance?: "accent" | "filled" | "outlined" | "plain";
+  variant?: "brand" | "neutral" | "danger";
+  /** mdi icon before the label. */
+  icon?: string;
+  disabled?: boolean;
+  title?: string;
+}
+
+/** A small ha-button. */
+export function haButton(
+  label: string,
+  onClick: () => void,
+  {
+    appearance = "plain",
+    variant = "brand",
+    icon,
+    disabled = false,
+    title,
+  }: ButtonOptions = {},
+) {
+  return html`<ha-button
+    size="s"
+    appearance=${appearance}
+    variant=${variant}
+    title=${title ?? nothing}
+    ?disabled=${disabled}
+    @click=${onClick}
+    >${icon
+      ? html`<ha-icon slot="start" icon=${icon}></ha-icon>`
+      : nothing}${label}</ha-button
+  >`;
 }
