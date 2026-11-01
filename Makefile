@@ -28,10 +28,10 @@ release: build
 	@echo "Release archive: dist/climate_manager.zip (v$(VERSION))"
 
 test:
-	.venv/bin/python -m pytest tests/ -v
+	pixi run test -v
 
 lint:
-	pre-commit run --all-files
+	pixi run lint
 
 logs:
 	ssh $(HA_USER)@$(HA_HOST) "ha core logs -f"
@@ -46,7 +46,7 @@ screenshots: build
 	$(MAKE) use-case-screenshots
 
 use-case-data:
-	.venv/bin/python -m pytest docs/use-cases/generate.py -q
+	pixi run use-case-data
 
 use-case-screenshots: use-case-data
 	@for dir in docs/use-cases/*/; do \

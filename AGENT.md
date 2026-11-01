@@ -52,12 +52,13 @@ actually home.
 
 ### Infrastructure / Tooling
 
-| Technology                            | Version | Purpose                      | Why                                                                                                                  |
-| ------------------------------------- | ------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `ludeeus/integration_blueprint`       | latest  | Scaffold reference           | HA-endorsed starting point; correct file layout, GitHub Actions CI, pytest structure, HACS-compatible out of the box |
-| pytest-homeassistant-custom-component | latest  | Test harness                 | Only supported way to run HA integration tests outside the core repo; provides hass fixture                          |
-| `uv`                                  | latest  | Python dependency management | Modern, fast; used in the 2025-era blueprint; replaces pip/poetry                                                    |
-| GitHub Actions                        | —       | CI/CD                        | Required for HACS Default store inclusion; validates hassfest + HACS action on every PR                              |
+| Technology                            | Version | Purpose            | Why                                                                                                                  |
+| ------------------------------------- | ------- | ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `ludeeus/integration_blueprint`       | latest  | Scaffold reference | HA-endorsed starting point; correct file layout, GitHub Actions CI, pytest structure, HACS-compatible out of the box |
+| pytest-homeassistant-custom-component | latest  | Test harness       | Only supported way to run HA integration tests outside the core repo; provides hass fixture                          |
+| `pixi`                                | latest  | Python environment | Reproducible conda-forge + PyPI env (`pixi.lock`); runs the `test`, `lint` and `use-case-data` tasks                 |
+| `prek`                                | latest  | Git hooks / lint   | Drop-in pre-commit replacement reading `.pre-commit-config.yaml`; `make lint` = `pixi run lint`                      |
+| GitHub Actions                        | —       | CI/CD              | Required for HACS Default store inclusion; validates hassfest + HACS action on every PR                              |
 
 ## Configuration Storage — Two Layers
 
@@ -88,7 +89,7 @@ actually home.
 | Complex data storage | Store helper              | ConfigEntry.options only | config_entries registry is not designed for large mutable nested structures                                              |
 | Complex data storage | Store helper              | SQLite / recorder        | Recorder is for time-series telemetry; not the HA pattern                                                                |
 | Panel communication  | hass.connection WebSocket | REST API                 | WebSocket already established for panel session; REST requires auth token management from JS                             |
-| Python deps          | uv                        | pip / poetry             | uv is faster and aligns with current HA core tooling                                                                     |
+| Python deps          | pixi                      | uv / pip / poetry        | One locked env for Python, the HA test harness and prek                                                                  |
 
 ## Roadmap Implications
 

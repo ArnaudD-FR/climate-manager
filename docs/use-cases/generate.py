@@ -19,8 +19,7 @@ from that JSON, and ``docs/screenshot.js`` pins the browser clock to the same
 moment, so the screenshots are coherent by construction. No status values are
 hand-written. See ``docs/use-cases/AGENT.md``.
 
-Run via: ``make use-case-data`` (``.venv/bin/python -m pytest
-docs/use-cases/generate.py``).
+Run via: ``make use-case-data`` (``pixi run use-case-data``).
 """
 
 from __future__ import annotations

@@ -130,7 +130,7 @@ Builds the frontend and deploys everything over SSH in one command.
 1. Clone this repository and install dependencies:
 
    ```bash
-   uv sync
+   pixi install
    cd frontend && npm install
    ```
 
@@ -360,11 +360,17 @@ every room and condition.
 ## Development
 
 ```bash
-# Install dependencies
-uv sync
+# Install dependencies (https://pixi.sh)
+pixi install
+
+# Install the git hooks (prek, reads .pre-commit-config.yaml)
+pixi run prek install
 
 # Run tests
 make test
+
+# Lint all files
+make lint
 
 # Build frontend
 make build
