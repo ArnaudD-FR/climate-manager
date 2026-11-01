@@ -32,7 +32,7 @@ export function hasPresenceZone(config: ClimateConfig | undefined): boolean {
   return zones.some((zone) => zone?.mode === "time_program_presences");
 }
 
-/** A Date as a local "YYYY-MM-DDTHH:MM" string (datetime-local value). */
+/** A Date as a local "YYYY-MM-DDTHH:MM" string (the editor's value). */
 export function toLocalInput(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return (

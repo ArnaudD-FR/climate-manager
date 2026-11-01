@@ -666,12 +666,13 @@ Lit is bundled into `panel.js` — no dependency on HA's own Lit instance.
 
 | File/component                                 | Role                                                                                                   |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `panel.ts`                                     | Root `<climate-manager-panel>` element; receives `hass` from HA; owns tab routing                      |
+| `main.ts`                                      | Root `<climate-manager-panel>` element; receives `hass` from HA; owns tab routing and toasts           |
 | `ws-client.ts`                                 | Typed WS helpers (thin wrappers over `hass.connection`)                                                |
 | `types.ts`                                     | TypeScript interfaces for all WS message shapes (`ClimateConfig`, `StatusPayload`, `RoomStatus`, etc.) |
-| `toast.ts`                                     | Global toast notification utility                                                                      |
+| `ha-elements.ts`                               | Loads HA's lazy elements once at startup; reports the missing ones                                     |
+| `ha-controls.ts`                               | HA controls as template helpers: select / entity / number selectors, add pickers, chips, buttons       |
 | `ha-nav.ts`                                    | HA more-info / in-app navigation / History URL / history-graph card helpers                            |
-| `shared-styles.ts`                             | Shared CSS design tokens                                                                               |
+| `shared-styles.ts`                             | Shared CSS fragments (layout of chips, hints, section labels)                                          |
 | `components/rooms-tab.ts` + `room-card.ts`     | Per-room config and schedule editor                                                                    |
 | `components/zone-tab.ts`                       | Zone management (create/rename/delete/mode/schedule)                                                   |
 | `components/persons-tab.ts` + `person-card.ts` | Person presence config and schedule editor                                                             |
@@ -681,11 +682,46 @@ Lit is bundled into `panel.js` — no dependency on HA's own Lit instance.
 | `components/time-bar.ts`                       | Interactive weekly schedule bar (drag to resize periods)                                               |
 | `components/week-parity.ts`                    | Even/odd week selector for biweekly schedules                                                          |
 
-HA native elements broken in HA 2026.x:
+### HA components
 
-- `ha-select` — use native `<select>` instead
-- `ha-tabs` / `paper-tab` — use CSS button tabs + manual panel header
-- `ha-textfield` — use native `<input type="number">` with label + suffix span
+Whenever HA ships a component for a control, the panel uses it, with a single
+code path (no native fallback), so the panel follows the user's profile
+(language, number, date and time formats) and theme:
+
+| Control                    | HA component                                                         |
+| -------------------------- | -------------------------------------------------------------------- |
+| Panel tabs, even/odd weeks | `ha-tab-group` + `ha-tab-group-tab`                                  |
+| Dropdowns, entity choice   | `ha-selector` (`select` dropdown, `entity`)                          |
+| Numbers                    | `ha-selector` `number` box, committed on blur / Enter                |
+| Toggles                    | `ha-switch`                                                          |
+| Dates and times            | `ha-date-input`, `ha-time-input`                                     |
+| Text (zone rename)         | `ha-input`                                                           |
+| Add a room / a person      | `ha-area-picker`, `ha-entity-picker` (add button)                    |
+| Rooms, persons, TRV chips  | `ha-input-chip`, `ha-filter-chip`, `ha-assist-chip` in `ha-chip-set` |
+| Buttons                    | `ha-button`, `ha-icon-button`                                        |
+| Save feedback              | HA's toast (`hass-notification` event)                               |
+| Notices                    | `ha-alert`                                                           |
+
+Most of these are lazy-loaded by HA. `ha-elements.ts` loads them once, before
+the panel renders its tabs. The card helpers (`window.loadCardHelpers`) come
+with the Lovelace panel module: when the panel is opened directly, before any
+dashboard, the loader loads that module through HA's panel router (the
+`partial-panel-resolver` ancestor's `lovelace` route), which also lets the room
+cards embed history graphs. It then opens the button card editor (`ha-form` /
+`ha-selector`) and the vertical-stack card editor (`ha-tab-group`), and mounts
+hidden `ha-selector`s of each type used, inside the panel (the date and time
+inputs read the locale from a context `<home-assistant>` provides), which import
+the inputs, pickers, chips, switch and buttons. HA fetches each module on
+demand, so the panel waits up to 20 s; tags still missing are logged
+(`console.error`) and listed in an `ha-alert` above the tabs, which drops each
+one as soon as it gets defined (the elements upgrade in place).
+
+Kept custom (no HA equivalent): the time-bar grid and its popup container, the
+status badges.
+
+The docs screenshot harness (`docs/test-harness.html`) defines stubs of these
+elements (`docs/ha-stubs.js`) rendering native equivalents and firing the same
+events, so the loader finds them all defined.
 
 ---
 
