@@ -10,15 +10,13 @@
  *
  * Controls are HA's own: ha-date-input / ha-time-input (they follow the
  * user profile's date format and 12/24-hour clock), a select ha-selector
- * and ha-button; native elements are the fallback when HA does not
- * provide them (docs harness).
+ * and ha-button.
  */
 
 import { LitElement, html, css } from "lit";
 import { property, state } from "lit/decorators.js";
 
 import { chipStyles } from "../shared-styles.js";
-import { loadFormElements } from "../ha-nav.js";
 import {
   covers,
   currentAndUpcoming,
@@ -73,39 +71,19 @@ export class PresencePeriodsCard extends LitElement {
 
   @state() private _draft: PeriodDraft | null = null;
   @state() private _saving = false;
-  /** HA's form elements are defined (else native elements). */
-  @state() private _haInputs = false;
-  private _loadingInputs = false;
-
-  protected willUpdate() {
-    if (this.hass && !this._loadingInputs) {
-      this._loadingInputs = true;
-      void loadFormElements(this.hass).then((ok) => (this._haInputs = ok));
-    }
-  }
-
-  /** An ha-button, or a native button outside HA. */
+  /** An ha-button. */
   private _button(
     label: string,
     onClick: () => void,
     { primary = false, disabled = false }: ButtonOptions = {},
   ) {
-    if (this._haInputs) {
-      return html`<ha-button
-        size="s"
-        appearance=${primary ? "accent" : "plain"}
-        ?disabled=${disabled}
-        @click=${onClick}
-        >${label}</ha-button
-      >`;
-    }
-    return html`<button
-      class="btn ${primary ? "primary" : ""}"
+    return html`<ha-button
+      size="s"
+      appearance=${primary ? "accent" : "plain"}
       ?disabled=${disabled}
       @click=${onClick}
-    >
-      ${label}
-    </button>`;
+      >${label}</ha-button
+    >`;
   }
 
   static styles = [
@@ -182,31 +160,6 @@ export class PresencePeriodsCard extends LitElement {
         font-size: 13px;
       }
 
-      .btn {
-        background: none;
-        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
-        color: var(--secondary-text-color);
-        padding: 5px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 13px;
-        font-family: inherit;
-      }
-
-      .btn:hover {
-        background: var(--secondary-background-color);
-      }
-
-      .btn.primary {
-        color: var(--primary-color);
-        border-color: var(--primary-color);
-      }
-
-      .btn:disabled {
-        opacity: 0.5;
-        cursor: default;
-      }
-
       .editor {
         margin-top: 12px;
         padding: 12px;
@@ -234,16 +187,6 @@ export class PresencePeriodsCard extends LitElement {
       ha-date-input,
       .kind-select {
         min-width: 150px;
-      }
-
-      .field select,
-      .field input {
-        font: inherit;
-        color: var(--primary-text-color);
-        background: var(--card-background-color);
-        border: 1px solid var(--divider-color);
-        border-radius: 4px;
-        padding: 4px 6px;
       }
 
       .persons-head {
@@ -420,22 +363,14 @@ export class PresencePeriodsCard extends LitElement {
         this._update({ kind: value });
       }
     };
-    if (this._haInputs) {
-      return html`<ha-selector
-        class="kind-select"
-        .hass=${this.hass}
-        .selector=${KIND_SELECTOR}
-        .value=${kind}
-        .required=${true}
-        @value-changed=${(e: Event) => onKind((e as CustomEvent).detail?.value)}
-      ></ha-selector>`;
-    }
-    return html`<select
-      @change=${(e: Event) => onKind((e.target as HTMLSelectElement).value)}
-    >
-      <option value="absent" ?selected=${kind === "absent"}>Absence</option>
-      <option value="present" ?selected=${kind === "present"}>Presence</option>
-    </select>`;
+    return html`<ha-selector
+      class="kind-select"
+      .hass=${this.hass}
+      .selector=${KIND_SELECTOR}
+      .value=${kind}
+      .required=${true}
+      @value-changed=${(e: Event) => onKind((e as CustomEvent).detail?.value)}
+    ></ha-selector>`;
   }
 
   /** A date and a time, joined as a local "YYYY-MM-DDTHH:MM". */
@@ -444,19 +379,6 @@ export class PresencePeriodsCard extends LitElement {
     value: string,
     onChange: (value: string) => void,
   ) {
-    if (!this._haInputs) {
-      return html`
-        <div class="field">
-          <span>${label}</span>
-          <input
-            type="datetime-local"
-            .value=${value}
-            @change=${(e: Event) =>
-              onChange((e.target as HTMLInputElement).value)}
-          />
-        </div>
-      `;
-    }
     const { date, time } = splitLocal(value);
     const changed = (e: Event) => (e as CustomEvent).detail?.value ?? "";
     return html`

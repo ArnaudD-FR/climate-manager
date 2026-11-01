@@ -7,7 +7,6 @@
  * - historyPath: HA History page URL filtered on a set of entities
  * - sharesClimateDevice: sensor duplicating a climate entity's temperature
  * - createHistoryCard: native Lovelace history-graph card element
- * - loadFormElements: defines the HA form elements the panel uses
  */
 
 import type { Hass } from "./types.js";
@@ -17,11 +16,6 @@ export type LovelaceCard = HTMLElement & { hass?: Hass };
 
 interface CardHelpers {
   createCardElement(config: Record<string, unknown>): LovelaceCard;
-}
-
-/** A Lovelace card class that can load its editor (and its ha-form). */
-interface EditableCard {
-  getConfigElement?: () => Promise<HTMLElement>;
 }
 
 declare global {
@@ -117,72 +111,4 @@ export async function createHistoryCard(
     entities,
     hours_to_show: hoursToShow,
   });
-}
-
-/**
- * HA form elements used by the panel, and the selector whose module
- * imports them: ha-selector-datetime brings ha-date-input and
- * ha-time-input, ha-selector-select brings ha-select and ha-button.
- */
-const FORM_ELEMENTS: Array<[Record<string, unknown>, string[]]> = [
-  [{ datetime: {} }, ["ha-date-input", "ha-time-input"]],
-  [{ select: { options: [] } }, ["ha-selector-select", "ha-button"]],
-];
-
-let formElements: Promise<boolean> | undefined;
-
-/** Resolves to true once `tag` is defined, false after `ms`. */
-function whenDefined(tag: string, ms: number): Promise<boolean> {
-  return Promise.race([
-    customElements.whenDefined(tag).then(() => true),
-    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms)),
-  ]);
-}
-
-async function doLoadFormElements(hass: Hass): Promise<boolean> {
-  const tags = FORM_ELEMENTS.flatMap(([, t]) => t);
-  if (tags.every((tag) => customElements.get(tag))) return true;
-  // HA lazy-loads its form elements. ha-selector comes with ha-form, which
-  // a card editor imports; an ha-selector of a given type then imports
-  // that selector's module and the elements it renders.
-  if (!customElements.get("ha-selector")) {
-    if (!window.loadCardHelpers) return false;
-    const helpers = await window.loadCardHelpers();
-    const card = await helpers.createCardElement({
-      type: "button",
-      entity: "sun.sun",
-    });
-    await (card.constructor as EditableCard).getConfigElement?.();
-    if (!(await whenDefined("ha-selector", 5000))) return false;
-  }
-  const selectors = FORM_ELEMENTS.map(([config]) => {
-    const el = document.createElement("ha-selector") as HTMLElement & {
-      hass: Hass;
-      selector: Record<string, unknown>;
-    };
-    el.hass = hass;
-    el.selector = config;
-    el.style.display = "none";
-    document.body.appendChild(el);
-    return el;
-  });
-  try {
-    const defined = await Promise.all(
-      tags.map((tag) => whenDefined(tag, 5000)),
-    );
-    return defined.every(Boolean);
-  } finally {
-    selectors.forEach((el) => el.remove());
-  }
-}
-
-/**
- * Make sure the HA form elements the panel uses are defined: date and
- * time inputs (they follow the user profile's date and 12/24-hour
- * formats), the select selector and ha-button. Resolves to false outside
- * HA or if HA no longer ships them; callers then use native elements.
- */
-export function loadFormElements(hass: Hass): Promise<boolean> {
-  formElements ??= doLoadFormElements(hass).catch(() => false);
-  return formElements;
 }

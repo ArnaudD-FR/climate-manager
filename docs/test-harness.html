@@ -136,12 +136,20 @@
         </style>
         <div class="track"><div class="thumb"></div></div>`;
     }
+    connectedCallback() {
+      this.addEventListener('click', () => {
+        this.checked = !this.checked;
+        this.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
     get checked() { return this.hasAttribute('checked'); }
     set checked(v) {
       v ? this.setAttribute('checked', '') : this.removeAttribute('checked');
     }
   });
 </script>
+<!-- Stubs of the lazy-loaded HA elements (ha-selector, ha-button, tabs…) -->
+<script src="/docs/ha-stubs.js"></script>
 
 <!-- panel.js is a module; it runs before the sibling inline module below -->
 <script type="module" src="/custom_components/climate_manager/www/panel.js"></script>

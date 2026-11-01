@@ -22,6 +22,7 @@ import { LitElement, html, css } from "lit";
 import { property, state, query } from "lit/decorators.js";
 
 import { WsClient } from "./ws-client.js";
+import { loadHaElements } from "./ha-elements.js";
 import type { Hass, ClimateConfig, StatusPayload } from "./types.js";
 import { getZoneColor } from "./types.js";
 import type { ClimateManagerToast } from "./toast.js";
@@ -50,6 +51,8 @@ export class ClimateManagerPanel extends LitElement {
   @state() private _tabNameInput = "";
   @state() private _expandRoomId: string | null = null;
   @state() private _expandPersonId: string | null = null;
+  /** HA elements still undefined once loaded; null while loading. */
+  @state() private _haMissing: string[] | null = null;
 
   @query("climate-manager-toast")
   private _toast?: ClimateManagerToast;
@@ -186,6 +189,18 @@ export class ClimateManagerPanel extends LitElement {
     super.connectedCallback();
     // Create a single WS client instance used by all tab components
     this._ws = new WsClient(this.hass);
+    void loadHaElements(this.hass, this).then((tags) => {
+      if (tags.length) {
+        console.error("Climate Manager: HA elements not loaded:", tags);
+      }
+      this._haMissing = tags;
+      // A late element upgrades in place: drop it from the banner.
+      for (const tag of tags) {
+        void customElements.whenDefined(tag).then(() => {
+          this._haMissing = (this._haMissing ?? []).filter((t) => t !== tag);
+        });
+      }
+    });
     this._loadConfig();
     this._loadStatus();
     this._subscribeStatus();
@@ -371,8 +386,19 @@ export class ClimateManagerPanel extends LitElement {
     );
   }
 
+  /** Banner listing the HA elements HA did not provide. */
+  private _renderMissing() {
+    if (!this._haMissing?.length) return "";
+    const text =
+      "Some Home Assistant elements could not be loaded; parts of the " +
+      `panel will not render: ${this._haMissing.join(", ")}`;
+    return customElements.get("ha-alert")
+      ? html`<ha-alert alert-type="error">${text}</ha-alert>`
+      : html`<div class="error-banner">${text}</div>`;
+  }
+
   render() {
-    if (!this._config) {
+    if (!this._config || this._haMissing === null) {
       return html`
         <div class="panel-header">
           ${this.narrow
@@ -413,6 +439,7 @@ export class ClimateManagerPanel extends LitElement {
       ${this._wsError
         ? html`<div class="error-banner">Connection lost. Reconnecting…</div>`
         : ""}
+      ${this._renderMissing()}
 
       <div class="tab-bar">
         <button
