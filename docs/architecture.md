@@ -680,7 +680,6 @@ Lit is bundled into `panel.js` — no dependency on HA's own Lit instance.
 | `components/presence-mode.ts`                  | Presence mode selector widget                                                                          |
 | `components/time-bar.ts`                       | Interactive weekly schedule bar (drag to resize periods)                                               |
 | `components/week-parity.ts`                    | Even/odd week selector for biweekly schedules                                                          |
-| `components/search-picker.ts`                  | Entity/area search dropdown                                                                            |
 
 HA native elements broken in HA 2026.x:
 

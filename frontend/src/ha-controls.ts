@@ -9,6 +9,7 @@
  */
 
 import { html } from "lit";
+import { live } from "lit/directives/live.js";
 
 import type { Hass } from "./types.js";
 
@@ -148,4 +149,59 @@ export function haNumber(
       if (e.key === "Enter") commit(e.currentTarget as EventTarget);
     }}
   ></ha-selector>`;
+}
+
+/** Reset an "add" picker to its button once a value was picked. */
+function picked(e: Event): string | undefined {
+  const value = changedValue(e);
+  (e.currentTarget as { value?: unknown }).value = undefined;
+  return typeof value === "string" && value ? value : undefined;
+}
+
+/**
+ * An "Add …" button opening HA's area picker over `areaIds` (rooms are HA
+ * areas); `onPick` gets the chosen area. No area creation from here.
+ */
+export function haAreaAdd(
+  hass: Hass,
+  areaIds: string[],
+  label: string,
+  onPick: (areaId: string) => void,
+) {
+  const offered = new Set(areaIds);
+  const excluded = Object.keys(hass?.areas ?? {}).filter(
+    (id) => !offered.has(id),
+  );
+  return html`<ha-area-picker
+    .hass=${hass}
+    .value=${live(undefined)}
+    .excludeAreas=${excluded}
+    .addButtonLabel=${label}
+    no-add
+    @value-changed=${(e: Event) => {
+      e.stopPropagation();
+      const areaId = picked(e);
+      if (areaId) onPick(areaId);
+    }}
+  ></ha-area-picker>`;
+}
+
+/** An "Add …" button opening HA's entity picker over `entityIds`. */
+export function haEntityAdd(
+  hass: Hass,
+  entityIds: string[],
+  label: string,
+  onPick: (entityId: string) => void,
+) {
+  return html`<ha-entity-picker
+    .hass=${hass}
+    .includeEntities=${entityIds}
+    .addButtonLabel=${label}
+    add-button
+    @value-changed=${(e: Event) => {
+      e.stopPropagation();
+      const entityId = picked(e);
+      if (entityId) onPick(entityId);
+    }}
+  ></ha-entity-picker>`;
 }

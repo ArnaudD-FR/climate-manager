@@ -46,6 +46,7 @@ export const HA_ELEMENTS = [
   "ha-button",
   "ha-chip-set",
   "ha-date-input",
+  "ha-entity-picker",
   "ha-filter-chip",
   "ha-input",
   "ha-input-chip",

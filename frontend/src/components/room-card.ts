@@ -35,8 +35,7 @@ import {
   validEntityIds,
   type LovelaceCard,
 } from "../ha-nav.js";
-import { haNumber, haSelect } from "../ha-controls.js";
-import "./search-picker.js";
+import { haEntityAdd, haNumber, haSelect } from "../ha-controls.js";
 
 /** History graph durations offered in the card (hours). */
 const HISTORY_HOURS: Array<[number, string]> = [
@@ -316,21 +315,6 @@ export class RoomCard extends LitElement {
     );
   }
 
-  private _getPersonPresenceState(personId: string): string {
-    const state = this.hass?.states[personId]?.state;
-    if (state === "home") return "Home";
-    if (state === "not_home") return "Away";
-    if (state) return state.charAt(0).toUpperCase() + state.slice(1);
-    return "—";
-  }
-
-  private _onPersonPicked(e: CustomEvent) {
-    e.stopPropagation();
-    const personId = (e.detail as { id: string }).id;
-    if (!personId) return;
-    void this._onAddPerson(personId);
-  }
-
   private async _onAddPerson(personId: string) {
     const currentIds = [
       ...(this.panelConfig?.persons?.[personId]?.room_ids ?? []),
@@ -565,13 +549,6 @@ export class RoomCard extends LitElement {
       (id) => !assignedPersonIds.includes(id),
     );
 
-    const pickerItems = unassignedPersonIds.map((id) => ({
-      id,
-      label: this._getPersonName(id),
-      secondary: this._getPersonPresenceState(id),
-      icon: "mdi:account",
-    }));
-
     return html`
       <div class="section-label" title="Persons whose presence heats this room">
         Associated persons
@@ -599,13 +576,12 @@ export class RoomCard extends LitElement {
         )}
         ${unassignedPersonIds.length > 0
           ? html`
-              <search-picker
-                .items=${pickerItems}
-                triggerLabel="Add person"
-                triggerIcon="mdi:plus"
-                placeholder="Search persons…"
-                @picked=${(e: CustomEvent) => this._onPersonPicked(e)}
-              ></search-picker>
+              ${haEntityAdd(
+                this.hass,
+                unassignedPersonIds,
+                "Add person",
+                (id) => void this._onAddPerson(id),
+              )}
             `
           : ""}
       </div>

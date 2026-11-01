@@ -37,9 +37,8 @@ import {
   floorGroupLabelStyles,
 } from "../shared-styles.js";
 
-import { haEntity, haNumber, haSelect } from "../ha-controls.js";
+import { haAreaAdd, haEntity, haNumber, haSelect } from "../ha-controls.js";
 import "./time-bar.js";
-import "./search-picker.js";
 
 // Presence mode constants (D-21)
 const PRESENCE_MODE_SCHEDULED = "scheduled";
@@ -100,7 +99,7 @@ export interface RoomChoice {
   name: string;
   /** Floor ID from hass.areas — used for grouping chips by floor. */
   floorId: string | null;
-  /** Optional floor name shown as secondary text in the room search-picker. */
+  /** Floor name, the label of the room's floor group. */
   secondary?: string;
 }
 
@@ -1088,21 +1087,12 @@ export class PersonCard extends LitElement {
                 ${unassignedRooms.length > 0
                   ? html`
                       <div class="chips">
-                        <search-picker
-                          .items=${unassignedRooms.map((r) => ({
-                            id: r.id,
-                            label: r.name,
-                            secondary: r.secondary,
-                            icon: "mdi:home-outline",
-                          }))}
-                          triggerLabel="Add room"
-                          triggerIcon="mdi:plus"
-                          placeholder="Search rooms…"
-                          @picked=${(e: CustomEvent) => {
-                            const { id } = e.detail as { id: string };
-                            void this._onRoomToggle(id, true);
-                          }}
-                        ></search-picker>
+                        ${haAreaAdd(
+                          this.panel.hass,
+                          unassignedRooms.map((r) => r.id),
+                          "Add room",
+                          (id) => void this._onRoomToggle(id, true),
+                        )}
                       </div>
                     `
                   : ""}

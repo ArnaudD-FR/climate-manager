@@ -265,6 +265,28 @@ customElements.define(
   },
 );
 
+/** ha-entity-picker (add-button): a native select of the entities. */
+customElements.define(
+  "ha-entity-picker",
+  class extends Stub {
+    static props = ["hass", "value", "includeEntities", "addButtonLabel"];
+    render() {
+      const label = this.addButtonLabel || "Add";
+      const ids = this.includeEntities || [];
+      const name = (id) =>
+        this.hass?.states?.[id]?.attributes?.friendly_name || id;
+      this.shadowRoot.innerHTML = `<select style="${CONTROL_CSS}">
+        <option value="">+ ${label}</option>
+        ${ids
+          .map((id) => `<option value="${id}">${name(id)}</option>`)
+          .join("")}</select>`;
+      const select = this.shadowRoot.querySelector("select");
+      select.onchange = () =>
+        fire(this, "value-changed", { value: select.value || undefined });
+    }
+  },
+);
+
 /** Tabs: a bar of ha-tab-group-tab; a click fires wa-tab-show. */
 customElements.define(
   "ha-tab-group",

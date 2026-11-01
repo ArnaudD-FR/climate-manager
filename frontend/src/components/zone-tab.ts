@@ -11,7 +11,7 @@
  *   2. Zone name (click-to-edit, D-06 / D-07)
  *   3. Mode picker (select ha-selector)
  *   4. Weekly time-bar
- *   5. Assigned Rooms section (chips + search-picker, D-08 / D-09 / D-10)
+ *   5. Assigned Rooms section (chips + area picker, D-08 / D-09 / D-10)
  *
  * Controls are HA's own (ha-selector, ha-switch, ha-button…), loaded at
  * startup by ha-elements.ts.
@@ -46,9 +46,8 @@ import {
   floorGroupLabelStyles,
 } from "../shared-styles.js";
 
-import { haSelect } from "../ha-controls.js";
+import { haAreaAdd, haSelect } from "../ha-controls.js";
 import "./time-bar.js";
-import "./search-picker.js";
 
 export class ZoneTab extends LitElement {
   // -------------------------------------------------------------------------
@@ -385,14 +384,6 @@ export class ZoneTab extends LitElement {
     }
   }
 
-  /** search-picker @picked event — add the selected room to this zone. */
-  private _onRoomPicked(e: CustomEvent) {
-    e.stopPropagation();
-    const roomId = (e.detail as { id: string }).id;
-    if (!roomId) return;
-    void this._onAddRoom(roomId);
-  }
-
   /** First click on delete — show inline confirm row (D-05). */
   private _onDeleteClick() {
     this._confirmingDelete = true;
@@ -502,7 +493,7 @@ export class ZoneTab extends LitElement {
   }
 
   /**
-   * Returns rooms NOT assigned to this zone, shaped for the search-picker.
+   * Returns rooms NOT assigned to this zone, offered by the area picker.
    * Per D-10: includes rooms in other zones (valid reassignment targets).
    */
   private _getUnassignedRoomItems(): Array<{
@@ -736,13 +727,12 @@ export class ZoneTab extends LitElement {
       ${unassignedRooms.length > 0
         ? html`
             <div class="chips">
-              <search-picker
-                .items=${unassignedRooms}
-                triggerLabel="Add room"
-                triggerIcon="mdi:plus"
-                placeholder="Search rooms…"
-                @picked=${this._onRoomPicked}
-              ></search-picker>
+              ${haAreaAdd(
+                this.hass,
+                unassignedRooms.map((r) => r.id),
+                "Add room",
+                (id) => void this._onAddRoom(id),
+              )}
             </div>
           `
         : ""}
