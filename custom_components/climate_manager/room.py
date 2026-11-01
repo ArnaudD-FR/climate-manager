@@ -61,10 +61,13 @@ from .preheat import (
     tune_anticipation,
 )
 from .schedule import (
+    compute_occupied_temp,
     evaluate_schedule,
-    next_occupied_at,
+    has_presence_periods,
+    next_arrival as person_next_arrival,
+    next_increase_with_absences,
     next_setpoint_increase_at,
-    resolve_presence,
+    presence_override,
 )
 from .trv import is_trv_entity
 from .vendors import BoilerReadings, boiler_readings
@@ -710,16 +713,21 @@ class Room:
 
         # ----------------------------------------------------------------
         # Next occupied time: in a presence zone nobody assigned is home,
-        # the earliest scheduled arrival; else (someone home, a plain
-        # time program, or no arrival) the next zone setpoint increase.
+        # the earliest arrival (schedule, or the return of a dated
+        # absence); else (someone home, a plain time program, or no
+        # arrival) the next zone setpoint increase, which a household
+        # absence holds back until its return.
         # ----------------------------------------------------------------
         persons_config: dict = config.get("persons", {})
-        assigned = [
-            pc
-            for pc in persons_config.values()
+        assigned = {
+            person_id: pc
+            for person_id, pc in persons_config.items()
             if self.area_id in pc.get("room_ids", [])
-        ]
+        }
         unpredictable = {PRESENCE_HA, PRESENCE_PRESENT, PRESENCE_ABSENT}
+        periods = getattr(ctx, "presence_periods", None)
+        if not isinstance(periods, list):
+            periods = []
 
         calendar_cache = getattr(ctx, "_calendar_cache", {})
         start_of_local_day = __import__(
@@ -736,13 +744,9 @@ class Room:
         )
 
         next_arrival: datetime | None = None
-        for pc in assigned if watch_arrivals else []:
-            if pc.get("mode") in unpredictable:
-                continue
-            if resolve_presence(pc, now, calendar_cache, start_of_local_day):
-                continue
-            candidate = next_occupied_at(
-                pc, now, calendar_cache, start_of_local_day
+        for person_id, pc in assigned.items() if watch_arrivals else []:
+            candidate = person_next_arrival(
+                person_id, pc, periods, now, calendar_cache, start_of_local_day
             )
             if candidate is not None:
                 if next_arrival is None or candidate < next_arrival:
@@ -757,17 +761,27 @@ class Room:
             "period_temperatures", {}
         )
 
+        household_away = presence_override(periods, now) is False
         if next_arrival is not None:
             next_occupied: datetime | None = next_arrival
+        elif zone_mode == MODE_TIME_PROGRAM:
+            next_occupied = next_increase_with_absences(
+                time_program, period_temperatures, periods, now
+            )
         else:
             next_occupied = next_setpoint_increase_at(
                 time_program, period_temperatures, now
             )
 
+        # A dated period makes any mode's arrival predictable.
         presence_suppressed = (
             zone_mode == MODE_TIME_PROGRAM_PRESENCES
             and bool(assigned)
-            and all(pc.get("mode") in unpredictable for pc in assigned)
+            and all(
+                pc.get("mode") in unpredictable
+                and not has_presence_periods(periods, now, person_id)
+                for person_id, pc in assigned.items()
+            )
         )
         # Pre-heat impossible because nobody's presence can be scheduled;
         # merely having no upcoming increase is not reported as such.
@@ -807,9 +821,17 @@ class Room:
             self._preheat_lead = None
             return
 
-        # Determine the upcoming setpoint.
-        upcoming_period = evaluate_schedule(time_program, next_occupied)
-        upcoming_setpoint = period_temperatures.get(upcoming_period)
+        # Determine the upcoming setpoint: an arrival gets what the zone
+        # gives a present person then (a Reduced gap between two Normal
+        # periods is filled), else the program's period.
+        if next_arrival is not None:
+            upcoming_setpoint, _ = compute_occupied_temp(
+                time_program, next_occupied, True, period_temperatures
+            )
+        else:
+            upcoming_setpoint = period_temperatures.get(
+                evaluate_schedule(time_program, next_occupied)
+            )
         if upcoming_setpoint is None:
             self._preheat_active = False
             self._preheat_lead = None
@@ -831,8 +853,9 @@ class Room:
             self._preheat_active = False
             return
 
-        # Guard: in TIME_PROGRAM mode, skip if current period already warm.
-        if zone_mode == MODE_TIME_PROGRAM:
+        # Guard: in TIME_PROGRAM mode, skip if current period already warm
+        # (a household absence holds Reduced instead).
+        if zone_mode == MODE_TIME_PROGRAM and not household_away:
             current_period = evaluate_schedule(time_program, now)
             current_period_temp = period_temperatures.get(current_period)
             if (

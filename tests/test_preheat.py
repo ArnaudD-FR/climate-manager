@@ -1938,3 +1938,148 @@ async def test_run_records_boiler_conditions(hass):
     assert ip["outdoor_temp"] == 4.5
     # The start pass only opens the run: the flow is read from the next.
     assert (ip["flow_sum"], ip["flow_n"]) == (60.0, 1)
+
+
+# ---------------------------------------------------------------------------
+# Dated absences: pre-heat for the return
+# ---------------------------------------------------------------------------
+
+# Normal 07–08 and 17–22, Reduced otherwise (a Reduced gap at midday).
+_TWO_PEAKS = {
+    day: [
+        {"start": "00:00", "mode": PERIOD_REDUCED},
+        {"start": "07:00", "mode": PERIOD_NORMAL},
+        {"start": "08:00", "mode": PERIOD_REDUCED},
+        {"start": "17:00", "mode": PERIOD_NORMAL},
+        {"start": "22:00", "mode": PERIOD_REDUCED},
+    ]
+    for day in _WEEK
+}
+
+
+def _trip(end: str, person_ids: list[str] | None = None) -> dict:
+    period = {
+        "id": "trip",
+        "kind": "absent",
+        "start": "2026-05-25T08:00",
+        "end": end,
+    }
+    if person_ids is not None:
+        period["person_ids"] = person_ids
+    return period
+
+
+async def _preheat_room(
+    hass, freezer, *, zone_mode, program, persons, periods, now
+):
+    """Run one pre-heat pass for a bedroom at 18 °C, pre-heat enabled."""
+    from custom_components.climate_manager.coordinator import (
+        ClimateManagerCoordinator,
+    )
+    from custom_components.climate_manager.eval_context import EvalContext
+
+    freezer.move_to(now)
+    hass.states.async_set(
+        "climate.bedroom_trv",
+        "heat",
+        {"temperature": 18.0, "current_temperature": 18.0},
+    )
+    async_mock_service(hass, "climate", "set_hvac_mode")
+    async_mock_service(hass, "climate", "set_temperature")
+    config = _make_preheat_config(
+        global_mode=zone_mode,
+        persons_config=persons,
+        rooms_config={"bedroom": {}},
+        default_zone_preheat_enabled=True,
+    )
+    config["default_zone"]["time_program"] = program
+    config["presence_periods"] = periods
+    data = _make_mock_data(
+        runtime_config=config,
+        rooms={"bedroom": ["climate.bedroom_trv"]},
+    )
+    coord = ClimateManagerCoordinator(hass, data)
+    room = coord._rooms["bedroom"]
+    room._frost_locked = False
+    ctx = EvalContext(
+        now=now,
+        hass=hass,
+        period_temperatures=config["period_temperatures"],
+        presence_periods=periods,
+    )
+    await room.compute_preheat(ctx)
+    await hass.async_block_till_done()
+    return room
+
+
+_HA_ALICE = {"person.alice": {"mode": "ha", "room_ids": ["bedroom"]}}
+
+
+@pytest.mark.parametrize(
+    ("hour", "active"),
+    [(15, False), (17, True)],
+)
+async def test_preheat_for_the_return_of_an_ha_tracked_person(
+    hass, freezer, hour, active
+):
+    """HA home tracking has no predictable arrival; a dated absence gives
+    one: the return, reached within the learning lead (120 min)."""
+    room = await _preheat_room(
+        hass,
+        freezer,
+        zone_mode=MODE_TIME_PROGRAM_PRESENCES,
+        program=_ALL_NORMAL,
+        persons=_HA_ALICE,
+        periods=[_trip("2026-06-03T18:30")],
+        now=_dt(2026, 6, 3, hour, 0),
+    )
+
+    assert room._preheat_suppressed is False
+    assert room._preheat_active is active
+    if active:
+        run = room._preheat_in_progress
+        assert run["until"] == _dt(2026, 6, 3, 18, 30)
+        assert run["target_temp"] == DEFAULT_PERIOD_TEMPERATURES[PERIOD_NORMAL]
+
+
+async def test_return_in_a_reduced_gap_targets_the_occupied_setpoint(
+    hass, freezer
+):
+    """A return at 15:00 falls in the Reduced gap between two Normal
+    periods, which a present person gets filled: pre-heat to Normal."""
+    room = await _preheat_room(
+        hass,
+        freezer,
+        zone_mode=MODE_TIME_PROGRAM_PRESENCES,
+        program=_TWO_PEAKS,
+        persons=_HA_ALICE,
+        periods=[_trip("2026-06-03T15:00")],
+        now=_dt(2026, 6, 3, 14, 0),
+    )
+
+    assert room._preheat_active is True
+    assert room._preheat_target == DEFAULT_PERIOD_TEMPERATURES[PERIOD_NORMAL]
+
+
+@pytest.mark.parametrize(
+    ("hour", "active"),
+    [(16, False), (17, True)],
+)
+async def test_household_absence_moves_the_increase_to_the_return(
+    hass, freezer, hour, active
+):
+    """Time program zone, everyone away until 18:30: no pre-heat for the
+    17:00 increase (16:00 is within its lead), pre-heat for the return."""
+    room = await _preheat_room(
+        hass,
+        freezer,
+        zone_mode=MODE_TIME_PROGRAM,
+        program=_TWO_PEAKS,
+        persons={},
+        periods=[_trip("2026-06-03T18:30")],
+        now=_dt(2026, 6, 3, hour, 0),
+    )
+
+    assert room._preheat_active is active
+    if active:
+        assert room._preheat_in_progress["until"] == _dt(2026, 6, 3, 18, 30)
