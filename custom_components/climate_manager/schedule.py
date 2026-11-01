@@ -37,7 +37,10 @@ from .const import (
     PRESENCE_AUTOMATIC,
     PRESENCE_CALENDAR,
     PRESENCE_HA,
+    PRESENCE_PERIOD_ABSENT,
+    PRESENCE_PERIOD_PRESENT,
     PRESENCE_PRESENT,
+    VALID_PRESENCE_PERIOD_KINDS,
 )
 
 # ---------------------------------------------------------------------------
@@ -63,6 +66,9 @@ ALL_DAYS: set[str] = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 # Non-zero-padded strings like "9:30" are intentionally rejected so that
 # the sort-by-parsed-time guarantee (CR-01) is enforced at input time.
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+# Local date and time of a presence period bound, without time zone.
+_LOCAL_DATETIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -765,4 +771,250 @@ def validate_daily_program(
                     f"{day}[{i}]: period must have 'mode' or 'state'",
                 )
 
+    return True, ""
+
+
+# ---------------------------------------------------------------------------
+# Dated presence / absence periods
+# ---------------------------------------------------------------------------
+
+
+def period_bounds(
+    period: dict, tzinfo: datetime.tzinfo | None
+) -> tuple[datetime.datetime, datetime.datetime]:
+    """Return a period's (start, end) as aware datetimes.
+
+    The bounds are local times ("YYYY-MM-DDTHH:MM") in the HA time zone,
+    the one of `now`, like the time programs.
+    """
+    start = datetime.datetime.fromisoformat(period["start"])
+    end = datetime.datetime.fromisoformat(period["end"])
+    return start.replace(tzinfo=tzinfo), end.replace(tzinfo=tzinfo)
+
+
+def period_covers(period: dict, person_id: str | None) -> bool:
+    """True if the period applies to the person.
+
+    A period without person_ids covers everyone. person_id=None asks for
+    the household: only such periods cover it.
+    """
+    person_ids = period.get("person_ids")
+    if person_ids is None:
+        return True
+    return person_id is not None and person_id in person_ids
+
+
+def active_presence_period(
+    periods: list | None,
+    now: datetime.datetime,
+    person_id: str | None = None,
+) -> dict | None:
+    """Return the period covering the person (or household) at now."""
+    for period in periods or []:
+        if not period_covers(period, person_id):
+            continue
+        start, end = period_bounds(period, now.tzinfo)
+        if start <= now < end:
+            return period
+    return None
+
+
+def presence_override(
+    periods: list | None,
+    now: datetime.datetime,
+    person_id: str | None = None,
+) -> bool | None:
+    """Presence forced by a period at now: True, False, or None if none.
+
+    person_id=None gives the household's: periods covering everyone only.
+    """
+    period = active_presence_period(periods, now, person_id)
+    if period is None:
+        return None
+    return period["kind"] == PRESENCE_PERIOD_PRESENT
+
+
+def _arrival_on_return(
+    person_config: dict,
+    ret: datetime.datetime,
+    calendar_cache: dict | None,
+    start_of_local_day,
+) -> datetime.datetime | None:
+    """When the person is home again once an absence ends at `ret`.
+
+    The usual mode takes over: a schedule absent at the return gives its
+    next present period; force_absent never; the other modes (HA, forced
+    present, calendar) are assumed home on return.
+    """
+    mode = person_config.get("mode", PRESENCE_AUTOMATIC)
+    if mode == PRESENCE_ABSENT:
+        return None
+    if mode == PRESENCE_AUTOMATIC:
+        if resolve_presence(
+            person_config, ret, calendar_cache, start_of_local_day
+        ):
+            return ret
+        return next_occupied_at(
+            person_config, ret, calendar_cache, start_of_local_day
+        )
+    return ret
+
+
+def next_arrival(
+    person_id: str,
+    person_config: dict,
+    periods: list | None,
+    now: datetime.datetime,
+    calendar_cache: dict | None = None,
+    start_of_local_day=None,
+) -> datetime.datetime | None:
+    """Return the next time an away person comes home, periods included.
+
+    - Inside an absence period: its return, or the usual mode's next
+      arrival after it (see _arrival_on_return).
+    - Inside a presence period: None (the person is home).
+    - Otherwise the usual mode's next arrival (none for the HA and forced
+      modes), unless a presence period starts first, and pushed to the
+      return of an absence period it falls in.
+    """
+    active = active_presence_period(periods, now, person_id)
+    if active is not None:
+        if active["kind"] == PRESENCE_PERIOD_PRESENT:
+            return None
+        _, ret = period_bounds(active, now.tzinfo)
+        return _arrival_on_return(
+            person_config, ret, calendar_cache, start_of_local_day
+        )
+
+    arrival = next_occupied_at(
+        person_config, now, calendar_cache, start_of_local_day
+    )
+    upcoming = sorted(
+        (
+            period_bounds(p, now.tzinfo) + (p["kind"],)
+            for p in periods or []
+            if period_covers(p, person_id)
+        ),
+        key=lambda bounds: bounds[0],
+    )
+    for start, end, kind in upcoming:
+        if start <= now:
+            continue
+        if arrival is not None and arrival < start:
+            break
+        if kind == PRESENCE_PERIOD_PRESENT:
+            return start
+        if arrival is not None and arrival < end:
+            arrival = _arrival_on_return(
+                person_config, end, calendar_cache, start_of_local_day
+            )
+    return arrival
+
+
+def has_presence_periods(
+    periods: list | None,
+    now: datetime.datetime,
+    person_id: str,
+) -> bool:
+    """True if a period covering the person has not ended yet."""
+    return any(
+        period_covers(p, person_id) and period_bounds(p, now.tzinfo)[1] > now
+        for p in periods or []
+    )
+
+
+def next_increase_with_absences(
+    time_program: dict,
+    period_temperatures: dict[str, float],
+    periods: list | None,
+    now: datetime.datetime,
+) -> datetime.datetime | None:
+    """Next zone setpoint increase, household absences included.
+
+    During a household absence the zone holds Reduced: its return is an
+    increase when the program is warmer than Reduced then, and an
+    increase falling inside an absence does not happen.
+    """
+    reduced = period_temperatures.get(PERIOD_REDUCED)
+
+    def warmer_on_return(ret: datetime.datetime) -> bool:
+        temp = period_temperatures.get(evaluate_schedule(time_program, ret))
+        return temp is not None and (reduced is None or temp > reduced)
+
+    def absence_at(t: datetime.datetime) -> dict | None:
+        period = active_presence_period(periods, t)
+        if period is None or period["kind"] != PRESENCE_PERIOD_ABSENT:
+            return None
+        return period
+
+    t = now
+    for _ in range(len(periods or []) + 1):
+        absence = absence_at(t)
+        if absence is None:
+            candidate = next_setpoint_increase_at(
+                time_program, period_temperatures, t
+            )
+            if candidate is None:
+                return None
+            absence = absence_at(candidate)
+            if absence is None:
+                return candidate
+        _, ret = period_bounds(absence, now.tzinfo)
+        if warmer_on_return(ret):
+            return ret
+        t = ret
+    return None
+
+
+def validate_presence_periods(periods: list) -> tuple[bool, str]:
+    """Validate the presence periods before saving them.
+
+    Each period needs a unique id, a known kind, local "YYYY-MM-DDTHH:MM"
+    bounds with the end after the start, and person_ids absent or a
+    non-empty list. Two periods covering a common person (everyone
+    covers all) must not overlap.
+    """
+    ids: set[str] = set()
+    bounds: list[tuple] = []
+    for i, period in enumerate(periods):
+        period_id = period.get("id")
+        if not isinstance(period_id, str) or not period_id:
+            return False, f"period {i}: missing id"
+        if period_id in ids:
+            return False, f"period {i}: duplicate id {period_id!r}"
+        ids.add(period_id)
+        if period.get("kind") not in VALID_PRESENCE_PERIOD_KINDS:
+            return False, f"period {i}: unknown kind {period.get('kind')!r}"
+        for key in ("start", "end"):
+            value = period.get(key)
+            if not isinstance(value, str) or not _LOCAL_DATETIME_RE.match(
+                value
+            ):
+                return False, (
+                    f"period {i}: '{key}' must be YYYY-MM-DDTHH:MM,"
+                    f" got {value!r}"
+                )
+        try:
+            start, end = period_bounds(period, None)
+        except ValueError as err:
+            return False, f"period {i}: {err}"
+        if end <= start:
+            return False, f"period {i}: the return must follow the start"
+        person_ids = period.get("person_ids")
+        if person_ids is not None and (
+            not isinstance(person_ids, list)
+            or not person_ids
+            or not all(isinstance(p, str) for p in person_ids)
+        ):
+            return False, f"period {i}: person_ids must be a non-empty list"
+        covered = None if person_ids is None else set(person_ids)
+        for other_start, other_end, other_covered, j in bounds:
+            shared = (
+                covered is None
+                or other_covered is None
+                or covered & other_covered
+            )
+            if shared and start < other_end and other_start < end:
+                return False, f"period {i} overlaps period {j}"
+        bounds.append((start, end, covered, i))
     return True, ""

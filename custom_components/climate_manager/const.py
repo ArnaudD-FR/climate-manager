@@ -59,6 +59,17 @@ PRESENCE_ABSENT = "force_absent"
 PRESENCE_HA = "ha"
 PRESENCE_CALENDAR = "calendar"
 
+# Dated presence / absence periods (runtime_config["presence_periods"]):
+# a period overrides the presence mode of the persons it covers, from its
+# start (included) to its end, the return (excluded). Without person_ids
+# it covers the whole household, time program zones included.
+PRESENCE_PERIOD_ABSENT = "absent"
+PRESENCE_PERIOD_PRESENT = "present"
+VALID_PRESENCE_PERIOD_KINDS: list[str] = [
+    PRESENCE_PERIOD_ABSENT,
+    PRESENCE_PERIOD_PRESENT,
+]
+
 # ---------------------------------------------------------------------------
 # Default values
 # ---------------------------------------------------------------------------
@@ -299,4 +310,10 @@ DEFAULT_CONFIG: dict = {
     "alignment_threshold": 0.5,  # CALIB-04: jitter guard in degrees C
     # D-02: sparse default — absent key = no mapping, no migration needed.
     "matter_mappings": {},
+    # Dated presence / absence periods, ended ones pruned:
+    #   [{"id": "<uuid>", "kind": "absent" | "present",
+    #     "start": "YYYY-MM-DDTHH:MM", "end": "YYYY-MM-DDTHH:MM",
+    #     "person_ids": ["person.<name>", ...]}]   # absent = everyone
+    # Local times, in the HA time zone like the time programs.
+    "presence_periods": [],
 }

@@ -18,9 +18,13 @@ from custom_components.climate_manager.schedule import (
     WEEKDAY_TO_DAY,
     compute_occupied_temp,
     evaluate_schedule,
+    next_arrival,
+    next_increase_with_absences,
     next_setpoint_increase_at,
+    presence_override,
     resolve_presence,
     validate_daily_program,
+    validate_presence_periods,
 )
 from custom_components.climate_manager.const import (
     DEFAULT_PERIOD_TEMPERATURES,
@@ -31,6 +35,7 @@ from custom_components.climate_manager.const import (
     PRESENCE_AUTOMATIC,
     PRESENCE_PRESENT,
     PRESENCE_ABSENT,
+    PRESENCE_HA,
 )
 
 # ---------------------------------------------------------------------------
@@ -622,3 +627,189 @@ def test_no_next_increase_for_a_single_period_week():
         )
         is None
     )
+
+
+# ---------------------------------------------------------------------------
+# Dated presence / absence periods
+# ---------------------------------------------------------------------------
+
+# Home at night and from 17:00, away 08:00–17:00, every day.
+WORKER: dict = {
+    "mode": PRESENCE_AUTOMATIC,
+    "schedule": {
+        day: [
+            {"start": "00:00", "state": "present"},
+            {"start": "08:00", "state": "absent"},
+            {"start": "17:00", "state": "present"},
+        ]
+        for day in ALL_DAYS
+    },
+}
+
+
+def _period(kind, start, end, person_ids=None, period_id="p1") -> dict:
+    period = {"id": period_id, "kind": kind, "start": start, "end": end}
+    if person_ids is not None:
+        period["person_ids"] = person_ids
+    return period
+
+
+TRIP = _period("absent", "2026-11-05T08:00", "2026-11-12T18:30")
+
+
+def test_override_inside_an_everyone_absence():
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    assert presence_override([TRIP], now, "person.a") is False
+    assert presence_override([TRIP], now) is False
+
+
+def test_override_ends_at_the_return():
+    ret = datetime.datetime(2026, 11, 12, 18, 30)
+    assert presence_override([TRIP], ret, "person.a") is None
+    start = datetime.datetime(2026, 11, 5, 8, 0)
+    assert presence_override([TRIP], start, "person.a") is False
+
+
+def test_override_of_a_subset_spares_others_and_the_household():
+    period = _period(
+        "present", "2026-11-05T08:00", "2026-11-06T08:00", ["person.a"]
+    )
+    now = datetime.datetime(2026, 11, 5, 12, 0)
+    assert presence_override([period], now, "person.a") is True
+    assert presence_override([period], now, "person.b") is None
+    assert presence_override([period], now) is None
+
+
+def test_arrival_is_the_return_when_the_schedule_is_home_then():
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    assert next_arrival("person.a", WORKER, [TRIP], now) == (
+        datetime.datetime(2026, 11, 12, 18, 30)
+    )
+
+
+def test_arrival_after_a_return_during_scheduled_absence():
+    trip = _period("absent", "2026-11-05T08:00", "2026-11-12T10:00")
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    assert next_arrival("person.a", WORKER, [trip], now) == (
+        datetime.datetime(2026, 11, 12, 17, 0)
+    )
+
+
+def test_arrival_on_return_for_ha_tracking_and_force_absent():
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    ret = datetime.datetime(2026, 11, 12, 18, 30)
+    assert next_arrival("person.a", {"mode": PRESENCE_HA}, [TRIP], now) == ret
+    assert (
+        next_arrival("person.a", {"mode": PRESENCE_ABSENT}, [TRIP], now) is None
+    )
+
+
+def test_no_arrival_for_ha_tracking_without_period():
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    assert next_arrival("person.a", {"mode": PRESENCE_HA}, [], now) is None
+
+
+def test_scheduled_arrival_inside_a_future_absence_moves_to_the_return():
+    trip = _period("absent", "2026-11-08T13:00", "2026-11-09T18:30")
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    assert next_arrival("person.a", WORKER, [trip], now) == (
+        datetime.datetime(2026, 11, 9, 18, 30)
+    )
+
+
+def test_presence_period_before_the_scheduled_arrival():
+    stay = _period("present", "2026-11-08T14:00", "2026-11-08T16:00")
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    assert next_arrival("person.a", WORKER, [stay], now) == (
+        datetime.datetime(2026, 11, 8, 14, 0)
+    )
+    ha = {"mode": PRESENCE_HA}
+    assert next_arrival("person.a", ha, [stay], now) == (
+        datetime.datetime(2026, 11, 8, 14, 0)
+    )
+
+
+def test_increase_on_return_when_the_program_is_warmer():
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    assert next_increase_with_absences(
+        NORMAL_CEILING_PROGRAM, DEFAULT_PERIOD_TEMPERATURES, [TRIP], now
+    ) == datetime.datetime(2026, 11, 12, 18, 30)
+
+
+def test_increase_after_a_return_in_reduced():
+    trip = _period("absent", "2026-11-05T08:00", "2026-11-12T10:00")
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    assert next_increase_with_absences(
+        NORMAL_CEILING_PROGRAM, DEFAULT_PERIOD_TEMPERATURES, [trip], now
+    ) == datetime.datetime(2026, 11, 12, 17, 0)
+
+
+def test_increase_inside_a_future_absence_does_not_happen():
+    trip = _period("absent", "2026-11-08T16:00", "2026-11-08T23:00")
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    assert next_increase_with_absences(
+        NORMAL_CEILING_PROGRAM, DEFAULT_PERIOD_TEMPERATURES, [trip], now
+    ) == datetime.datetime(2026, 11, 9, 7, 0)
+
+
+def test_increase_ignores_absences_of_some_persons():
+    trip = _period(
+        "absent", "2026-11-05T08:00", "2026-11-12T10:00", ["person.a"]
+    )
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    assert next_increase_with_absences(
+        NORMAL_CEILING_PROGRAM, DEFAULT_PERIOD_TEMPERATURES, [trip], now
+    ) == datetime.datetime(2026, 11, 8, 17, 0)
+
+
+def test_validate_presence_periods_accepts_disjoint_persons():
+    periods = [
+        _period("absent", "2026-11-05T08:00", "2026-11-12T18:30", ["p.a"]),
+        _period(
+            "present",
+            "2026-11-06T08:00",
+            "2026-11-07T08:00",
+            ["p.b"],
+            "p2",
+        ),
+    ]
+    assert validate_presence_periods(periods) == (True, "")
+
+
+def test_validate_presence_periods_rejects_overlap_with_everyone():
+    periods = [
+        TRIP,
+        _period(
+            "present",
+            "2026-11-06T08:00",
+            "2026-11-07T08:00",
+            ["p.b"],
+            "p2",
+        ),
+    ]
+    ok, error = validate_presence_periods(periods)
+    assert not ok and "overlaps" in error
+
+
+def test_validate_presence_periods_back_to_back_is_fine():
+    periods = [
+        TRIP,
+        _period("present", "2026-11-12T18:30", "2026-11-13T08:00", None, "p2"),
+    ]
+    assert validate_presence_periods(periods) == (True, "")
+
+
+def test_validate_presence_periods_rejects_bad_periods():
+    bad = [
+        _period("absent", "2026-11-12T18:30", "2026-11-12T18:30"),
+        _period("away", "2026-11-05T08:00", "2026-11-12T18:30"),
+        _period("absent", "2026-11-05", "2026-11-12T18:30"),
+        _period("absent", "2026-11-05T08:00+01:00", "2026-11-12T18:30"),
+        _period("absent", "2026-13-05T08:00", "2026-11-12T18:30"),
+        _period("absent", "2026-11-05T08:00", "2026-11-12T18:30", []),
+    ]
+    for period in bad:
+        ok, _ = validate_presence_periods([period])
+        assert not ok, period
+    ok, error = validate_presence_periods([TRIP, dict(TRIP)])
+    assert not ok and "duplicate" in error
