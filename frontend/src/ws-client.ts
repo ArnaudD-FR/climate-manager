@@ -18,6 +18,7 @@ import type {
   TRVAlignmentEntry,
   CloudPolling,
   BoilerConfig,
+  PresencePeriodKind,
 } from "./types.js";
 
 export class WsClient {
@@ -236,6 +237,38 @@ export class WsClient {
     return this.hass.connection.sendMessagePromise<{ success: boolean }>({
       type: "climate_manager/set_boiler_config",
       ...config,
+    });
+  }
+
+  /**
+   * Create (no periodId) or replace a presence / absence period.
+   * personIds undefined = everyone.
+   */
+  setPresencePeriod(period: {
+    periodId?: string;
+    kind: PresencePeriodKind;
+    start: string;
+    end: string;
+    personIds?: string[];
+  }): Promise<{ success: boolean; period_id: string }> {
+    return this.hass.connection.sendMessagePromise<{
+      success: boolean;
+      period_id: string;
+    }>({
+      type: "climate_manager/set_presence_period",
+      ...(period.periodId ? { period_id: period.periodId } : {}),
+      kind: period.kind,
+      start: period.start,
+      end: period.end,
+      ...(period.personIds ? { person_ids: period.personIds } : {}),
+    });
+  }
+
+  /** Remove a presence / absence period. */
+  deletePresencePeriod(periodId: string): Promise<{ success: boolean }> {
+    return this.hass.connection.sendMessagePromise<{ success: boolean }>({
+      type: "climate_manager/delete_presence_period",
+      period_id: periodId,
     });
   }
 

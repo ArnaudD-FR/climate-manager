@@ -96,6 +96,23 @@ export interface ZoneConfig {
 }
 
 /** Full integration configuration returned by climate_manager/get_config. */
+/** Presence or absence over a dated period. */
+export type PresencePeriodKind = "absent" | "present";
+
+/**
+ * A dated presence / absence period: overrides the presence mode of the
+ * persons it covers from start (included) to end, the return (excluded).
+ * Bounds are local "YYYY-MM-DDTHH:MM" times in the HA time zone.
+ */
+export interface PresencePeriod {
+  id: string;
+  kind: PresencePeriodKind;
+  start: string;
+  end: string;
+  /** Absent = everyone, time program zones included. */
+  person_ids?: string[];
+}
+
 export interface ClimateConfig {
   /** Phase 14 (D-01): Default Zone stored as first-class ZoneConfig. */
   default_zone: ZoneConfig;
@@ -123,6 +140,8 @@ export interface ClimateConfig {
   matter_mappings?: Record<string, string[]>;
   /** Controlled boiler; absent = no boiler control (sparse config). */
   boiler?: BoilerConfig;
+  /** Dated presence / absence periods; ended ones are pruned. */
+  presence_periods?: PresencePeriod[];
   /**
    * get_config only: entities that can drive a boiler (heating climate
    * devices, user-facing switches / input_booleans that are not valve or
@@ -279,6 +298,14 @@ export interface CloudPolling {
  * HA injects this as the `hass` property on the root panel element.
  */
 export interface Hass {
+  /** User profile locale (Settings → Profile). */
+  locale?: {
+    language: string;
+    /** "language" / "system": follow the language / the browser. */
+    time_format?: "language" | "system" | "12" | "24";
+    date_format?: string;
+    first_weekday?: string;
+  };
   connection: {
     sendMessagePromise<T = unknown>(msg: Record<string, unknown>): Promise<T>;
     subscribeMessage<T = unknown>(

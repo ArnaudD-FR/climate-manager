@@ -41,6 +41,8 @@ import type {
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 
+import "./presence-periods-card.js";
+
 // Day key order matching time-bar days[] indices (0=Mon..6=Sun)
 const DAY_KEYS: Array<keyof DailyProgram> = [
   "mon",
@@ -1251,8 +1253,15 @@ export class GlobalSettingsTab extends LitElement {
 
   render() {
     return html`
-      ${this._renderStatusCard()} ${this._renderTemperaturesCard()}
-      ${this._renderBoilerCard()} ${this._renderOptionsCard()}
+      ${this._renderStatusCard()}
+      <climate-manager-presence-periods-card
+        .config=${this.config}
+        .hass=${this.hass}
+        .ws=${this.ws}
+        .panel=${this.panel}
+      ></climate-manager-presence-periods-card>
+      ${this._renderTemperaturesCard()} ${this._renderBoilerCard()}
+      ${this._renderOptionsCard()}
     `;
   }
 }
