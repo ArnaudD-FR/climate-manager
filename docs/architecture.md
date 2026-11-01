@@ -35,7 +35,7 @@ endpoints are used.
    [HA entities](#ha-entities)) and register the per-cycle `async_sync_devices`
    listener
 7. Register minute-polling scheduler via `async_track_time_interval`
-8. Register 19 WebSocket commands via `cm_ws.async_register_commands`
+8. Register 21 WebSocket commands via `cm_ws.async_register_commands`
 9. Serve `www/` directory as static path (`cache_headers=False`)
 10. Register sidebar panel via `panel_custom.async_register_panel`
 11. Register entity/device registry listeners for live room re-discovery
@@ -57,6 +57,7 @@ Single source of truth for all constants and `DEFAULT_CONFIG`.
 | Zone modes          | `off`, `time_program`, `time_program_presences`                |
 | Period temperatures | `frost_protection`, `reduced`, `normal`, `comfort`             |
 | Presence modes      | `scheduled`, `force_present`, `force_absent`, `ha`, `calendar` |
+| Presence periods    | `absent`, `present` (dated overrides, see below)               |
 
 **Zone model**: Default Zone (room has no `zone_id`) + custom zones (UUID string
 keys in `config["zones"]`). Sparse — never store `zone_id: null`. The mode is a
@@ -128,7 +129,9 @@ never pile up and no trigger is lost. Each run is `_async_evaluate_once()`:
 ```text
 1. now = dt_util.now(); rebuild domain objects if fingerprint changed
    (or an entity left out of the graph has appeared)
-2. ctx = EvalContext(now, hass, period_temperatures)   # per-cycle cache
+1b. prune the presence periods whose return has passed (saved)
+2. ctx = EvalContext(now, hass, period_temperatures,
+                     presence_periods)                  # per-cycle cache
 3. for person in persons: await person.evaluate(ctx)   # fills presence cache
      → Person emits OBS-01 INFO log on home/away flip
 4. gather(zone.evaluate(ctx) for every zone)           # all zones at once
@@ -147,6 +150,45 @@ never pile up and no trigger is lost. Each run is `_async_evaluate_once()`:
 9. Fire climate_manager_status_update bus event
 10. Notify update listeners (HA entities, async_sync_devices)
 ```
+
+**Presence / absence periods** (`runtime_config["presence_periods"]`, helpers in
+`schedule.py`): dated overrides of the presence modes, entered in the Global
+tab.
+
+```text
+{"id", "kind": "absent" | "present", "start": "YYYY-MM-DDTHH:MM",
+ "end": "YYYY-MM-DDTHH:MM", "person_ids": [...]}   # absent key = everyone
+```
+
+Bounds are local times in the HA time zone (like the time programs), start
+included, end (the return) excluded. Two periods sharing a person (everyone
+shares all) may not overlap (`validate_presence_periods`).
+
+- **Persons** (presence zones): `Person.evaluate` checks the periods before the
+  mode, whatever the mode (`active_presence_period`); the log reads
+  `reason=absent_period` / `present_period`. At the return the usual mode takes
+  over.
+- **Household** (a period without `person_ids`): it also drives the Time program
+  zones — `ZoneModeTimeProgram` pushes Reduced while away, and the day filled as
+  for a present person (`compute_occupied_temp`) while home. The zone period
+  stays the program's. Logged by the coordinator
+  (`presence | household home=… reason=…_period`). The panel only offers person
+  selection when a zone is in Time program & presences; otherwise a period
+  covers everyone.
+- **Pre-heat for the return**: `schedule.next_arrival` gives each away person's
+  next arrival — the return of an absence (or, for a Scheduled person away at
+  that time, the next scheduled arrival after it; never for Force Absent; HA,
+  Force Present and Calendar persons are assumed home on return), the start of a
+  presence period, or the scheduled arrival pushed to the return of an absence
+  it falls in. A dated period makes any mode predictable (`preheat_suppressed`
+  only when no assigned person has a mode or a period giving an arrival). In a
+  Time program zone, `next_increase_with_absences` replaces the next setpoint
+  increase: the return when the program is warmer than Reduced then, and no
+  increase inside a household absence. An arrival targets
+  `compute_occupied_temp(program, arrival, present)`, so a return inside a
+  Reduced gap between two Normal periods is pre-heated to Normal.
+- **Pruning**: ended periods are dropped and saved at the start of each
+  evaluation.
 
 **Concurrent, bounded dispatch**: every valve of every room and zone receives
 its command at the same time (`asyncio.gather`, `return_exceptions=True` at the
@@ -372,6 +414,7 @@ anti-spammed — it logs only on a real state change, never every tick.
 | ---------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `zone`           | `zone \| zone=<name> state=<old>[<mode>]→<new>[<mode>] reason=<why>`                         | period or mode change (`time_program:` / `user:`) |
 | `presence`       | `presence \| person=<name> home=<bool> reason=<mode>` / `mode=<old>→<new> reason=user`       | `_last_home` flip / user mode change              |
+| `presence`       | `presence \| household home=<bool> reason=<kind>_period` / `household period ended`          | household period start / end                      |
 | `push`           | `push \| room=<name> trv=<name> temp=<T>°C slot=<period> zone=<name>`                        | setpoint actually sent to a TRV                   |
 | `hold`           | `hold \| trv=<name> reported=<T>°C last=<T>°C slot=<period>`                                 | TRV changed outside Climate Manager (once)        |
 | `preheat`        | `preheat \| room=<id> target=<T>°C until=<HH:MM> lead=<N>min rate=<R>` / `… reached after …` | pre-heat start / sample (or `censored`)           |
@@ -484,6 +527,10 @@ Pure Python — no HA imports. All async HA calls stay in `coordinator.py`.
 | `resolve_calendar_presence(events, ...)`               | Calendar-based presence with gap handling          |
 | `compute_occupied_temp(program, now, is_present, ...)` | PERSON-07/08/09 rules (occupied window, sandwich)  |
 | `next_occupied_at(person_config, ...)`                 | Next scheduled "present" transition (for pre-heat) |
+| `presence_override(periods, now, person_id)`           | Presence forced by a dated period (None if none)   |
+| `next_arrival(person_id, person_config, periods, ...)` | Next arrival, dated periods included (pre-heat)    |
+| `next_increase_with_absences(program, temps, ...)`     | Next zone increase, household absences included    |
+| `validate_presence_periods(periods)`                   | Bounds, kinds and overlaps before a save           |
 | `validate_daily_program(program)`                      | Validates a 7-day program before mutation          |
 
 These are pure helpers; the per-mode dispatch lives in `person.py`'s
@@ -501,7 +548,7 @@ These are pure helpers; the per-mode dispatch lives in `person.py`'s
 
 ### WebSocket API — `websocket.py`
 
-19 commands registered under `climate_manager/` prefix. All handlers access
+21 commands registered under `climate_manager/` prefix. All handlers access
 state via the config-entry closure (never `hass.data[DOMAIN]`).
 
 **Write pattern**: mutate `runtime_config` → `store.async_save()` →
@@ -523,6 +570,7 @@ were removed in Phases 14–15.
 | Zone      | `create_zone`, `rename_zone`, `set_zone_mode`, `set_zone_preheat`, `delete_zone`, `set_zone_time_program`, `reset_zone_time_program` |
 | Alignment | `set_alignment_config`                                                                                                               |
 | Boiler    | `set_boiler_config` (`entity_id` null clears; climate hvac modes validated against the entity)                                       |
+| Presence  | `set_presence_period` (no `period_id` creates; whole list validated), `delete_presence_period`                                       |
 | Matter    | `set_matter_mapping`, `suggest_matter_mappings`                                                                                      |
 | Push      | `subscribe_status`                                                                                                                   |
 
@@ -628,6 +676,7 @@ Lit is bundled into `panel.js` — no dependency on HA's own Lit instance.
 | `components/zone-tab.ts`                       | Zone management (create/rename/delete/mode/schedule)                                                   |
 | `components/persons-tab.ts` + `person-card.ts` | Person presence config and schedule editor                                                             |
 | `components/global-settings-tab.ts`            | Global mode, period temps, sensor alignment                                                            |
+| `components/presence-periods-card.ts`          | Presence & absence periods card (Global tab); `presence-periods.ts` holds its pure helpers             |
 | `components/presence-mode.ts`                  | Presence mode selector widget                                                                          |
 | `components/time-bar.ts`                       | Interactive weekly schedule bar (drag to resize periods)                                               |
 | `components/week-parity.ts`                    | Even/odd week selector for biweekly schedules                                                          |
