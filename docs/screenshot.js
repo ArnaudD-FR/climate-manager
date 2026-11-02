@@ -7,29 +7,25 @@ const path = require("path");
 const { URL } = require("url");
 const mdi = require("@mdi/js");
 
-// Extract only the MDI icon paths used by the panel
+// MDI icon paths of every "mdi:<name>" the panel source names, for the
+// ha-icon stub (only these are shipped to the page).
+const PANEL_SRC = path.resolve(__dirname, "../frontend/src");
 const MDI_KEYS = [
-  "mdiAccount",
-  "mdiAccountGroup",
-  "mdiAlert",
-  "mdiAlertCircle",
-  "mdiChartTimelineVariant",
-  "mdiCheckCircle",
-  "mdiChevronDown",
-  "mdiContentCopy",
-  "mdiContentPaste",
-  "mdiHomeFloor0",
-  "mdiHomeFloor1",
-  "mdiHomeFloor2",
-  "mdiHomeFloor3",
-  "mdiHomeFloorB",
-  "mdiHomeFloorNegative1",
-  "mdiHomeOutline",
-  "mdiOpenInNew",
-  "mdiPlus",
-  "mdiThermometer",
-  "mdiWaterPercent",
-];
+  ...new Set(
+    fs
+      .readdirSync(PANEL_SRC, { recursive: true })
+      .filter((f) => f.endsWith(".ts"))
+      .flatMap((f) =>
+        [
+          ...fs
+            .readFileSync(path.join(PANEL_SRC, f), "utf8")
+            .matchAll(/mdi:([a-z0-9-]+)/g),
+        ].map(([, name]) =>
+          name.replace(/(^|-)([a-z0-9])/g, (_, __, c) => c.toUpperCase()),
+        ),
+      ),
+  ),
+].map((name) => "mdi" + name);
 const mdiPaths = Object.fromEntries(MDI_KEYS.map((k) => [k, mdi[k]]));
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
