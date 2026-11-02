@@ -68,10 +68,19 @@ export function openMoreInfo(
   );
 }
 
-/** Navigate inside the HA frontend without reloading the page. */
-export function navigateTo(path: string): void {
-  history.pushState(null, "", path);
-  window.dispatchEvent(new CustomEvent("location-changed", { composed: true }));
+/**
+ * Navigate inside the HA frontend without reloading the page, like HA's
+ * navigate(): a new history entry, or the current one replaced.
+ */
+export function navigateTo(path: string, { replace = false } = {}): void {
+  if (replace) history.replaceState(history.state, "", path);
+  else history.pushState(null, "", path);
+  window.dispatchEvent(
+    new CustomEvent("location-changed", {
+      detail: { replace },
+      composed: true,
+    }),
+  );
 }
 
 /**
