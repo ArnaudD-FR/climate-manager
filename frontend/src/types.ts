@@ -397,54 +397,33 @@ export interface ZoneColor {
   border: string;
 }
 
+/**
+ * A zone color from its hue. The text color is the hue mixed with the
+ * theme's text color: darker on a light theme, lighter on a dark one, so a
+ * zone name reads at >= 4.5:1 on its card and its chip in HA's light and
+ * dark themes (and follows a custom theme). The chip tint and border are
+ * the hue over the card.
+ */
+function zoneColor(hue: string): ZoneColor {
+  return {
+    background: `color-mix(in srgb, ${hue} 12%, transparent)`,
+    color: `color-mix(in srgb, ${hue} 60%, var(--primary-text-color, #212121))`,
+    border: `color-mix(in srgb, ${hue} 30%, transparent)`,
+  };
+}
+
 /** Index 0 = Default Zone (violet). Indices 1+ = custom zone palette. */
 export const ZONE_COLORS: ZoneColor[] = [
-  {
-    background: "rgba(124, 58, 237, 0.12)",
-    color: "#7c3aed",
-    border: "rgba(124, 58, 237, 0.25)",
-  }, // violet
-  {
-    background: "rgba(13, 148, 136, 0.12)",
-    color: "#0d9488",
-    border: "rgba(13, 148, 136, 0.25)",
-  }, // teal
-  {
-    background: "rgba(217, 119, 6, 0.12)",
-    color: "#d97706",
-    border: "rgba(217, 119, 6, 0.25)",
-  }, // amber
-  {
-    background: "rgba(2, 132, 199, 0.12)",
-    color: "#0284c7",
-    border: "rgba(2, 132, 199, 0.25)",
-  }, // sky
-  {
-    background: "rgba(190, 18, 60, 0.12)",
-    color: "#be123c",
-    border: "rgba(190, 18, 60, 0.25)",
-  }, // rose
-  {
-    background: "rgba(22, 163, 74, 0.12)",
-    color: "#16a34a",
-    border: "rgba(22, 163, 74, 0.25)",
-  }, // green
-  {
-    background: "rgba(79, 70, 229, 0.12)",
-    color: "#4f46e5",
-    border: "rgba(79, 70, 229, 0.25)",
-  }, // indigo
-  {
-    background: "rgba(219, 39, 119, 0.12)",
-    color: "#db2777",
-    border: "rgba(219, 39, 119, 0.25)",
-  }, // pink
-  {
-    background: "rgba(71, 85, 105, 0.12)",
-    color: "#475569",
-    border: "rgba(71, 85, 105, 0.25)",
-  }, // slate
-];
+  "#7c3aed", // violet
+  "#0d9488", // teal
+  "#d97706", // amber
+  "#0284c7", // sky
+  "#be123c", // rose
+  "#16a34a", // green
+  "#4f46e5", // indigo
+  "#db2777", // pink
+  "#475569", // slate
+].map(zoneColor);
 
 /** Stable 32-bit string hash (preferred palette slot of a zone). */
 function zoneHash(zoneId: string): number {
