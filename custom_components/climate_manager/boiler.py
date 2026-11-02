@@ -1,10 +1,21 @@
 # SPDX-License-Identifier: MIT
 """Boiler control: heat while at least one room needs heat.
 
-A room needs heat when its effective period (schedule, presence and
-pre-heat resolved — Room.current_period) is one of BOILER_HEATING_PERIODS
-and at least one of its TRVs is available: a room without a valve, or
-whose valves are offline, cannot use the heat. Room temperatures and valve openings are not considered (v1).
+A room with at least one available TRV (a room without a valve, or whose
+valves are offline, cannot use the heat) needs heat when:
+
+- period: its effective period (schedule, presence and pre-heat resolved
+  — Room.current_period) is one of BOILER_HEATING_PERIODS;
+- else valve: one of its climate entities reports hvac_action with a
+  state younger than BOILER_VALVE_MAX_AGE_MINUTES — then the valves
+  decide: "heating" asks for heat, anything else for nothing (a closed
+  valve cannot use the heat). "off" is no report: a valve we switched
+  off (Off zone) says nothing about the room. Tado X reports it from the
+  cloud only, at each poll; Matter has none;
+- else below_setpoint: without a fresh valve report, its temperature is
+  BOILER_START_GAP below its current setpoint, whatever the period (Frost
+  protection in an Off zone); it asks until back at the setpoint
+  (hysteresis kept per room).
 
 The boiler is a climate entity (its hvac_mode toggles between the
 configured on/off modes) or a switch / input_boolean (turn_on/turn_off).
@@ -31,6 +42,8 @@ from homeassistant.helpers import entity_registry as er
 from .const import (
     BOILER_DOMAINS,
     BOILER_HEATING_PERIODS,
+    BOILER_START_GAP,
+    BOILER_VALVE_MAX_AGE_MINUTES,
     DEFAULT_BOILER_MIN_OFF_MINUTES,
     DEFAULT_BOILER_MIN_ON_MINUTES,
     DEFAULT_BOILER_OFF_HVAC_MODE,
@@ -47,6 +60,10 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 _OFFLINE_STATES = ("unavailable", "unknown")
+
+REASON_PERIOD = "period"
+REASON_VALVE = "valve"
+REASON_BELOW_SETPOINT = "below_setpoint"
 
 
 def boiler_candidates(hass: HomeAssistant) -> list[str]:
@@ -122,8 +139,13 @@ class Boiler:
         self._since: datetime | None = None
         # False until the real entity state has been read and aligned.
         self._synced = False
-        # Rooms needing heat at the last evaluation (sorted area_ids).
+        # Rooms needing heat at the last evaluation (sorted area_ids), and
+        # why: {area_id: [REASON_*]}.
         self.demand_rooms: list[str] = []
+        self.demand_reasons: dict[str, list[str]] = {}
+        # Rooms below their setpoint (hysteresis: in from setpoint -
+        # BOILER_START_GAP, out once back at the setpoint).
+        self._cold: set[str] = set()
         # Set while a switch waits for the min on/off duration.
         self.waiting_until: datetime | None = None
 
@@ -147,6 +169,8 @@ class Boiler:
             self._since = old._since
             self._synced = old._synced
             self.demand_rooms = old.demand_rooms
+            self.demand_reasons = old.demand_reasons
+            self._cold = old._cold
             self.waiting_until = old.waiting_until
 
     def resync(self) -> None:
@@ -160,6 +184,10 @@ class Boiler:
             "entity_id": self.entity_id,
             "on": self._on,
             "demand_rooms": list(self.demand_rooms),
+            "demand_reasons": {
+                area_id: list(reasons)
+                for area_id, reasons in self.demand_reasons.items()
+            },
             "waiting_until": (
                 self.waiting_until.isoformat() if self.waiting_until else None
             ),
@@ -184,14 +212,62 @@ class Boiler:
             current = None
         return current, state.last_changed
 
+    def _valve_demand(self, now: datetime, room: Room) -> bool | None:
+        """The fresh valves' demand: True / False, None without one."""
+        oldest = now - timedelta(minutes=BOILER_VALVE_MAX_AGE_MINUTES)
+        fresh = False
+        for entity_id in room.valve_entity_ids:
+            if entity_id == self.entity_id:
+                continue
+            state = self._hass.states.get(entity_id)
+            if state is None or state.state in _OFFLINE_STATES:
+                continue
+            action = state.attributes.get("hvac_action")
+            # "off": switched off by an Off zone, not a demand answer.
+            if action in (None, "off") or state.last_reported < oldest:
+                continue
+            if action == "heating":
+                return True
+            fresh = True
+        return False if fresh else None
+
+    def _below_setpoint(self, room: Room) -> bool:
+        """Update and return the room's below-setpoint hysteresis."""
+        area_id = room.area_id
+        temp = room.room_temperature()
+        setpoint = room.current_setpoint
+        if temp is None or setpoint is None:
+            self._cold.discard(area_id)
+        elif temp >= setpoint:
+            self._cold.discard(area_id)
+        elif temp <= setpoint - BOILER_START_GAP:
+            self._cold.add(area_id)
+        return area_id in self._cold
+
+    def _reasons(self, now: datetime, room: Room) -> list[str]:
+        """Why the room needs heat (empty: it does not)."""
+        cold = self._below_setpoint(room)
+        if not room.has_available_trv:
+            return []
+        reasons = []
+        if room.current_period in BOILER_HEATING_PERIODS:
+            reasons.append(REASON_PERIOD)
+        valve = self._valve_demand(now, room)
+        if valve:
+            reasons.append(REASON_VALVE)
+        elif valve is None and cold:
+            reasons.append(REASON_BELOW_SETPOINT)
+        return reasons
+
     async def evaluate(self, now: datetime, rooms: dict[str, Room]) -> None:
         """Switch the boiler to follow the rooms' demand."""
-        self.demand_rooms = sorted(
-            area_id
-            for area_id, room in rooms.items()
-            if room.current_period in BOILER_HEATING_PERIODS
-            and room.has_available_trv
-        )
+        self._cold &= set(rooms)
+        reasons = {
+            area_id: self._reasons(now, room)
+            for area_id, room in sorted(rooms.items())
+        }
+        self.demand_reasons = {a: r for a, r in reasons.items() if r}
+        self.demand_rooms = list(self.demand_reasons)
         wanted = bool(self.demand_rooms)
 
         if not self._synced:
@@ -227,7 +303,11 @@ class Boiler:
             self._since = now
             if wanted:
                 _LOGGER.info(
-                    "boiler | on rooms=%s", ",".join(self.demand_rooms)
+                    "boiler | on rooms=%s",
+                    ",".join(
+                        f"{area_id}({'+'.join(reasons)})"
+                        for area_id, reasons in self.demand_reasons.items()
+                    ),
                 )
             else:
                 _LOGGER.info("boiler | off")

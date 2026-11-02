@@ -267,13 +267,14 @@ class ClimateManagerCoordinator:
             # Build TRVGroup from entity list + matter_mappings.
             # room_name and zone_name used for DEBUG log short names.
             # The boiler is never pushed as a valve, whatever its max_temp.
+            room.climate_entity_ids = [
+                eid
+                for eid in entity_ids
+                if boiler is None or eid != boiler.entity_id
+            ]
             group = TRVGroup.from_room_config(
                 hass=self._hass,
-                entity_ids=[
-                    eid
-                    for eid in entity_ids
-                    if boiler is None or eid != boiler.entity_id
-                ],
+                entity_ids=room.climate_entity_ids,
                 matter_mappings=matter_mappings,
                 room_name=area_id,
                 zone_name=owning_zone.zone_id,

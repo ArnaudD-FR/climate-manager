@@ -207,13 +207,29 @@ graph, back online) `set_temperature` is sent even if the valve already reports
 the setpoint, since its HA state may be stale.
 
 **Boiler** (`boiler.py`, optional `runtime_config["boiler"]`): the boiler heats
-while at least one room's effective period (`Room.current_period`: schedule,
-presence and pre-heat resolved) is in `BOILER_HEATING_PERIODS` (Normal, Comfort,
-Pre-heat) and at least one of its TRVs is available (`Room.has_available_trv`);
-Reduced, Frost protection, an Off zone and a room without a working valve ask
-for nothing. Room temperatures and valve openings are not used. A `climate`
-boiler toggles `hvac_mode` between `on_hvac_mode` / `off_hvac_mode`; a `switch`
-/ `input_boolean` uses `turn_on` / `turn_off` (bounded by
+while at least one room with an available TRV (`Room.has_available_trv`; a room
+without a working valve asks for nothing) needs heat, for one of three reasons
+(`demand_reasons`, in the status and the demand sensor's `reasons`):
+
+- `period`: its effective period (`Room.current_period`: schedule, presence and
+  pre-heat resolved) is in `BOILER_HEATING_PERIODS` (Normal, Comfort, Pre-heat).
+- `valve`: one of `Room.valve_entity_ids` (the configured climate entities, e.g.
+  a Tado cloud room entity, plus the TRV push targets; never the boiler) reports
+  `hvac_action` in a state younger than `BOILER_VALVE_MAX_AGE_MINUTES` (20 min,
+  `state.last_reported`). With such a fresh report the valves decide: `heating`
+  asks, anything else does not, even with the room below its setpoint (a closed
+  valve cannot use the heat). `off` is no report: an Off zone switched the valve
+  off, so the temperature still holds Frost protection. Tado X has no demand
+  over Matter: only its cloud entities report it, at each tado_x poll (set to 10
+  min here, 3 API calls a poll), so a stale `heating` never holds the boiler on.
+- `below_setpoint`: without a fresh valve report, the room temperature
+  (`Room.room_temperature`: room sensor, else a TRV) is `BOILER_START_GAP` (0.5
+  °C) below `Room.current_setpoint` (unboosted; Frost protection in an Off
+  zone), whatever the period; it asks until back at the setpoint (hysteresis
+  `Boiler._cold`, carried by rebuilds). No temperature, no such demand.
+
+A `climate` boiler toggles `hvac_mode` between `on_hvac_mode` / `off_hvac_mode`;
+a `switch` / `input_boolean` uses `turn_on` / `turn_off` (bounded by
 `TRV_COMMAND_TIMEOUT`). Like the TRVs it is push-on-change: a command only when
 the demand changes, so a manual change stays until the next one. The first
 evaluation (startup, new entity) and a return online read the real entity state
@@ -419,7 +435,7 @@ anti-spammed — it logs only on a real state change, never every tick.
 | `hold`           | `hold \| trv=<name> reported=<T>°C last=<T>°C slot=<period>`                                 | TRV changed outside Climate Manager (once)        |
 | `preheat`        | `preheat \| room=<id> target=<T>°C until=<HH:MM> lead=<N>min rate=<R>` / `… reached after …` | pre-heat start / sample (or `censored`)           |
 | `online`         | `online \| trv=<name> back online, re-applying setpoint`                                     | TRV available again                               |
-| `boiler`         | `boiler \| on rooms=<ids>` / `boiler \| off` / `boiler \| waiting min_on <N>min`             | boiler switch / min on-off wait                   |
+| `boiler`         | `boiler \| on rooms=<id>(<reasons>),…` / `boiler \| off` / `boiler \| waiting min_on <N>min` | boiler switch / min on-off wait                   |
 | `timeout` (WARN) | `timeout \| trv=<entity_id> temp=<T>°C after <N>s`                                           | TRV did not answer within `TRV_COMMAND_TIMEOUT`   |
 
 To surface these, set `custom_components.climate_manager: info` (or `debug`)
@@ -593,7 +609,7 @@ Native entities exist so the HA recorder historises zone modes and periods
 | `sensor.<area_id>_period` (enum)                          | room (in its area) | `<entry>_room_<area_id>_period`               | `Room.current_period` (presence-resolved)      |
 | `sensor.<area_id>_preheat_rate` (diagnostic, min/°C)      | room (in its area) | `<entry>_room_<area_id>_preheat_rate`         | `Room.learned_rate()` (unknown while learning) |
 | `sensor.<area_id>_preheat_anticipation` (diagnostic, min) | room (in its area) | `<entry>_room_<area_id>_preheat_anticipation` | `Room.anticipation()` (learned)                |
-| `binary_sensor.climate_manager_boiler_demand` (heat)      | boiler             | `<entry>_boiler_demand`                       | on while a room needs heat; `rooms` attribute  |
+| `binary_sensor.climate_manager_boiler_demand` (heat)      | boiler             | `<entry>_boiler_demand`                       | on while a room needs heat; `rooms`, `reasons` |
 
 - **Devices**: one per zone (`(DOMAIN, "zone_<zone_id>")`, named after the zone,
   Default Zone = `zone_default`) and one per room (`(DOMAIN, "room_<area_id>")`,

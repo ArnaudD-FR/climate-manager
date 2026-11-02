@@ -2,7 +2,9 @@
 
 Tests:
 - Normal / Comfort / Pre-heat periods switch the boiler on; Reduced, an
-  empty room (presence mode) and a zone that is off do not
+  empty room (presence mode) and a zone that is off do not, at setpoint
+- Any period: a room 0.5 °C below its setpoint heats until back at it;
+  a fresh valve hvac_action (cloud entity included) decides instead
 - switch / input_boolean use turn_on / turn_off; climate uses the
   configured hvac modes and is never pushed as a valve
 - Commands only on demand changes; resync when the boiler comes back
@@ -126,19 +128,24 @@ async def _tick(hass, freezer, coordinator, local: str) -> None:
     await hass.async_block_till_done()
 
 
-def _trv(hass, current: float = 17.0) -> None:
-    hass.states.async_set(
-        TRV,
-        "heat",
-        {"temperature": 18.0, "current_temperature": current, "max_temp": 30},
-    )
+def _trv(
+    hass, current: float | None = 18.0, entity_id: str = TRV, **attrs
+) -> None:
+    """A TRV at the Reduced setpoint by default (no temperature demand)."""
+    attributes = {"temperature": 18.0, "max_temp": 30, **attrs}
+    if current is not None:
+        attributes["current_temperature"] = current
+    hass.states.async_set(entity_id, "heat", attributes)
+
+
+REDUCED_ALL_DAY = _program(("00:00", PERIOD_REDUCED))
 
 
 async def test_switch_follows_room_demand(hass, freezer, caplog):
     """Normal 07:00–08:00 → on at 07:00, off at 08:00, no repeat calls."""
     caplog.set_level(logging.INFO, logger="custom_components.climate_manager")
     freezer.move_to(_utc("06:00"))
-    _trv(hass)
+    _trv(hass, current=20.0)  # at the Normal setpoint
     hass.states.async_set(SWITCH, "off")
     _, coordinator, calls = await _setup(hass, _config(_switch_boiler()))
 
@@ -147,7 +154,7 @@ async def test_switch_follows_room_demand(hass, freezer, caplog):
 
     await _tick(hass, freezer, coordinator, "07:00")
     assert [c.data["entity_id"] for c in calls.on] == [SWITCH]
-    assert "boiler | on rooms=a" in caplog.messages
+    assert "boiler | on rooms=a(period)" in caplog.messages
     assert coordinator.boiler.is_on is True
 
     await _tick(hass, freezer, coordinator, "07:30")
@@ -338,7 +345,7 @@ async def test_preheat_turns_boiler_on_same_tick(hass, freezer):
 async def test_status_and_demand_sensor(hass, freezer):
     """Status payload and binary sensor follow the demand."""
     freezer.move_to(_utc("07:00"))
-    _trv(hass)
+    _trv(hass, current=20.0)  # at the Normal setpoint
     hass.states.async_set(SWITCH, "off")
     _, coordinator, _calls = await _setup(hass, _config(_switch_boiler()))
 
@@ -348,6 +355,7 @@ async def test_status_and_demand_sensor(hass, freezer):
         "entity_id": SWITCH,
         "on": True,
         "demand_rooms": ["a"],
+        "demand_reasons": {"a": ["period"]},
         "waiting_until": None,
         "vendor": None,
         "demand_entity_id": DEMAND,
@@ -355,6 +363,7 @@ async def test_status_and_demand_sensor(hass, freezer):
     state = hass.states.get(DEMAND)
     assert state.state == "on"
     assert state.attributes["rooms"] == ["a"]
+    assert state.attributes["reasons"] == {"a": ["period"]}
 
     await _tick(hass, freezer, coordinator, "08:00")
     assert hass.states.get(DEMAND).state == "off"
@@ -362,6 +371,142 @@ async def test_status_and_demand_sensor(hass, freezer):
     coordinator._data.runtime_config.pop("boiler")
     await _tick(hass, freezer, coordinator, "08:01")
     assert coordinator._build_status_payload()["boiler"] is None
+
+
+async def test_room_below_setpoint_heats_until_back(hass, freezer, caplog):
+    """Reduced 18 °C: on at 17.5, still on at 17.8, off at 18."""
+    caplog.set_level(logging.INFO, logger="custom_components.climate_manager")
+    freezer.move_to(_utc("06:00"))
+    _trv(hass, current=17.7)
+    hass.states.async_set(SWITCH, "off")
+    _, coordinator, calls = await _setup(
+        hass, _config(_switch_boiler(), program=REDUCED_ALL_DAY)
+    )
+
+    await _tick(hass, freezer, coordinator, "06:00")
+    assert not calls.on  # 0.3 °C below: within the gap
+
+    _trv(hass, current=17.5)
+    await _tick(hass, freezer, coordinator, "06:10")
+    assert len(calls.on) == 1
+    assert coordinator.boiler.demand_reasons == {"a": ["below_setpoint"]}
+    assert "boiler | on rooms=a(below_setpoint)" in caplog.messages
+
+    _trv(hass, current=17.8)
+    await _tick(hass, freezer, coordinator, "06:20")
+    assert not calls.off  # hysteresis: on until back at the setpoint
+
+    _trv(hass, current=18.0)
+    await _tick(hass, freezer, coordinator, "06:30")
+    assert len(calls.off) == 1
+    assert coordinator.boiler.demand_rooms == []
+
+
+async def test_off_zone_holds_frost_protection(hass, freezer):
+    """A zone off holds Frost protection (5 °C): below 4.5 it heats."""
+    freezer.move_to(_utc("06:00"))
+    _trv(hass, current=4.4)
+    hass.states.async_set(SWITCH, "off")
+    _, coordinator, calls = await _setup(
+        hass, _config(_switch_boiler(), zone_mode=MODE_OFF)
+    )
+    await _tick(hass, freezer, coordinator, "06:00")
+    assert coordinator.boiler.demand_reasons == {"a": ["below_setpoint"]}
+    assert len(calls.on) == 1
+
+
+async def test_off_valve_still_holds_frost_protection(hass, freezer):
+    """An Off zone valve reports off: not a valve answer, 4.4 °C heats."""
+    freezer.move_to(_utc("06:00"))
+    _trv(hass, current=4.4, hvac_action="off")
+    hass.states.async_set(SWITCH, "off")
+    _, coordinator, calls = await _setup(
+        hass, _config(_switch_boiler(), zone_mode=MODE_OFF)
+    )
+    await _tick(hass, freezer, coordinator, "06:00")
+    assert coordinator.boiler.demand_reasons == {"a": ["below_setpoint"]}
+    assert len(calls.on) == 1
+
+
+async def test_room_without_temperature_has_no_setpoint_demand(hass, freezer):
+    """No room sensor and no TRV temperature: only the period counts."""
+    freezer.move_to(_utc("06:00"))
+    _trv(hass, current=None)
+    hass.states.async_set(SWITCH, "off")
+    _, coordinator, calls = await _setup(
+        hass, _config(_switch_boiler(), program=REDUCED_ALL_DAY)
+    )
+    await _tick(hass, freezer, coordinator, "06:00")
+    assert not calls.on
+
+
+async def test_fresh_valve_decides_then_temperature(hass, freezer):
+    """A fresh hvac_action wins over the temperature; stale, it does not."""
+    freezer.move_to(_utc("06:00"))
+    _trv(hass, current=18.0, hvac_action="heating")
+    hass.states.async_set(SWITCH, "off")
+    _, coordinator, calls = await _setup(
+        hass, _config(_switch_boiler(), program=REDUCED_ALL_DAY)
+    )
+
+    await _tick(hass, freezer, coordinator, "06:05")
+    assert coordinator.boiler.demand_reasons == {"a": ["valve"]}
+    assert len(calls.on) == 1
+
+    # The valve is satisfied although the room reads 1 °C below.
+    _trv(hass, current=17.0, hvac_action="idle")
+    await _tick(hass, freezer, coordinator, "06:10")
+    assert coordinator.boiler.demand_rooms == []
+    assert len(calls.off) == 1
+
+    # No report for 25 min: the temperature decides again.
+    await _tick(hass, freezer, coordinator, "06:35")
+    assert coordinator.boiler.demand_reasons == {"a": ["below_setpoint"]}
+    assert len(calls.on) == 2
+
+
+async def test_cloud_entity_demand_counts(hass, freezer):
+    """A cloud entity mapped to its Matter valve reports the demand."""
+    freezer.move_to(_utc("06:00"))
+    cloud = "climate.a_cloud"
+    _trv(hass)
+    _trv(hass, entity_id=cloud, hvac_action="heating")
+    hass.states.async_set(SWITCH, "off")
+    config = _config(_switch_boiler(), program=REDUCED_ALL_DAY)
+    config["matter_mappings"] = {cloud: [TRV]}
+    _, coordinator, calls = await _setup(hass, config, rooms={"a": [cloud]})
+
+    await _tick(hass, freezer, coordinator, "06:00")
+    assert coordinator.boiler.demand_reasons == {"a": ["valve"]}
+    assert len(calls.on) == 1
+
+
+async def test_boiler_hvac_action_is_not_a_valve(hass, freezer):
+    """The boiler's own hvac_action never counts as a room valve."""
+    freezer.move_to(_utc("06:00"))
+    _trv(hass)
+    hass.states.async_set(
+        CLIMATE_BOILER,
+        "heat",
+        {
+            "hvac_modes": ["off", "heat"],
+            "max_temp": 30,
+            "hvac_action": "heating",
+        },
+    )
+    boiler = {
+        "entity_id": CLIMATE_BOILER,
+        "min_on_minutes": 0,
+        "min_off_minutes": 0,
+    }
+    _, coordinator, calls = await _setup(
+        hass,
+        _config(boiler, program=REDUCED_ALL_DAY),
+        rooms={"a": [TRV, CLIMATE_BOILER]},
+    )
+    await _tick(hass, freezer, coordinator, "06:00")
+    assert coordinator.boiler.demand_rooms == []
+    assert calls.boiler_hvac() == ["off"]
 
 
 async def test_ws_set_boiler_config(hass, hass_ws_client):

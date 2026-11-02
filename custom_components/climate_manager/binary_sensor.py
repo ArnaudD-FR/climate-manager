@@ -2,9 +2,10 @@
 """Climate Manager boiler demand binary sensor.
 
 On while at least one room needs heat (see boiler.py); its `rooms`
-attribute lists them, so the recorder keeps when and why the boiler was
-asked to heat. Exists only while a boiler is configured: its device is
-removed by async_sync_devices once the boiler is unconfigured.
+attribute lists them and `reasons` says why, so the recorder keeps when
+and why the boiler was asked to heat. Exists only while a boiler is
+configured: its device is removed by async_sync_devices once the boiler
+is unconfigured.
 """
 
 from __future__ import annotations
@@ -46,7 +47,7 @@ async def async_setup_entry(
 
 
 class BoilerDemandSensor(ClimateManagerEntity, BinarySensorEntity):
-    """On while at least one room's period needs heat."""
+    """On while at least one room needs heat."""
 
     _attr_translation_key = "boiler_demand"
     _attr_device_class = BinarySensorDeviceClass.HEAT
@@ -74,6 +75,11 @@ class BoilerDemandSensor(ClimateManagerEntity, BinarySensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Rooms needing heat."""
+        """Rooms needing heat, and why (period, valve, below_setpoint)."""
         boiler = self.coordinator.boiler
-        return {"rooms": boiler.demand_rooms if boiler is not None else []}
+        if boiler is None:
+            return {"rooms": [], "reasons": {}}
+        return {
+            "rooms": boiler.demand_rooms,
+            "reasons": boiler.demand_reasons,
+        }

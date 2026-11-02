@@ -137,6 +137,10 @@ class Room:
 
         # TRV groups populated at coordinator init (D-07).
         self._trv_groups: list = []
+        # The room's configured climate entities (a cloud entity before its
+        # Matter valves are resolved), boiler excluded. Set at coordinator
+        # init; read for the valves' heating demand (boiler.py).
+        self.climate_entity_ids: list[str] = []
 
         # Persons assigned to this room (list of person config dicts or ids).
         self.assigned_persons: list = []
@@ -280,6 +284,27 @@ class Room:
                 ):
                     return True
         return False
+
+    @property
+    def current_setpoint(self) -> float | None:
+        """Setpoint last applied, unboosted (None before evaluation)."""
+        return self._last_setpoint
+
+    def room_temperature(self) -> float | None:
+        """Current room temperature (room sensor first, else a TRV)."""
+        if self._hass is None:
+            return None
+        return self._room_temperature(self._runtime_config())
+
+    @property
+    def valve_entity_ids(self) -> list[str]:
+        """Configured climate entities and TRV push targets, deduplicated."""
+        ids = list(self.climate_entity_ids)
+        for group in self._trv_groups:
+            for trv in getattr(group, "_trvs", []):
+                if trv.entity_id not in ids:
+                    ids.append(trv.entity_id)
+        return ids
 
     def _runtime_config(self) -> dict:
         """The integration's runtime config ({} without coordinator data)."""

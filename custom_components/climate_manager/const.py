@@ -132,8 +132,12 @@ DEFAULT_TRV_MAX_TEMP: float = 30.0
 #   {"entity_id": "climate.*" | "switch.*" | "input_boolean.*",
 #    "on_hvac_mode": "heat", "off_hvac_mode": "off",   # climate only
 #    "min_on_minutes": 10, "min_off_minutes": 10}
-# The boiler heats while at least one room's effective period is one of
-# BOILER_HEATING_PERIODS. Do NOT add to DEFAULT_CONFIG.
+# The boiler heats while at least one room asks for heat (boiler.py): its
+# effective period is one of BOILER_HEATING_PERIODS, or else its valve
+# reports hvac_action "heating" (a report younger than
+# BOILER_VALVE_MAX_AGE_MINUTES), or else, without such a report, the room is
+# BOILER_START_GAP below its setpoint (until back at it). Do NOT add to
+# DEFAULT_CONFIG.
 BOILER_DOMAINS: tuple[str, ...] = ("climate", "switch", "input_boolean")
 BOILER_HEATING_PERIODS: frozenset[str] = frozenset(
     {PERIOD_NORMAL, PERIOD_COMFORT, PERIOD_PREHEAT}
@@ -143,6 +147,12 @@ DEFAULT_BOILER_OFF_HVAC_MODE = "off"
 DEFAULT_BOILER_MIN_ON_MINUTES: int = 10
 DEFAULT_BOILER_MIN_OFF_MINUTES: int = 10
 BOILER_MAX_MIN_MINUTES: int = 60
+# A room this far below its setpoint asks for heat until back at it.
+BOILER_START_GAP: float = 0.5
+# A valve's hvac_action counts while its state is this recent (a tado_x
+# cloud poll every 15 min keeps it fresh; at 45 min the temperature takes
+# over between polls).
+BOILER_VALVE_MAX_AGE_MINUTES: int = 20
 
 GAP_HANDLING_EXACT = "exact"
 GAP_HANDLING_DAY_SPAN = "day_span"
