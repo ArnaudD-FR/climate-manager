@@ -94,8 +94,9 @@ a room to appear in the panel, two conditions must be met:
   follows the room temperature sensor (Tado X supported)
 - **TRV control**: Works with any HA `climate` entity; no brand-specific APIs
 - **Boiler control**: Optionally switch a boiler (`climate`, `switch` or
-  `input_boolean`) on while at least one room is in a Normal, Comfort or
-  Pre-heat period, and off otherwise, with minimum on/off times
+  `input_boolean`) on while at least one room needs heat (a Normal, Comfort or
+  Pre-heat period, a valve calling for heat, or a room 0.5 °C below its
+  setpoint, whatever its period), and off otherwise, with minimum on/off times
 - **HA entities & history**: Each zone exposes a mode select and a period
   sensor, each room an effective-period sensor — changes are recorded in the HA
   history and usable in automations
@@ -272,12 +273,12 @@ dedicated Off zone for it).
 Climate Manager creates one device per zone and one per room (placed in the
 room's area) so that mode and period changes are recorded in the HA history:
 
-| Entity                          | Example                                       | State                                                                   |
-| ------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------- |
-| Zone mode (`select`)            | `select.home_mode`                            | `off` / `time_program` / `time_program_presences` — can be changed here |
-| Zone period (`sensor`)          | `sensor.home_period`                          | Period of the zone time program (frost protection when Off)             |
-| Room period (`sensor`)          | `sensor.lounge_period`                        | Effective period of the room, after presence rules                      |
-| Boiler demand (`binary_sensor`) | `binary_sensor.climate_manager_boiler_demand` | On while a room needs heat; `rooms` lists them (boiler configured only) |
+| Entity                          | Example                                       | State                                                                                       |
+| ------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Zone mode (`select`)            | `select.home_mode`                            | `off` / `time_program` / `time_program_presences` — can be changed here                     |
+| Zone period (`sensor`)          | `sensor.home_period`                          | Period of the zone time program (frost protection when Off)                                 |
+| Room period (`sensor`)          | `sensor.lounge_period`                        | Effective period of the room, after presence rules                                          |
+| Boiler demand (`binary_sensor`) | `binary_sensor.climate_manager_boiler_demand` | On while a room needs heat; `rooms` lists them, `reasons` says why (boiler configured only) |
 
 Changing the zone mode from the select (dashboard, automation, voice assistant)
 is equivalent to changing it in the panel. Entities of a deleted zone are
@@ -314,8 +315,17 @@ No YAML editing required.
 - Period temperatures (Normal, Comfort, Reduced, Frost Protection)
 - Default zone name
 - Boiler: entity to control, its heating / stopped modes (climate entity) and
-  minimum on / off times. The boiler heats while at least one room's effective
-  period is Normal, Comfort or Pre-heat
+  minimum on / off times. The boiler heats while at least one room needs heat,
+  and the status line says why for each room:
+  - **schedule**: its effective period is Normal, Comfort or Pre-heat;
+  - **valve**: one of its valves reports it is heating (the climate entity's
+    `hvac_action`, reported less than 20 minutes ago). With such a recent report
+    the valves decide, even if the room reads a little below its setpoint. A
+    valve switched off by an Off zone does not count. Tado X reports it from its
+    cloud integration only, at each poll;
+  - **below setpoint**: without a recent valve report, the room is 0.5 °C below
+    its setpoint, whatever its period (Reduced, Frost protection, an Off zone),
+    and asks until it is back at it
 - Sensor alignment (enable/disable; Tado X offsets follow the room sensor)
 
 ### Zones
