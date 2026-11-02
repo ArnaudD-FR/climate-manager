@@ -258,6 +258,8 @@ export interface BoilerStatus {
   on: boolean | null;
   /** Rooms needing heat (area ids). */
   demand_rooms: string[];
+  /** Why each room needs heat: "period", "valve", "below_setpoint". */
+  demand_reasons?: Record<string, string[]>;
   /** ISO time a pending switch waits for (min on/off), else null. */
   waiting_until: string | null;
   /** Boiler demand binary sensor (resolved from the registry). */

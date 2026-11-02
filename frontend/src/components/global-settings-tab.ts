@@ -43,6 +43,13 @@ import type { ClimateManagerPanel } from "../main.js";
 
 import "./presence-periods-card.js";
 
+/** Status-line label of each boiler demand reason. */
+const DEMAND_REASON_LABELS: Record<string, string> = {
+  period: "schedule",
+  valve: "valve",
+  below_setpoint: "below setpoint",
+};
+
 // Day key order matching time-bar days[] indices (0=Mon..6=Sun)
 const DAY_KEYS: Array<keyof DailyProgram> = [
   "mon",
@@ -589,7 +596,13 @@ export class GlobalSettingsTab extends LitElement {
     const state = boiler.on === null ? "Unknown" : boiler.on ? "On" : "Off";
     const parts = [state];
     if (boiler.demand_rooms.length) {
-      const names = boiler.demand_rooms.map((id) => this._areaName(id));
+      const names = boiler.demand_rooms.map((id) => {
+        const reasons = (boiler.demand_reasons?.[id] ?? [])
+          .map((r) => DEMAND_REASON_LABELS[r] ?? r)
+          .join(", ");
+        const name = this._areaName(id);
+        return reasons ? `${name} (${reasons})` : name;
+      });
       parts.push(`demand: ${names.join(", ")}`);
     }
     if (boiler.waiting_until) {
@@ -764,8 +777,9 @@ export class GlobalSettingsTab extends LitElement {
         </div>
         <div class="card-content">
           <p class="hint">
-            Heats while at least one room is in Normal, Comfort or Pre-heat; off
-            otherwise.
+            Heats while a room is in Normal, Comfort or Pre-heat, or its valve
+            calls for heat (without recent valve data: 0.5 °C below its
+            setpoint); off otherwise.
           </p>
           <div class="option-row">
             <span class="option-label">Boiler entity</span>
