@@ -8,7 +8,8 @@ Tests:
 - switch / input_boolean use turn_on / turn_off; climate uses the
   configured hvac modes and is never pushed as a valve
 - Commands only on demand changes; resync when the boiler comes back
-- Min on / off durations, also from the entity's last_changed at startup
+- Min on / off durations, also from the entity's last_changed at startup,
+  but not from a state that appeared after startup or on a return online
 - Status payload, demand binary sensor, set_boiler_config WS command
 """
 
@@ -307,6 +308,43 @@ async def test_startup_uses_last_changed_for_min_off(hass, freezer):
     await _tick(hass, freezer, coordinator, "07:00")
     assert not calls.on
     await _tick(hass, freezer, coordinator, "07:08")
+    assert len(calls.on) == 1
+
+
+async def test_state_appearing_after_startup_is_not_a_switch(hass, freezer):
+    """The boiler loads after us (unknown → off): on without min off."""
+    freezer.move_to(_utc("07:00"))
+    hass.states.async_set(SWITCH, "unknown")
+    _trv(hass)
+    _, coordinator, calls = await _setup(
+        hass, _config(_switch_boiler(min_off=10))
+    )
+    await _tick(hass, freezer, coordinator, "07:00")
+    assert not calls.on  # unknown: aligned when it comes up
+
+    freezer.move_to(_utc("07:01"))
+    hass.states.async_set(SWITCH, "off")
+    await hass.async_block_till_done()
+    assert len(calls.on) == 1
+    assert coordinator.boiler.waiting_until is None
+
+
+async def test_back_online_switches_without_min_off(hass, freezer):
+    """Off, unavailable, back off: last_changed is the return, no wait."""
+    freezer.move_to(_utc("06:00"))
+    _trv(hass)
+    hass.states.async_set(SWITCH, "off")
+    _, coordinator, calls = await _setup(
+        hass, _config(_switch_boiler(min_off=10))
+    )
+    await _tick(hass, freezer, coordinator, "06:00")
+
+    freezer.move_to(_utc("06:58"))
+    hass.states.async_set(SWITCH, "unavailable")
+    await hass.async_block_till_done()
+    hass.states.async_set(SWITCH, "off")
+    await hass.async_block_till_done()
+    await _tick(hass, freezer, coordinator, "07:00")
     assert len(calls.on) == 1
 
 

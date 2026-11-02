@@ -24,8 +24,10 @@ Like the TRVs, a command is sent only when the demand changes: a manual
 change on the boiler stays until the next demand change. The first tick
 (startup, rebuild with a new entity) and a return online read the real
 entity state instead, and align it. A minimum on / off duration, measured
-from the last switch (the entity's last_changed after a restart), guards
-the boiler against short cycles.
+from the last switch, guards the boiler against short cycles. The entity's
+last_changed only counts as a switch when it predates this Boiler: after a
+restart or a return online it is just when the state appeared (ViCare
+loading: 2026-11-02, demand on at 20:35, boiler on only at 20:46).
 """
 
 from __future__ import annotations
@@ -38,6 +40,7 @@ from typing import TYPE_CHECKING
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 from .const import (
     BOILER_DOMAINS,
@@ -139,6 +142,10 @@ class Boiler:
         self._since: datetime | None = None
         # False until the real entity state has been read and aligned.
         self._synced = False
+        # A state change after this (startup loading) or before a return
+        # online is not a switch: no min on / off from it.
+        self._created = dt_util.utcnow()
+        self._back_online = False
         # Rooms needing heat at the last evaluation (sorted area_ids), and
         # why: {area_id: [REASON_*]}.
         self.demand_rooms: list[str] = []
@@ -168,14 +175,21 @@ class Boiler:
             self._on = old._on
             self._since = old._since
             self._synced = old._synced
+            self._created = old._created
+            self._back_online = old._back_online
             self.demand_rooms = old.demand_rooms
             self.demand_reasons = old.demand_reasons
             self._cold = old._cold
             self.waiting_until = old.waiting_until
 
     def resync(self) -> None:
-        """Re-read and align the entity state at the next evaluation."""
+        """Re-read and align the entity state at the next evaluation.
+
+        Called when the entity comes back online: its last_changed is that
+        return, not a switch.
+        """
         self._synced = False
+        self._back_online = True
 
     def status(self) -> dict:
         """Status payload entry for the panel."""
@@ -277,8 +291,15 @@ class Boiler:
             current, last_changed = read
             self._synced = True
             self._on = current
-            # Another mode (e.g. auto): switch at once, no min duration.
-            self._since = last_changed if current is not None else None
+            # Another mode (e.g. auto), a state that appeared at startup or
+            # on a return online: switch at once, no min duration.
+            switched = (
+                current is not None
+                and not self._back_online
+                and last_changed < self._created
+            )
+            self._since = last_changed if switched else None
+            self._back_online = False
 
         if wanted == self._on:
             self.waiting_until = None

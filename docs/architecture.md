@@ -234,9 +234,12 @@ a `switch` / `input_boolean` uses `turn_on` / `turn_off` (bounded by
 the demand changes, so a manual change stays until the next one. The first
 evaluation (startup, new entity) and a return online read the real entity state
 and align it. A switch waits for `min_on_minutes` / `min_off_minutes` since the
-last switch (the entity's `last_changed` after a restart) — `waiting_until` in
-the status. The boiler entity is removed from the rooms' TRV lists. Rebuilds
-carry its state (`Boiler.carry_state`); the config is part of the fingerprint.
+last switch — `waiting_until` in the status. After a restart, the entity's
+`last_changed` counts as a switch only when it predates the `Boiler`; a state
+that appears later (the boiler integration loading after us) or a return online
+is no switch, so the boiler follows the demand at once. The boiler entity is
+removed from the rooms' TRV lists. Rebuilds carry its state
+(`Boiler.carry_state`); the config is part of the fingerprint.
 
 **Back-online resync**: `_availability_listeners` track every TRV push target
 and every room climate entity. A transition from no state / `unavailable` /
