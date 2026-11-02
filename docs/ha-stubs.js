@@ -1,14 +1,171 @@
 // SPDX-License-Identifier: MIT
 /**
- * Stubs of the lazy-loaded HA elements the panel renders, for the docs
- * screenshot harness (test-harness.html). Each renders a native
- * equivalent and fires the events the panel listens to, like HA.
+ * Stubs of the HA elements the panel renders, for the docs screenshot
+ * harnesses (test-harness.html, use-cases/_harness.html): first the base
+ * elements HA always defines (ha-icon, ha-card…), then the lazy-loaded ones.
+ * Each renders a native equivalent and fires the events the panel listens
+ * to, like HA.
  *
  * Loaded before panel.js, so the panel's loader (ha-elements.ts) finds
  * every tag defined and returns at once.
  */
 
 /* global customElements, HTMLElement, CustomEvent, Event, document */
+
+// --- Base elements -------------------------------------------------------
+
+customElements.define(
+  "ha-icon",
+  class extends HTMLElement {
+    static get observedAttributes() {
+      return ["icon"];
+    }
+    constructor() {
+      super();
+      // Shadow DOM isolates SVG content from Lit's light-DOM template markers.
+      // Rendering into light DOM displaces Lit ChildPart comment nodes, causing
+      // cascading insertBefore failures on subsequent re-renders.
+      const root = this.attachShadow({ mode: "open" });
+      const style = document.createElement("style");
+      style.textContent =
+        ":host{display:inline-flex;align-items:center;" +
+        "justify-content:center;width:24px;height:24px;flex-shrink:0;" +
+        "color:var(--state-icon-color,#44739e)}svg{fill:currentColor}";
+      root.appendChild(style);
+    }
+    connectedCallback() {
+      this._render();
+    }
+    attributeChangedCallback() {
+      this._render();
+    }
+    _render() {
+      const iconAttr = this.getAttribute("icon") || "";
+      const name = iconAttr.startsWith("mdi:") ? iconAttr.slice(4) : iconAttr;
+      const key =
+        "mdi" +
+        name
+          .split("-")
+          .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+          .join("");
+      const pathData = window.__MDI__?.[key];
+      const root = this.shadowRoot;
+      const existing = root.querySelector("svg");
+      if (existing) existing.remove();
+      if (pathData) {
+        const svg = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "svg",
+        );
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("width", "24");
+        svg.setAttribute("height", "24");
+        const path = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "path",
+        );
+        path.setAttribute("d", pathData);
+        svg.appendChild(path);
+        root.appendChild(svg);
+      } else {
+        const span = document.createElement("span");
+        span.style.fontSize = "16px";
+        span.textContent = "●";
+        root.appendChild(span);
+      }
+    }
+  },
+);
+
+customElements.define(
+  "ha-icon-button",
+  class extends HTMLElement {
+    connectedCallback() {
+      Object.assign(this.style, {
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        padding: "8px",
+        borderRadius: "50%",
+        minWidth: "40px",
+        minHeight: "40px",
+        color: "var(--secondary-text-color)",
+      });
+    }
+  },
+);
+
+// ha-card — renders as a styled card container (HA's Material card)
+customElements.define(
+  "ha-card",
+  class extends HTMLElement {
+    connectedCallback() {
+      Object.assign(this.style, {
+        display: "block",
+        background: "var(--ha-card-background, #fff)",
+        borderRadius: "var(--ha-card-border-radius, 12px)",
+        boxShadow: "var(--ha-card-box-shadow, 0 2px 4px rgba(0,0,0,0.12))",
+        overflow: "hidden",
+      });
+    }
+  },
+);
+
+customElements.define(
+  "ha-circular-progress",
+  class extends HTMLElement {
+    connectedCallback() {
+      this.textContent = "⟳";
+      Object.assign(this.style, {
+        display: "inline-block",
+        fontSize: "24px",
+        color: "var(--primary-color)",
+        animation: "spin 1s linear infinite",
+      });
+    }
+  },
+);
+
+customElements.define(
+  "ha-switch",
+  class extends HTMLElement {
+    constructor() {
+      super();
+      const root = this.attachShadow({ mode: "open" });
+      root.innerHTML = `
+      <style>
+        :host{display:inline-flex;align-items:center;
+              cursor:pointer;vertical-align:middle}
+        .track{position:relative;width:36px;height:14px;
+               background:#bdbdbd;border-radius:7px;
+               transition:background .2s}
+        :host([checked]) .track{background:#90caf9}
+        .thumb{position:absolute;top:-3px;left:-1px;width:20px;
+               height:20px;border-radius:50%;background:#fafafa;
+               box-shadow:0 2px 4px rgba(0,0,0,.4);
+               transition:transform .15s,background .15s}
+        :host([checked]) .thumb{transform:translateX(18px);
+                                background:var(--primary-color,#03a9f4)}
+      </style>
+      <div class="track"><div class="thumb"></div></div>`;
+    }
+    connectedCallback() {
+      this.addEventListener("click", () => {
+        this.checked = !this.checked;
+        this.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    }
+    get checked() {
+      return this.hasAttribute("checked");
+    }
+    set checked(v) {
+      v ? this.setAttribute("checked", "") : this.removeAttribute("checked");
+    }
+  },
+);
+
+// --- Lazy-loaded elements ------------------------------------------------
 
 const fire = (el, type, detail) =>
   el.dispatchEvent(

@@ -1,0 +1,64 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * HA theme variables for the docs screenshot harnesses: HA's default light
+ * theme, and its default dark theme when <html data-theme="dark"> (set by
+ * harness.js from ?theme=dark).
+ */
+
+:root {
+  color-scheme: light;
+  --primary-color: #03a9f4;
+  --primary-background-color: #fafafa;
+  --secondary-background-color: #e8e8e8;
+  --card-background-color: #ffffff;
+  --ha-card-background: #ffffff;
+  --primary-text-color: #212121;
+  --secondary-text-color: #727272;
+  --divider-color: rgba(0, 0, 0, 0.12);
+  --error-color: #db4437;
+  --warning-color: #ffa600;
+  --success-color: #43a047;
+  --app-header-background-color: #03a9f4;
+  --app-header-text-color: #ffffff;
+  --text-primary-color: #ffffff;
+  --state-icon-color: #44739e;
+  --ha-card-border-radius: 12px;
+  --ha-card-box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+  --mdc-typography-body1-font-family: Roboto, sans-serif;
+}
+
+:root[data-theme="dark"] {
+  /* Native controls of the stubs (select, input) follow the theme. */
+  color-scheme: dark;
+  --primary-background-color: #111111;
+  --secondary-background-color: #282828;
+  --card-background-color: #1c1c1c;
+  --ha-card-background: #1c1c1c;
+  --primary-text-color: #e1e1e1;
+  --secondary-text-color: #9b9b9b;
+  --divider-color: rgba(225, 225, 225, 0.12);
+  --app-header-background-color: #101e24;
+  --app-header-text-color: #e1e1e1;
+  --state-icon-color: #44739e;
+  --ha-card-box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Roboto, "Noto Sans", sans-serif;
+  color: var(--primary-text-color);
+  background: var(--primary-background-color);
+  width: 1280px;
+}
+
+#mount {
+  display: block;
+  width: 100%;
+}
