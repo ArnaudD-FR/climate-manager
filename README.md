@@ -79,6 +79,9 @@ a room to appear in the panel, two conditions must be met:
   presences_ mode the room only heats when someone is home
 - **Presence tracking modes**: Scheduled (weekly timetable), HA home tracking,
   Force Present, Force Absent
+- **Presence & absence periods**: Dated absences (holidays, a business trip) or
+  presences (a day off, a guest) override the presence modes, and pre-heat has
+  the house warm on return
 - **Gap-fill logic**: When a person is present, Reduced/Frost periods sandwiched
   between Normal/Comfort periods are held at the preceding Normal/Comfort
   temperature
@@ -217,6 +220,21 @@ When a zone is in _Time program & presences_ mode:
 If present all day: room heats 06:00–22:00, holding Normal during the
 09:00–17:00 Reduced gap. If absent: room stays at Reduced all day.
 
+**Presence & absence periods** (Overview tab) cover dates the weekly schedule
+cannot know about. Add a period with its **Type** (Absence or Presence), its
+**Start** and its **Return**:
+
+- For its dates the period overrides the presence mode of the persons it covers,
+  whatever their mode; at the return the usual mode takes over.
+- Pick the **Persons** it covers, or leave **Everyone**: a household absence
+  also sets the _Time program_ zones back to Reduced while the house is empty.
+  The person selection is offered once a zone is in _Time program & presences_;
+  otherwise a period covers everyone.
+- Pre-heat aims at the return: rooms with a max lead time are warm when the
+  household walks in.
+- Two periods covering the same person cannot overlap. Ended periods disappear
+  on their own.
+
 <picture>
   <source media="(prefers-color-scheme: dark)"
           srcset="docs/screenshots/dark/persons.png">
@@ -289,6 +307,8 @@ No YAML editing required.
        alt="Global Settings tab">
 </picture>
 
+- Presence & absence periods: dated absences or presences, for everyone or some
+  persons (see [Presence & scheduling](#presence--scheduling))
 - Period temperatures (Normal, Comfort, Reduced, Frost Protection)
 - Default zone name
 - Boiler: entity to control, its heating / stopped modes (climate entity) and

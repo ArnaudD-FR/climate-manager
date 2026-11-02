@@ -66,6 +66,14 @@
     { start: '23:30', state: 'absent' },
   ];
 
+  /** Local "YYYY-MM-DDTHH:MM" of the day `days` from today at `time`. */
+  const localDay = (days, time) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${time}`;
+  };
+
   const CONFIG = {
     period_temperatures: { frost_protection: 7, reduced: 16, normal: 20, comfort: 22 },
     // Phase 14 (D-11): Default Zone is an object (name/mode/time_program),
@@ -85,6 +93,10 @@
       'person.bob':   { mode: 'ha',        room_ids: ['living_room', 'kitchen'] },
     },
     climate_entities: ['climate.bedroom_trv', 'climate.kitchen_trv', 'climate.living_room_trv'],
+    // A household holiday, dated from the wall clock so it stays ahead.
+    presence_periods: [
+      { id: 'holiday', kind: 'absent', start: localDay(5, '09:00'), end: localDay(12, '17:00') },
+    ],
   };
 
   const STATUS = {
