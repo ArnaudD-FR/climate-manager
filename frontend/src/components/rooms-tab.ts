@@ -32,6 +32,8 @@ export class RoomsTab extends LitElement {
   @property({ attribute: false }) panel!: ClimateManagerPanel;
   @property({ attribute: false }) hass!: Hass;
   @property({ attribute: false }) expandRoomId: string | null = null;
+  /** Route change counter, forwarded to the cards (see main.ts). */
+  @property({ attribute: false }) routeSeq = 0;
 
   static styles = css`
     :host {
@@ -139,6 +141,7 @@ export class RoomsTab extends LitElement {
           .panel=${this.panel}
           .hass=${this.hass}
           .autoExpand=${this.expandRoomId === roomId}
+          .routeSeq=${this.routeSeq}
         ></climate-manager-room-card>
       `;
     };

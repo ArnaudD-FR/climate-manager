@@ -12,6 +12,8 @@
  *   /zone/<zone_id>        custom zone       tab "zone_<zone_id>"
  *
  * Anything else reads as the Overview.
+ *
+ * scrollCardIntoView brings the card the URL opened into view.
  */
 
 /** Route object HA passes to custom panels. */
@@ -57,4 +59,18 @@ export function buildPath(prefix: string, view: PanelView): string {
     return `${prefix}/zone/${encodeURIComponent(tab.slice(5))}`;
   }
   return prefix;
+}
+
+/**
+ * Scroll a card the URL opened into view, once its expanded render is laid
+ * out (setTimeout: past Lit's render cycle).
+ */
+export function scrollCardIntoView(card: HTMLElement): void {
+  setTimeout(() => {
+    const rect = card.getBoundingClientRect();
+    card.scrollIntoView({
+      behavior: "smooth",
+      block: rect.height <= window.innerHeight ? "nearest" : "start",
+    });
+  }, 0);
 }

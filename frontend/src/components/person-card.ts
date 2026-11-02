@@ -46,6 +46,7 @@ import {
   haSelect,
 } from "../ha-controls.js";
 import { navigateTo } from "../ha-nav.js";
+import { scrollCardIntoView } from "../panel-route.js";
 import "./time-bar.js";
 
 // Presence mode constants (D-21)
@@ -126,7 +127,10 @@ export class PersonCard extends LitElement {
   // Active week for even/odd schedule mode (D-10: not persisted).
   // Recalculated from ISO week parity each time the card expands (D-09).
   @state() private _activeWeek: "even" | "odd" = "even";
+  /** True while the URL names this card. */
   @property({ type: Boolean }) autoExpand = false;
+  /** Route change counter (main.ts): reset to the URL card when it moves. */
+  @property({ attribute: false }) routeSeq = 0;
   // Whether the person has ≥1 device tracker in HA (D-04).
   // Forwarded from PersonsTab; gates the "HA home tracking" option.
   @property({ type: Boolean }) hasDeviceTrackers = false;
@@ -177,20 +181,18 @@ export class PersonCard extends LitElement {
     this._expanded = false;
   }
 
+  willUpdate(changedProperties: PropertyValues) {
+    // A route change no card toggle caused: only the URL card is open.
+    if (changedProperties.has("routeSeq")) this._expanded = this.autoExpand;
+  }
+
   updated(changedProperties: PropertyValues) {
     // D-09, D-10: recalculate active week from ISO parity on expand.
     if (changedProperties.has("_expanded") && this._expanded) {
       this._activeWeek = getWeekParity(new Date());
     }
-    if (changedProperties.has("autoExpand") && this.autoExpand) {
-      this._expanded = true;
-      setTimeout(() => {
-        const rect = this.getBoundingClientRect();
-        this.scrollIntoView({
-          behavior: "smooth",
-          block: rect.height <= window.innerHeight ? "nearest" : "start",
-        });
-      }, 0);
+    if (changedProperties.has("routeSeq") && this.autoExpand) {
+      scrollCardIntoView(this);
     }
     // D-22: seed default schedule on fresh install when config first arrives.
     if (changedProperties.has("config")) {
@@ -803,6 +805,11 @@ export class PersonCard extends LitElement {
           class="card-header-row"
           @click=${() => {
             this._expanded = !this._expanded;
+            if (this._expanded) {
+              this.panel.setExpanded("persons", this.personId);
+            } else if (this.autoExpand) {
+              this.panel.setExpanded("persons", null);
+            }
           }}
         >
           <div class="card-header-left">

@@ -56,6 +56,13 @@ export class ClimateManagerPanel extends LitElement {
   @state() private _wsError = false;
   @state() private _editingTabId: string | null = null;
   @state() private _tabNameInput = "";
+  /**
+   * Bumped on every route change no card toggle caused (load, Back /
+   * Forward, link): the cards then show exactly the card the URL names.
+   */
+  @state() private _routeSeq = 0;
+  /** URL pushed by the last card toggle, until HA hands it back. */
+  private _cardNavPath: string | null = null;
   /** HA elements still undefined once loaded; null while loading. */
   @state() private _haMissing: string[] | null = null;
 
@@ -226,6 +233,14 @@ export class ClimateManagerPanel extends LitElement {
     if (path !== this._prefix + this.route.path) this._navigate(view, true);
   }
 
+  willUpdate(changedProperties: PropertyValues) {
+    if (changedProperties.has("route")) {
+      const path = this._prefix + (this.route?.path ?? "");
+      if (path === this._cardNavPath) this._cardNavPath = null;
+      else this._routeSeq++;
+    }
+  }
+
   updated(changedProperties: PropertyValues) {
     if (changedProperties.has("route") || changedProperties.has("_config")) {
       this._fixRoute();
@@ -297,6 +312,18 @@ export class ClimateManagerPanel extends LitElement {
   /** Navigate to the Persons tab with the given person card expanded. */
   navigateToPerson(personId: string): void {
     this._navigate({ tab: "persons", cardId: personId });
+  }
+
+  /**
+   * Name the card the user just expanded in the URL (null: the URL card was
+   * collapsed), as a new history entry: Back undoes the toggle. The other
+   * open cards stay open.
+   */
+  setExpanded(tab: "rooms" | "persons", cardId: string | null): void {
+    if (tab !== this._activeTab || cardId === this._view.cardId) return;
+    const view = { tab, cardId };
+    this._cardNavPath = buildPath(this._prefix, view);
+    this._navigate(view);
   }
 
   /** Patch a subset of _config in-place without a WS round-trip. */
@@ -561,6 +588,7 @@ export class ClimateManagerPanel extends LitElement {
           .panel=${this}
           .hass=${this.hass}
           .expandRoomId=${this._view.cardId}
+          .routeSeq=${this._routeSeq}
         ></climate-manager-rooms-tab>`;
       case "persons":
         return html`<climate-manager-persons-tab
@@ -570,6 +598,7 @@ export class ClimateManagerPanel extends LitElement {
           .panel=${this}
           .hass=${this.hass}
           .expandPersonId=${this._view.cardId}
+          .routeSeq=${this._routeSeq}
         ></climate-manager-persons-tab>`;
       default:
         return html``;

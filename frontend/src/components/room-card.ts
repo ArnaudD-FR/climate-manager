@@ -35,6 +35,7 @@ import {
   validEntityIds,
   type LovelaceCard,
 } from "../ha-nav.js";
+import { scrollCardIntoView } from "../panel-route.js";
 import { haEntityAdd, haItemChip, haNumber, haSelect } from "../ha-controls.js";
 
 /** History graph durations offered in the card (hours). */
@@ -79,8 +80,10 @@ export class RoomCard extends LitElement {
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
   @property({ attribute: false }) hass!: Hass;
-  /** True while the URL names this card: expands it and scrolls to it. */
+  /** True while the URL names this card. */
   @property({ type: Boolean }) autoExpand = false;
+  /** Route change counter (main.ts): reset to the URL card when it moves. */
+  @property({ attribute: false }) routeSeq = 0;
 
   /** Expanded state. Defaults to collapsed. */
   @state() _expanded = false;
@@ -97,6 +100,14 @@ export class RoomCard extends LitElement {
     this._expanded = false;
   }
 
+  willUpdate(changedProperties: PropertyValues) {
+    // A route change no card toggle caused: only the URL card is open.
+    if (changedProperties.has("routeSeq")) {
+      this._expanded = this.autoExpand;
+      if (!this._expanded) this._resetHistoryCard();
+    }
+  }
+
   updated(changedProperties: PropertyValues) {
     if (this._expanded) {
       void this._syncHistoryCard();
@@ -104,19 +115,8 @@ export class RoomCard extends LitElement {
         this._historyCard.hass = this.hass;
       }
     }
-    if (changedProperties.has("autoExpand") && this.autoExpand) {
-      this._expanded = true;
-      // setTimeout(0) defers past the microtask queue so Lit's next render
-      // cycle (triggered by _expanded=true above) completes before we scroll.
-      // updateComplete.then() is not safe here — it may resolve before the
-      // expansion render when called from within updated().
-      setTimeout(() => {
-        const rect = this.getBoundingClientRect();
-        this.scrollIntoView({
-          behavior: "smooth",
-          block: rect.height <= window.innerHeight ? "nearest" : "start",
-        });
-      }, 0);
+    if (changedProperties.has("routeSeq") && this.autoExpand) {
+      scrollCardIntoView(this);
     }
   }
 
@@ -1082,6 +1082,8 @@ export class RoomCard extends LitElement {
           @click=${() => {
             this._expanded = !this._expanded;
             if (!this._expanded) this._resetHistoryCard();
+            if (this._expanded) this.panel.setExpanded("rooms", this.roomId);
+            else if (this.autoExpand) this.panel.setExpanded("rooms", null);
           }}
         >
           <div class="card-header-left">

@@ -34,6 +34,8 @@ export class PersonsTab extends LitElement {
   @property({ attribute: false }) panel!: ClimateManagerPanel;
   @property({ attribute: false }) hass!: Hass;
   @property({ attribute: false }) expandPersonId: string | null = null;
+  /** Route change counter, forwarded to the cards (see main.ts). */
+  @property({ attribute: false }) routeSeq = 0;
 
   static styles = css`
     :host {
@@ -165,6 +167,7 @@ export class PersonsTab extends LitElement {
             .status=${this.status}
             .presencePeriods=${this.config?.presence_periods ?? []}
             .autoExpand=${this.expandPersonId === personId}
+            .routeSeq=${this.routeSeq}
             .hasDeviceTrackers=${hasDeviceTrackersMap.get(personId) ?? false}
           ></climate-manager-person-card>
         `;
