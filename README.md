@@ -235,6 +235,8 @@ cannot know about. Add a period with its **Type** (Absence or Presence), its
 - Two periods covering the same person cannot overlap. Ended periods disappear
   on their own.
 
+See the [Family holiday](docs/use-cases/family-holiday/) use case.
+
 <picture>
   <source media="(prefers-color-scheme: dark)"
           srcset="docs/screenshots/dark/persons.png">
@@ -354,6 +356,7 @@ that regenerates its screenshots via `make screenshots`.
 | [Shared custody (odd/even weeks)](docs/use-cases/shared-custody-odd-even-weeks/) | Even / Odd weeks combining a Pronote school calendar on weekdays with a manual weekend schedule and a Friday-noon handover |
 | [Predictive pre-heat](docs/use-cases/predictive-preheat/)                        | Pre-heating rooms so they are warm before the first event of the day, with a per-room lead time                            |
 | [Bathroom comfort zone](docs/use-cases/bathroom-comfort-zone/)                   | A custom Bathrooms zone running its own comfort-led program separate from the rest of the home                             |
+| [Family holiday](docs/use-cases/family-holiday/)                                 | A household absence for a week's holiday, holding every room at Reduced and pre-heating for the return                     |
 
 ---
 
