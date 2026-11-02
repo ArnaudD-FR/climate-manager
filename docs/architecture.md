@@ -747,9 +747,15 @@ one as soon as it gets defined (the elements upgrade in place).
 Kept custom (no HA equivalent): the time-bar grid and its popup container, the
 status badges.
 
-The docs screenshot harness (`docs/test-harness.html`) defines stubs of these
-elements (`docs/ha-stubs.js`) rendering native equivalents and firing the same
-events, so the loader finds them all defined.
+The docs screenshot harnesses (`docs/test-harness.html`, and
+`docs/use-cases/_harness.html` for the use cases) define stubs of these elements
+(`docs/ha-stubs.js`) rendering native equivalents and firing the same events, so
+the loader finds them all defined. Both share `docs/ha-theme.css` (HA's light
+theme, its dark theme with `?theme=dark`) and `docs/harness.js`, which mounts
+the panel and mimics HA's router (`location-changed`, `popstate`).
+`docs/screenshot.js` captures one theme per run (`THEME=light|dark`) into
+`screenshots/<theme>/`, and `make screenshots` runs both; the READMEs embed each
+capture as a `<picture>` so GitHub shows the viewer's theme.
 
 ---
 

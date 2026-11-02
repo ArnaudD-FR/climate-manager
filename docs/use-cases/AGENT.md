@@ -1,9 +1,10 @@
 # Building use-case docs
 
 This folder holds persona-driven showcases of Climate Manager. Each use case is
-a folder with a `README.md`, a `screenshots/` set (Overview, Rooms, Persons, and
-one `schedule-<zone>.png` per zone tab), and a generated `scenario.json`. This
-guide explains how they are built so new use cases stay correct and coherent.
+a folder with a `README.md`, a `screenshots/light/` and `screenshots/dark/` set
+(Overview, Rooms, Persons, and one `schedule-<zone>.png` per zone tab, same file
+names in both themes), and a generated `scenario.json`. This guide explains how
+they are built so new use cases stay correct and coherent.
 
 ## Core principle — never hand-write status
 
@@ -27,7 +28,7 @@ the status.
 _harness.html?scenario=<slug>/scenario.json  +  screenshot.js (clock pinned)
                                                           │
                                                           ▼
-                                              <slug>/screenshots/*.png
+                                   <slug>/screenshots/{light,dark}/*.png
 ```
 
 - **`<slug>/scenario.py`** — a `SCENARIO` dict (see schema below), co-located in
@@ -52,9 +53,14 @@ _harness.html?scenario=<slug>/scenario.json  +  screenshot.js (clock pinned)
   expanded person card has an Even / Odd week switcher, the persons capture
   produces `persons-even.png` and `persons-odd.png` (one per parity) instead of
   a single `persons.png`, so both schedules are shown.
+- **Themes** — `screenshot.js` reads `THEME` (`light` by default, or `dark`),
+  loads the harness with `?theme=<theme>` and writes into
+  `<OUTPUT_DIR>/<theme>/`. The harness switches `docs/ha-theme.css` to HA's dark
+  theme; both harnesses share it with `docs/ha-stubs.js` and `docs/harness.js`
+  (panel mount and router mimic).
 - **`<slug>/Makefile`** — copies the business-calendar one verbatim, changing
   only `SLUG`. It passes `OUTPUT_DIR`, the shared `HARNESS_PATH` with
-  `?scenario=`, and `SCENARIO_JSON`.
+  `?scenario=`, and `SCENARIO_JSON`, and captures every variant in both themes.
 
 `make screenshots` runs the standard panel-tab set, then `use-case-data`, then
 captures every use case.
@@ -67,7 +73,8 @@ SCENARIO = {
     "now": "2026-06-03T10:30:00+00:00",   # UTC; pick a moment that shows the case
     "config": { ... },        # exactly the get_config payload a user would have:
                               #   period_temperatures, default_zone, zones,
-                              #   rooms, persons, climate_entities
+                              #   rooms, persons, presence_periods,
+                              #   climate_entities
     "rooms": { area_id: [climate_entity_ids] },   # discovery result (area→TRVs)
     "humidity": { area_id: 55 },                   # cosmetic only
     "calendars": { "calendar.x": {"events": [ {start, end, summary} ]} },
@@ -130,6 +137,7 @@ stored values. Do not write `time_program_presences`, `room_ids`, `zone_id`,
 | gap handling    | Return home between events / Absent all day (first to last event) / Return home in long gaps only |
 | wake-up lead    | Wake-up advance                                                                                   |
 | pre-heat        | Pre-heat / Max lead time / Pre-heating → XX.X°C                                                   |
+| dated periods   | Presence & absence periods / Absence / Presence / Start / Return / Everyone / Away / Home         |
 
 Each README is a conceptual showcase: persona intro, a Household layout table
 (Room | Zone | Floor | Heats when), a presence/schedule section, a "Rooms driven
@@ -139,6 +147,18 @@ The zone-schedule annotation must state the **bounding rule**: the weekly time
 program sets the heating window, and presence only gates whether that schedule
 is followed — a zone never heats before its first scheduled Normal/Comfort
 period or after the last, present or not. 2-space indent, wrap at 80 columns.
+
+Embed every screenshot as a `<picture>` so GitHub picks the viewer's theme:
+
+<!-- prettier-ignore -->
+```html
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-present.png">
+  <img src="screenshots/light/rooms-present.png"
+       alt="Rooms, every room Normal · 20°C">
+</picture>
+```
 
 ## Adding a new use case
 

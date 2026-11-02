@@ -137,8 +137,9 @@ detection and `make release` archive naming correct throughout the milestone.
 
 Before **completing** a milestone or creating a release git tag:
 
-1. Run `make screenshots` to capture up-to-date panel screenshots and commit the
-   result.
+1. Run `make screenshots` to capture up-to-date panel screenshots, in the light
+   and dark themes (`screenshots/light/` and `screenshots/dark/`), and commit
+   the result.
 2. Refresh `docs/architecture.md` to reflect any architectural changes made
    during the milestone (new modules, new WS commands, changed data flows,
    updated design decisions). Commit the updated document.
