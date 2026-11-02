@@ -793,7 +793,7 @@ export class PersonCard extends LitElement {
       haItemChip(
         room.name,
         "mdi:home-outline",
-        () => void this.panel.navigateToRoom(room.id),
+        () => this.panel.navigateToRoom(room.id),
         () => void this._onRoomToggle(room.id, false),
       );
 

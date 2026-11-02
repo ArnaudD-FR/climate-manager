@@ -326,7 +326,7 @@ export class ZoneTab extends LitElement {
 
   /**
    * Confirm delete — delete zone and reload config.
-   * On success, main.ts detects missing tab via _validateActiveTab()
+   * On success, main.ts finds the URL names a missing zone (_fixRoute)
    * and falls back to "global". This component does not navigate.
    */
   private async _onConfirmDelete() {
@@ -553,7 +553,7 @@ export class ZoneTab extends LitElement {
       haItemChip(
         this._getRoomName(roomId),
         "mdi:home-outline",
-        () => void this.panel.navigateToRoom(roomId),
+        () => this.panel.navigateToRoom(roomId),
         this.isDefault ? undefined : () => void this._onRemoveRoom(roomId),
       );
 

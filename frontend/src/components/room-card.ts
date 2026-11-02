@@ -79,7 +79,7 @@ export class RoomCard extends LitElement {
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
   @property({ attribute: false }) hass!: Hass;
-  /** Auto-expands card and scrolls it into view for one render cycle. */
+  /** True while the URL names this card: expands it and scrolls to it. */
   @property({ type: Boolean }) autoExpand = false;
 
   /** Expanded state. Defaults to collapsed. */
@@ -549,7 +549,7 @@ export class RoomCard extends LitElement {
           haItemChip(
             this._getPersonName(personId),
             "mdi:account",
-            () => void this.panel.navigateToPerson(personId),
+            () => this.panel.navigateToPerson(personId),
             () => void this._onRemovePerson(personId),
           ),
         )}

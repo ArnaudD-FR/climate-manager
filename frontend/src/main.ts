@@ -5,9 +5,10 @@
  * Registered as "climate-manager-panel" (must match PANEL_COMPONENT_NAME in
  * custom_components/climate_manager/__init__.py — RESEARCH Pitfall 2).
  *
- * HA injects three properties onto this element:
+ * HA injects these properties onto this element:
  *   hass   — HomeAssistant object with .connection for WebSocket calls
  *   narrow — boolean, true on mobile viewports
+ *   route  — {prefix, path}: the URL under /climate_manager
  *   panel  — panel config dict passed at registration
  *
  * On connect: loads full config via climate_manager/get_config and subscribes
@@ -16,14 +17,22 @@
  *
  * Renders an ha-tab-group: Overview / Rooms / Persons, then one tab per
  * zone (double click to rename) and an add-zone button.
+ *
+ * The URL is the navigation state (panel-route.ts): the active tab and the
+ * card to expand come from `route`, and every move goes through navigateTo,
+ * so Back / Forward restore them and the sidebar link opens the Overview.
  */
 
 import { LitElement, html, css } from "lit";
+import type { PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { live } from "lit/directives/live.js";
 
 import { WsClient } from "./ws-client.js";
 import { loadHaElements } from "./ha-elements.js";
+import { navigateTo } from "./ha-nav.js";
+import { buildPath, parseRoute } from "./panel-route.js";
+import type { PanelRoute, PanelView } from "./panel-route.js";
 import type { Hass, ClimateConfig, StatusPayload } from "./types.js";
 import { getZoneColor } from "./types.js";
 
@@ -37,19 +46,16 @@ export class ClimateManagerPanel extends LitElement {
   // HA-injected properties
   @property({ attribute: false }) hass!: Hass;
   @property({ type: Boolean }) narrow = false;
+  @property({ attribute: false }) route: PanelRoute | null = null;
   @property({ attribute: false }) panel: unknown = null;
 
   // Internal state
   @state() private _config: ClimateConfig | null = null;
   @state() private _status: StatusPayload | null = null;
-  @state() private _activeTab: string =
-    localStorage.getItem("climate-manager-tab") ?? "global";
   @state() private _unsubStatus: Promise<() => void> | null = null;
   @state() private _wsError = false;
   @state() private _editingTabId: string | null = null;
   @state() private _tabNameInput = "";
-  @state() private _expandRoomId: string | null = null;
-  @state() private _expandPersonId: string | null = null;
   /** HA elements still undefined once loaded; null while loading. */
   @state() private _haMissing: string[] | null = null;
 
@@ -183,35 +189,53 @@ export class ClimateManagerPanel extends LitElement {
     }
   }
 
-  private _validateActiveTab(): void {
-    if (!this._config) return;
-    // Static tabs always exist — return immediately.
+  /** URL prefix of the panel ("/climate_manager"). */
+  private get _prefix(): string {
+    return this.route?.prefix ?? "/climate_manager";
+  }
+
+  /** The view named by the URL. */
+  private get _view(): PanelView {
+    return parseRoute(this.route?.path);
+  }
+
+  private get _activeTab(): string {
+    return this._view.tab;
+  }
+
+  private _navigate(view: PanelView, replace = false): void {
+    navigateTo(buildPath(this._prefix, view), { replace });
+  }
+
+  /**
+   * Rewrite a URL that names nothing (unknown path, deleted zone) into the
+   * view actually shown, replacing the history entry so Back never lands on
+   * it again.
+   */
+  private _fixRoute(): void {
+    if (!this.route || !this._config) return;
+    let view = this._view;
     if (
-      this._activeTab === "global" ||
-      this._activeTab === "rooms" ||
-      this._activeTab === "persons" ||
-      this._activeTab === "zone_default"
-    )
-      return;
-    // Custom zone tab: verify the UUID still exists in config.
-    if (this._activeTab.startsWith("zone_")) {
-      const zoneId = this._activeTab.slice(5); // strip "zone_"
-      if (!this._config.zones[zoneId]) {
-        this._activeTab = "global";
-        localStorage.setItem("climate-manager-tab", "global");
-      }
-      return;
+      view.tab.startsWith("zone_") &&
+      view.tab !== "zone_default" &&
+      !this._config.zones[view.tab.slice(5)]
+    ) {
+      view = { tab: "global", cardId: null };
     }
-    // Unknown/corrupted value — fall back to global.
-    this._activeTab = "global";
-    localStorage.setItem("climate-manager-tab", "global");
+    const path = buildPath(this._prefix, view);
+    if (path !== this._prefix + this.route.path) this._navigate(view, true);
+  }
+
+  updated(changedProperties: PropertyValues) {
+    if (changedProperties.has("route") || changedProperties.has("_config")) {
+      this._fixRoute();
+    }
   }
 
   private async _loadConfig() {
     if (!this._ws) this._ws = new WsClient(this.hass);
     try {
       this._config = await this._ws.getConfig();
-      this._validateActiveTab();
     } catch {
       // Config load failure is shown via the error banner on next render.
       this._wsError = true;
@@ -265,20 +289,14 @@ export class ClimateManagerPanel extends LitElement {
     this._setTab(zoneId ? "zone_" + zoneId : "zone_default");
   }
 
-  /** Navigate to the Rooms tab and auto-expand the given room card. */
-  async navigateToRoom(roomId: string): Promise<void> {
-    this._setTab("rooms");
-    this._expandRoomId = roomId;
-    await this.updateComplete;
-    this._expandRoomId = null;
+  /** Navigate to the Rooms tab with the given room card expanded. */
+  navigateToRoom(roomId: string): void {
+    this._navigate({ tab: "rooms", cardId: roomId });
   }
 
-  /** Navigate to the Persons tab and auto-expand the given person card. */
-  async navigateToPerson(personId: string): Promise<void> {
-    this._setTab("persons");
-    this._expandPersonId = personId;
-    await this.updateComplete;
-    this._expandPersonId = null;
+  /** Navigate to the Persons tab with the given person card expanded. */
+  navigateToPerson(personId: string): void {
+    this._navigate({ tab: "persons", cardId: personId });
   }
 
   /** Patch a subset of _config in-place without a WS round-trip. */
@@ -352,9 +370,9 @@ export class ClimateManagerPanel extends LitElement {
     }
   }
 
+  /** Open a tab (new history entry); no-op on the current one. */
   private _setTab(tab: string) {
-    this._activeTab = tab;
-    localStorage.setItem("climate-manager-tab", tab);
+    if (tab !== this._activeTab) this._navigate({ tab, cardId: null });
   }
 
   /** Open the HA sidebar — fired by the hamburger button on narrow viewports. */
@@ -513,7 +531,7 @@ export class ClimateManagerPanel extends LitElement {
     if (this._activeTab.startsWith("zone_")) {
       const zoneId = this._activeTab.slice(5); // strip "zone_"
       const zoneConfig = this._config!.zones[zoneId];
-      if (!zoneConfig) return html``; // _validateActiveTab covers this
+      if (!zoneConfig) return html``; // _fixRoute covers this
       return html`<climate-manager-zone-tab
         .config=${this._config!}
         .zoneId=${zoneId}
@@ -542,7 +560,7 @@ export class ClimateManagerPanel extends LitElement {
           .ws=${this._ws!}
           .panel=${this}
           .hass=${this.hass}
-          .expandRoomId=${this._expandRoomId}
+          .expandRoomId=${this._view.cardId}
         ></climate-manager-rooms-tab>`;
       case "persons":
         return html`<climate-manager-persons-tab
@@ -551,7 +569,7 @@ export class ClimateManagerPanel extends LitElement {
           .ws=${this._ws!}
           .panel=${this}
           .hass=${this.hass}
-          .expandPersonId=${this._expandPersonId}
+          .expandPersonId=${this._view.cardId}
         ></climate-manager-persons-tab>`;
       default:
         return html``;

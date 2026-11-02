@@ -275,6 +275,22 @@
   panel.hass   = mockHass;
   panel.narrow = false;
   panel.panel  = {};
+  // Mimic HA's router: the panel navigates with pushState +
+  // location-changed, and HA hands it the new route.
+  const PREFIX = '/climate_manager';
+  const currentRoute = () => ({
+    prefix: PREFIX,
+    path: location.pathname.startsWith(PREFIX)
+      ? location.pathname.slice(PREFIX.length)
+      : '',
+  });
+  panel.route = currentRoute();
+  window.addEventListener('location-changed', () => {
+    panel.route = currentRoute();
+  });
+  window.addEventListener('popstate', () => {
+    panel.route = currentRoute();
+  });
   document.getElementById('mount').appendChild(panel);
 
   window.__panelReady = true;
