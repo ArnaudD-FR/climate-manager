@@ -42,7 +42,8 @@ screenshots: build
 		-v "$$(pwd):/app" \
 		-e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
 		mcr.microsoft.com/playwright:v1.49.0-noble \
-		bash -c "cd /app/docs && npm install --no-audit --no-fund 2>/dev/null && node screenshot.js"
+		bash -c "cd /app/docs && npm install --no-audit --no-fund 2>/dev/null \
+		  && node screenshot.js && THEME=dark node screenshot.js"
 	$(MAKE) use-case-screenshots
 
 use-case-data:

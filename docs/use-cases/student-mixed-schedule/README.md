@@ -53,7 +53,12 @@ weekday has a different absent block.
 Lena is present overnight; "absent" only covers the hours she is physically at
 university.
 
-![Persons tab, Lena card expanded](screenshots/persons.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/persons.png">
+  <img src="screenshots/light/persons.png"
+       alt="Persons tab, Lena card expanded">
+</picture>
 
 The expanded Lena card highlights the per-day time bars: each weekday row shows
 a distinct absent block of a different width (Wednesday's is the widest;
@@ -65,7 +70,12 @@ associations appear below, grouped by floor.
 The single **Home** zone runs in **Time program & presences** mode: the weekly
 schedule bounds heating, and Lena's per-day presence only gates it.
 
-![Home zone schedule](screenshots/schedule-home.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/schedule-home.png">
+  <img src="screenshots/light/schedule-home.png"
+       alt="Home zone schedule">
+</picture>
 
 Weekdays heat Normal 07:00–09:00, Reduced through the school day, then Normal
 17:00–22:00; weekends are Normal 08:30 then Comfort 10:00–23:00. Before 07:00
@@ -78,11 +88,21 @@ and after 22:00 the zone is at Frost protection.
 Her heaviest class day ended at 18:00, so the presence gate is open and the
 schedule applies.
 
-![Overview, Lena present, active period Normal](screenshots/overview-present.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-present.png">
+  <img src="screenshots/light/overview-present.png"
+       alt="Overview, Lena present, active period Normal">
+</picture>
 
 The Overview shows the Home zone at **Normal** with Lena present (green dot).
 
-![Rooms, all three rooms Normal · 20°C, 1/1 present](screenshots/rooms-present.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-present.png">
+  <img src="screenshots/light/rooms-present.png"
+       alt="Rooms, all three rooms Normal · 20°C, 1/1 present">
+</picture>
 
 All three rooms carry a **Normal · 20°C** badge with a **1/1** person count.
 
@@ -90,12 +110,22 @@ All three rooms carry a **Normal · 20°C** badge with a **1/1** person count.
 
 She is in lectures, so the presence gate is closed and every room is held back.
 
-![Overview, Lena absent, active period Reduced](screenshots/overview-away.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-away.png">
+  <img src="screenshots/light/overview-away.png"
+       alt="Overview, Lena absent, active period Reduced">
+</picture>
 
 The Overview now shows Lena absent (grey dot) and the zone fell back to
 **Reduced**.
 
-![Rooms, all three rooms Reduced · 16°C, 0/1 present](screenshots/rooms-away.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-away.png">
+  <img src="screenshots/light/rooms-away.png"
+       alt="Rooms, all three rooms Reduced · 16°C, 0/1 present">
+</picture>
 
 Every room shows a **Reduced · 16°C** badge and a **0/1** person count. No room
 heats to its scheduled Normal period while Lena is out.

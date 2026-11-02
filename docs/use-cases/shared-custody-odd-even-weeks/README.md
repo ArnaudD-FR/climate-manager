@@ -63,14 +63,24 @@ The expanded Sofia card has an **Even / Odd weeks** selector (it notes "Week 23
 is currently active (odd week)"), with a tab for each week. Both schedules are
 shown below.
 
-![Persons tab, Sofia card, Even week](screenshots/persons-even.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/persons-even.png">
+  <img src="screenshots/light/persons-even.png"
+       alt="Persons tab, Sofia card, Even week">
+</picture>
 
 The **Even** week is the off week: Mon–Thu Absent, Friday is Absent until the
 noon hand-over and then a "Calendar: school" bar for the afternoon, and the
 weekend is a hand-set manual schedule (Present with an afternoon out
 14:00–18:00).
 
-![Persons tab, Sofia card, Odd week](screenshots/persons-odd.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/persons-odd.png">
+  <img src="screenshots/light/persons-odd.png"
+       alt="Persons tab, Sofia card, Odd week">
+</picture>
 
 The **Odd** week is the school week: Mon–Thu are "Calendar: school" bars driven
 by the School calendar timetable, Friday flips to Absent at noon, and the
@@ -80,12 +90,22 @@ room Sofia drives.
 
 ### Zone schedules
 
-![Home zone schedule](screenshots/schedule-home.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/schedule-home.png">
+  <img src="screenshots/light/schedule-home.png"
+       alt="Home zone schedule">
+</picture>
 
 The **Home** zone (plain Time program) heats Normal 07:30–09:00 and 17:30–22:00
 on weekdays, Comfort/Normal 08:00–23:00 at weekends, the same whoever is home.
 
-![Child's Room zone schedule](screenshots/schedule-child-s-room.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/schedule-child-s-room.png">
+  <img src="screenshots/light/schedule-child-s-room.png"
+       alt="Child's Room zone schedule">
+</picture>
 
 **Child's Room** (Time program & presences) heats Normal 07:00–09:00 and
 16:00–21:00 on weekdays, Comfort 08:00–20:30 at weekends. It follows this only
@@ -98,12 +118,23 @@ when Sofia is present; otherwise it holds Reduced.
 The last class ended at 16:00, so the school calendar reports no active event
 and Sofia is home. The Child's Room presence gate opens.
 
-![Overview, Sofia present, Child's Room Normal](screenshots/overview-present.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-present.png">
+  <img src="screenshots/light/overview-present.png"
+       alt="Overview, Sofia present, Child's Room Normal">
+</picture>
 
 The Overview shows Sofia present (green dot); Child's Room at **Normal**, Home
 at **Reduced** (its own evening ramp has not started yet).
 
-![Rooms, Child's Bedroom Normal · 20°C / 1·1, Living Room Reduced](screenshots/rooms-present.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-present.png">
+  <img src="screenshots/light/rooms-present.png"
+       alt="Rooms, Child's Bedroom Normal · 20°C / 1·1, Living Room
+            Reduced">
+</picture>
 
 Child's Bedroom shows **Normal · 20°C** with **1/1** present. The Living Room
 sits at **Reduced · 16°C** with **0** persons, driven purely by the Home
@@ -114,12 +145,22 @@ schedule, no presence involved.
 A class runs 08:00–12:00, so the school calendar marks the child at school. The
 Child's Room presence gate closes.
 
-![Overview, Sofia absent, Child's Room Reduced](screenshots/overview-away.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-away.png">
+  <img src="screenshots/light/overview-away.png"
+       alt="Overview, Sofia absent, Child's Room Reduced">
+</picture>
 
 The Overview shows Sofia absent (grey dot) and Child's Room fallen back to
 **Reduced**.
 
-![Rooms, Child's Bedroom Reduced · 16°C / 0·1](screenshots/rooms-away.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-away.png">
+  <img src="screenshots/light/rooms-away.png"
+       alt="Rooms, Child's Bedroom Reduced · 16°C / 0·1">
+</picture>
 
 Child's Bedroom now shows **Reduced · 16°C** with **0/1** present. The Living
 Room is unchanged from its own schedule: the custody presence only governs the
@@ -134,12 +175,22 @@ since the 12:00 class ended. Because she is now within the day's occupied window
 (between the 07:00–09:00 morning Normal period and the 16:00–21:00 evening one),
 **gap-fill** holds the room at Normal through the midday Reduced stretch.
 
-![Overview, Sofia present, Child's Room Normal at 14:00](screenshots/overview-last-class-canceled.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-last-class-canceled.png">
+  <img src="screenshots/light/overview-last-class-canceled.png"
+       alt="Overview, Sofia present, Child's Room Normal at 14:00">
+</picture>
 
 The Overview shows Sofia present (green dot) and Child's Room already at
 **Normal** at 14:00, where on a normal school day it would still be Reduced.
 
-![Rooms, Child's Bedroom Normal · 20°C / 1·1 at 14:00](screenshots/rooms-last-class-canceled.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-last-class-canceled.png">
+  <img src="screenshots/light/rooms-last-class-canceled.png"
+       alt="Rooms, Child's Bedroom Normal · 20°C / 1·1 at 14:00">
+</picture>
 
 Child's Bedroom shows **Normal · 20°C** with **1/1** present, the TRV already up
 to 19.6°C: the bedroom is warm hours sooner than her usual 16:00 return, with no

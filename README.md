@@ -61,7 +61,12 @@ a room to appear in the panel, two conditions must be met:
 
 ## Features
 
-![Overview tab](docs/screenshots/overview.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="docs/screenshots/dark/overview.png">
+  <img src="docs/screenshots/light/overview.png"
+       alt="Overview tab">
+</picture>
 
 - **Zone-based scheduling**: Group rooms into zones, each with its own weekly
   heating program (Normal, Comfort, Reduced, Frost Protection periods)
@@ -167,7 +172,12 @@ Rooms are grouped into **zones**. Each zone has a **mode**:
 | **Time program**             | Rooms follow the zone's weekly schedule                           |
 | **Time program & presences** | Rooms follow the schedule only when an assigned person is present |
 
-![Zone tab](docs/screenshots/zone.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="docs/screenshots/dark/zone.png">
+  <img src="docs/screenshots/light/zone.png"
+       alt="Zone tab">
+</picture>
 
 ### Time program
 
@@ -184,7 +194,12 @@ time and a mode:
 Each period is active from its start time until the next period's start. The
 last period of the day runs until midnight.
 
-![Zone Upstairs tab](docs/screenshots/zone-upstairs.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="docs/screenshots/dark/zone-upstairs.png">
+  <img src="docs/screenshots/light/zone-upstairs.png"
+       alt="Zone Upstairs tab">
+</picture>
 
 ### Presence & scheduling
 
@@ -202,7 +217,12 @@ When a zone is in _Time program & presences_ mode:
 If present all day: room heats 06:00–22:00, holding Normal during the
 09:00–17:00 Reduced gap. If absent: room stays at Reduced all day.
 
-![Persons tab](docs/screenshots/persons.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="docs/screenshots/dark/persons.png">
+  <img src="docs/screenshots/light/persons.png"
+       alt="Persons tab">
+</picture>
 
 ### Rooms and zones
 
@@ -220,7 +240,12 @@ you assign it to a custom zone.
 To turn a room off, assign it to a zone whose mode is **Off** (or create a
 dedicated Off zone for it).
 
-![Rooms tab](docs/screenshots/rooms.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="docs/screenshots/dark/rooms.png">
+  <img src="docs/screenshots/light/rooms.png"
+       alt="Rooms tab">
+</picture>
 
 ### Entities and history
 
@@ -257,7 +282,12 @@ No YAML editing required.
 
 ### Global settings
 
-![Global Settings tab](docs/screenshots/global-settings.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="docs/screenshots/dark/global-settings.png">
+  <img src="docs/screenshots/light/global-settings.png"
+       alt="Global Settings tab">
+</picture>
 
 - Period temperatures (Normal, Comfort, Reduced, Frost Protection)
 - Default zone name

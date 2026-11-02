@@ -6,7 +6,8 @@ PROJECT_ROOT := $(shell cd ../../.. && pwd)
 # Renders one capture per variant scenario.<id>.json (see `make
 # use-case-data`). For each variant the shared harness reads it via ?scenario=
 # and screenshot.js pins the browser clock to that variant's moment, capturing
-# overview-<id>.png + rooms-<id>.png. The "present" variant also captures the
+# overview-<id>.png + rooms-<id>.png, in screenshots/light/ and
+# screenshots/dark/ (THEME). The "present" variant also captures the
 # configuration screenshots (persons + per-zone schedules) via CAPTURE_CONFIG.
 screenshots:
 	@for json in scenario.*.json; do \
@@ -23,5 +24,5 @@ screenshots:
 			-e CAPTURE_CONFIG=$$cfg \
 			mcr.microsoft.com/playwright:v1.49.0-noble \
 			bash -c "cd /app/docs && npm install --no-audit --no-fund 2>/dev/null \
-			  && node screenshot.js"; \
+			  && node screenshot.js && THEME=dark node screenshot.js"; \
 	done

@@ -33,9 +33,15 @@ const MDI_KEYS = [
 const mdiPaths = Object.fromEntries(MDI_KEYS.map((k) => [k, mdi[k]]));
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
-const SCREENSHOTS_DIR = process.env.OUTPUT_DIR
-  ? path.resolve(process.env.OUTPUT_DIR)
-  : path.join(__dirname, "screenshots");
+// THEME=light (default) or dark: HA theme of the harness; the captures go
+// into <output>/<theme>/, with the same file names in both.
+const THEME = process.env.THEME === "dark" ? "dark" : "light";
+const SCREENSHOTS_DIR = path.join(
+  process.env.OUTPUT_DIR
+    ? path.resolve(process.env.OUTPUT_DIR)
+    : path.join(__dirname, "screenshots"),
+  THEME,
+);
 const PORT = 7654;
 
 // ---------------------------------------------------------------------------
@@ -130,8 +136,11 @@ async function main() {
   // Load harness and wait for panel to be ready
   // ------------------------------------------------------------------
   const HARNESS_PATH = process.env.HARNESS_PATH || "/docs/test-harness.html";
-  console.log("Loading harness…");
-  await page.goto(`http://localhost:${PORT}${HARNESS_PATH}`);
+  const sep = HARNESS_PATH.includes("?") ? "&" : "?";
+  console.log(`Loading harness (${THEME} theme)…`);
+  await page.goto(
+    `http://localhost:${PORT}${HARNESS_PATH}${sep}theme=${THEME}`,
+  );
 
   // Wait for the tab-bar (means config loaded and panel rendered)
   await page.waitForFunction(

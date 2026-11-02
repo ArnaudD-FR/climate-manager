@@ -47,7 +47,12 @@ pattern repeats every week with no alternation.
 Emma is present overnight; "absent" only covers the hours she is physically away
 at work (09:00–17:30 on weekdays).
 
-![Persons tab, Emma card expanded](screenshots/persons.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/persons.png">
+  <img src="screenshots/light/persons.png"
+       alt="Persons tab, Emma card expanded">
+</picture>
 
 The expanded Emma card shows her **Single week** schedule: every weekday row
 carries an identical Present/Absent/Present pattern, while Saturday and Sunday
@@ -59,7 +64,12 @@ The single **Home** zone runs in **Time program & presences** mode. The weekly
 schedule sets the heating window; Emma's presence only decides whether it is
 followed.
 
-![Home zone schedule](screenshots/schedule-home.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/schedule-home.png">
+  <img src="screenshots/light/schedule-home.png"
+       alt="Home zone schedule">
+</picture>
 
 Weekdays heat Normal 06:30–09:00, drop to Reduced through the day, and return to
 Normal 17:30–22:00; weekends ramp Normal 08:00, Comfort 10:00–14:00, then Normal
@@ -72,12 +82,22 @@ to 23:00. Outside those bands the zone holds Frost protection.
 She returned from work at 17:30, so the presence gate is open and the schedule
 applies.
 
-![Overview, Emma present, active period Normal](screenshots/overview-present.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-present.png">
+  <img src="screenshots/light/overview-present.png"
+       alt="Overview, Emma present, active period Normal">
+</picture>
 
 The Overview shows the Home zone in active period **Normal** and Emma listed as
 present (green dot).
 
-![Rooms, all four rooms Normal · 20°C, 1/1 present](screenshots/rooms-present.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-present.png">
+  <img src="screenshots/light/rooms-present.png"
+       alt="Rooms, all four rooms Normal · 20°C, 1/1 present">
+</picture>
 
 All four rooms carry a **Normal · 20°C** badge with a **1/1** person count: the
 schedule is being followed in every room Emma occupies.
@@ -87,12 +107,22 @@ schedule is being followed in every room Emma occupies.
 She is at work, so the presence gate is closed. The rooms hold **Reduced**
 regardless of the schedule's warmer periods until she returns.
 
-![Overview, Emma absent, active period Reduced](screenshots/overview-away.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-away.png">
+  <img src="screenshots/light/overview-away.png"
+       alt="Overview, Emma absent, active period Reduced">
+</picture>
 
 The Overview now shows Emma absent (grey dot) and the zone fell back to
 **Reduced**.
 
-![Rooms, all four rooms Reduced · 16°C, 0/1 present](screenshots/rooms-away.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-away.png">
+  <img src="screenshots/light/rooms-away.png"
+       alt="Rooms, all four rooms Reduced · 16°C, 0/1 present">
+</picture>
 
 Every room shows a **Reduced · 16°C** badge and a **0/1** person count, with the
 TRV temperatures drifting down. No room can reach its scheduled Normal period

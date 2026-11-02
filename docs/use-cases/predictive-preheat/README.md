@@ -47,7 +47,12 @@ Maya uses **Scheduled** presence mode (single week).
 Asleep at home overnight is **present**; absence is only for the hours Maya is
 actually out of the house.
 
-![Persons tab, Maya card expanded](screenshots/persons.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/persons.png">
+  <img src="screenshots/light/persons.png"
+       alt="Persons tab, Maya card expanded">
+</picture>
 
 Maya's card shows her **Single week** schedule with present overnight and absent
 08:30–17:30 on weekdays. Room associations list Bathroom and Bedroom (First
@@ -67,7 +72,12 @@ The single **Home** zone runs in **Time program & presences** mode with
 **Pre-heat** enabled. The schedule still bounds heating; pre-heat only brings
 the _start_ of a scheduled period forward.
 
-![Home zone schedule](screenshots/schedule-home.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/schedule-home.png">
+  <img src="screenshots/light/schedule-home.png"
+       alt="Home zone schedule">
+</picture>
 
 Weekdays heat Normal 06:30–09:00, Reduced midday, Normal 17:00–22:30; weekends
 hold Comfort 08:00–22:30. The 06:30 Normal period is the first of the weekday,
@@ -80,12 +90,22 @@ so pre-heat targets it.
 Forty minutes before the 06:30 step, Maya is present (asleep), so pre-heat is
 already warming every room toward its morning target.
 
-![Overview, Maya present, pre-heat running](screenshots/overview-present.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-present.png">
+  <img src="screenshots/light/overview-present.png"
+       alt="Overview, Maya present, pre-heat running">
+</picture>
 
 The Overview shows Maya present (green dot); the Home zone is still in its
 overnight period while pre-heat works ahead of it.
 
-![Rooms, all three rooms Pre-heating to 20.0°C](screenshots/rooms-present.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-present.png">
+  <img src="screenshots/light/rooms-present.png"
+       alt="Rooms, all three rooms Pre-heating to 20.0°C">
+</picture>
 
 All three rooms carry a **Pre-heating → 20.0°C** badge at **1/1** present. The
 expanded Bathroom card shows **Max lead time (min)** 90 and the TRV at 16.5°C,
@@ -96,11 +116,21 @@ climbing toward 20.0°C.
 Maya is away, so the presence gate is closed: no pre-heat runs for an empty
 house and the rooms simply hold the schedule's midday Reduced level.
 
-![Overview, Maya absent, zone Reduced](screenshots/overview-away.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-away.png">
+  <img src="screenshots/light/overview-away.png"
+       alt="Overview, Maya absent, zone Reduced">
+</picture>
 
 The Overview shows Maya absent (grey dot) and the Home zone at **Reduced**.
 
-![Rooms, all three rooms Reduced · 16°C, 0/1 present](screenshots/rooms-away.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-away.png">
+  <img src="screenshots/light/rooms-away.png"
+       alt="Rooms, all three rooms Reduced · 16°C, 0/1 present">
+</picture>
 
 Every room shows **Reduced · 16°C** and **0/1** present, with no pre-heat badge,
 because there is nobody to pre-heat for.

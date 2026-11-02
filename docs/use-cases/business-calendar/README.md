@@ -52,7 +52,12 @@ The **Wake-up advance** of 30 minutes shifts Noah's calendar-derived presence to
 begin 30 minutes before the **first calendar event of the day**, so his rooms
 are warm before his first meeting. It is not a return-home mechanism.
 
-![Persons tab, Noah card expanded](screenshots/persons.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/persons.png">
+  <img src="screenshots/light/persons.png"
+       alt="Persons tab, Noah card expanded">
+</picture>
 
 The expanded Noah card shows the calendar configuration: Calendar source (Work
 Meetings), Event means (**Absent during events**), Gap handling (**Absent all
@@ -65,13 +70,23 @@ Both zones run in **Time program & presences** mode, so the weekly schedule is
 the gate: presence only decides whether the schedule is followed. It can never
 heat a zone outside its scheduled Normal/Comfort window.
 
-![Home zone schedule](screenshots/schedule-home.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/schedule-home.png">
+  <img src="screenshots/light/schedule-home.png"
+       alt="Home zone schedule">
+</picture>
 
 The **Home** zone heats Normal 06:30–09:00, eases to Reduced through the work
 day, returns to Normal 17:00–22:00 on weekdays, and holds Comfort 08:00–23:00 at
 weekends; Frost protection fills the rest.
 
-![Office zone schedule](screenshots/schedule-office.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/schedule-office.png">
+  <img src="screenshots/light/schedule-office.png"
+       alt="Office zone schedule">
+</picture>
 
 The **Office** zone is Comfort only 08:00–18:00 on weekdays and Frost protection
 all weekend.
@@ -83,12 +98,22 @@ all weekend.
 The calendar is clear, so Noah counts as working from home and the presence gate
 is open for both zones.
 
-![Overview, Noah present, Office Comfort, Home Normal](screenshots/overview-present.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-present.png">
+  <img src="screenshots/light/overview-present.png"
+       alt="Overview, Noah present, Office Comfort, Home Normal">
+</picture>
 
 The Overview shows two zone rows (Home at **Normal**, Office at **Comfort**)
 with Noah present (green dot).
 
-![Rooms, Office Comfort · 22°C, Home rooms Normal · 20°C](screenshots/rooms-present.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-present.png">
+  <img src="screenshots/light/rooms-present.png"
+       alt="Rooms, Office Comfort · 22°C, Home rooms Normal · 20°C">
+</picture>
 
 Home Office shows **Comfort · 22°C** (Office badge); Bedroom and Living Room
 show **Normal · 20°C** (Home badge). Each room is **1/1** present.
@@ -98,12 +123,22 @@ show **Normal · 20°C** (Home badge). Each room is **1/1** present.
 Noah is in the "Team sync" meeting (14:00–15:00), so the Calendar marks him away
 and the presence gate closes for every room, regardless of which zone it is in.
 
-![Overview, Noah absent, both zones Reduced](screenshots/overview-away.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-away.png">
+  <img src="screenshots/light/overview-away.png"
+       alt="Overview, Noah absent, both zones Reduced">
+</picture>
 
 The Overview now shows Noah absent (grey dot) and both zones fell back to
 **Reduced**.
 
-![Rooms, all three rooms Reduced · 16°C, 0/1 present](screenshots/rooms-away.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-away.png">
+  <img src="screenshots/light/rooms-away.png"
+       alt="Rooms, all three rooms Reduced · 16°C, 0/1 present">
+</picture>
 
 All three rooms, including the Office, show **Reduced · 16°C** and **0/1**
 present. The Office's own Comfort schedule is still in its 08:00–18:00 window,

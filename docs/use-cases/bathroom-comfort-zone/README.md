@@ -46,7 +46,12 @@ assigned person; the living areas need Alex assigned.
 Alex uses **Scheduled** presence mode (single week), assigned to **Bedroom** and
 **Living Room** only.
 
-![Persons tab, Alex card expanded](screenshots/persons.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/persons.png">
+  <img src="screenshots/light/persons.png"
+       alt="Persons tab, Alex card expanded">
+</picture>
 
 Alex's card shows a **Single week** schedule: present overnight and in the
 evening, absent 08:30–18:00 on weekdays, present all weekend. Room associations
@@ -55,12 +60,22 @@ deliberately absent from his list.
 
 ### Zone schedules
 
-![Home zone schedule](screenshots/schedule-home.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/schedule-home.png">
+  <img src="screenshots/light/schedule-home.png"
+       alt="Home zone schedule">
+</picture>
 
 The **Home** zone heats Normal 06:30–08:30 and 17:30–22:00 on weekdays, Comfort
 then Normal 08:00–23:00 at weekends.
 
-![Bathrooms zone schedule](screenshots/schedule-bathrooms.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/schedule-bathrooms.png">
+  <img src="screenshots/light/schedule-bathrooms.png"
+       alt="Bathrooms zone schedule">
+</picture>
 
 The **Bathrooms** zone is Comfort at wake-up (06:30–08:30), Reduced through the
 weekday, then Comfort again from 19:00; weekends run Comfort, Normal, then
@@ -77,12 +92,22 @@ Alex at all.
 It is the evening wash hour. Alex is home, so the Home zone follows its evening
 Normal period, and the Bathrooms zone is in its 19:00 Comfort period.
 
-![Overview, Home Normal, Bathrooms Comfort, Alex present](screenshots/overview-present.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-present.png">
+  <img src="screenshots/light/overview-present.png"
+       alt="Overview, Home Normal, Bathrooms Comfort, Alex present">
+</picture>
 
 The Overview shows Home at **Normal** and Bathrooms at **Comfort**, with Alex
 present (green dot).
 
-![Rooms, Home rooms Normal · 20°C, bathrooms Comfort · 22°C](screenshots/rooms-present.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-present.png">
+  <img src="screenshots/light/rooms-present.png"
+       alt="Rooms, Home rooms Normal · 20°C, bathrooms Comfort · 22°C">
+</picture>
 
 Bedroom and Living Room show **Normal · 20°C** with **1/1** present; Ensuite and
 Main Bathroom show **Comfort · 22°C** with **0** persons (Comfort runs without
@@ -95,13 +120,23 @@ Alex is out, so the Home zone presence gate closes and its rooms set back to
 **Reduced**. The Bathrooms zone is **Reduced** too, but only because its own
 midday schedule says so (Reduced 08:30–19:00), not because Alex is away.
 
-![Overview, Home Reduced, Bathrooms Reduced, Alex absent](screenshots/overview-away.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/overview-away.png">
+  <img src="screenshots/light/overview-away.png"
+       alt="Overview, Home Reduced, Bathrooms Reduced, Alex absent">
+</picture>
 
 The Overview shows Alex absent (grey dot). Both zones read **Reduced**, for two
 different reasons: Home because nobody is home, Bathrooms because that is its
 schedule at midday.
 
-![Rooms, all four rooms Reduced · 16°C](screenshots/rooms-away.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="screenshots/dark/rooms-away.png">
+  <img src="screenshots/light/rooms-away.png"
+       alt="Rooms, all four rooms Reduced · 16°C">
+</picture>
 
 All four rooms show **Reduced · 16°C**. The Home rooms are **0/1** present and
 gated off; the bathrooms carry no person count and would read exactly the same
