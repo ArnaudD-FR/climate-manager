@@ -612,7 +612,7 @@ Native entities exist so the HA recorder historises zone modes and periods
 | `sensor.<area_id>_period` (enum)                          | room (in its area) | `<entry>_room_<area_id>_period`               | `Room.current_period` (presence-resolved)      |
 | `sensor.<area_id>_preheat_rate` (diagnostic, min/°C)      | room (in its area) | `<entry>_room_<area_id>_preheat_rate`         | `Room.learned_rate()` (unknown while learning) |
 | `sensor.<area_id>_preheat_anticipation` (diagnostic, min) | room (in its area) | `<entry>_room_<area_id>_preheat_anticipation` | `Room.anticipation()` (learned)                |
-| `binary_sensor.climate_manager_boiler_demand` (heat)      | boiler             | `<entry>_boiler_demand`                       | on while a room needs heat; `rooms`, `reasons` |
+| `binary_sensor.climate_manager_boiler_demand` (on / off)  | boiler             | `<entry>_boiler_demand`                       | on while a room needs heat; `rooms`, `reasons` |
 
 - **Devices**: one per zone (`(DOMAIN, "zone_<zone_id>")`, named after the zone,
   Default Zone = `zone_default`) and one per room (`(DOMAIN, "room_<area_id>")`,
@@ -635,6 +635,8 @@ Native entities exist so the HA recorder historises zone modes and periods
   `HomeAssistantError`.
 - Entity names and state labels come from `translations/en.json`
   (`translation_key`: `zone_mode`, `zone_period`, `room_period`).
+  `boiler_demand` has no device class, so it reads On / Off (HEAT would show
+  Normal / Hot); its icon comes from `icons.json` (fire / fire-off).
 - **Panel access**: the status payload carries the resolved entity_ids
   (`zones[id].mode_entity_id` / `period_entity_id`,
   `rooms_status[].period_entity_id`), looked up by unique_id in the entity

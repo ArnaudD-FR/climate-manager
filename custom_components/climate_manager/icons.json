@@ -1,0 +1,12 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "boiler_demand": {
+        "default": "mdi:fire-off",
+        "state": {
+          "on": "mdi:fire"
+        }
+      }
+    }
+  }
+}

@@ -12,10 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.binary_sensor import (
-    BinarySensorDeviceClass,
-    BinarySensorEntity,
-)
+from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -49,8 +46,8 @@ async def async_setup_entry(
 class BoilerDemandSensor(ClimateManagerEntity, BinarySensorEntity):
     """On while at least one room needs heat."""
 
+    # No device class: HEAT would show "Normal" / "Hot" for a demand.
     _attr_translation_key = "boiler_demand"
-    _attr_device_class = BinarySensorDeviceClass.HEAT
 
     def __init__(
         self,
