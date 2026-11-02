@@ -159,6 +159,25 @@ All generated code **must** comply with `.editorconfig`. Key rules:
 
 Run `make lint` to validate all files against editorconfig before committing.
 
+### Frontend: HA components
+
+Whenever HA ships a component for a control, the panel **must** use it
+(`ha-selector`, `ha-button`, `ha-input-chip`, `ha-tab-group`, `ha-alert`, HA
+toasts…) — never a native `<select>`, `<input>`, `<button>` or a home-made
+widget. One code path only: no native fallback. See the "HA components" section
+of `docs/architecture.md` for the control → component table.
+
+- Prefer the helpers of `frontend/src/ha-controls.ts` (`haSelect`, `haEntity`,
+  `haNumber`, `haButton`, `haItemChip`, `haAreaAdd`, `haEntityAdd`); add one
+  there for a new kind of control.
+- A new HA element tag goes in `HA_ELEMENTS` (`frontend/src/ha-elements.ts`),
+  with a way to load it if HA lazy-loads it, and gets a stub in
+  `docs/ha-stubs.js` so `make screenshots` still renders it.
+- Check the element's API in the HA frontend source of the running HA version;
+  it changes between releases (e.g. `ha-textfield` is gone).
+- Verify in a real HA (Firefox and Chromium), opening the panel directly by URL:
+  the screenshot harness only renders stubs.
+
 ## Architecture
 
 See [`docs/architecture.md`](docs/architecture.md) for the full architecture
