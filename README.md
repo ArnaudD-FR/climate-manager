@@ -79,6 +79,9 @@ a room to appear in the panel, two conditions must be met:
   temperature
 - **Live status**: Overview tab shows current period, temperature, and humidity
   for every room
+- **Navigation**: Every tab and expanded card has its own URL, ready to
+  bookmark; the browser's Back / Forward retrace tabs and cards, and the sidebar
+  entry always opens the Overview
 - **Sensor alignment**: Optionally sets each TRV's temperature offset so that it
   follows the room temperature sensor (Tado X supported)
 - **TRV control**: Works with any HA `climate` entity; no brand-specific APIs

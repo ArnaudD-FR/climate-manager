@@ -664,23 +664,51 @@ Lit is bundled into `panel.js` — no dependency on HA's own Lit instance.
 
 ### Source structure — `frontend/src/`
 
-| File/component                                 | Role                                                                                                   |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `main.ts`                                      | Root `<climate-manager-panel>` element; receives `hass` from HA; owns tab routing and toasts           |
-| `ws-client.ts`                                 | Typed WS helpers (thin wrappers over `hass.connection`)                                                |
-| `types.ts`                                     | TypeScript interfaces for all WS message shapes (`ClimateConfig`, `StatusPayload`, `RoomStatus`, etc.) |
-| `ha-elements.ts`                               | Loads HA's lazy elements once at startup; reports the missing ones                                     |
-| `ha-controls.ts`                               | HA controls as template helpers: select / entity / number selectors, add pickers, chips, buttons       |
-| `ha-nav.ts`                                    | HA more-info / in-app navigation / History URL / history-graph card helpers                            |
-| `shared-styles.ts`                             | Shared CSS fragments (layout of chips, hints, section labels)                                          |
-| `components/rooms-tab.ts` + `room-card.ts`     | Per-room config and schedule editor                                                                    |
-| `components/zone-tab.ts`                       | Zone management (create/rename/delete/mode/schedule)                                                   |
-| `components/persons-tab.ts` + `person-card.ts` | Person presence config and schedule editor                                                             |
-| `components/global-settings-tab.ts`            | Global mode, period temps, sensor alignment                                                            |
-| `components/presence-periods-card.ts`          | Presence & absence periods card (Global tab); `presence-periods.ts` holds its pure helpers             |
-| `components/presence-mode.ts`                  | Presence mode selector widget                                                                          |
-| `components/time-bar.ts`                       | Interactive weekly schedule bar (drag to resize periods)                                               |
-| `components/week-parity.ts`                    | Even/odd week selector for biweekly schedules                                                          |
+| File/component                                 | Role                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `main.ts`                                      | Root `<climate-manager-panel>` element; receives `hass` and `route` from HA; owns navigation and toasts |
+| `panel-route.ts`                               | URL path ↔ view (tab + card to expand)                                                                 |
+| `ws-client.ts`                                 | Typed WS helpers (thin wrappers over `hass.connection`)                                                 |
+| `types.ts`                                     | TypeScript interfaces for all WS message shapes (`ClimateConfig`, `StatusPayload`, `RoomStatus`, etc.)  |
+| `ha-elements.ts`                               | Loads HA's lazy elements once at startup; reports the missing ones                                      |
+| `ha-controls.ts`                               | HA controls as template helpers: select / entity / number selectors, add pickers, chips, buttons        |
+| `ha-nav.ts`                                    | HA more-info / in-app navigation / History URL / history-graph card helpers                             |
+| `shared-styles.ts`                             | Shared CSS fragments (layout of chips, hints, section labels)                                           |
+| `components/rooms-tab.ts` + `room-card.ts`     | Per-room config and schedule editor                                                                     |
+| `components/zone-tab.ts`                       | Zone management (create/rename/delete/mode/schedule)                                                    |
+| `components/persons-tab.ts` + `person-card.ts` | Person presence config and schedule editor                                                              |
+| `components/global-settings-tab.ts`            | Global mode, period temps, sensor alignment                                                             |
+| `components/presence-periods-card.ts`          | Presence & absence periods card (Global tab); `presence-periods.ts` holds its pure helpers              |
+| `components/presence-mode.ts`                  | Presence mode selector widget                                                                           |
+| `components/time-bar.ts`                       | Interactive weekly schedule bar (drag to resize periods)                                                |
+| `components/week-parity.ts`                    | Even/odd week selector for biweekly schedules                                                           |
+
+### Navigation
+
+The URL is the panel's navigation state, the way HA's own panels work. HA hands
+the panel a `route` (`{prefix: "/climate_manager", path}`) and updates it on
+every navigation; `panel-route.ts` maps the path to a view:
+
+| Path                               | View                                    |
+| ---------------------------------- | --------------------------------------- |
+| ``(bare`/climate_manager`)         | Overview                                |
+| `/rooms`, `/rooms/<area_id>`       | Rooms, with that room card expanded     |
+| `/persons`, `/persons/<person_id>` | Persons, with that person card expanded |
+| `/zone/default`, `/zone/<zone_id>` | Zone tab                                |
+
+- Every move goes through `navigateTo` (`ha-nav.ts`): `pushState` (or
+  `replaceState`) + `location-changed`, like HA's `navigate()`.
+- A new history entry for a tab switch or a link to another card (room chip →
+  person card, zone link), so Back / Forward retrace them.
+- Expanding a card is a new history entry naming that card; so is collapsing the
+  card the URL names. Several cards can be open at once.
+- Any other route change (Back / Forward, reload, link, Back from HA's History
+  page) shows exactly the URL card expanded, scrolled into view: Back undoes
+  each expansion, then the tab switch. `main.ts` tells the two apart with a
+  route counter (`routeSeq`) that card toggles do not bump.
+- No tab is remembered elsewhere: the sidebar link opens the Overview.
+- An unknown path or a deleted zone is replaced by the Overview.
+- The docs harness mimics HA's router to feed the panel its `route`.
 
 ### HA components
 
