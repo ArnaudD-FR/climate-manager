@@ -39,10 +39,12 @@ from custom_components.climate_manager.const import (
     DOMAIN,
     MODE_TIME_PROGRAM,
     MODE_TIME_PROGRAM_PRESENCES,
+    PERIOD_FROST_PROTECTION,
     PERIOD_NORMAL,
     PERIOD_REDUCED,
     PREHEAT_BOOST_MAX,
     PREHEAT_CONVERGENCE_THRESHOLD,
+    PREHEAT_RETURN_MAX_LEAD_MINUTES,
     PREHEAT_LEARNING_LEAD_MINUTES,
 )
 
@@ -813,6 +815,7 @@ def test_default_lead_time():
     assert compute_lead(None, 3.0, 60) == 60
     # A learned rate may use the whole max lead.
     assert compute_lead(80.0, 3.0, max_lead) == max_lead
+    assert compute_lead(20.0, 3.0, max_lead, margin=0.5) == pytest.approx(90.0)
 
 
 def test_learning_lead_follows_the_slowest_sample():
@@ -1970,9 +1973,18 @@ def _trip(end: str, person_ids: list[str] | None = None) -> dict:
 
 
 async def _preheat_room(
-    hass, freezer, *, zone_mode, program, persons, periods, now
+    hass,
+    freezer,
+    *,
+    zone_mode,
+    program,
+    persons,
+    periods,
+    now,
+    current=18.0,
+    rates=(),
 ):
-    """Run one pre-heat pass for a bedroom at 18 °C, pre-heat enabled."""
+    """Run one pre-heat pass for a bedroom (18 °C), pre-heat enabled."""
     from custom_components.climate_manager.coordinator import (
         ClimateManagerCoordinator,
     )
@@ -1982,10 +1994,16 @@ async def _preheat_room(
     hass.states.async_set(
         "climate.bedroom_trv",
         "heat",
-        {"temperature": 18.0, "current_temperature": 18.0},
+        {"temperature": 18.0, "current_temperature": current},
     )
     async_mock_service(hass, "climate", "set_hvac_mode")
     async_mock_service(hass, "climate", "set_temperature")
+    preheat_data = empty_preheat_data()
+    if rates:
+        preheat_data["rooms"]["bedroom"] = {
+            "samples": _rate_samples(*rates),
+            "run": None,
+        }
     config = _make_preheat_config(
         global_mode=zone_mode,
         persons_config=persons,
@@ -1997,6 +2015,7 @@ async def _preheat_room(
     data = _make_mock_data(
         runtime_config=config,
         rooms={"bedroom": ["climate.bedroom_trv"]},
+        preheat_data=preheat_data,
     )
     coord = ClimateManagerCoordinator(hass, data)
     room = coord._rooms["bedroom"]
@@ -2017,13 +2036,13 @@ _HA_ALICE = {"person.alice": {"mode": "ha", "room_ids": ["bedroom"]}}
 
 @pytest.mark.parametrize(
     ("hour", "active"),
-    [(15, False), (17, True)],
+    [(6, False), (7, True)],
 )
 async def test_preheat_for_the_return_of_an_ha_tracked_person(
     hass, freezer, hour, active
 ):
     """HA home tracking has no predictable arrival; a dated absence gives
-    one: the return, reached within the learning lead (120 min)."""
+    one: the return, reached within the learning lead of a return (12 h)."""
     room = await _preheat_room(
         hass,
         freezer,
@@ -2062,14 +2081,15 @@ async def test_return_in_a_reduced_gap_targets_the_occupied_setpoint(
 
 
 @pytest.mark.parametrize(
-    ("hour", "active"),
-    [(16, False), (17, True)],
+    ("hour", "minute", "active"),
+    [(16, 45, False), (18, 15, True)],
 )
 async def test_household_absence_moves_the_increase_to_the_return(
-    hass, freezer, hour, active
+    hass, freezer, hour, minute, active
 ):
-    """Time program zone, everyone away until 18:30: no pre-heat for the
-    17:00 increase (16:00 is within its lead), pre-heat for the return."""
+    """Time program zone, everyone away until 18:30, 10 min/°C × 2 °C: no
+    pre-heat for the 17:00 increase (16:45 is within its 22 min lead),
+    pre-heat for the return (30 min lead, +50 %)."""
     room = await _preheat_room(
         hass,
         freezer,
@@ -2077,9 +2097,147 @@ async def test_household_absence_moves_the_increase_to_the_return(
         program=_TWO_PEAKS,
         persons={},
         periods=[_trip("2026-06-03T18:30")],
-        now=_dt(2026, 6, 3, hour, 0),
+        now=_dt(2026, 6, 3, hour, minute),
+        rates=(10.0, 10.0, 10.0),
     )
 
     assert room._preheat_active is active
     if active:
         assert room._preheat_in_progress["until"] == _dt(2026, 6, 3, 18, 30)
+
+
+def _frost_trip(end: str) -> dict:
+    return {**_trip(end), "setback": PERIOD_FROST_PROTECTION}
+
+
+@pytest.mark.parametrize(
+    ("hour", "active"),
+    [(6, False), (7, True)],
+)
+async def test_frost_return_learning_starts_at_the_wide_cap(
+    hass, freezer, hour, active
+):
+    """Back at 18:30 from a holiday in Frost protection, the room at 6 °C,
+    no rate yet: pre-heat starts 12 h before (not the 120 min learning
+    lead), and the run is marked so it teaches no rate."""
+    room = await _preheat_room(
+        hass,
+        freezer,
+        zone_mode=MODE_TIME_PROGRAM,
+        program=_ALL_NORMAL,
+        persons={},
+        periods=[_frost_trip("2026-06-03T18:30")],
+        now=_dt(2026, 6, 3, hour, 0),
+        current=6.0,
+    )
+
+    assert room._preheat_lead == PREHEAT_RETURN_MAX_LEAD_MINUTES
+    assert room._preheat_active is active
+    if active:
+        run = room._preheat_in_progress
+        assert run["until"] == _dt(2026, 6, 3, 18, 30)
+        assert run["frost_return"] is True
+        assert run["max_lead"] == PREHEAT_RETURN_MAX_LEAD_MINUTES
+
+
+@pytest.mark.parametrize(
+    ("rate", "lead"),
+    [(30.0, 14 * 30.0 * 1.5), (60.0, PREHEAT_RETURN_MAX_LEAD_MINUTES)],
+)
+async def test_frost_return_lead_is_rate_times_gap_up_to_the_cap(
+    hass, freezer, rate, lead
+):
+    """A learned rate: rate × the 14 °C gap (+50 %), up to 12 h."""
+    room = await _preheat_room(
+        hass,
+        freezer,
+        zone_mode=MODE_TIME_PROGRAM,
+        program=_ALL_NORMAL,
+        persons={},
+        periods=[_frost_trip("2026-06-03T18:30")],
+        now=_dt(2026, 6, 3, 2, 0),
+        current=6.0,
+        rates=(rate, rate, rate),
+    )
+
+    assert room._preheat_lead == pytest.approx(lead)
+
+
+async def test_reduced_return_learning_starts_at_the_wide_cap(hass, freezer):
+    """The same return from a Reduced absence, no rate yet: it starts at
+    the 12 h cap too (a bedroom left at 12 °C for a week was late)."""
+    room = await _preheat_room(
+        hass,
+        freezer,
+        zone_mode=MODE_TIME_PROGRAM,
+        program=_ALL_NORMAL,
+        persons={},
+        periods=[_trip("2026-06-03T18:30")],
+        now=_dt(2026, 6, 3, 7, 0),
+        current=6.0,
+    )
+
+    assert room._preheat_lead == PREHEAT_RETURN_MAX_LEAD_MINUTES
+    assert room._preheat_active is True
+    run = room._preheat_in_progress
+    assert run["frost_return"] is False
+    assert run["max_lead"] == PREHEAT_RETURN_MAX_LEAD_MINUTES
+
+
+async def test_reduced_return_lead_goes_beyond_the_room_max_lead(hass, freezer):
+    """A learned rate, back from a Reduced absence: rate × the 8 °C gap
+    (+50 %) may exceed the room's Max lead time, up to 12 h; the run
+    names the period and still teaches a rate."""
+    room = await _preheat_room(
+        hass,
+        freezer,
+        zone_mode=MODE_TIME_PROGRAM,
+        program=_ALL_NORMAL,
+        persons={},
+        periods=[_trip("2026-06-03T18:30")],
+        now=_dt(2026, 6, 3, 11, 0),
+        current=12.0,
+        rates=(40.0, 40.0, 40.0),
+    )
+
+    assert room._preheat_lead == pytest.approx(40.0 * 8 * 1.5)
+    assert room._preheat_active is True
+    run = room._preheat_in_progress
+    assert run["return_period"] == "trip"
+    assert run["frost_return"] is False
+    assert room._run_sample(run, _dt(2026, 6, 3, 18, 0), False, "x")
+
+
+async def test_scheduled_increase_names_no_return_period(hass, freezer):
+    """A plain schedule increase, nobody away: no return period."""
+    room = await _preheat_room(
+        hass,
+        freezer,
+        zone_mode=MODE_TIME_PROGRAM,
+        program=_TWO_PEAKS,
+        persons={},
+        periods=[],
+        now=_dt(2026, 6, 3, 16, 30),
+        current=12.0,
+    )
+
+    assert room._preheat_active is True
+    assert room._preheat_in_progress["return_period"] is None
+
+
+async def test_frost_return_run_gives_no_rate_sample(hass, freezer):
+    """The run reaches its target: no sample, the rate stays unlearned."""
+    room = await _preheat_room(
+        hass,
+        freezer,
+        zone_mode=MODE_TIME_PROGRAM,
+        program=_ALL_NORMAL,
+        persons={},
+        periods=[_frost_trip("2026-06-03T18:30")],
+        now=_dt(2026, 6, 3, 7, 0),
+        current=6.0,
+    )
+    run = room._preheat_in_progress
+    assert room._run_sample(run, _dt(2026, 6, 3, 14, 0), False, "x") is None
+    run = {**run, "frost_return": False}
+    assert room._run_sample(run, _dt(2026, 6, 3, 14, 0), False, "x")

@@ -98,6 +98,10 @@ TRV_COMMAND_TIMEOUT: float = 30
 DEFAULT_PREHEAT_MAX_LEAD_MINUTES: int = 240  # D-01 / PREHEAT-01
 # Lead while learning (or room temperature unknown), capped by the max lead
 PREHEAT_LEARNING_LEAD_MINUTES: int = 120
+# Max lead for the return from a household absence (a rise of 8 °C from
+# Reduced, ~15 °C from Frost protection, walls cold too); also the lead while
+# learning then.
+PREHEAT_RETURN_MAX_LEAD_MINUTES: int = 720
 # Min samples before the learned heating rate replaces the learning lead
 PREHEAT_DEFAULT_SAMPLE_COUNT_THRESHOLD: int = 3
 # Samples kept per room; the learned rate is their median (D-08)
@@ -106,6 +110,10 @@ PREHEAT_MAX_SAMPLES: int = 7
 PREHEAT_CONVERGENCE_THRESHOLD: float = 0.2
 # Safety margin added to the learned lead (rate × gap × (1 + margin))
 PREHEAT_LEAD_MARGIN: float = 0.1
+# Margin for the return from a household absence: rates are learned on small
+# rises, a big one is slower per °C (cold walls). 2026-11-07, back from a week
+# at 12 °C: wc and salle d'eau took ~27 min/°C, learned ~17 (+55 %).
+PREHEAT_RETURN_LEAD_MARGIN: float = 0.5
 # Shortest lead: radiator warm-up time even for a tiny gap
 PREHEAT_MIN_LEAD_MINUTES: int = 10
 # Smallest start gap (°C) that yields a meaningful rate sample

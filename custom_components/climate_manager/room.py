@@ -37,6 +37,9 @@ from .const import (
     PREHEAT_ANTICIPATION_DEFAULT_MINUTES,
     PREHEAT_BOOST_MAX,
     PREHEAT_CONVERGENCE_THRESHOLD,
+    PREHEAT_LEAD_MARGIN,
+    PREHEAT_RETURN_LEAD_MARGIN,
+    PREHEAT_RETURN_MAX_LEAD_MINUTES,
     PREHEAT_OVERSHOOT_WINDOW_MINUTES,
     PRESENCE_ABSENT,
     PRESENCE_HA,
@@ -63,10 +66,13 @@ from .preheat import (
 from .schedule import (
     compute_occupied_temp,
     evaluate_schedule,
+    absence_setback,
     has_presence_periods,
+    household_absence_at,
     next_arrival as person_next_arrival,
     next_increase_with_absences,
     next_setpoint_increase_at,
+    period_bounds,
     presence_override,
 )
 from .trv import is_trv_entity
@@ -609,7 +615,11 @@ class Room:
            (scheduled person arrival, else the next zone setpoint
            increase). Lead = learned rate (min/°C) × gap to the upcoming
            setpoint × (1 + margin), bounded [min lead, max lead]; max lead
-           while learning. Pushes the upcoming setpoint at once.
+           while learning. Pushes the upcoming setpoint at once. For the
+           return from a household absence, the max lead is at least
+           PREHEAT_RETURN_MAX_LEAD_MINUTES, the learning lead is that cap
+           and the margin PREHEAT_RETURN_LEAD_MARGIN; from Frost protection,
+           the run records no sample.
         2. HOLD: until the occupied time, apply_setpoint keeps the upcoming
            setpoint, so the zone schedule never undoes the pre-heat. The
            TRVs get it boosted, valve wide open (_preheat_boost).
@@ -689,15 +699,7 @@ class Room:
                     # here, its overshoot tunes the anticipation too.
                     self._watch_overshoot(now, current_temp)
                 ip["converged"] = True
-                sample = make_sample(
-                    ip["start_time"],
-                    now,
-                    ip["start_temp"],
-                    ip["target_temp"],
-                    censored=False,
-                    conditions=run_conditions(ip),
-                )
-                self._log_sample(sample, "reached")
+                sample = self._run_sample(ip, now, False, "reached")
                 if ip["measuring"]:
                     await self._end_preheat(sample)
                     return
@@ -709,18 +711,13 @@ class Room:
                     and self._last_setpoint
                     < ip["target_temp"] - PREHEAT_CONVERGENCE_THRESHOLD
                 )
+                cap = ip.get("max_lead", preheat_max_lead)
                 if setpoint_dropped or (
-                    now - ip["start_time"] > measure_cap(preheat_max_lead)
+                    now - ip["start_time"] > measure_cap(cap)
                 ):
-                    sample = make_sample(
-                        ip["start_time"],
-                        now,
-                        ip["start_temp"],
-                        ip["target_temp"],
-                        censored=True,
-                        conditions=run_conditions(ip),
+                    sample = self._run_sample(
+                        ip, now, True, "not reached, censored"
                     )
-                    self._log_sample(sample, "not reached, censored")
                     await self._end_preheat(sample)
                 return
 
@@ -798,6 +795,25 @@ class Room:
                 time_program, period_temperatures, now
             )
 
+        # Returning from a household absence: a bigger rise, slower per °C,
+        # so a longer max lead (also the lead while learning) and a wider
+        # margin; from Frost protection, no rate sample either.
+        absence = household_absence_at(periods, now)
+        absence_return = (
+            next_occupied is not None
+            and absence is not None
+            and next_occupied >= period_bounds(absence, now.tzinfo)[1]
+        )
+        frost_return = (
+            absence_return
+            and absence_setback(absence) == PERIOD_FROST_PROTECTION
+        )
+        max_lead = (
+            max(preheat_max_lead, PREHEAT_RETURN_MAX_LEAD_MINUTES)
+            if absence_return
+            else preheat_max_lead
+        )
+
         # A dated period makes any mode's arrival predictable.
         presence_suppressed = (
             zone_mode == MODE_TIME_PROGRAM_PRESENCES
@@ -818,7 +834,8 @@ class Room:
                 next_occupied is None
                 or presence_suppressed
                 or self._frost_locked
-                or next_occupied - now > timedelta(minutes=preheat_max_lead)
+                or next_occupied - now
+                > timedelta(minutes=ip.get("max_lead", max_lead))
                 or self._scheduled_reaches(ip["target_temp"])
             ):
                 # The pre-heat lost its reason: cancel, no sample.
@@ -870,7 +887,16 @@ class Room:
         )
         entry = self._preheat_store_entry()
         slowest = learning_rate(entry["samples"]) if entry else None
-        lead = compute_lead(rate, delta, preheat_max_lead, slowest)
+        if absence_return and rate is None:
+            # Learning: start early rather than late for such a rise.
+            lead = float(max_lead)
+        else:
+            margin = (
+                PREHEAT_RETURN_LEAD_MARGIN
+                if absence_return
+                else PREHEAT_LEAD_MARGIN
+            )
+            lead = compute_lead(rate, delta, max_lead, slowest, margin)
         self._preheat_lead = lead
 
         trigger_start = next_occupied - timedelta(minutes=lead)
@@ -918,6 +944,9 @@ class Room:
             "boosted": False,
             "released": False,
             "readings": [],
+            "max_lead": max_lead,
+            "return_period": absence["id"] if absence_return else None,
+            "frost_return": frost_return,
             **start_conditions(self._boiler_readings(config)),
         }
         if current_temp is not None:
@@ -952,6 +981,34 @@ class Room:
             await self.apply_setpoint(
                 self._last_period or PERIOD_PREHEAT, self._last_setpoint, ctx
             )
+
+    def _run_sample(
+        self, ip: dict, now: datetime, censored: bool, outcome: str
+    ) -> dict | None:
+        """The finished run's rate sample (logged), if it teaches one.
+
+        A return from Frost protection gives none: its ~15 °C rise from
+        cold walls does not represent the small rises the rate is learned
+        from.
+        """
+        if ip.get("frost_return"):
+            _LOGGER.info(
+                "preheat | room=%s %s (return from Frost protection,"
+                " no sample)",
+                self.area_id,
+                outcome,
+            )
+            return None
+        sample = make_sample(
+            ip["start_time"],
+            now,
+            ip["start_temp"],
+            ip["target_temp"],
+            censored=censored,
+            conditions=run_conditions(ip),
+        )
+        self._log_sample(sample, outcome)
+        return sample
 
     def _log_sample(self, sample: dict | None, outcome: str) -> None:
         """INFO log for a finished measurement (sample may be None)."""

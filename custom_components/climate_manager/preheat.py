@@ -197,6 +197,7 @@ def compute_lead(
     delta: float | None,
     max_lead: float,
     slowest: float | None = None,
+    margin: float = PREHEAT_LEAD_MARGIN,
 ) -> float:
     """Lead (minutes) to close `delta` °C at `rate` min/°C, with margin.
 
@@ -209,11 +210,9 @@ def compute_lead(
     if rate is None or delta is None:
         lead = float(PREHEAT_LEARNING_LEAD_MINUTES)
         if slowest is not None and delta is not None:
-            lead = max(
-                lead, slowest * max(delta, 0.0) * (1 + PREHEAT_LEAD_MARGIN)
-            )
+            lead = max(lead, slowest * max(delta, 0.0) * (1 + margin))
         return float(min(lead, max_lead))
-    lead = rate * max(delta, 0.0) * (1 + PREHEAT_LEAD_MARGIN)
+    lead = rate * max(delta, 0.0) * (1 + margin)
     return float(min(max(lead, PREHEAT_MIN_LEAD_MINUTES), max_lead))
 
 

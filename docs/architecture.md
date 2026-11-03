@@ -276,22 +276,34 @@ room starts earlier; while fewer than 3 samples exist, or the room temperature
 is unknown, the learning lead is used (`PREHEAT_LEARNING_LEAD_MINUTES`, 120 min,
 capped by the max lead), or longer when the slowest sample so far needs it
 (`learning_rate`: the salon, 230 min/°C with 2 samples, started 120 min ahead
-and was 18 min late on 2026-10-26). The run lives in `Room._preheat_in_progress`
-(`start_time`, `start_temp`, `target_temp`, `until`, `converged`, `measuring`,
-`boosted`, `released`, `readings`). Until `until`, `Room.apply_setpoint` keeps
-the upcoming setpoint whenever it is warmer than the zone's scheduled one, and
-the room period is `preheat` (room period sensor state, panel badge, history
-timeline). Reaching the target
+and was 18 min late on 2026-10-26). **Return from an absence** (the next
+occupied time follows the active household absence,
+`schedule.household_absence_at`): the max lead widens to
+`PREHEAT_RETURN_MAX_LEAD_MINUTES` (720 min), whatever the setback, the learning
+lead is that cap too (start early rather than late for an 8–15 °C rise: three
+bedrooms still learning would have started 120 min before a week's absence at 12
+°C ended, 2026-11-07), the margin is `PREHEAT_RETURN_LEAD_MARGIN` (+50 % instead
+of +10 %: per °C a big rise is slower than the small ones the rate is learned
+from, cold walls; that evening wc and salle d'eau took ~27 min/°C against ~17
+learned, and rooms started 9 h ahead still missed 20 °C, the boiler flow at ~48
+°C), and the run names the period (`return_period`). From Frost protection the
+run, marked `frost_return`, records no sample: such a rise does not represent
+the everyday ones. The run lives in `Room._preheat_in_progress` (`start_time`,
+`start_temp`, `target_temp`, `until`, `converged`, `measuring`, `boosted`,
+`released`, `readings`, `max_lead`, `return_period`, `frost_return`). Until
+`until`, `Room.apply_setpoint` keeps the upcoming setpoint whenever it is warmer
+than the zone's scheduled one, and the room period is `preheat` (room period
+sensor state, panel badge, history timeline). Reaching the target
 (`room_temp ≥ target − PREHEAT_CONVERGENCE_THRESHOLD`) records one sample but
 keeps holding until `until`. Not reached by `until`: the run switches to
 **measuring** (no hold; the zone setpoint is already the target) and records the
 real duration once reached, so a lead that was too short grows. A measuring run
 ends **censored** (elapsed time as a lower bound of the rate) when the zone
-setpoint drops below the target or after 2 × max lead. A start gap under 0.5 °C
-yields no sample. A run whose reason vanished (pre-heat disabled, zone off,
-presence suppressed, occupied time no longer within the max lead, the zone
-already asking for the target) is cancelled without a sample. Skipped when the
-zone already asks the room for the upcoming setpoint
+setpoint drops below the target or after 2 × the run's `max_lead`. A start gap
+under 0.5 °C yields no sample. A run whose reason vanished (pre-heat disabled,
+zone off, presence suppressed, occupied time no longer within the max lead, the
+zone already asking for the target) is cancelled without a sample. Skipped when
+the zone already asks the room for the upcoming setpoint
 (`Room._scheduled_setpoint`, the last setpoint the zone pushed before any
 pre-heat override: in a presence zone with someone home, the occupied period is
 pushed now, so the program's later Reduced → Normal is no increase for the room
@@ -817,17 +829,17 @@ Panel (mutation)
 
 ## Key design decisions
 
-| Decision                                     | Rationale                                                                                                                            |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `entry.runtime_data` typed dataclass         | No global `hass.data` dict; auto-cleaned on unload                                                                                   |
-| Anti-flap push + manual override hold        | Avoids redundant TRV calls; respects manual adjustments                                                                              |
-| Sparse storage model                         | Absent keys fall back to `DEFAULT_CONFIG`; forward-compatible                                                                        |
-| Zone model (absent `zone_id` = Default Zone) | ZONE-04: room belongs to at most one zone by structure                                                                               |
-| Domain model + fingerprint rebuild           | Coordinator delegates to `Zone`/`Person`/`Room`/`TRV` objects; rebuilt only when config changes; anti-spam log state carried forward |
-| Native select/sensor entities per zone/room  | Recorder history of zone mode, zone period and room period; mode select reuses the WS `set_zone_mode` path                           |
-| `EvalContext` per cycle                      | One object threads `now` + calendar/presence caches through the call chain (D-02)                                                    |
-| OBS-01 anti-spammed logs                     | `zone`/`presence`/`heating` lines fire only on real state changes                                                                    |
-| Pre-heat learned inertia                     | Median rate (min/°C) of the last 7 samples × gap × 1.1, bounded [10, max lead]; censored samples avoid a short bias; run persisted   |
-| Calendar cache per cycle                     | One `get_events` call per unique calendar entity per minute tick                                                                     |
-| WebSocket over REST                          | Session already established; no auth token management from JS                                                                        |
-| Lit bundled in panel.js                      | Avoids HA Lit version conflicts; larger bundle is acceptable trade-off                                                               |
+| Decision                                     | Rationale                                                                                                                                                       |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entry.runtime_data` typed dataclass         | No global `hass.data` dict; auto-cleaned on unload                                                                                                              |
+| Anti-flap push + manual override hold        | Avoids redundant TRV calls; respects manual adjustments                                                                                                         |
+| Sparse storage model                         | Absent keys fall back to `DEFAULT_CONFIG`; forward-compatible                                                                                                   |
+| Zone model (absent `zone_id` = Default Zone) | ZONE-04: room belongs to at most one zone by structure                                                                                                          |
+| Domain model + fingerprint rebuild           | Coordinator delegates to `Zone`/`Person`/`Room`/`TRV` objects; rebuilt only when config changes; anti-spam log state carried forward                            |
+| Native select/sensor entities per zone/room  | Recorder history of zone mode, zone period and room period; mode select reuses the WS `set_zone_mode` path                                                      |
+| `EvalContext` per cycle                      | One object threads `now` + calendar/presence caches through the call chain (D-02)                                                                               |
+| OBS-01 anti-spammed logs                     | `zone`/`presence`/`heating` lines fire only on real state changes                                                                                               |
+| Pre-heat learned inertia                     | Median rate (min/°C) of the last 7 samples × gap × 1.1 (× 1.5 on an absence return), bounded [10, max lead]; censored samples avoid a short bias; run persisted |
+| Calendar cache per cycle                     | One `get_events` call per unique calendar entity per minute tick                                                                                                |
+| WebSocket over REST                          | Session already established; no auth token management from JS                                                                                                   |
+| Lit bundled in panel.js                      | Avoids HA Lit version conflicts; larger bundle is acceptable trade-off                                                                                          |

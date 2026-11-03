@@ -850,6 +850,16 @@ def household_setback(
     return absence_setback(period)
 
 
+def household_absence_at(
+    periods: list | None, now: datetime.datetime
+) -> dict | None:
+    """The household absence active at now, None without one."""
+    period = active_presence_period(periods, now)
+    if period is None or period["kind"] != PRESENCE_PERIOD_ABSENT:
+        return None
+    return period
+
+
 def _arrival_on_return(
     person_config: dict,
     ret: datetime.datetime,
