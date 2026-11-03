@@ -99,6 +99,9 @@ export interface ZoneConfig {
 /** Presence or absence over a dated period. */
 export type PresencePeriodKind = "absent" | "present";
 
+/** What an absence of everyone holds while away. */
+export type AbsenceSetback = "reduced" | "frost_protection";
+
 /**
  * A dated presence / absence period: overrides the presence mode of the
  * persons it covers from start (included) to end, the return (excluded).
@@ -111,6 +114,8 @@ export interface PresencePeriod {
   end: string;
   /** Absent = everyone, time program zones included. */
   person_ids?: string[];
+  /** Absence of everyone only; absent = Reduced. */
+  setback?: AbsenceSetback;
 }
 
 export interface ClimateConfig {

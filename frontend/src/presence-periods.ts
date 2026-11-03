@@ -8,7 +8,21 @@
  * from the bounds.
  */
 
-import type { ClimateConfig, Hass, PresencePeriod } from "./types.js";
+import type {
+  AbsenceSetback,
+  ClimateConfig,
+  Hass,
+  PresencePeriod,
+} from "./types.js";
+
+/** An absence of everyone longer than this proposes Frost protection. */
+export const FROST_SUGGEST_DAYS = 2;
+
+/** Panel labels of the absence setbacks. */
+export const SETBACK_LABELS: Record<AbsenceSetback, string> = {
+  reduced: "Reduced",
+  frost_protection: "Frost protection",
+};
 
 const MONTHS = [
   "Jan",
@@ -140,4 +154,16 @@ export function selectionToPersonIds(
 ): string[] | undefined {
   const everyone = allPersonIds.every((id) => selected.includes(id));
   return everyone ? undefined : [...selected].sort();
+}
+
+/**
+ * Setback proposed for an absence of everyone from start to end (local
+ * "YYYY-MM-DDTHH:MM"): Frost protection beyond FROST_SUGGEST_DAYS, as for
+ * a holiday, else Reduced.
+ */
+export function suggestedSetback(start: string, end: string): AbsenceSetback {
+  if (!isLocalDateTime(start) || !isLocalDateTime(end)) return "reduced";
+  // Both read as UTC: a DST change does not shift the length.
+  const ms = Date.parse(`${end}:00Z`) - Date.parse(`${start}:00Z`);
+  return ms > FROST_SUGGEST_DAYS * 86_400_000 ? "frost_protection" : "reduced";
 }

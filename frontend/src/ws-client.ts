@@ -19,6 +19,7 @@ import type {
   CloudPolling,
   BoilerConfig,
   PresencePeriodKind,
+  AbsenceSetback,
 } from "./types.js";
 
 export class WsClient {
@@ -250,6 +251,7 @@ export class WsClient {
     start: string;
     end: string;
     personIds?: string[];
+    setback?: AbsenceSetback;
   }): Promise<{ success: boolean; period_id: string }> {
     return this.hass.connection.sendMessagePromise<{
       success: boolean;
@@ -261,6 +263,7 @@ export class WsClient {
       start: period.start,
       end: period.end,
       ...(period.personIds ? { person_ids: period.personIds } : {}),
+      ...(period.setback ? { setback: period.setback } : {}),
     });
   }
 

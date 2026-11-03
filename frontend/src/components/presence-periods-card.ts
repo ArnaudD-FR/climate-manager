@@ -26,12 +26,15 @@ import {
   hasPresenceZone,
   isLocalDateTime,
   joinLocal,
+  SETBACK_LABELS,
   selectionToPersonIds,
   splitLocal,
+  suggestedSetback,
   toLocalInput,
   useAmPm,
 } from "../presence-periods.js";
 import type {
+  AbsenceSetback,
   ClimateConfig,
   Hass,
   PresencePeriod,
@@ -47,6 +50,8 @@ interface PeriodDraft {
   end: string;
   /** Selected persons (all of them for everyone). */
   selected: string[];
+  /** Chosen setback; unset follows suggestedSetback (the dates). */
+  setback?: AbsenceSetback;
 }
 
 export class PresencePeriodsCard extends LitElement {
@@ -226,6 +231,11 @@ export class PresencePeriodsCard extends LitElement {
       start: period.start,
       end: period.end,
       selected: all.filter((id) => covers(period, id)),
+      // A stored absence of everyone keeps its setback (Reduced if none).
+      setback:
+        period.kind === "absent" && !period.person_ids
+          ? period.setback ?? "reduced"
+          : undefined,
     };
   }
 
@@ -244,6 +254,20 @@ export class PresencePeriodsCard extends LitElement {
       return String((err as { message: unknown }).message);
     }
     return String(err);
+  }
+
+  /** True when the draft covers everyone (all persons, or no choice). */
+  private _everyone(draft: PeriodDraft): boolean {
+    if (!hasPresenceZone(this.config)) return true;
+    return (
+      selectionToPersonIds(draft.selected, this._personIds()) === undefined
+    );
+  }
+
+  /** The setback to save, undefined when the draft has none. */
+  private _setback(draft: PeriodDraft): AbsenceSetback | undefined {
+    if (draft.kind !== "absent" || !this._everyone(draft)) return undefined;
+    return draft.setback ?? suggestedSetback(draft.start, draft.end);
   }
 
   private _update(patch: Partial<PeriodDraft>) {
@@ -284,6 +308,7 @@ export class PresencePeriodsCard extends LitElement {
         personIds: pickPersons
           ? selectionToPersonIds(draft.selected, this._personIds())
           : undefined,
+        setback: this._setback(draft),
       });
       this._draft = null;
       await this.panel.reloadConfig();
@@ -335,6 +360,32 @@ export class PresencePeriodsCard extends LitElement {
     );
   }
 
+  private _renderSetback(setback: AbsenceSetback) {
+    const onSetback = (value: string) => {
+      if (value === "reduced" || value === "frost_protection") {
+        this._update({ setback: value });
+      }
+    };
+    return html`
+      <div class="field">
+        <span>Setback</span>
+        ${haSelect(
+          this.hass,
+          setback,
+          [
+            { value: "reduced", label: SETBACK_LABELS.reduced },
+            {
+              value: "frost_protection",
+              label: SETBACK_LABELS.frost_protection,
+            },
+          ],
+          onSetback,
+          { cls: "kind-select" },
+        )}
+      </div>
+    `;
+  }
+
   /** A date and a time, joined as a local "YYYY-MM-DDTHH:MM". */
   private _renderWhen(
     label: string,
@@ -368,6 +419,7 @@ export class PresencePeriodsCard extends LitElement {
 
   private _renderEditor(draft: PeriodDraft) {
     const pickPersons = hasPresenceZone(this.config);
+    const setback = this._setback(draft);
     return html`
       <div class="editor">
         <div class="field">
@@ -381,6 +433,7 @@ export class PresencePeriodsCard extends LitElement {
         ${pickPersons
           ? this._renderPersons(draft)
           : html`<p class="hint">Everyone</p>`}
+        ${setback ? this._renderSetback(setback) : ""}
         <div class="actions">
           ${haButton("Cancel", () => (this._draft = null))}
           ${haButton("Save", () => void this._onSave(), {
@@ -392,6 +445,14 @@ export class PresencePeriodsCard extends LitElement {
     `;
   }
 
+  /** "Away", "Away · Frost protection" or "Home". */
+  private _kindLabel(period: PresencePeriod): string {
+    if (period.kind !== "absent") return "Home";
+    return period.setback === "frost_protection"
+      ? `Away · ${SETBACK_LABELS.frost_protection}`
+      : "Away";
+  }
+
   private _renderPeriod(period: PresencePeriod, now: string, amPm: boolean) {
     const active = period.start <= now;
     const restrictedNoEffect =
@@ -399,7 +460,7 @@ export class PresencePeriodsCard extends LitElement {
     return html`
       <div class="period-row">
         <span class="kind ${period.kind} ${active ? "active" : ""}">
-          ${period.kind === "absent" ? "Away" : "Home"}
+          ${this._kindLabel(period)}
         </span>
         <span class="dates">
           ${formatPeriodDate(period.start, amPm)} →
@@ -441,7 +502,8 @@ export class PresencePeriodsCard extends LitElement {
             ${hasPresenceZone(this.config)
               ? ""
               : html`No zone uses Time program &amp; presences: a period applies
-                to everyone, Time program zones included (Reduced while away).`}
+                to everyone, Time program zones included (Reduced or Frost
+                protection while away).`}
           </p>
           ${periods.map((p) => this._renderPeriod(p, now, amPm))}
           ${this._draft

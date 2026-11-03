@@ -17,6 +17,7 @@ import {
   personPeriodBadge,
   selectionToPersonIds,
   splitLocal,
+  suggestedSetback,
   toLocalInput,
   useAmPm,
 } from "./presence-periods.ts";
@@ -128,4 +129,25 @@ test("selectionToPersonIds: everyone selected → undefined", () => {
   const all = ["person.a", "person.b"];
   assert.equal(selectionToPersonIds(["person.b", "person.a"], all), undefined);
   assert.deepEqual(selectionToPersonIds(["person.b"], all), ["person.b"]);
+});
+
+test("suggestedSetback: Frost protection beyond 2 days", () => {
+  assert.equal(
+    suggestedSetback("2026-11-05T08:00", "2026-11-07T08:00"),
+    "reduced",
+  );
+  assert.equal(
+    suggestedSetback("2026-11-05T08:00", "2026-11-07T08:01"),
+    "frost_protection",
+  );
+  assert.equal(
+    suggestedSetback("2026-02-14T09:00", "2026-02-22T17:00"),
+    "frost_protection",
+  );
+  // A DST change in between does not shift the length.
+  assert.equal(
+    suggestedSetback("2026-03-27T12:00", "2026-03-29T12:00"),
+    "reduced",
+  );
+  assert.equal(suggestedSetback("2026-11-05T08:00", ""), "reduced");
 });
