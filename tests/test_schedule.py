@@ -18,6 +18,7 @@ from custom_components.climate_manager.schedule import (
     WEEKDAY_TO_DAY,
     compute_occupied_temp,
     evaluate_schedule,
+    household_setback,
     next_arrival,
     next_increase_with_absences,
     next_setpoint_increase_at,
@@ -742,6 +743,47 @@ def test_increase_after_a_return_in_reduced():
     assert next_increase_with_absences(
         NORMAL_CEILING_PROGRAM, DEFAULT_PERIOD_TEMPERATURES, [trip], now
     ) == datetime.datetime(2026, 11, 12, 17, 0)
+
+
+def test_increase_on_return_from_frost_protection_into_reduced():
+    """A frost absence returning into Reduced: the return is an increase."""
+    trip = _period("absent", "2026-11-05T08:00", "2026-11-12T10:00")
+    trip["setback"] = "frost_protection"
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    assert next_increase_with_absences(
+        NORMAL_CEILING_PROGRAM, DEFAULT_PERIOD_TEMPERATURES, [trip], now
+    ) == datetime.datetime(2026, 11, 12, 10, 0)
+
+
+def test_household_setback():
+    frost = dict(TRIP, setback="frost_protection")
+    now = datetime.datetime(2026, 11, 8, 12, 0)
+    assert household_setback([TRIP], now) == "reduced"
+    assert household_setback([frost], now) == "frost_protection"
+    assert household_setback([frost], datetime.datetime(2026, 11, 13)) is None
+    stay = _period("present", "2026-11-05T08:00", "2026-11-12T18:30")
+    assert household_setback([stay], now) is None
+    mine = _period(
+        "absent", "2026-11-05T08:00", "2026-11-12T18:30", ["person.a"]
+    )
+    assert household_setback([mine], now) is None
+
+
+def test_validate_presence_periods_setback():
+    frost = dict(TRIP, setback="frost_protection")
+    assert validate_presence_periods([frost]) == (True, "")
+    assert validate_presence_periods([dict(TRIP, setback="reduced")]) == (
+        True,
+        "",
+    )
+    bad = [
+        dict(TRIP, setback="normal"),
+        dict(TRIP, kind="present", setback="frost_protection"),
+        dict(TRIP, person_ids=["person.a"], setback="frost_protection"),
+    ]
+    for period in bad:
+        ok, error = validate_presence_periods([period])
+        assert not ok and "setback" in error, period
 
 
 def test_increase_inside_a_future_absence_does_not_happen():

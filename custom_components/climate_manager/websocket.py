@@ -33,7 +33,8 @@ Registers 20 WebSocket commands for the panel ↔ backend protocol:
 - set_boiler_config: sets or clears the controlled boiler (climate, switch
   or input_boolean) and its min on/off durations
 - set_presence_period: creates (no id) or replaces (id) a dated presence /
-  absence period; the whole list is validated (bounds, overlaps) first
+  absence period (an absence of everyone may carry its setback: Reduced or
+  Frost protection); the whole list is validated (bounds, overlaps) first
 - delete_presence_period: removes a presence / absence period by id
 
 Removed in Phase 15 (D-06):
@@ -98,6 +99,7 @@ from .const import (
     PERIOD_NORMAL,
     PERIOD_REDUCED,
     VALID_MODES,
+    VALID_ABSENCE_SETBACKS,
     VALID_PRESENCE_PERIOD_KINDS,
     _DEFAULT_DAILY_PROGRAM,
 )
@@ -1513,6 +1515,8 @@ def _make_ws_set_presence_period(entry: ClimateManagerConfigEntry):
             vol.Required("end"): str,
             # Absent = everyone (time program zones included).
             vol.Optional("person_ids"): [vol.All(str, vol.Match(r"^person\."))],
+            # What an absence of everyone holds; Reduced when missing.
+            vol.Optional("setback"): vol.In(VALID_ABSENCE_SETBACKS),
         }
     )
     @websocket_api.async_response
@@ -1539,6 +1543,8 @@ def _make_ws_set_presence_period(entry: ClimateManagerConfigEntry):
         }
         if "person_ids" in msg:
             period["person_ids"] = sorted(set(msg["person_ids"]))
+        if "setback" in msg:
+            period["setback"] = msg["setback"]
         index = next(
             (i for i, p in enumerate(periods) if p.get("id") == period_id),
             None,

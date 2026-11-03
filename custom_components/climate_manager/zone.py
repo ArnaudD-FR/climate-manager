@@ -29,11 +29,11 @@ from .const import (
     MODE_TIME_PROGRAM,
     MODE_TIME_PROGRAM_PRESENCES,
     PERIOD_FROST_PROTECTION,
-    PERIOD_REDUCED,
 )
 from .schedule import (
     compute_occupied_temp,
     evaluate_schedule,
+    household_setback,
     presence_override,
 )
 
@@ -128,6 +128,12 @@ class ZoneModeOff(ZoneMode):
         return PERIOD_FROST_PROTECTION, self.mode_name
 
 
+def _presence_periods(ctx: "EvalContext") -> list:
+    """The dated presence periods of the evaluation (none if unset)."""
+    periods = getattr(ctx, "presence_periods", None)
+    return periods if isinstance(periods, list) else []
+
+
 class ZoneModeTimeProgram(ZoneMode):
     """Zone mode: TIME_PROGRAM — rooms follow the zone schedule (EVAL-02).
 
@@ -141,18 +147,13 @@ class ZoneModeTimeProgram(ZoneMode):
         """Apply schedule-based setpoint to all rooms."""
         zone = self.zone
         period: str = evaluate_schedule(zone.time_program, ctx.now)
-        # A household period (covering everyone): away → Reduced, home →
-        # the day filled as for a present person. The zone period stays
-        # the program's; each room's lives on room._last_period.
-        room_period = period
-        periods = getattr(ctx, "presence_periods", None)
-        household = (
-            presence_override(periods, ctx.now)
-            if isinstance(periods, list)
-            else None
-        )
-        if household is False:
-            room_period = PERIOD_REDUCED
+        # A household period (covering everyone): away → its setback
+        # (Reduced or Frost protection), home → the day filled as for a
+        # present person. The zone period stays the program's; each
+        # room's lives on room._last_period.
+        periods = _presence_periods(ctx)
+        household = presence_override(periods, ctx.now)
+        room_period = household_setback(periods, ctx.now) or period
         temp: float | None = ctx.period_temperatures.get(room_period)
         if household is True:
             temp, room_period = compute_occupied_temp(
@@ -194,10 +195,25 @@ class ZoneModeProgramPresences(ZoneMode):
         # Baseline period from the zone time program
         baseline_period: str = evaluate_schedule(zone.time_program, ctx.now)
 
+        # A household absence in Frost protection holds every room there;
+        # in Reduced, the absent persons give it anyway.
+        frost = (
+            household_setback(_presence_periods(ctx), ctx.now)
+            == PERIOD_FROST_PROTECTION
+        )
+        frost_temp = ctx.period_temperatures.get(PERIOD_FROST_PROTECTION)
+
         # Resolve every room's setpoint first (presence is cached in ctx by
         # the coordinator), then push all rooms at once.
         pushes = []
         for room in zone.rooms:
+            if frost and frost_temp is not None:
+                pushes.append(
+                    room.apply_setpoint(
+                        PERIOD_FROST_PROTECTION, frost_temp, ctx
+                    )
+                )
+                continue
             # Evaluate presence for all assigned persons (cached in ctx)
             any_present = False
             for person in room.assigned_persons:

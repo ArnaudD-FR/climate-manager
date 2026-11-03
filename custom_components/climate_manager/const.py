@@ -69,6 +69,12 @@ VALID_PRESENCE_PERIOD_KINDS: list[str] = [
     PRESENCE_PERIOD_ABSENT,
     PRESENCE_PERIOD_PRESENT,
 ]
+# What a household absence holds (its optional "setback", Reduced when
+# missing): Frost protection suits a holiday, Reduced a short absence.
+VALID_ABSENCE_SETBACKS: list[str] = [
+    PERIOD_REDUCED,
+    PERIOD_FROST_PROTECTION,
+]
 
 # ---------------------------------------------------------------------------
 # Default values

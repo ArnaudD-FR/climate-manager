@@ -65,7 +65,11 @@ from .alignment import SensorAligner
 from .eval_context import EvalContext
 from .person import Person
 from .room import Room
-from .schedule import period_bounds, presence_override
+from .schedule import (
+    household_setback,
+    period_bounds,
+    presence_override,
+)
 from .trv import (
     TRV,
     TRVGroup,
@@ -123,7 +127,8 @@ class ClimateManagerCoordinator:
         self._last_present_persons: list[str] = []
         # Household presence forced by a period (None: no period), for the
         # presence log on change.
-        self._last_household: bool | None = None
+        # (home, setback) of the last household period logged.
+        self._last_household: tuple[bool | None, str | None] = (None, None)
         # Per-room effective period (may differ from global in time_program_presences mode).
         self._last_room_periods: dict[str, str] = {}
         # D-05: per-zone active period dict — "default" plus one key per custom
@@ -556,21 +561,24 @@ class ClimateManagerCoordinator:
     def _log_household_presence(self, periods: list, now: datetime) -> None:
         """Log a household period (covering everyone) starting or ending."""
         household = presence_override(periods, now)
-        if household == self._last_household:
+        setback = household_setback(periods, now)
+        state = (household, setback)
+        if state == self._last_household:
             return
         if household is None:
             _LOGGER.info("presence | household period ended")
+        elif household:
+            _LOGGER.info(
+                "presence | household home=True reason=%s_period",
+                PRESENCE_PERIOD_PRESENT,
+            )
         else:
             _LOGGER.info(
-                "presence | household home=%s reason=%s_period",
-                household,
-                (
-                    PRESENCE_PERIOD_PRESENT
-                    if household
-                    else PRESENCE_PERIOD_ABSENT
-                ),
+                "presence | household home=False reason=%s_period setback=%s",
+                PRESENCE_PERIOD_ABSENT,
+                setback,
             )
-        self._last_household = household
+        self._last_household = state
 
     async def _async_evaluate_once(self) -> None:
         """Run one evaluation cycle (see async_evaluate).

@@ -1721,6 +1721,21 @@ async def test_ws_presence_period_create_update_delete(hass, hass_ws_client):
         {
             "type": f"{DOMAIN}/set_presence_period",
             "period_id": period_id,
+            "kind": "absent",
+            "start": "2026-11-05T08:00",
+            "end": "2026-11-12T18:30",
+            "setback": "frost_protection",
+        },
+    )
+    assert msg["success"] is True
+    (period,) = entry.runtime_data.runtime_config["presence_periods"]
+    assert period["setback"] == "frost_protection"
+
+    msg = await _send(
+        client,
+        {
+            "type": f"{DOMAIN}/set_presence_period",
+            "period_id": period_id,
             "kind": "present",
             "start": "2026-11-05T08:00",
             "end": "2026-11-13T18:30",
@@ -1732,6 +1747,7 @@ async def test_ws_presence_period_create_update_delete(hass, hass_ws_client):
     assert period["kind"] == "present"
     assert period["end"] == "2026-11-13T18:30"
     assert period["person_ids"] == ["person.a", "person.b"]
+    assert "setback" not in period
 
     msg = await _send(
         client,
@@ -1762,6 +1778,19 @@ async def test_ws_presence_period_create_update_delete(hass, hass_ws_client):
             "start": "2026-11-10T08:00",
             "end": "2026-11-20T18:30",
             "person_ids": ["person.a"],
+        },
+        # Unknown setback.
+        {
+            "start": "2026-12-05T08:00",
+            "end": "2026-12-12T18:30",
+            "setback": "normal",
+        },
+        # A setback on a person's absence.
+        {
+            "start": "2026-12-05T08:00",
+            "end": "2026-12-12T18:30",
+            "person_ids": ["person.a"],
+            "setback": "frost_protection",
         },
         # Unknown period.
         {

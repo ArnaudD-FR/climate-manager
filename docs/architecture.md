@@ -157,7 +157,8 @@ tab.
 
 ```text
 {"id", "kind": "absent" | "present", "start": "YYYY-MM-DDTHH:MM",
- "end": "YYYY-MM-DDTHH:MM", "person_ids": [...]}   # absent key = everyone
+ "end": "YYYY-MM-DDTHH:MM", "person_ids": [...],   # absent key = everyone
+ "setback": "reduced" | "frost_protection"}        # everyone's absence only
 ```
 
 Bounds are local times in the HA time zone (like the time programs), start
@@ -169,12 +170,19 @@ shares all) may not overlap (`validate_presence_periods`).
   `reason=absent_period` / `present_period`. At the return the usual mode takes
   over.
 - **Household** (a period without `person_ids`): it also drives the Time program
-  zones — `ZoneModeTimeProgram` pushes Reduced while away, and the day filled as
-  for a present person (`compute_occupied_temp`) while home. The zone period
-  stays the program's. Logged by the coordinator
-  (`presence | household home=… reason=…_period`). The panel only offers person
-  selection when a zone is in Time program & presences; otherwise a period
-  covers everyone.
+  zones — `ZoneModeTimeProgram` pushes the absence's setback while away, and the
+  day filled as for a present person (`compute_occupied_temp`) while home. The
+  zone period stays the program's. Logged by the coordinator
+  (`presence | household home=… reason=…_period [setback=…]`). The panel only
+  offers person selection when a zone is in Time program & presences; otherwise
+  a period covers everyone.
+- **Setback** (`household_setback`): what an absence of everyone holds, Reduced
+  when the key is missing (periods saved before it) or Frost protection, for a
+  holiday. In Frost protection, `ZoneModeProgramPresences` holds every room
+  there too; in Reduced its absent persons give Reduced anyway. A person's own
+  absence has no setback (`validate_presence_periods`): their rooms get Reduced.
+  Off zones stay off; the boiler demand rule holds Frost protection as any
+  setpoint.
 - **Pre-heat for the return**: `schedule.next_arrival` gives each away person's
   next arrival — the return of an absence (or, for a Scheduled person away at
   that time, the next scheduled arrival after it; never for Force Absent; HA,
@@ -183,8 +191,8 @@ shares all) may not overlap (`validate_presence_periods`).
   it falls in. A dated period makes any mode predictable (`preheat_suppressed`
   only when no assigned person has a mode or a period giving an arrival). In a
   Time program zone, `next_increase_with_absences` replaces the next setpoint
-  increase: the return when the program is warmer than Reduced then, and no
-  increase inside a household absence. An arrival targets
+  increase: the return when the program is warmer than the absence's setback
+  then, and no increase inside a household absence. An arrival targets
   `compute_occupied_temp(program, arrival, present)`, so a return inside a
   Reduced gap between two Normal periods is pre-heated to Normal.
 - **Pruning**: ended periods are dropped and saved at the start of each
@@ -429,17 +437,17 @@ one is not pushed on its own (no brand check).
 Emitted at `INFO` under `custom_components.climate_manager.*`. Each family is
 anti-spammed — it logs only on a real state change, never every tick.
 
-| Logger           | Format                                                                                       | Fires on                                          |
-| ---------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `zone`           | `zone \| zone=<name> state=<old>[<mode>]→<new>[<mode>] reason=<why>`                         | period or mode change (`time_program:` / `user:`) |
-| `presence`       | `presence \| person=<name> home=<bool> reason=<mode>` / `mode=<old>→<new> reason=user`       | `_last_home` flip / user mode change              |
-| `presence`       | `presence \| household home=<bool> reason=<kind>_period` / `household period ended`          | household period start / end                      |
-| `push`           | `push \| room=<name> trv=<name> temp=<T>°C slot=<period> zone=<name>`                        | setpoint actually sent to a TRV                   |
-| `hold`           | `hold \| trv=<name> reported=<T>°C last=<T>°C slot=<period>`                                 | TRV changed outside Climate Manager (once)        |
-| `preheat`        | `preheat \| room=<id> target=<T>°C until=<HH:MM> lead=<N>min rate=<R>` / `… reached after …` | pre-heat start / sample (or `censored`)           |
-| `online`         | `online \| trv=<name> back online, re-applying setpoint`                                     | TRV available again                               |
-| `boiler`         | `boiler \| on rooms=<id>(<reasons>),…` / `boiler \| off` / `boiler \| waiting min_on <N>min` | boiler switch / min on-off wait                   |
-| `timeout` (WARN) | `timeout \| trv=<entity_id> temp=<T>°C after <N>s`                                           | TRV did not answer within `TRV_COMMAND_TIMEOUT`   |
+| Logger           | Format                                                                                                 | Fires on                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| `zone`           | `zone \| zone=<name> state=<old>[<mode>]→<new>[<mode>] reason=<why>`                                   | period or mode change (`time_program:` / `user:`) |
+| `presence`       | `presence \| person=<name> home=<bool> reason=<mode>` / `mode=<old>→<new> reason=user`                 | `_last_home` flip / user mode change              |
+| `presence`       | `presence \| household home=<bool> reason=<kind>_period [setback=<period>]` / `household period ended` | household period start / end                      |
+| `push`           | `push \| room=<name> trv=<name> temp=<T>°C slot=<period> zone=<name>`                                  | setpoint actually sent to a TRV                   |
+| `hold`           | `hold \| trv=<name> reported=<T>°C last=<T>°C slot=<period>`                                           | TRV changed outside Climate Manager (once)        |
+| `preheat`        | `preheat \| room=<id> target=<T>°C until=<HH:MM> lead=<N>min rate=<R>` / `… reached after …`           | pre-heat start / sample (or `censored`)           |
+| `online`         | `online \| trv=<name> back online, re-applying setpoint`                                               | TRV available again                               |
+| `boiler`         | `boiler \| on rooms=<id>(<reasons>),…` / `boiler \| off` / `boiler \| waiting min_on <N>min`           | boiler switch / min on-off wait                   |
+| `timeout` (WARN) | `timeout \| trv=<entity_id> temp=<T>°C after <N>s`                                                     | TRV did not answer within `TRV_COMMAND_TIMEOUT`   |
 
 To surface these, set `custom_components.climate_manager: info` (or `debug`)
 under `logger:` in `configuration.yaml` — custom integrations are filtered at
@@ -547,6 +555,7 @@ Pure Python — no HA imports. All async HA calls stay in `coordinator.py`.
 | `compute_occupied_temp(program, now, is_present, ...)` | PERSON-07/08/09 rules (occupied window, sandwich)  |
 | `next_occupied_at(person_config, ...)`                 | Next scheduled "present" transition (for pre-heat) |
 | `presence_override(periods, now, person_id)`           | Presence forced by a dated period (None if none)   |
+| `household_setback(periods, now)`                      | Period held by a household absence (None if none)  |
 | `next_arrival(person_id, person_config, periods, ...)` | Next arrival, dated periods included (pre-heat)    |
 | `next_increase_with_absences(program, temps, ...)`     | Next zone increase, household absences included    |
 | `validate_presence_periods(periods)`                   | Bounds, kinds and overlaps before a save           |

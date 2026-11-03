@@ -40,6 +40,7 @@ from .const import (
     PRESENCE_PERIOD_ABSENT,
     PRESENCE_PERIOD_PRESENT,
     PRESENCE_PRESENT,
+    VALID_ABSENCE_SETBACKS,
     VALID_PRESENCE_PERIOD_KINDS,
 )
 
@@ -834,6 +835,21 @@ def presence_override(
     return period["kind"] == PRESENCE_PERIOD_PRESENT
 
 
+def absence_setback(period: dict) -> str:
+    """The period a household absence holds: its setback, else Reduced."""
+    return period.get("setback") or PERIOD_REDUCED
+
+
+def household_setback(
+    periods: list | None, now: datetime.datetime
+) -> str | None:
+    """Period held by the household absence at now, None without one."""
+    period = active_presence_period(periods, now)
+    if period is None or period["kind"] != PRESENCE_PERIOD_ABSENT:
+        return None
+    return absence_setback(period)
+
+
 def _arrival_on_return(
     person_config: dict,
     ret: datetime.datetime,
@@ -931,15 +947,16 @@ def next_increase_with_absences(
 ) -> datetime.datetime | None:
     """Next zone setpoint increase, household absences included.
 
-    During a household absence the zone holds Reduced: its return is an
-    increase when the program is warmer than Reduced then, and an
-    increase falling inside an absence does not happen.
+    During a household absence the zone holds the absence's setback
+    (Reduced or Frost protection): its return is an increase when the
+    program is warmer than that then, and an increase falling inside an
+    absence does not happen.
     """
-    reduced = period_temperatures.get(PERIOD_REDUCED)
 
-    def warmer_on_return(ret: datetime.datetime) -> bool:
+    def warmer_on_return(absence: dict, ret: datetime.datetime) -> bool:
+        held = period_temperatures.get(absence_setback(absence))
         temp = period_temperatures.get(evaluate_schedule(time_program, ret))
-        return temp is not None and (reduced is None or temp > reduced)
+        return temp is not None and (held is None or temp > held)
 
     def absence_at(t: datetime.datetime) -> dict | None:
         period = active_presence_period(periods, t)
@@ -960,7 +977,7 @@ def next_increase_with_absences(
             if absence is None:
                 return candidate
         _, ret = period_bounds(absence, now.tzinfo)
-        if warmer_on_return(ret):
+        if warmer_on_return(absence, ret):
             return ret
         t = ret
     return None
@@ -971,8 +988,9 @@ def validate_presence_periods(periods: list) -> tuple[bool, str]:
 
     Each period needs a unique id, a known kind, local "YYYY-MM-DDTHH:MM"
     bounds with the end after the start, and person_ids absent or a
-    non-empty list. Two periods covering a common person (everyone
-    covers all) must not overlap.
+    non-empty list. A setback is a known one, on an absence of everyone
+    only. Two periods covering a common person (everyone covers all) must
+    not overlap.
     """
     ids: set[str] = set()
     bounds: list[tuple] = []
@@ -985,6 +1003,18 @@ def validate_presence_periods(periods: list) -> tuple[bool, str]:
         ids.add(period_id)
         if period.get("kind") not in VALID_PRESENCE_PERIOD_KINDS:
             return False, f"period {i}: unknown kind {period.get('kind')!r}"
+        if "setback" in period:
+            if period["setback"] not in VALID_ABSENCE_SETBACKS:
+                return False, (
+                    f"period {i}: unknown setback {period['setback']!r}"
+                )
+            if (
+                period["kind"] != PRESENCE_PERIOD_ABSENT
+                or period.get("person_ids") is not None
+            ):
+                return False, (
+                    f"period {i}: only an absence of everyone has a setback"
+                )
         for key in ("start", "end"):
             value = period.get(key)
             if not isinstance(value, str) or not _LOCAL_DATETIME_RE.match(

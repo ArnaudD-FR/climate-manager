@@ -172,6 +172,7 @@ from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 from custom_components.climate_manager.const import (  # noqa: E402
     DEFAULT_PERIOD_TEMPERATURES,
     MODE_TIME_PROGRAM,
+    MODE_TIME_PROGRAM_PRESENCES,
 )
 from custom_components.climate_manager.eval_context import (  # noqa: E402
     EvalContext,
@@ -191,14 +192,15 @@ _PROGRAM = {
 }
 
 
-async def _evaluate_with(periods, now):
+async def _evaluate_with(periods, now, mode=MODE_TIME_PROGRAM):
     zone = Zone(
         zone_id="zone_main",
-        initial_mode=MODE_TIME_PROGRAM,
+        initial_mode=mode,
         time_program=_PROGRAM,
     )
     room = MagicMock()
     room.apply_setpoint = AsyncMock()
+    room.assigned_persons = []
     zone._rooms = [room]
     ctx = EvalContext(
         now=now,
@@ -252,3 +254,41 @@ async def test_absence_of_some_persons_leaves_the_program():
         [trip], datetime.datetime(2026, 11, 8, 18, 0)
     )
     assert period == "normal"
+
+
+_FROST_TRIP = {
+    "id": "trip",
+    "kind": "absent",
+    "start": "2026-11-05T08:00",
+    "end": "2026-11-12T18:30",
+    "setback": "frost_protection",
+}
+
+
+async def test_household_frost_absence_holds_frost_protection():
+    zone, (period, temp, _) = await _evaluate_with(
+        [_FROST_TRIP], datetime.datetime(2026, 11, 8, 18, 0)
+    )
+    assert period == "frost_protection"
+    assert temp == DEFAULT_PERIOD_TEMPERATURES["frost_protection"]
+    assert zone.current_period == "normal"
+
+
+async def test_presence_zone_holds_frost_protection_in_a_frost_absence():
+    _, (period, temp, _) = await _evaluate_with(
+        [_FROST_TRIP],
+        datetime.datetime(2026, 11, 8, 18, 0),
+        MODE_TIME_PROGRAM_PRESENCES,
+    )
+    assert period == "frost_protection"
+    assert temp == DEFAULT_PERIOD_TEMPERATURES["frost_protection"]
+
+
+async def test_presence_zone_in_a_reduced_absence_keeps_reduced():
+    trip = {k: v for k, v in _FROST_TRIP.items() if k != "setback"}
+    _, (period, _, _) = await _evaluate_with(
+        [trip],
+        datetime.datetime(2026, 11, 8, 18, 0),
+        MODE_TIME_PROGRAM_PRESENCES,
+    )
+    assert period == "reduced"
