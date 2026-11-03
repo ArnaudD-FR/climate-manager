@@ -5,11 +5,13 @@ says so: home until 08:30, away until 17:30, home all weekend. But in February
 the whole family goes skiing for a week. Rather than editing two schedules (and
 forgetting to put them back), they add one **Presence & absence period** on the
 Overview tab: an **Absence** for **Everyone**, from Saturday 14 February 09:00
-to the **Return** on Sunday 22 February 17:00.
+to the **Return** on Sunday 22 February 17:00, with the **Setback** at **Frost
+protection**.
 
 This scenario showcases the period overriding the weekly schedules, a household
-absence also holding a _Time program_ zone at Reduced, and pre-heat aiming at
-the return so the house is warm when the family walks in.
+absence holding every room at Frost protection (a _Time program_ zone too), and
+pre-heat starting well ahead of the return so the house is warm when the family
+walks in.
 
 ## Table of Contents
 
@@ -60,19 +62,22 @@ it until the return.
   <source media="(prefers-color-scheme: dark)"
           srcset="screenshots/dark/overview-present.png">
   <img src="screenshots/light/overview-present.png"
-       alt="Overview, Presence & absence periods card with one Away period">
+       alt="Overview, Presence & absence periods card, Away · Frost protection">
 </picture>
 
-The **Presence & absence periods** card lists the holiday: **Away**, 14 Feb 9:00
-AM → 22 Feb 5:00 PM, **Everyone**.
+The **Presence & absence periods** card lists the holiday: **Away · Frost
+protection**, 14 Feb 9:00 AM → 22 Feb 5:00 PM, **Everyone**.
 
 - For these dates the period wins over both Scheduled presences, whatever the
   weekly schedule says.
-- No person is selected, so it is a household absence. It also sets the _Time
-  program_ Bathroom zone back to Reduced while the house is empty, though that
-  zone has no assigned person.
-- Pre-heat aims at the **Return**: rooms with a max lead time start early so
-  they are warm at 17:00 on Sunday.
+- No person is selected, so it is a household absence. Its **Setback** holds
+  every room at Frost protection while the house is empty, the _Time program_
+  Bathroom zone too, though that zone has no assigned person.
+- The editor proposed Frost protection because the absence lasts more than 2
+  days; a shorter one gets Reduced, and either can be chosen.
+- Pre-heat aims at the **Return**. Coming back from a household absence is a
+  bigger rise, so a room may start up to 12 hours ahead, beyond its **Max lead
+  time**.
 - After the return the weekly schedules take over again, and the ended period
   disappears from the card on its own.
 
@@ -109,7 +114,7 @@ The **Bathroom** zone is Comfort for the morning wash (06:30–08:30 on weekdays
 
 On a normal Wednesday at 19:00 both parents would be home: the Home rooms would
 be at Normal and the Bathroom at Comfort. The family is away, so the period
-holds every room at Reduced.
+holds every room at Frost protection.
 
 <picture>
   <source media="(prefers-color-scheme: dark)"
@@ -126,18 +131,18 @@ is on the Rooms tab.
   <source media="(prefers-color-scheme: dark)"
           srcset="screenshots/dark/rooms-away.png">
   <img src="screenshots/light/rooms-away.png"
-       alt="Rooms mid-holiday, every room Reduced · 16°C">
+       alt="Rooms mid-holiday, every room Frost protection · 7°C">
 </picture>
 
-Every room shows **Reduced · 16°C**, the Bathroom included: its programme is in
-its evening Comfort slot, but a household absence sets the _Time program_ zone
-back to Reduced too.
+Every room shows **Frost protection · 7°C**, the Bathroom included: its
+programme is in its evening Comfort slot, but the household absence holds the
+_Time program_ zone at its setback too.
 
 ### Before the return (Sunday 22 February, 15:30)
 
 The family is due back at 17:00, and the Home programme is at Normal all Sunday
-afternoon. Pre-heat starts the Home rooms ahead of the return, while the period
-still counts everyone as away.
+afternoon. Coming back from Frost protection, pre-heat started the rooms up to
+12 hours ahead of the return, while the period still counts everyone as away.
 
 <picture>
   <source media="(prefers-color-scheme: dark)"
@@ -148,5 +153,6 @@ still counts everyone as away.
 
 Bedroom, Kids Room and Living Room show **Pre-heating → 20.0°C** with nobody
 present yet: the house will be at Normal when the family walks in. The Bathroom
-stays **Reduced · 16°C**, since its programme is Reduced until 18:30; it
-pre-heats on schedule for its evening Comfort slot.
+shows **Pre-heating → 16.0°C**: its programme is Reduced until 18:30, so it
+warms back to Reduced for the return, then pre-heats on schedule for its evening
+Comfort slot.

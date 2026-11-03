@@ -80,8 +80,9 @@ a room to appear in the panel, two conditions must be met:
 - **Presence tracking modes**: Scheduled (weekly timetable), HA home tracking,
   Force Present, Force Absent
 - **Presence & absence periods**: Dated absences (holidays, a business trip) or
-  presences (a day off, a guest) override the presence modes, and pre-heat has
-  the house warm on return
+  presences (a day off, a guest) override the presence modes; a household
+  absence holds Reduced or Frost protection, and pre-heat has the house warm on
+  return
 - **Gap-fill logic**: When a person is present, Reduced/Frost periods sandwiched
   between Normal/Comfort periods are held at the preceding Normal/Comfort
   temperature
@@ -228,11 +229,19 @@ cannot know about. Add a period with its **Type** (Absence or Presence), its
 - For its dates the period overrides the presence mode of the persons it covers,
   whatever their mode; at the return the usual mode takes over.
 - Pick the **Persons** it covers, or leave **Everyone**: a household absence
-  also sets the _Time program_ zones back to Reduced while the house is empty.
-  The person selection is offered once a zone is in _Time program & presences_;
-  otherwise a period covers everyone.
+  holds every room at its **Setback**, the _Time program_ zones too, while the
+  house is empty. The person selection is offered once a zone is in _Time
+  program & presences_; otherwise a period covers everyone.
+- The **Setback** of a household absence is **Reduced** or **Frost protection**.
+  The editor proposes Frost protection when the absence lasts more than 2 days,
+  and Reduced otherwise; either can be chosen. A person's own absence always
+  gives Reduced.
 - Pre-heat aims at the return: rooms with a max lead time are warm when the
-  household walks in.
+  household walks in. Coming back from a household absence is a bigger rise, so
+  a room may start up to 12 hours ahead, beyond its **Max lead time**, and 12
+  hours ahead while its heating rate is still learned. Walls cooled during the
+  absence slow the rise, so the lead from the learned rate gets a 50 % margin
+  instead of 10 %. Coming back from Frost protection teaches the room no rate.
 - Two periods covering the same person cannot overlap. Ended periods disappear
   on their own.
 
@@ -366,7 +375,7 @@ that regenerates its screenshots via `make screenshots`.
 | [Shared custody (odd/even weeks)](docs/use-cases/shared-custody-odd-even-weeks/) | Even / Odd weeks combining a Pronote school calendar on weekdays with a manual weekend schedule and a Friday-noon handover |
 | [Predictive pre-heat](docs/use-cases/predictive-preheat/)                        | Pre-heating rooms so they are warm before the first event of the day, with a per-room lead time                            |
 | [Bathroom comfort zone](docs/use-cases/bathroom-comfort-zone/)                   | A custom Bathrooms zone running its own comfort-led program separate from the rest of the home                             |
-| [Family holiday](docs/use-cases/family-holiday/)                                 | A household absence for a week's holiday, holding every room at Reduced and pre-heating for the return                     |
+| [Family holiday](docs/use-cases/family-holiday/)                                 | A household absence for a week's holiday, holding every room at Frost protection and pre-heating for the return            |
 
 ---
 

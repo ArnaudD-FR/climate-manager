@@ -65,25 +65,33 @@ _BATHROOM_ZONE = "zone-bathroom-5f2c"
 
 # One household absence: the whole family is skiing from Saturday 14 to
 # Sunday 22 February, back at 17:00. No person is selected, so the period
-# covers everyone and also drives the Time program bathroom zone.
+# covers everyone and also drives the Time program bathroom zone. A week
+# away: its setback is Frost protection.
 _HOLIDAY = {
     "id": "winter-holiday",
     "kind": "absent",
     "start": "2026-02-14T09:00",
     "end": "2026-02-22T17:00",
+    "setback": "frost_protection",
 }
 
 # Two moments of the same configuration. "away": Wednesday evening of the
 # holiday, when the schedules would normally have everyone home — the
-# absence wins, every room (bathroom included) stays at Reduced. "present"
-# (configuration captures): Sunday 15:30, 90 minutes before the return, the
-# rooms with a lead time are pre-heating so the house is warm at 17:00.
-# Nobody is home in either moment; the TRV temperatures are cosmetic.
+# absence wins, every room (bathroom included) holds Frost protection.
+# "present" (configuration captures): Sunday 15:30, 90 minutes before the
+# return; coming back from Frost protection, pre-heat started up to 12 h
+# ahead, so the rooms are pre-heating and nearly warm. Nobody is home in
+# either moment.
 _AWAY_TRVS = {
-    "climate.living_room_trv": {"attributes": {"current_temperature": 16.2}},
-    "climate.bedroom_trv": {"attributes": {"current_temperature": 16.0}},
-    "climate.kids_room_trv": {"attributes": {"current_temperature": 16.1}},
-    "climate.bathroom_trv": {"attributes": {"current_temperature": 16.4}},
+    "climate.living_room_trv": {"attributes": {"current_temperature": 7.6}},
+    "climate.bedroom_trv": {"attributes": {"current_temperature": 7.4}},
+    "climate.kids_room_trv": {"attributes": {"current_temperature": 7.5}},
+    "climate.bathroom_trv": {"attributes": {"current_temperature": 7.8}},
+}
+# The bathroom programme is Reduced until 18:30: it warms from Frost
+# protection to Reduced for the return.
+_RETURN_TRVS = {
+    "climate.bathroom_trv": {"attributes": {"current_temperature": 13.2}},
 }
 
 SCENARIO = {
@@ -96,13 +104,15 @@ SCENARIO = {
                 "Sunday 15:30 — the family is due back at 17:00, so the "
                 "rooms with a lead time are already pre-heating."
             ),
+            "states": _RETURN_TRVS,
         },
         {
             "id": "away",
             "now": "2026-02-18T19:00:00+00:00",
             "caption": (
                 "Wednesday 19:00, mid-holiday — the schedules would have "
-                "everyone home, but the absence holds every room at Reduced."
+                "everyone home, but the absence holds every room at Frost "
+                "protection."
             ),
             "states": _AWAY_TRVS,
         },
