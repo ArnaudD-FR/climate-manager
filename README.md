@@ -242,6 +242,8 @@ cannot know about. Add a period with its **Type** (Absence or Presence), its
   hours ahead while its heating rate is still learned. Walls cooled during the
   absence slow the rise, so the lead from the learned rate gets a 50 % margin
   instead of 10 %. Coming back from Frost protection teaches the room no rate.
+- While a period runs its row reads **In progress**, followed by **Pre-heating
+  for the return** and the rooms warming up once pre-heat has started.
 - Two periods covering the same person cannot overlap. Ended periods disappear
   on their own.
 

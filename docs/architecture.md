@@ -195,6 +195,10 @@ shares all) may not overlap (`validate_presence_periods`).
   then, and no increase inside a household absence. An arrival targets
   `compute_occupied_temp(program, arrival, present)`, so a return inside a
   Reduced gap between two Normal periods is pre-heated to Normal.
+- **Status in the panel**: each `rooms_status[]` entry carries `preheat_return`
+  (`Room.preheat_return_period`), the id of the household absence whose return
+  its held pre-heat is for. The period row shows "In progress" while the period
+  runs and "Pre-heating for the return: <rooms>" from those entries.
 - **Pruning**: ended periods are dropped and saved at the start of each
   evaluation.
 
@@ -321,22 +325,22 @@ the start, the mean flow temperature over the run; the sample copies them
 ones left out) and the `preheat | … reached/censored` log appends
 `outdoor=… flow=…`. They are not used by the lead yet. The status payload
 exposes `preheat_rate`, `preheat_samples`, `preheat_lead`, `preheat_boost` and
-`preheat_anticipation` (shown in the room card). **Boost — valve wide open,
-released by anticipation**: the energy to warm a room is the same at any speed,
-while the losses favour heating late and fast, and an overshoot is pure waste;
-the boiler's flow temperature (its heating curve) is the only real speed lever.
-So a run starts as late as the learned rate allows, heats with the valve wide
-open, and releases the boost early enough for the radiator's residual heat to
-land on the target. A TRV next to a hot radiator also reads high and would
-throttle before the room is warm. Until released (hold and measuring),
-`apply_setpoint` pushes to the TRVs the setpoint plus the full boost allowed:
-`PREHEAT_BOOST_MAX` (3 °C), capped at the TRVs' `max_temp`, rounded down to 0.5
-°C (`Room._preheat_boost`; none without a room temperature). `_last_setpoint`
-keeps the unboosted value. Each tick a boosting run records the room temperature
-(`readings`, the last 30 min plus the reading at the window's start); the
-**heating speed** is the slope over them (`heating_slope`; unknown under 10 min
-of readings or when not warming), else 1 / learned rate. The boost is
-**released** (`Room._release_due`) once
+`preheat_anticipation` (shown in the room card), and `preheat_return` (the
+period row). **Boost — valve wide open, released by anticipation**: the energy
+to warm a room is the same at any speed, while the losses favour heating late
+and fast, and an overshoot is pure waste; the boiler's flow temperature (its
+heating curve) is the only real speed lever. So a run starts as late as the
+learned rate allows, heats with the valve wide open, and releases the boost
+early enough for the radiator's residual heat to land on the target. A TRV next
+to a hot radiator also reads high and would throttle before the room is warm.
+Until released (hold and measuring), `apply_setpoint` pushes to the TRVs the
+setpoint plus the full boost allowed: `PREHEAT_BOOST_MAX` (3 °C), capped at the
+TRVs' `max_temp`, rounded down to 0.5 °C (`Room._preheat_boost`; none without a
+room temperature). `_last_setpoint` keeps the unboosted value. Each tick a
+boosting run records the room temperature (`readings`, the last 30 min plus the
+reading at the window's start); the **heating speed** is the slope over them
+(`heating_slope`; unknown under 10 min of readings or when not warming), else 1
+/ learned rate. The boost is **released** (`Room._release_due`) once
 `(target − room_temp) / speed ≤ anticipation`, or the room reached the target;
 without any speed, within `PREHEAT_CONVERGENCE_THRESHOLD` of it. The plain
 setpoint is then re-pushed in the same tick (`_drop_boost`), `released` is

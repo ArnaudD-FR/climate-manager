@@ -62,11 +62,13 @@ it until the return.
   <source media="(prefers-color-scheme: dark)"
           srcset="screenshots/dark/overview-present.png">
   <img src="screenshots/light/overview-present.png"
-       alt="Overview, Presence & absence periods card, Away · Frost protection">
+       alt="Overview, the Away · Frost protection period pre-heating for the return">
 </picture>
 
 The **Presence & absence periods** card lists the holiday: **Away · Frost
-protection**, 14 Feb 9:00 AM → 22 Feb 5:00 PM, **Everyone**.
+protection**, 14 Feb 9:00 AM → 22 Feb 5:00 PM, **Everyone**. Captured on the
+Sunday afternoon of the return, its row reads **In progress · Pre-heating for
+the return**, followed by the rooms warming up for 17:00.
 
 - For these dates the period wins over both Scheduled presences, whatever the
   weekly schedule says.
@@ -123,9 +125,9 @@ holds every room at Frost protection.
        alt="Overview mid-holiday, Claire and Hugo absent">
 </picture>
 
-Claire and Hugo are absent (grey dots). The zone rows show each programme's
-current period, Normal for Home and Comfort for Bathroom; what the rooms apply
-is on the Rooms tab.
+Claire and Hugo are absent (grey dots), and the holiday row reads **In
+progress**. The zone rows show each programme's current period, Normal for Home
+and Comfort for Bathroom; what the rooms apply is on the Rooms tab.
 
 <picture>
   <source media="(prefers-color-scheme: dark)"

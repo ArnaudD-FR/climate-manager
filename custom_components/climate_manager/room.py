@@ -320,6 +320,13 @@ class Room:
             {},
         )
 
+    def preheat_return_period(self) -> str | None:
+        """Id of the absence whose return the held pre-heat is for."""
+        ip = self._preheat_in_progress
+        if not ip or not self._preheat_active:
+            return None
+        return ip.get("return_period")
+
     def anticipation(self) -> float:
         """Learned anticipation of the room, minutes (default until tuned).
 

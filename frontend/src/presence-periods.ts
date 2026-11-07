@@ -13,6 +13,7 @@ import type {
   ClimateConfig,
   Hass,
   PresencePeriod,
+  RoomStatus,
 } from "./types.js";
 
 /** An absence of everyone longer than this proposes Frost protection. */
@@ -166,4 +167,21 @@ export function suggestedSetback(start: string, end: string): AbsenceSetback {
   // Both read as UTC: a DST change does not shift the length.
   const ms = Date.parse(`${end}:00Z`) - Date.parse(`${start}:00Z`);
   return ms > FROST_SUGGEST_DAYS * 86_400_000 ? "frost_protection" : "reduced";
+}
+
+/**
+ * Status of a period at `now`: null before its start, else "In progress"
+ * and the rooms pre-heating for its return (names from roomName).
+ */
+export function periodStatus(
+  period: PresencePeriod,
+  now: string,
+  rooms: RoomStatus[] | undefined,
+  roomName: (areaId: string) => string,
+): { preheating: string[] } | null {
+  if (period.start > now) return null;
+  const preheating = (rooms ?? [])
+    .filter((room) => room.preheat_return === period.id)
+    .map((room) => roomName(room.area_id));
+  return { preheating };
 }

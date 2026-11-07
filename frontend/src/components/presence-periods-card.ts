@@ -13,7 +13,7 @@
  * and ha-button.
  */
 
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css, unsafeCSS } from "lit";
 import { property, state } from "lit/decorators.js";
 import { live } from "lit/directives/live.js";
 
@@ -26,6 +26,7 @@ import {
   hasPresenceZone,
   isLocalDateTime,
   joinLocal,
+  periodStatus,
   SETBACK_LABELS,
   selectionToPersonIds,
   splitLocal,
@@ -39,7 +40,9 @@ import type {
   Hass,
   PresencePeriod,
   PresencePeriodKind,
+  StatusPayload,
 } from "../types.js";
+import { PERIOD_COLORS } from "../types.js";
 import type { WsClient } from "../ws-client.js";
 import type { ClimateManagerPanel } from "../main.js";
 
@@ -59,6 +62,8 @@ export class PresencePeriodsCard extends LitElement {
   @property({ attribute: false }) hass!: Hass;
   @property({ attribute: false }) ws!: WsClient;
   @property({ attribute: false }) panel!: ClimateManagerPanel;
+  /** Live status: the rooms pre-heating for a period's return. */
+  @property({ attribute: false }) status: StatusPayload | null = null;
 
   @state() private _draft: PeriodDraft | null = null;
   @state() private _saving = false;
@@ -118,6 +123,16 @@ export class PresencePeriodsCard extends LitElement {
 
       .nowrap {
         white-space: nowrap;
+      }
+
+      .status {
+        flex-basis: 100%;
+        font-size: 13px;
+        color: var(--primary-color);
+      }
+
+      .status .preheat {
+        color: ${unsafeCSS(PERIOD_COLORS.preheat)};
       }
 
       .period-row:last-of-type {
@@ -470,6 +485,23 @@ export class PresencePeriodsCard extends LitElement {
       : "Away";
   }
 
+  /** "In progress", and the rooms pre-heating for the return. */
+  private _renderStatus(period: PresencePeriod, now: string) {
+    const status = periodStatus(
+      period,
+      now,
+      this.status?.rooms_status,
+      (areaId) => this.hass?.areas?.[areaId]?.name ?? areaId,
+    );
+    if (!status) return "";
+    const rooms = status.preheating.join(", ");
+    const preheat = rooms
+      ? html` ·
+          <span class="preheat">Pre-heating for the return: ${rooms}</span>`
+      : "";
+    return html`<div class="status">In progress${preheat}</div>`;
+  }
+
   private _renderPeriod(period: PresencePeriod, now: string, amPm: boolean) {
     const active = period.start <= now;
     const restrictedNoEffect =
@@ -492,6 +524,7 @@ export class PresencePeriodsCard extends LitElement {
               ? html` — no effect without a Time program & presences zone`
               : ""}
           </span>
+          ${this._renderStatus(period, now)}
         </div>
         <div class="actions">
           <ha-icon-button

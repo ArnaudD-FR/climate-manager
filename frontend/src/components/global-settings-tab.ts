@@ -1082,6 +1082,7 @@ export class GlobalSettingsTab extends LitElement {
       ${this._renderStatusCard()}
       <climate-manager-presence-periods-card
         .config=${this.config}
+        .status=${this.status}
         .hass=${this.hass}
         .ws=${this.ws}
         .panel=${this.panel}

@@ -2204,6 +2204,7 @@ async def test_reduced_return_lead_goes_beyond_the_room_max_lead(hass, freezer):
     assert room._preheat_active is True
     run = room._preheat_in_progress
     assert run["return_period"] == "trip"
+    assert room.preheat_return_period() == "trip"
     assert run["frost_return"] is False
     assert room._run_sample(run, _dt(2026, 6, 3, 18, 0), False, "x")
 
@@ -2223,6 +2224,7 @@ async def test_scheduled_increase_names_no_return_period(hass, freezer):
 
     assert room._preheat_active is True
     assert room._preheat_in_progress["return_period"] is None
+    assert room.preheat_return_period() is None
 
 
 async def test_frost_return_run_gives_no_rate_sample(hass, freezer):

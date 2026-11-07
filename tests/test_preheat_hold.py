@@ -437,6 +437,7 @@ async def test_full_boost_until_release(hass, freezer, caplog, with_boost):
     assert room._last_setpoint == NORMAL
     assert room.preheat_boosting
     assert _status(coordinator)["preheat_boost"] == 3.0
+    assert _status(coordinator)["preheat_return"] is None
 
     # 0.05 °C/min, 2.5 °C left → 50 min: keep the valve open.
     for local, temp in (("06:10", 17.5), ("06:20", 18.0), ("06:30", 19.0)):

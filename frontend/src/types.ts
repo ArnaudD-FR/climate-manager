@@ -213,6 +213,8 @@ export interface RoomStatus {
   preheat_lead?: number | null;
   /** °C currently added to the TRV setpoint by the pre-heat boost. */
   preheat_boost?: number | null;
+  /** Id of the household absence whose return the pre-heat is for. */
+  preheat_return?: string | null;
   /**
    * Learned pre-heat anticipation (minutes): the boost (valve wide open)
    * is released once the target is this close at the current heating

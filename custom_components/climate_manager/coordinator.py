@@ -975,6 +975,12 @@ class ClimateManagerCoordinator:
                 if _room_obj is not None
                 else None
             )
+            # Absence whose return the room is pre-heating for.
+            room_entry["preheat_return"] = (
+                _room_obj.preheat_return_period()
+                if _room_obj is not None
+                else None
+            )
             # Learned anticipation (minutes) releasing the boost.
             room_entry["preheat_anticipation"] = (
                 _room_obj.anticipation() if _room_obj is not None else None

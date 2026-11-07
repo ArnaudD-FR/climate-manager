@@ -14,6 +14,7 @@ import {
   hasPresenceZone,
   isLocalDateTime,
   joinLocal,
+  periodStatus,
   personPeriodBadge,
   selectionToPersonIds,
   splitLocal,
@@ -21,7 +22,7 @@ import {
   toLocalInput,
   useAmPm,
 } from "./presence-periods.ts";
-import type { ClimateConfig, PresencePeriod } from "./types.ts";
+import type { ClimateConfig, PresencePeriod, RoomStatus } from "./types.ts";
 
 const TRIP: PresencePeriod = {
   id: "trip",
@@ -150,4 +151,25 @@ test("suggestedSetback: Frost protection beyond 2 days", () => {
     "reduced",
   );
   assert.equal(suggestedSetback("2026-11-05T08:00", ""), "reduced");
+});
+
+test("periodStatus: in progress, with the rooms pre-heating for the return", () => {
+  const holiday: PresencePeriod = {
+    id: "ski",
+    kind: "absent",
+    start: "2026-02-14T09:00",
+    end: "2026-02-22T17:00",
+  };
+  const room = (area_id: string, preheat_return: string | null) =>
+    ({ area_id, preheat_return }) as RoomStatus;
+  const rooms = [room("bedroom", "ski"), room("bath", null), room("x", "o")];
+  const name = (id: string) => id.toUpperCase();
+
+  assert.equal(periodStatus(holiday, "2026-02-14T08:59", rooms, name), null);
+  assert.deepEqual(periodStatus(holiday, "2026-02-14T09:00", [], name), {
+    preheating: [],
+  });
+  assert.deepEqual(periodStatus(holiday, "2026-02-22T10:00", rooms, name), {
+    preheating: ["BEDROOM"],
+  });
 });
