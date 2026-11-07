@@ -96,10 +96,28 @@ export class PresencePeriodsCard extends LitElement {
         display: flex;
         align-items: center;
         gap: 8px;
-        flex-wrap: wrap;
         padding: 8px 0;
         border-bottom: 1px solid var(--divider-color);
         font-size: 14px;
+      }
+
+      /* Wraps on a small screen; the actions keep their column. */
+      .period-main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 4px 8px;
+      }
+
+      .actions {
+        display: flex;
+        flex-shrink: 0;
+      }
+
+      .nowrap {
+        white-space: nowrap;
       }
 
       .period-row:last-of-type {
@@ -128,7 +146,6 @@ export class PresencePeriodsCard extends LitElement {
       }
 
       .who {
-        flex: 1;
         color: var(--secondary-text-color);
         font-size: 13px;
       }
@@ -459,31 +476,37 @@ export class PresencePeriodsCard extends LitElement {
       !!period.person_ids && !hasPresenceZone(this.config);
     return html`
       <div class="period-row">
-        <span class="kind ${period.kind} ${active ? "active" : ""}">
-          ${this._kindLabel(period)}
-        </span>
-        <span class="dates">
-          ${formatPeriodDate(period.start, amPm)} →
-          ${formatPeriodDate(period.end, amPm)}
-        </span>
-        <span class="who">
-          ${this._who(period)}
-          ${restrictedNoEffect
-            ? html` — no effect without a Time program & presences zone`
-            : ""}
-        </span>
-        <ha-icon-button
-          title="Edit"
-          .label=${"Edit"}
-          @click=${() => this._onEdit(period)}
-          ><ha-icon icon="mdi:pencil"></ha-icon
-        ></ha-icon-button>
-        <ha-icon-button
-          title="Delete"
-          .label=${"Delete"}
-          @click=${() => this._onDelete(period)}
-          ><ha-icon icon="mdi:delete"></ha-icon
-        ></ha-icon-button>
+        <div class="period-main">
+          <span class="kind ${period.kind} ${active ? "active" : ""}">
+            ${this._kindLabel(period)}
+          </span>
+          <span class="dates">
+            <span class="nowrap"
+              >${formatPeriodDate(period.start, amPm)} →</span
+            >
+            <span class="nowrap">${formatPeriodDate(period.end, amPm)}</span>
+          </span>
+          <span class="who">
+            ${this._who(period)}
+            ${restrictedNoEffect
+              ? html` — no effect without a Time program & presences zone`
+              : ""}
+          </span>
+        </div>
+        <div class="actions">
+          <ha-icon-button
+            title="Edit"
+            .label=${"Edit"}
+            @click=${() => this._onEdit(period)}
+            ><ha-icon icon="mdi:pencil"></ha-icon
+          ></ha-icon-button>
+          <ha-icon-button
+            title="Delete"
+            .label=${"Delete"}
+            @click=${() => this._onDelete(period)}
+            ><ha-icon icon="mdi:delete"></ha-icon
+          ></ha-icon-button>
+        </div>
       </div>
     `;
   }
