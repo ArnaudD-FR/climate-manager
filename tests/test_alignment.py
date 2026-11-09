@@ -260,6 +260,9 @@ async def test_waits_after_setpoint_change(hass, fake, freezer):
         # Reading low while regulating: the room ends up above its
         # setpoint, within _IDLE_MARGIN.
         (20.0, 21.0, 20.0),
+        # Room far below its setpoint, but the TRV reads above it and
+        # keeps the valve shut.
+        (20.5, 18.5, 20.0),
     ],
 )
 async def test_measured_while_the_trv_regulates(
@@ -297,6 +300,27 @@ async def test_shut_valve_not_measured(
         {"current_temperature": trv_temp, "temperature": setpoint},
     )
     hass.states.async_set(SENSOR, str(sensor_temp))
+
+    await _steady(aligner, config, freezer)
+
+    assert fake.writes == []
+
+
+@pytest.mark.parametrize(
+    ("trv_temp", "sensor_temp", "setpoint"),
+    [
+        # Salon, 2026-11-08: aligned there, the offset went to the clamp.
+        (19.5, 17.4, 20.0),
+        (18.0, 16.5, 20.0),
+    ],
+)
+async def test_wide_open_valve_not_measured(
+    hass, fake, freezer, trv_temp, sensor_temp, setpoint
+):
+    """The room more than _SATURATED_MARGIN below its setpoint, the TRV
+    reading below it too: the valve stays wide open, nothing is written."""
+    aligner, config = _aligner(hass)
+    _set_regulating(hass, trv_temp, sensor_temp, setpoint)
 
     await _steady(aligner, config, freezer)
 

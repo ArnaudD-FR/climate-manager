@@ -15,7 +15,11 @@ offset. This module owns the brand-neutral part:
   pre-heat boost (valve held wide open), and a shut valve (TRV off, or
   the room more than _IDLE_MARGIN above its setpoint, as at night): a
   cold radiator reads lower, and an offset aligned on it reads high once
-  heating (the salon stayed under its target all morning);
+  heating (the salon stayed under its target all morning); and a valve
+  held wide open (the room more than _SATURATED_MARGIN below its setpoint,
+  the TRV reading below it too): the reading changes nothing then, and
+  next to a radiator at full power the TRV reads higher than while
+  regulating;
 - and only in settled conditions: the TRV setpoint unchanged for
   _SETPOINT_SETTLE (the window lies under the current setpoint), and
   neither reading drifting: the means of the two halves of the window
@@ -87,6 +91,14 @@ _STABLE_TOLERANCE = 0.2
 # setpoint; a TRV reading up to the margin low while it regulates is still
 # corrected.
 _IDLE_MARGIN = 1.0
+# A room more than _SATURATED_MARGIN (°C) below the TRV setpoint, read
+# below it by the TRV too, keeps the valve wide open: the room lacks the
+# power to reach its setpoint. Next to a radiator at full power the TRV
+# reads higher than while regulating: aligned there, the salon offset went
+# from -2.9 to the -5.0 clamp (TRV 19.5 °C, room 17.4 °C, setpoint 20 °C,
+# 2026-11-08), then back to -3.0 within a day. A TRV reading above its
+# setpoint keeps the valve shut whatever the room: still corrected.
+_SATURATED_MARGIN = 1.0
 # History read when seeding: the window and the setpoint age.
 _SEED_SPAN = max(_STABLE_WINDOW, _SETPOINT_SETTLE)
 # What was written per target, kept across restarts.
@@ -199,6 +211,17 @@ def _idle(state: State, room_temp: float) -> bool:
     if not isinstance(setpoint, (int, float)):
         return False
     return room_temp > setpoint + _IDLE_MARGIN + 1e-9
+
+
+def _saturated(state: State, room_temp: float, trv_temp: float) -> bool:
+    """True when the TRV holds its valve wide open: the room more than
+    _SATURATED_MARGIN below its setpoint, the TRV reading below it too."""
+    setpoint = state.attributes.get("temperature")
+    if not isinstance(setpoint, (int, float)):
+        return False
+    return (
+        room_temp < setpoint - _SATURATED_MARGIN - 1e-9 and trv_temp < setpoint
+    )
 
 
 def _float_state(hass: HomeAssistant, entity_id: str | None) -> float | None:
@@ -461,7 +484,9 @@ class SensorAligner:
             return
         sensor_temp = sum(sensor_window) / 2
         trv_temp = sum(trv_window) / 2
-        if _idle(state, sensor_temp):
+        if _idle(state, sensor_temp) or _saturated(
+            state, sensor_temp, trv_temp
+        ):
             return
 
         delta = sensor_temp - trv_temp

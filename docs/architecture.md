@@ -381,39 +381,45 @@ a full cycle: a TRV regulating a steady room swung 19.6 ↔ 20.8 °C over 1–1.
 (parents' room, 2026-10-24), and a 60 min mean caught either phase — the offset
 went back and forth, 5 writes in 8 h. Measured while the TRV heats or regulates,
 its reading then driving the valve. Without valve position feedback (none over
-Matter), two regimes are left out: the pre-heat boost, valve held wide open, and
-a shut valve — the TRV off, or the room more than 1.0 °C (`_IDLE_MARGIN`) above
-its setpoint, as at night (rooms at 19.6–20.7 °C under an 18 °C setpoint). Next
-to a cold radiator the TRV reads lower than while heating, and an offset aligned
-on it reads high once heating: aligned at 01:34 on 2026-10-25 (−2.0 → −0.3), the
-salon TRV read 21.3 °C for a 19.8 °C room after the pre-heat and stayed shut
-until 08:20, and the salon and dining room offsets flipped twice a day. A TRV
-reading up to 1 °C low while it regulates (the room above its setpoint) is still
-corrected. Only settled conditions are measured: the TRV mode and setpoint
-unchanged for 120 min (the window lies under the current setpoint), and neither
-reading drifting — the means of the two hours of the window within 0.2 °C, for
-the sensor and for the TRV. A radiator heating up or cooling down, or the sun on
-a TRV, makes the TRV drift away from the room: correcting that gap would wind
-the offset up to the clamp. No alignment (nor readings recorded) while a
-pre-heat boosts (`Room.preheat_boosting`, measuring included until the boost is
-released): the valve held wide open drives the TRV far from the room; the window
-starts after the boost. Its release changes the setpoint, which restarts the
-settle time. The window and the setpoint age are seeded once per entity from the
-recorder (the last 120 min, every update: a TRV reading is an attribute), so a
-restart does not wait for a new window. A TRV's readings are seeded only from
-its last offset write — the one persisted in `climate_manager_alignment`, or the
-last change of the vendor's offset entity (`offset_entity_id`, the Tado X
-`temperature_offset` sensor) when later, a change made elsewhere: a restart
-right after a write must not correct the same gap twice. The persisted time
-matters: Tado X reported a write only at its next poll, so a restart 4 min after
-a write (Lucie's room, 2026-10-24) seeded the readings of before it and
-corrected the gap again. Without history (recorder not loaded, entity excluded)
-the window fills from the passes. The manifest lists `recorder` in
-`after_dependencies`. After a write the TRV readings start over, so the next
-correction waits for the TRV to settle on its new offset. An offset that does
-not change (at the clamp) is not written. At most one write attempt per target
-every 5 min, failures included (cloud API quotas; with Tado X each write also
-triggers a refresh). Each write logs
+Matter), three regimes are left out: the pre-heat boost, valve held wide open,
+and a shut valve — the TRV off, or the room more than 1.0 °C (`_IDLE_MARGIN`)
+above its setpoint, as at night (rooms at 19.6–20.7 °C under an 18 °C setpoint).
+Next to a cold radiator the TRV reads lower than while heating, and an offset
+aligned on it reads high once heating: aligned at 01:34 on 2026-10-25 (−2.0 →
+−0.3), the salon TRV read 21.3 °C for a 19.8 °C room after the pre-heat and
+stayed shut until 08:20, and the salon and dining room offsets flipped twice a
+day. A TRV reading up to 1 °C low while it regulates (the room above its
+setpoint) is still corrected. Nor a valve held wide open: the room more than 1.0
+°C (`_SATURATED_MARGIN`) below its setpoint, the TRV reading below it too. The
+room lacks the power to reach its setpoint, and next to a radiator at full power
+the TRV reads higher than while regulating: aligned there on 2026-11-08 (TRV
+19.5 °C, room 17.4 °C, setpoint 20 °C), the salon offset went from −2.9 to the
+−5.0 clamp, then back to −3.0 within a day. A TRV reading above its setpoint
+keeps the valve shut whatever the room, and is still corrected. Only settled
+conditions are measured: the TRV mode and setpoint unchanged for 120 min (the
+window lies under the current setpoint), and neither reading drifting — the
+means of the two hours of the window within 0.2 °C, for the sensor and for the
+TRV. A radiator heating up or cooling down, or the sun on a TRV, makes the TRV
+drift away from the room: correcting that gap would wind the offset up to the
+clamp. No alignment (nor readings recorded) while a pre-heat boosts
+(`Room.preheat_boosting`, measuring included until the boost is released): the
+valve held wide open drives the TRV far from the room; the window starts after
+the boost. Its release changes the setpoint, which restarts the settle time. The
+window and the setpoint age are seeded once per entity from the recorder (the
+last 120 min, every update: a TRV reading is an attribute), so a restart does
+not wait for a new window. A TRV's readings are seeded only from its last offset
+write — the one persisted in `climate_manager_alignment`, or the last change of
+the vendor's offset entity (`offset_entity_id`, the Tado X `temperature_offset`
+sensor) when later, a change made elsewhere: a restart right after a write must
+not correct the same gap twice. The persisted time matters: Tado X reported a
+write only at its next poll, so a restart 4 min after a write (Lucie's room,
+2026-10-24) seeded the readings of before it and corrected the gap again.
+Without history (recorder not loaded, entity excluded) the window fills from the
+passes. The manifest lists `recorder` in `after_dependencies`. After a write the
+TRV readings start over, so the next correction waits for the TRV to settle on
+its new offset. An offset that does not change (at the clamp) is not written. At
+most one write attempt per target every 5 min, failures included (cloud API
+quotas; with Tado X each write also triggers a refresh). Each write logs
 `align | room=… trv=… sensor=… trv=… delta=… offset=a→b threshold=…`. Offsets
 are remembered per target (`last_offset`, `last_changed`, `last_delta`, keyed by
 device or entity) and persisted; a correction starts from the offset last
